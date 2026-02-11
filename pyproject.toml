@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "networkx-backbone"
+version = "0.1.0"
+description = "Backbone extraction algorithms for complex networks"
+readme = "README.md"
+license = "BSD-3-Clause"
+requires-python = ">=3.10"
+authors = [
+    {name = "Brian C. Keegan", email = "brian.keegan@colorado.edu"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+    "networkx>=3.0",
+]
+
+[project.optional-dependencies]
+full = [
+    "numpy>=1.23",
+    "scipy>=1.9",
+]
+test = [
+    "pytest>=7.0",
+    "numpy>=1.23",
+    "scipy>=1.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/brianckeegan/networkx_backbone"
+Repository = "https://github.com/brianckeegan/networkx_backbone"
+Issues = "https://github.com/brianckeegan/networkx_backbone/issues"
+
+[tool.setuptools.packages.find]
+include = ["networkx_backbone*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
