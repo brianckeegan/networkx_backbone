@@ -5,6 +5,8 @@ Backbone extraction algorithms for complex networks, built on [NetworkX](https:/
 This library provides 47 functions across 8 modules for extracting backbone
 structures from weighted and unweighted networks.
 
+Full documentation: https://www.brianckeegan.com/networkx_backbone/
+
 ## Installation
 
 ```bash
