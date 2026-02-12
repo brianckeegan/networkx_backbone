@@ -116,9 +116,10 @@ Key papers behind the implemented methods:
 - Yassin A., Cherifi, H., Seba, H., & Togni, O. (2025). [Backbone extraction through statistical edge filtering: A comparative study](https://doi.org/10.1371/journal.pone.0316141). *PLoS One*, 20(1): e0316141.
 - Yassin A., Cherifi, H., Seba, H., & Togni, O. (2025). [Exploring weighted network backbone extraction: A comparative analysis of structural techniques](https://doi.org/10.1371/journal.pone.0322298). *PLoS One*, 20(5): e0322298.
 
-Other libraries:
+Other libraries and datasets:
 
 - Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023). [netbone](https://gitlab.liris.cnrs.fr/coregraphie/netbone).
+- Yassin, A., et al. (2025). [structural-backbone-methods-comparison](https://github.com/al1yass2n/structural-backbone-methods-comparison).
 - Neal, Z. (2022). [backbone](https://rbackbone.net/).
 - Chrol, B. & Bojanowski, M. (2018). [Proximity-based Methods for Link Prediction](https://cran.r-project.org/web/packages/linkprediction/vignettes/proxfun.html).
 
