@@ -1,34 +1,98 @@
+# Build and publish networkx-backbone as a conda package.
+#
+# Triggered on every push (for CI validation) and on release (for upload).
+# conda-forge publishing is handled separately via the feedstock repository;
+# this workflow builds the package and uploads to anaconda.org directly.
+
 name: Publish to Conda
 
-on: [push]
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
 
 jobs:
-  build-linux:
+  build-and-test:
+    name: Build and test conda package
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 5
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.10'
-    - name: Add conda to system path
-      run: |
-        # $CONDA is an environment variable pointing to the root of the miniconda directory
-        echo $CONDA/bin >> $GITHUB_PATH
-    - name: Install dependencies
-      run: |
-        conda env update --file environment.yml --name base
-    - name: Lint with flake8
-      run: |
-        conda install flake8
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        conda install pytest
-        pytest
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.12"
+          channels: conda-forge,defaults
+          channel-priority: strict
+
+      - name: Install conda-build tools
+        shell: bash -l {0}
+        run: |
+          conda install -y conda-build conda-verify anaconda-client
+
+      - name: Lint with flake8
+        shell: bash -l {0}
+        run: |
+          conda install -y flake8
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 networkx_backbone/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings
+          flake8 networkx_backbone/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Install package and test dependencies
+        shell: bash -l {0}
+        run: |
+          pip install -e ".[test]"
+
+      - name: Test with pytest
+        shell: bash -l {0}
+        run: pytest tests/ -v
+
+      - name: Build conda package
+        shell: bash -l {0}
+        run: |
+          conda build conda-recipe/ --output-folder dist/conda/ --no-anaconda-upload
+
+      - name: Upload conda package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: conda-package
+          path: dist/conda/
+
+  conda-publish:
+    name: Upload to anaconda.org
+    needs: build-and-test
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.12"
+          channels: conda-forge
+
+      - name: Install anaconda-client
+        shell: bash -l {0}
+        run: conda install -y anaconda-client
+
+      - name: Retrieve conda package
+        uses: actions/download-artifact@v4
+        with:
+          name: conda-package
+          path: dist/conda/
+
+      - name: Upload to anaconda.org
+        shell: bash -l {0}
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
+        run: |
+          anaconda upload --user brianckeegan dist/conda/noarch/*.tar.bz2

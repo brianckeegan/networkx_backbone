@@ -1,0 +1,49 @@
+{% set name = "networkx-backbone" %}
+{% set version = "0.1.0" %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  path: ..
+
+build:
+  noarch: python
+  number: 0
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+
+requirements:
+  host:
+    - python >=3.10
+    - pip
+    - setuptools >=64
+    - setuptools-scm >=8
+  run:
+    - python >=3.10
+    - networkx >=3.0
+
+test:
+  imports:
+    - networkx_backbone
+  requires:
+    - pytest >=7.0
+    - numpy >=1.23
+    - scipy >=1.9
+  commands:
+    - pytest --pyargs tests/ -v
+
+about:
+  home: https://github.com/brianckeegan/networkx_backbone
+  license: BSD-3-Clause
+  license_file: LICENSE
+  summary: Backbone extraction algorithms for complex networks
+  description: |
+    networkx-backbone provides 47 backbone extraction algorithms for
+    complex networks, organized into statistical, structural, proximity,
+    hybrid, bipartite, unweighted, filtering, and evaluation modules.
+  dev_url: https://github.com/brianckeegan/networkx_backbone
+
+extra:
+  recipe-maintainers:
+    - brianckeegan
