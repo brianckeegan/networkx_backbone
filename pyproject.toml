@@ -38,9 +38,18 @@ test = [
     "numpy>=1.23",
     "scipy>=1.9",
 ]
+docs = [
+    "sphinx>=7.0",
+    "pydata-sphinx-theme>=0.15",
+    "numpydoc>=1.6",
+    "sphinx-copybutton>=0.5",
+    "numpy>=1.23",
+    "scipy>=1.9",
+]
 
 [project.urls]
 Homepage = "https://github.com/brianckeegan/networkx_backbone"
+Documentation = "https://brianckeegan.github.io/networkx_backbone/"
 Repository = "https://github.com/brianckeegan/networkx_backbone"
 Issues = "https://github.com/brianckeegan/networkx_backbone/issues"
 

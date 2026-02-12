@@ -56,7 +56,7 @@ jobs:
       - name: Build conda package
         shell: bash -l {0}
         run: |
-          conda build conda-recipe/ --output-folder dist/conda/ --no-anaconda-upload
+          conda build .github/workflows/conda-recipe/ --output-folder dist/conda/ --no-anaconda-upload
 
       - name: Upload conda package artifact
         uses: actions/upload-artifact@v4
