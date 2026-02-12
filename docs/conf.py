@@ -1,0 +1,105 @@
+# Configuration file for the Sphinx documentation builder.
+#
+# For the full list of built-in configuration values, see the documentation:
+# https://www.sphinx-doc.org/en/master/usage/configuration.html
+
+# -- Project information -----------------------------------------------------
+
+project = "networkx-backbone"
+copyright = "2025, Brian C. Keegan"
+author = "Brian C. Keegan"
+release = "0.1.0"
+
+# -- General configuration ---------------------------------------------------
+
+extensions = [
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.autosummary",
+    "numpydoc",
+    "sphinx_copybutton",
+]
+
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+
+# -- Napoleon / numpydoc settings --------------------------------------------
+
+napoleon_google_docstring = False
+napoleon_numpy_docstring = True
+napoleon_use_param = True
+napoleon_use_rtype = True
+numpydoc_show_class_members = False
+numpydoc_validation_checks = set()
+
+# -- Nitpick settings --------------------------------------------------------
+# Suppress warnings for type references that numpydoc extracts from docstrings
+# (e.g. "graph", "string", "optional", "default=...") which are not real
+# Python classes.
+
+nitpick_ignore_regex = [
+    # Common type names from NumPy-style docstrings that are not real classes
+    (r"py:class", r"graph"),
+    (r"py:class", r"string"),
+    (r"py:class", r"optional"),
+    (r"py:class", r"default.*"),
+    (r"py:class", r"int"),
+    (r"py:class", r"float"),
+    (r"py:class", r"bool"),
+    (r"py:class", r"dict"),
+    (r"py:class", r"list"),
+    (r"py:class", r"callable"),
+    (r"py:class", r"iterable"),
+    (r"py:class", r"integer"),
+    (r"py:class", r"random_state"),
+    (r"py:class", r"networkx\.Graph"),
+    (r"py:class", r"networkx\.DiGraph"),
+    (r"py:class", r"or"),
+    # Quoted string values and set-like type annotations from docstrings
+    (r"py:class", r'".*"'),
+    (r"py:class", r'\{.*'),
+    (r"py:class", r'.*\}'),
+    # NetworkX exceptions
+    (r"py:exc", r"NetworkXError"),
+]
+
+suppress_warnings = ["ref.citation"]
+
+# -- Autodoc settings --------------------------------------------------------
+
+autodoc_member_order = "bysource"
+autodoc_default_options = {
+    "members": True,
+    "undoc-members": False,
+    "show-inheritance": True,
+}
+
+# -- Intersphinx mapping -----------------------------------------------------
+
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "networkx": ("https://networkx.org/documentation/stable/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+}
+
+# -- HTML output -------------------------------------------------------------
+
+html_theme = "pydata_sphinx_theme"
+html_theme_options = {
+    "github_url": "https://github.com/brianckeegan/networkx_backbone",
+    "use_edit_page_button": True,
+    "show_toc_level": 2,
+    "navigation_with_keys": True,
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
+}
+html_context = {
+    "github_user": "brianckeegan",
+    "github_repo": "networkx_backbone",
+    "github_version": "main",
+    "doc_path": "docs",
+}
+html_static_path = ["_static"]
