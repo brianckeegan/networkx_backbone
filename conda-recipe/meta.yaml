@@ -26,12 +26,14 @@ requirements:
 test:
   imports:
     - networkx_backbone
+  source_files:
+    - tests/
   requires:
     - pytest >=7.0
     - numpy >=1.23
     - scipy >=1.9
   commands:
-    - pytest --pyargs tests/ -v
+    - pytest tests/ -v
 
 about:
   home: https://github.com/brianckeegan/networkx_backbone
