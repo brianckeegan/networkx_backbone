@@ -10,6 +10,14 @@ Structural Methods
 
 .. autofunction:: strongest_n_ties
 
+.. autofunction:: global_sparsification
+
+.. autofunction:: primary_linkage_analysis
+
+.. autofunction:: edge_betweenness_filter
+
+.. autofunction:: node_degree_filter
+
 .. autofunction:: high_salience_skeleton
 
 .. autofunction:: metric_backbone

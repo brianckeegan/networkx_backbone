@@ -530,22 +530,27 @@ def resource_allocation_index(G):
 # =====================================================================
 
 
-def graph_distance_proximity(G):
-    r"""Score each edge by the reciprocal of shortest-path distance.
+def graph_distance_proximity(G, all_pairs=False):
+    r"""Score edges by reciprocal shortest-path distance.
 
-    For each edge (u, v), the score is ``1 / d(u, v)`` where *d* is
-    the shortest-path length.  The score is stored as the ``"dist"``
-    edge attribute.
+    By default, scores are computed for existing edges only.  With
+    ``all_pairs=True``, scores are computed for every node pair
+    (all unordered pairs in undirected graphs; all ordered pairs in directed
+    graphs, excluding self-pairs).
 
     Parameters
     ----------
     G : networkx.Graph or networkx.DiGraph
         Input graph.
+    all_pairs : bool, optional (default=False)
+        If ``False``, annotate only existing edges in a copy of *G*.
+        If ``True``, return a graph containing all node pairs as edges and
+        annotate each with ``"dist"``.
 
     Returns
     -------
     H : graph
-        Copy of *G* with the ``"dist"`` edge attribute added.
+        Graph with the ``"dist"`` edge attribute added.
 
     References
     ----------
@@ -560,14 +565,40 @@ def graph_distance_proximity(G):
     >>> H = graph_distance_proximity(G)
     >>> H[0][1]["dist"]
     1.0
+    >>> H_all = graph_distance_proximity(G, all_pairs=True)
+    >>> H_all[0][2]["dist"]
+    0.5
     """
-    H = G.copy()
-    for u, v in H.edges():
-        try:
-            d = nx.shortest_path_length(G, u, v)
-            H[u][v]["dist"] = 1.0 / d if d > 0 else 0.0
-        except nx.NetworkXNoPath:
-            H[u][v]["dist"] = 0.0
+    sp = dict(nx.all_pairs_shortest_path_length(G))
+
+    if not all_pairs:
+        H = G.copy()
+        for u, v in H.edges():
+            d = sp.get(u, {}).get(v)
+            H[u][v]["dist"] = 1.0 / d if d and d > 0 else 0.0
+        return H
+
+    H = G.__class__()
+    H.add_nodes_from(G.nodes(data=True))
+    nodes = list(G.nodes())
+
+    if G.is_directed():
+        pairs = ((u, v) for u in nodes for v in nodes if u != v)
+    else:
+        pairs = (
+            (u, v) for i, u in enumerate(nodes) for v in nodes[i + 1 :]
+        )
+
+    for u, v in pairs:
+        d = sp.get(u, {}).get(v)
+        dist_score = 1.0 / d if d and d > 0 else 0.0
+
+        edge_data = {}
+        if G.has_edge(u, v):
+            edge_data.update(G[u][v])
+        edge_data["dist"] = dist_score
+        H.add_edge(u, v, **edge_data)
+
     return H
 
 

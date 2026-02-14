@@ -107,6 +107,26 @@ class TestGraphDistanceProximity:
         H = graph_distance_proximity(G)
         assert H[0][1]["dist"] == 1.0
 
+    def test_default_existing_edges_only(self):
+        G = nx.path_graph(4)
+        H = graph_distance_proximity(G)
+        assert H.number_of_edges() == G.number_of_edges()
+        assert not H.has_edge(0, 2)
+
+    def test_all_pairs_mode(self):
+        G = nx.path_graph(4)
+        H = graph_distance_proximity(G, all_pairs=True)
+        assert H.number_of_edges() == 6
+        assert H[0][2]["dist"] == 0.5
+        assert H[0][3]["dist"] == 1.0 / 3.0
+
+    def test_all_pairs_mode_directed(self):
+        G = nx.DiGraph([(0, 1), (1, 2)])
+        H = graph_distance_proximity(G, all_pairs=True)
+        assert H.number_of_edges() == 6
+        assert H[0][2]["dist"] == 0.5
+        assert H[2][0]["dist"] == 0.0
+
 
 class TestLocalPathIndex:
     def test_positive_scores(self, complete4):

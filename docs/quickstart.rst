@@ -15,12 +15,10 @@ The recommended import convention is::
 Step 1: Create or load a weighted graph
 ---------------------------------------
 
-Most backbone methods operate on weighted graphs. Here we use the Zachary
-karate club graph and add uniform weights::
+Most backbone methods operate on weighted graphs. Here we use the built-in
+Les Miserables co-appearance network::
 
-    G = nx.karate_club_graph()
-    for u, v in G.edges():
-        G[u][v]["weight"] = 1.0
+    G = nx.les_miserables_graph()
 
 Step 2: Apply a backbone method
 -------------------------------
@@ -61,11 +59,12 @@ that lie on shortest paths::
 
     backbone = nb.metric_backbone(G)
 
-**Bipartite backbone**: Extract significant edges from a bipartite projection::
+**Bipartite backbone**: Score a bipartite projection, then filter by p-value::
 
-    B = nx.Graph()
-    B.add_edges_from([(1, "a"), (1, "b"), (2, "a"), (2, "c"), (3, "b"), (3, "c")])
-    backbone = nb.sdsm(B, agent_nodes=[1, 2, 3], alpha=0.05)
+    B = nx.davis_southern_women_graph()
+    women_nodes = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
+    H = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
+    backbone = nb.threshold_filter(H, "sdsm_pvalue", 0.05, mode="below")
 
 **Comparing methods**: Systematically compare multiple backbones::
 
@@ -81,4 +80,4 @@ Next steps
 - :doc:`concepts` -- Learn about the different categories of backbone methods
 - :doc:`user_guide/index` -- Detailed guides on workflows, method selection, and evaluation
 - :doc:`tutorials/index` -- Step-by-step tutorials for each method category
-- :doc:`api/index` -- Complete API reference for all 47 functions
+- :doc:`api/index` -- Complete API reference for all 65 functions

@@ -17,6 +17,8 @@ ecm_filter
     Gemmetto et al. (2017) -- enhanced configuration model.
 lans_filter
     Foti et al. (2011) -- nonparametric, empirical CDF-based.
+multiple_linkage_analysis
+    Local linkage significance backbone extraction.
 """
 
 import math
@@ -29,6 +31,11 @@ __all__ = [
     "marginal_likelihood_filter",
     "ecm_filter",
     "lans_filter",
+    "multiple_linkage_analysis",
+    # Short alias names
+    "disparity",
+    "mlf",
+    "lans",
 ]
 
 
@@ -517,6 +524,66 @@ def lans_filter(G, weight="weight"):
     return H
 
 
+def multiple_linkage_analysis(G, alpha=0.05, weight="weight"):
+    r"""Extract a backbone using Multiple Linkage Analysis (MLA).
+
+    MLA is a local-significance method that selects edges whose weights are
+    unusually high relative to neighboring edges. This implementation uses
+    edge-level empirical CDF p-values from :func:`lans_filter` and retains
+    edges with p-value <= ``alpha``.
+
+    Parameters
+    ----------
+    G : networkx.Graph or networkx.DiGraph
+        A NetworkX graph.
+    alpha : float, optional (default=0.05)
+        Significance threshold in [0, 1].
+    weight : string, optional (default="weight")
+        Edge attribute key for weights. All weights must be positive.
+
+    Returns
+    -------
+    H : graph
+        Backbone graph containing significant edges. Kept edges include both
+        ``"lans_pvalue"`` and ``"mla_pvalue"`` attributes.
+
+    Raises
+    ------
+    ValueError
+        If ``alpha`` is outside [0, 1].
+    NetworkXError
+        If any edge has a non-positive or missing weight.
+
+    References
+    ----------
+    .. [1] Van Nuffel, N., Heyndrickx, C., & Wets, G. (2010). Measuring
+       hierarchy and reciprocity in networks.
+    .. [2] Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023).
+       An evaluation tool for backbone extraction techniques in weighted
+       complex networks. *Scientific Reports*, 13, 17000.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> from networkx_backbone import multiple_linkage_analysis
+    >>> G = nx.Graph()
+    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
+    >>> H = multiple_linkage_analysis(G, alpha=0.5)
+    >>> all("mla_pvalue" in d for _, _, d in H.edges(data=True))
+    True
+    """
+    from networkx_backbone.filters import threshold_filter
+
+    if not 0.0 <= alpha <= 1.0:
+        raise ValueError("alpha must be in [0, 1]")
+
+    scored = lans_filter(G, weight=weight)
+    backbone = threshold_filter(scored, "lans_pvalue", alpha, mode="below")
+    for _, _, data in backbone.edges(data=True):
+        data["mla_pvalue"] = data["lans_pvalue"]
+    return backbone
+
+
 def _empirical_cdf(w, sorted_weights):
     """Compute the empirical CDF value F(w) from a sorted list."""
     n = len(sorted_weights)
@@ -530,3 +597,18 @@ def _empirical_cdf(w, sorted_weights):
         else:
             hi = mid
     return lo / n
+
+
+def disparity(G, weight="weight"):
+    """Alias for :func:`disparity_filter`."""
+    return disparity_filter(G, weight=weight)
+
+
+def mlf(G, weight="weight"):
+    """Alias for :func:`marginal_likelihood_filter`."""
+    return marginal_likelihood_filter(G, weight=weight)
+
+
+def lans(G, weight="weight"):
+    """Alias for :func:`lans_filter`."""
+    return lans_filter(G, weight=weight)

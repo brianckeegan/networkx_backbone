@@ -1,19 +1,20 @@
 Bipartite Projection Backbones
 ===============================
 
-This tutorial demonstrates how to extract significant edges from bipartite
-graph projections using the SDSM and FDSM methods.
+This tutorial demonstrates weighted bipartite projections (simple, hyper, ProbS,
+YCN) and backbone scoring with SDSM/FDSM, then extracts significant edges with
+filtering.
 
 What is a bipartite projection backbone?
 -----------------------------------------
 
-In many real-world datasets, relationships are bipartite: authors write papers,
-users rate products, students take classes. To study relationships among one
-set of nodes (e.g., authors), we project the bipartite graph into a
-unipartite graph where two nodes are connected if they share an artifact
-(e.g., co-authorship). However, this projection often produces a dense graph
-with many spurious connections. Backbone methods identify which co-occurrences
-are statistically significant.
+In many real-world datasets, relationships are bipartite: people attend events,
+authors write papers, users rate products. To study relationships among one
+set of nodes (for example, people), we project the bipartite graph into a
+unipartite graph where two people are connected if they share an event.
+However, this projection often produces a dense graph with many spurious
+connections. Backbone methods identify which co-occurrences are statistically
+significant.
 
 Setup
 -----
@@ -23,32 +24,51 @@ Setup
     import networkx as nx
     import networkx_backbone as nb
 
-    # Create a bipartite graph
-    # Agents (authors): 1, 2, 3, 4
-    # Artifacts (papers): "a", "b", "c", "d"
-    B = nx.Graph()
-    B.add_edges_from([
-        (1, "a"), (1, "b"), (1, "c"),
-        (2, "a"), (2, "b"),
-        (3, "b"), (3, "c"), (3, "d"),
-        (4, "c"), (4, "d"),
-    ])
+    # Davis Southern Women graph from NetworkX social generators
+    B = nx.davis_southern_women_graph()
 
-    agent_nodes = [1, 2, 3, 4]
+    # Choose the women partition as the "agent" nodes
+    women_nodes = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
+    event_nodes = [n for n, d in B.nodes(data=True) if d["bipartite"] == 1]
+
     print(f"Bipartite graph: {B.number_of_nodes()} nodes, {B.number_of_edges()} edges")
+    print(f"Women: {len(women_nodes)}, events: {len(event_nodes)}")
+
+Weighted projections
+--------------------
+
+Following Coscia & Neffke (2017, arXiv:1906.09081), you can project the
+bipartite graph into weighted one-mode networks using different weighting
+schemes::
+
+    G_simple = nb.simple_projection(B, women_nodes)
+    G_hyper = nb.hyper_projection(B, women_nodes)
+    G_probs = nb.probs_projection(B, women_nodes)  # symmetrized ProbS
+    G_ycn = nb.ycn_projection(B, women_nodes)      # symmetrized YCN
+
+    print("Simple edges:", G_simple.number_of_edges())
+    print("Hyper edges:", G_hyper.number_of_edges())
+    print("ProbS edges:", G_probs.number_of_edges())
+    print("YCN edges:", G_ycn.number_of_edges())
+
+You can also dispatch by name::
+
+    G = nb.bipartite_projection(B, women_nodes, method="probs")
 
 SDSM: Stochastic Degree Sequence Model
 ----------------------------------------
 
 The SDSM (Neal, 2014) uses an analytical approximation (Poisson-binomial via
-normal distribution) to compute p-values for each co-occurrence. It is fast
-because it avoids simulation::
+normal distribution) to compute p-values for each co-occurrence. It returns the
+full projection with ``"sdsm_pvalue"`` on each edge. You can choose which
+projection weights to attach to those edges via ``projection=``::
 
-    backbone = nb.sdsm(B, agent_nodes=agent_nodes, alpha=0.05)
+    H = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
+    backbone = nb.threshold_filter(H, "sdsm_pvalue", 0.05, mode="below")
     print(f"SDSM backbone: {backbone.number_of_nodes()} nodes, {backbone.number_of_edges()} edges")
 
     # Examine p-values
-    for u, v, data in backbone.edges(data=True):
+    for u, v, data in H.edges(data=True):
         print(f"  Edge ({u}, {v}): p-value = {data['sdsm_pvalue']:.4f}")
 
 FDSM: Fixed Degree Sequence Model
@@ -56,14 +76,34 @@ FDSM: Fixed Degree Sequence Model
 
 The FDSM (Neal et al., 2021) uses Monte Carlo simulation to compute p-values.
 It preserves the exact degree sequence of the bipartite graph in each random
-trial, making it more conservative than SDSM::
+trial. It also returns the full projection::
 
-    backbone = nb.fdsm(B, agent_nodes=agent_nodes, alpha=0.05, trials=1000, seed=42)
+    H = nb.fdsm(B, agent_nodes=women_nodes, trials=1000, seed=42, projection="ycn")
+    backbone = nb.threshold_filter(H, "fdsm_pvalue", 0.05, mode="below")
     print(f"FDSM backbone: {backbone.number_of_nodes()} nodes, {backbone.number_of_edges()} edges")
 
     # Examine p-values
-    for u, v, data in backbone.edges(data=True):
+    for u, v, data in H.edges(data=True):
         print(f"  Edge ({u}, {v}): p-value = {data['fdsm_pvalue']:.4f}")
+
+Additional null models
+----------------------
+
+Fixed-fill, fixed-row, and fixed-column models are also available::
+
+    bb_fill = nb.fixedfill(B, women_nodes, alpha=0.05)
+    bb_row = nb.fixedrow(B, women_nodes, alpha=0.05)
+    bb_col = nb.fixedcol(B, women_nodes, alpha=0.05)
+
+You can also use the high-level projection wrapper::
+
+    bb = nb.backbone_from_projection(
+        B,
+        women_nodes,
+        method="fixedrow",
+        alpha=0.05,
+        projection="probs",
+    )
 
 Comparing SDSM and FDSM
 -------------------------
@@ -78,20 +118,24 @@ Comparing SDSM and FDSM
 
 ::
 
-    sdsm_backbone = nb.sdsm(B, agent_nodes=agent_nodes, alpha=0.05)
-    fdsm_backbone = nb.fdsm(B, agent_nodes=agent_nodes, alpha=0.05, trials=1000, seed=42)
+    sdsm_scores = nb.sdsm(B, agent_nodes=women_nodes)
+    fdsm_scores = nb.fdsm(B, agent_nodes=women_nodes, trials=1000, seed=42)
+
+    sdsm_backbone = nb.threshold_filter(sdsm_scores, "sdsm_pvalue", 0.05, mode="below")
+    fdsm_backbone = nb.threshold_filter(fdsm_scores, "fdsm_pvalue", 0.05, mode="below")
 
     print(f"SDSM edges: {sdsm_backbone.number_of_edges()}")
     print(f"FDSM edges: {fdsm_backbone.number_of_edges()}")
 
-Weighted bipartite graphs
---------------------------
+Partition selection note
+------------------------
 
-Both methods support weighted bipartite graphs via the ``weight`` parameter.
-When provided, co-occurrence counts are replaced by sums of edge weights::
+``nx.davis_southern_women_graph()`` includes a ``"bipartite"`` node attribute,
+which makes partition selection straightforward. In general, pass whichever
+partition you want to project as ``agent_nodes``.
 
-    # Add weights to the bipartite graph
-    for u, v in B.edges():
-        B[u][v]["weight"] = 2.0
+References
+----------
 
-    backbone = nb.sdsm(B, agent_nodes=agent_nodes, alpha=0.05, weight="weight")
+- Coscia, M., & Neffke, F. M. (2017). *Network backboning with noisy data*.
+  https://arxiv.org/abs/1906.09081

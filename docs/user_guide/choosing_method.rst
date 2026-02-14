@@ -1,7 +1,7 @@
 Choosing a Method
 =================
 
-With 47 functions available, selecting the right backbone method depends on
+With 65 functions available, selecting the right backbone method depends on
 the properties of your network and the goals of your analysis.
 
 Decision guide
@@ -9,8 +9,12 @@ Decision guide
 
 **Is your graph bipartite?**
     Use :func:`~networkx_backbone.sdsm` (analytical) or
-    :func:`~networkx_backbone.fdsm` (Monte Carlo) to extract significant
-    edges from a bipartite projection.
+    :func:`~networkx_backbone.fdsm` (Monte Carlo) to score edges in a
+    bipartite projection and then filter by p-value. Fixed null-model variants are also
+    available via :func:`~networkx_backbone.fixedfill`,
+    :func:`~networkx_backbone.fixedrow`, and
+    :func:`~networkx_backbone.fixedcol`. Projection weighting can be selected
+    with ``projection="simple"|"hyper"|"probs"|"ycn"``.
 
 **Is your graph unweighted?**
     Use the :mod:`~networkx_backbone.unweighted` module:
@@ -81,6 +85,12 @@ Method comparison table
      - p-value
      - No guarantee
      - Statistical
+   * - :func:`~networkx_backbone.multiple_linkage_analysis`
+     - Yes
+     - Yes
+     - Subgraph
+     - No guarantee
+     - Statistical
    * - :func:`~networkx_backbone.global_threshold_filter`
      - Yes
      - Yes
@@ -89,6 +99,30 @@ Method comparison table
      - Structural
    * - :func:`~networkx_backbone.strongest_n_ties`
      - Yes
+     - Yes
+     - Subgraph
+     - No guarantee
+     - Structural
+   * - :func:`~networkx_backbone.global_sparsification`
+     - Yes
+     - Yes
+     - Subgraph
+     - No guarantee
+     - Structural
+   * - :func:`~networkx_backbone.primary_linkage_analysis`
+     - Yes
+     - Yes
+     - Subgraph
+     - No guarantee
+     - Structural
+   * - :func:`~networkx_backbone.edge_betweenness_filter`
+     - Yes
+     - Yes
+     - Subgraph
+     - No guarantee
+     - Structural
+   * - :func:`~networkx_backbone.node_degree_filter`
+     - No
      - Yes
      - Subgraph
      - No guarantee
@@ -187,7 +221,7 @@ Method comparison table
 Choosing a statistical method
 -----------------------------
 
-All five statistical methods test edge significance, but they differ in their
+All six statistical methods test edge significance, but they differ in their
 null models:
 
 - :func:`~networkx_backbone.disparity_filter`: Assumes each node's total
@@ -209,3 +243,6 @@ null models:
 - :func:`~networkx_backbone.lans_filter`: Nonparametric method using empirical
   CDFs. Makes no distributional assumptions but relies on sufficient data at
   each node.
+
+- :func:`~networkx_backbone.multiple_linkage_analysis`: Local linkage
+  significance method that returns a filtered backbone directly.

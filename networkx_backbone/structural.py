@@ -11,6 +11,14 @@ global_threshold_filter
     Simple weight cutoff.
 strongest_n_ties
     Per-node strongest edges.
+global_sparsification
+    Keep top-weight edges globally by fraction.
+primary_linkage_analysis
+    Nystuen & Dacey (1961) -- strongest outgoing edge per node.
+edge_betweenness_filter
+    Girvan & Newman (2002) -- keep top edge-betweenness edges.
+node_degree_filter
+    Keep nodes above a minimum degree threshold.
 high_salience_skeleton
     Grady et al. (2012) -- shortest-path tree participation.
 metric_backbone
@@ -30,6 +38,7 @@ maximum_spanning_tree_backbone
 """
 
 import heapq
+import math
 
 import networkx as nx
 from networkx.utils import not_implemented_for
@@ -37,6 +46,10 @@ from networkx.utils import not_implemented_for
 __all__ = [
     "global_threshold_filter",
     "strongest_n_ties",
+    "global_sparsification",
+    "primary_linkage_analysis",
+    "edge_betweenness_filter",
+    "node_degree_filter",
     "high_salience_skeleton",
     "metric_backbone",
     "ultrametric_backbone",
@@ -157,6 +170,216 @@ def strongest_n_ties(G, n=1, weight="weight"):
     for u, v in kept_edges:
         H.add_edge(u, v, **G[u][v])
     return H
+
+
+# =====================================================================
+# 2b. Global sparsification
+# =====================================================================
+
+
+def global_sparsification(G, s=0.5, weight="weight"):
+    """Keep the globally strongest fraction of edges.
+
+    This method ranks all edges by weight and keeps the top ``s`` fraction.
+
+    Parameters
+    ----------
+    G : graph
+        A NetworkX graph.
+    s : float, optional (default=0.5)
+        Fraction of edges to retain. Must be in (0, 1].
+    weight : string, optional (default="weight")
+        Edge attribute key used as the weight.
+
+    Returns
+    -------
+    H : graph
+        A new graph of the same type as *G* containing the retained edges.
+
+    Raises
+    ------
+    ValueError
+        If ``s`` is outside (0, 1].
+
+    References
+    ----------
+    .. [1] Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). Local graph
+       sparsification for scalable clustering. *SIGMOD*, 721-732.
+    """
+    if not 0.0 < s <= 1.0:
+        raise ValueError("s must be in (0, 1]")
+
+    H = G.__class__()
+    H.add_nodes_from(G.nodes(data=True))
+    m = G.number_of_edges()
+    if m == 0:
+        return H
+
+    keep = max(1, int(math.ceil(s * m)))
+    ranked_edges = sorted(
+        G.edges(data=True),
+        key=lambda x: (x[2].get(weight, 0.0), str(x[0]), str(x[1])),
+        reverse=True,
+    )
+    for u, v, data in ranked_edges[:keep]:
+        H.add_edge(u, v, **data)
+    return H
+
+
+# =====================================================================
+# 2c. Primary linkage analysis
+# =====================================================================
+
+
+def primary_linkage_analysis(G, weight="weight"):
+    """Build a directed primary-linkage graph.
+
+    Each node keeps only its strongest outgoing connection.
+
+    Parameters
+    ----------
+    G : networkx.Graph or networkx.DiGraph
+        Input weighted graph.
+    weight : string, optional (default="weight")
+        Edge attribute key used as the weight.
+
+    Returns
+    -------
+    H : networkx.DiGraph
+        Directed graph where each node has at most one outgoing edge.
+
+    References
+    ----------
+    .. [1] Nystuen, J. D., & Dacey, M. F. (1961). A graph theory
+       interpretation of nodal regions. *Papers in Regional Science*,
+       7(1), 29-42.
+    """
+    H = nx.DiGraph()
+    H.add_nodes_from(G.nodes(data=True))
+
+    if G.is_directed():
+        for u in G.nodes():
+            out_edges = list(G.out_edges(u, data=True))
+            if not out_edges:
+                continue
+            _, v, data = max(
+                out_edges, key=lambda x: (x[2].get(weight, 0.0), str(x[1]))
+            )
+            H.add_edge(u, v, **data)
+        return H
+
+    for u in G.nodes():
+        neighbors = list(G[u].items())
+        if not neighbors:
+            continue
+        v, data = max(neighbors, key=lambda x: (x[1].get(weight, 0.0), str(x[0])))
+        H.add_edge(u, v, **data)
+
+    return H
+
+
+# =====================================================================
+# 2d. Edge betweenness filter
+# =====================================================================
+
+
+def edge_betweenness_filter(G, s=0.5, weight="weight"):
+    """Keep edges with the highest edge-betweenness centrality.
+
+    Parameters
+    ----------
+    G : graph
+        A NetworkX graph.
+    s : float, optional (default=0.5)
+        Fraction of edges to retain. Must be in (0, 1].
+    weight : string, optional (default="weight")
+        Edge attribute key used as the weight. If present, distance is
+        interpreted as ``1 / weight``.
+
+    Returns
+    -------
+    H : graph
+        A graph containing the top-``s`` fraction of edges ranked by
+        ``"edge_betweenness"``.
+
+    Raises
+    ------
+    ValueError
+        If ``s`` is outside (0, 1].
+
+    References
+    ----------
+    .. [1] Girvan, M., & Newman, M. E. J. (2002). Community structure in
+       social and biological networks. *PNAS*, 99(12), 7821-7826.
+    """
+    if not 0.0 < s <= 1.0:
+        raise ValueError("s must be in (0, 1]")
+
+    scored = G.copy()
+    dist_attr = "__eb_dist__"
+    use_weight = any(weight in data for _, _, data in scored.edges(data=True))
+
+    if use_weight:
+        for _, _, data in scored.edges(data=True):
+            w = data.get(weight, 1.0)
+            data[dist_attr] = 1.0 / w if w > 0 else float("inf")
+        eb = nx.edge_betweenness_centrality(scored, weight=dist_attr, normalized=True)
+    else:
+        eb = nx.edge_betweenness_centrality(scored, weight=None, normalized=True)
+
+    for u, v, data in scored.edges(data=True):
+        data["edge_betweenness"] = float(eb.get((u, v), eb.get((v, u), 0.0)))
+        data.pop(dist_attr, None)
+
+    m = scored.number_of_edges()
+    keep = max(1, int(math.ceil(s * m))) if m > 0 else 0
+    ranked_edges = sorted(
+        scored.edges(data=True),
+        key=lambda x: (x[2]["edge_betweenness"], str(x[0]), str(x[1])),
+        reverse=True,
+    )
+
+    H = G.__class__()
+    H.add_nodes_from(scored.nodes(data=True))
+    for u, v, data in ranked_edges[:keep]:
+        H.add_edge(u, v, **data)
+    return H
+
+
+# =====================================================================
+# 2e. Node-degree filter
+# =====================================================================
+
+
+def node_degree_filter(G, min_degree=1):
+    """Keep nodes with degree at or above a minimum threshold.
+
+    Parameters
+    ----------
+    G : graph
+        A NetworkX graph.
+    min_degree : int, optional (default=1)
+        Minimum degree required for a node to be retained.
+
+    Returns
+    -------
+    H : graph
+        Induced subgraph on retained nodes.
+
+    Raises
+    ------
+    ValueError
+        If ``min_degree`` is negative.
+
+    References
+    ----------
+    .. [1] Freeman, L. C. (1978). Centrality in social networks:
+       conceptual clarification. *Social Networks*, 1(3), 215-239.
+    """
+    if min_degree < 0:
+        raise ValueError("min_degree must be >= 0")
+    keep_nodes = [n for n, deg in G.degree() if deg >= min_degree]
+    return G.subgraph(keep_nodes).copy()
 
 
 # =====================================================================

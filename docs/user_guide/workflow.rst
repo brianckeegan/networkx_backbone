@@ -21,9 +21,7 @@ Most backbone methods follow a two-step process:
     import networkx as nx
     import networkx_backbone as nb
 
-    G = nx.karate_club_graph()
-    for u, v in G.edges():
-        G[u][v]["weight"] = 1.0
+    G = nx.les_miserables_graph()
 
     # Step 1: Score
     H = nb.disparity_filter(G)
@@ -117,19 +115,33 @@ attribute name when calling a filter function.
 Filtering functions
 -------------------
 
-The :mod:`~networkx_backbone.filters` module provides four ways to extract
-a backbone from a scored graph.
+The :mod:`~networkx_backbone.filters` module provides filtering functions and
+graph-preparation support utilities.
+
+:func:`~networkx_backbone.multigraph_to_weighted`
+    Convert ``MultiGraph`` / ``MultiDiGraph`` inputs into weighted simple
+    graphs by collapsing parallel edges. Use ``edge_type_attr`` to count
+    distinct edge types per node pair::
+
+        weighted_simple = nb.multigraph_to_weighted(MG, edge_type_attr="edge_type")
+
+    The high-level :func:`~networkx_backbone.backbone_from_weighted` wrapper
+    applies this conversion automatically for multigraph inputs by default.
 
 :func:`~networkx_backbone.threshold_filter`
     Keep edges where the score is below (for p-values) or above (for importance
     scores) a given threshold. Use ``mode="below"`` for p-values and
-    ``mode="above"`` for importance scores::
+    ``mode="above"`` for importance scores. By default, all input nodes are
+    kept; set ``include_all_nodes=False`` to drop isolates::
 
         # For p-values (keep low values)
         backbone = nb.threshold_filter(H, "disparity_pvalue", 0.05)
 
         # For scores (keep high values)
         backbone = nb.threshold_filter(H, "salience", 0.5, mode="above")
+
+        # Optionally remove isolate nodes after edge filtering
+        backbone = nb.threshold_filter(H, "disparity_pvalue", 0.05, include_all_nodes=False)
 
 :func:`~networkx_backbone.fraction_filter`
     Keep a fixed fraction of edges, sorted by score. Use ``ascending=True``
@@ -152,6 +164,18 @@ a backbone from a scored graph.
         b2 = nb.metric_backbone(G)
         consensus = nb.consensus_backbone(b1, b2)
 
+Visual comparison
+-----------------
+
+Use :mod:`~networkx_backbone.visualization` helpers to compare an original
+graph with a backbone and highlight dropped structure::
+
+    backbone = nb.threshold_filter(
+        nb.disparity_filter(G), "disparity_pvalue", 0.05, include_all_nodes=False
+    )
+    fig, ax, diff = nb.compare_graphs(G, backbone, return_diff=True)
+    print(f"Removed nodes: {len(diff['removed_nodes'])}")
+
 Methods that return subgraphs directly
 --------------------------------------
 
@@ -164,9 +188,18 @@ step:
 - :func:`~networkx_backbone.planar_maximally_filtered_graph` -- planar subgraph
 - :func:`~networkx_backbone.global_threshold_filter` -- simple weight cutoff
 - :func:`~networkx_backbone.strongest_n_ties` -- top-N edges per node
+- :func:`~networkx_backbone.global_sparsification` -- global edge ranking by weight
+- :func:`~networkx_backbone.primary_linkage_analysis` -- strongest outgoing edge per node
+- :func:`~networkx_backbone.edge_betweenness_filter` -- top edges by betweenness
+- :func:`~networkx_backbone.node_degree_filter` -- induced subgraph by node degree
 - :func:`~networkx_backbone.h_backbone` -- h-index inspired subgraph
-- :func:`~networkx_backbone.sdsm` -- bipartite backbone (filtered by alpha)
-- :func:`~networkx_backbone.fdsm` -- bipartite backbone (filtered by alpha)
 - :func:`~networkx_backbone.sparsify` -- unweighted sparsification
 - :func:`~networkx_backbone.lspar` -- local sparsification
 - :func:`~networkx_backbone.local_degree` -- degree-based sparsification
+- :func:`~networkx_backbone.multiple_linkage_analysis` -- statistical linkage subgraph
+
+For bipartite projections, :func:`~networkx_backbone.sdsm` and
+:func:`~networkx_backbone.fdsm` return full projected graphs with p-values
+(``sdsm_pvalue`` / ``fdsm_pvalue``), which you can then filter with
+:func:`~networkx_backbone.threshold_filter`. Use ``projection=`` to attach
+``simple``, ``hyper``, ``probs``, or ``ycn`` projection weights.

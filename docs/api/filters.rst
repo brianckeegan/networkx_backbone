@@ -6,6 +6,8 @@ Filters
 
 .. currentmodule:: networkx_backbone
 
+.. autofunction:: multigraph_to_weighted
+
 .. autofunction:: threshold_filter
 
 .. autofunction:: fraction_filter

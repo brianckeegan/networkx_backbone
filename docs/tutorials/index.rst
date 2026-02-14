@@ -13,3 +13,5 @@ extraction methods.
    bipartite_backbone
    comparing_methods
    unweighted_sparsification
+   les_miserables_benchmark
+   graph_gallery

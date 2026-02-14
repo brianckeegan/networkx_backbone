@@ -4,9 +4,13 @@ import networkx as nx
 import pytest
 
 from networkx_backbone import (
+    disparity,
     disparity_filter,
     ecm_filter,
+    lans,
     lans_filter,
+    mlf,
+    multiple_linkage_analysis,
     marginal_likelihood_filter,
     noise_corrected_filter,
 )
@@ -104,3 +108,28 @@ class TestLANSFilter:
     def test_preserves_structure(self, weighted_triangle):
         H = lans_filter(weighted_triangle)
         assert H.number_of_edges() == weighted_triangle.number_of_edges()
+
+
+class TestMultipleLinkageAnalysis:
+    def test_returns_subgraph_with_mla_pvalues(self, weighted_triangle):
+        H = multiple_linkage_analysis(weighted_triangle, alpha=0.5)
+        assert H.number_of_edges() <= weighted_triangle.number_of_edges()
+        for _, _, data in H.edges(data=True):
+            assert "mla_pvalue" in data
+            assert 0.0 <= data["mla_pvalue"] <= 1.0
+
+    def test_invalid_alpha_raises(self, weighted_triangle):
+        with pytest.raises(ValueError):
+            multiple_linkage_analysis(weighted_triangle, alpha=1.5)
+
+
+class TestStatisticalAliases:
+    def test_aliases_match_filter_outputs(self, weighted_triangle):
+        h_disparity = disparity(weighted_triangle)
+        h_lans = lans(weighted_triangle)
+        h_mlf = mlf(weighted_triangle)
+
+        for u, v in weighted_triangle.edges():
+            assert "disparity_pvalue" in h_disparity[u][v]
+            assert "lans_pvalue" in h_lans[u][v]
+            assert "ml_pvalue" in h_mlf[u][v]

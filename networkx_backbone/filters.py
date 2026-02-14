@@ -8,6 +8,7 @@ these functions extract the final subgraph.
 import networkx as nx
 
 __all__ = [
+    "multigraph_to_weighted",
     "threshold_filter",
     "fraction_filter",
     "boolean_filter",
@@ -15,7 +16,85 @@ __all__ = [
 ]
 
 
-def threshold_filter(G, score, threshold, mode="below", filter_on="edges"):
+def multigraph_to_weighted(G, weight="weight", edge_type_attr=None):
+    """Convert a MultiGraph/MultiDiGraph into a weighted simple graph.
+
+    Parallel edges between the same node pair are collapsed into a single
+    weighted edge.
+
+    Parameters
+    ----------
+    G : graph
+        A NetworkX graph. If ``G`` is a ``MultiGraph`` or ``MultiDiGraph``,
+        parallel edges are aggregated. For simple graphs, a copy is returned
+        with missing weights filled as 1.
+    weight : string, optional (default="weight")
+        Edge attribute name used to store the aggregated weight.
+    edge_type_attr : string or None, optional (default=None)
+        If provided, weight is the count of distinct values of this edge
+        attribute among parallel edges. If missing on all parallel edges,
+        falls back to the number of parallel edges.
+
+    Returns
+    -------
+    H : graph
+        ``nx.Graph`` for undirected input and ``nx.DiGraph`` for directed
+        input. Each collapsed edge includes:
+
+        - ``weight``: aggregated weight
+        - ``"edge_count"``: number of parallel edges collapsed
+        - ``"edge_type_count"``: number of distinct edge types (only when
+          ``edge_type_attr`` is provided)
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> from networkx_backbone import multigraph_to_weighted
+    >>> MG = nx.MultiGraph()
+    >>> MG.add_edge(0, 1, edge_type="a")
+    0
+    >>> MG.add_edge(0, 1, edge_type="b")
+    1
+    >>> H = multigraph_to_weighted(MG, edge_type_attr="edge_type")
+    >>> H[0][1]["weight"]
+    2
+    """
+    if not G.is_multigraph():
+        H = G.copy()
+        for _, _, data in H.edges(data=True):
+            data.setdefault(weight, 1)
+        return H
+
+    H = nx.DiGraph() if G.is_directed() else nx.Graph()
+    H.add_nodes_from(G.nodes(data=True))
+
+    grouped = {}
+    for u, v, _, data in G.edges(keys=True, data=True):
+        key = (u, v)
+        grouped.setdefault(key, []).append(data)
+
+    for (u, v), edge_datas in grouped.items():
+        edge_count = len(edge_datas)
+        out_data = {"edge_count": edge_count}
+
+        if edge_type_attr is None:
+            out_data[weight] = edge_count
+        else:
+            present_types = [
+                data[edge_type_attr] for data in edge_datas if edge_type_attr in data
+            ]
+            type_count = len(set(present_types)) if present_types else edge_count
+            out_data[weight] = type_count
+            out_data["edge_type_count"] = type_count
+
+        H.add_edge(u, v, **out_data)
+
+    return H
+
+
+def threshold_filter(
+    G, score, threshold, mode="below", filter_on="edges", include_all_nodes=True
+):
     """Retain edges or nodes whose score passes a threshold test.
 
     Parameters
@@ -32,13 +111,21 @@ def threshold_filter(G, score, threshold, mode="below", filter_on="edges"):
         (typical for salience or importance scores).
     filter_on : {"edges", "nodes"}, optional (default="edges")
         Whether to filter edges or nodes.
+    include_all_nodes : bool, optional (default=True)
+        Controls isolate retention in the output.
+
+        - If ``filter_on="edges"`` and ``True``, all input nodes are kept.
+          If ``False``, only nodes incident to retained edges are kept.
+        - If ``filter_on="nodes"`` and ``True``, all retained nodes are kept
+          even if isolated in the induced subgraph. If ``False``, retained
+          nodes with degree 0 are removed.
 
     Returns
     -------
     H : graph
         Filtered subgraph of the same type as *G*.  When filtering edges,
-        all original nodes are preserved.  When filtering nodes, only
-        retained nodes and their mutual edges are preserved.
+        all original nodes are preserved by default.  When filtering nodes,
+        only retained nodes and their mutual edges are preserved.
 
     Raises
     ------
@@ -62,7 +149,8 @@ def threshold_filter(G, score, threshold, mode="below", filter_on="edges"):
 
     if filter_on == "edges":
         H = G.__class__()
-        H.add_nodes_from(G.nodes(data=True))
+        if include_all_nodes:
+            H.add_nodes_from(G.nodes(data=True))
         for u, v, data in G.edges(data=True):
             val = data.get(score)
             if val is None:
@@ -83,7 +171,12 @@ def threshold_filter(G, score, threshold, mode="below", filter_on="edges"):
                 mode == "above" and val >= threshold
             ):
                 keep.add(node)
-        return G.subgraph(keep).copy()
+        H = G.subgraph(keep).copy()
+        if not include_all_nodes:
+            isolates = list(nx.isolates(H))
+            if isolates:
+                H.remove_nodes_from(isolates)
+        return H
 
     else:
         raise ValueError(f"filter_on must be 'edges' or 'nodes', got {filter_on!r}")

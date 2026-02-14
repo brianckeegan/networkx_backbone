@@ -42,3 +42,34 @@ def bipartite_graph():
         (3, "b"), (3, "c"),
     ])
     return B
+
+
+@pytest.fixture
+def davis_southern_women_graph():
+    """Davis Southern Women bipartite attendance network."""
+    return nx.davis_southern_women_graph()
+
+
+@pytest.fixture
+def davis_women_nodes(davis_southern_women_graph):
+    """Women partition from the Davis Southern Women graph."""
+    return [
+        n
+        for n, data in davis_southern_women_graph.nodes(data=True)
+        if data.get("bipartite") == 0
+    ]
+
+
+@pytest.fixture
+def les_miserables_weighted():
+    """Weighted co-appearance graph from Victor Hugo's *Les Miserables*."""
+    return nx.les_miserables_graph()
+
+
+@pytest.fixture
+def les_miserables_unweighted(les_miserables_weighted):
+    """Unweighted version of Les Miserables preserving nodes but dropping edge attrs."""
+    G = nx.Graph()
+    G.add_nodes_from(les_miserables_weighted.nodes(data=True))
+    G.add_edges_from(les_miserables_weighted.edges())
+    return G

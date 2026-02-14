@@ -41,7 +41,7 @@ about:
   license_file: LICENSE
   summary: Backbone extraction algorithms for complex networks
   description: |
-    networkx-backbone provides 47 backbone extraction algorithms for
+    networkx-backbone provides 56 backbone extraction algorithms for
     complex networks, organized into statistical, structural, proximity,
     hybrid, bipartite, unweighted, filtering, and evaluation modules.
   dev_url: https://github.com/brianckeegan/networkx_backbone

@@ -3,7 +3,7 @@ networkx-backbone
 
 **Backbone extraction algorithms for complex networks, built on NetworkX.**
 
-``networkx-backbone`` provides 47 functions across 8 modules for extracting
+``networkx-backbone`` provides 65 functions across 9 modules for extracting
 backbone structures from weighted and unweighted networks.
 
 .. list-table::
@@ -27,7 +27,7 @@ backbone structures from weighted and unweighted networks.
      - :func:`~networkx_backbone.glab_filter`
    * - :doc:`api/bipartite`
      - Bipartite projection backbones
-     - :func:`~networkx_backbone.sdsm`, :func:`~networkx_backbone.fdsm`
+     - :func:`~networkx_backbone.sdsm`, :func:`~networkx_backbone.fdsm`, :func:`~networkx_backbone.fixedrow`
    * - :doc:`api/unweighted`
      - Sparsification for unweighted graphs
      - :func:`~networkx_backbone.sparsify`, :func:`~networkx_backbone.lspar`
@@ -37,6 +37,9 @@ backbone structures from weighted and unweighted networks.
    * - :doc:`api/measures`
      - Evaluation and comparison
      - :func:`~networkx_backbone.compare_backbones`, :func:`~networkx_backbone.edge_fraction`
+   * - :doc:`api/visualization`
+     - Comparison plotting
+     - :func:`~networkx_backbone.compare_graphs`, :func:`~networkx_backbone.graph_difference`
 
 .. toctree::
    :maxdepth: 2

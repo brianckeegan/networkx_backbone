@@ -2,16 +2,17 @@
 Backbone extraction algorithms for complex networks.
 
 This package provides algorithms for extracting backbone structures from
-networks, organized into eight submodules:
+networks, organized into nine submodules:
 
 - **statistical**: Hypothesis-testing methods (disparity, noise-corrected, etc.)
 - **structural**: Topology-based methods (threshold, spanning tree, salience, etc.)
 - **proximity**: Neighborhood-similarity edge scoring (Jaccard, Dice, cosine, etc.)
 - **hybrid**: Combined statistical/structural methods (GLAB)
-- **bipartite**: Bipartite projection backbones (SDSM, FDSM)
+- **bipartite**: Bipartite projection backbones (SDSM, FDSM, fixed models, wrappers)
 - **unweighted**: Sparsification for unweighted graphs (LSpar, local degree)
 - **filters**: Post-hoc filtering utilities (threshold, fraction, boolean, consensus)
 - **measures**: Evaluation measures for comparing backbones
+- **visualization**: Graph-comparison plotting helpers
 """
 
 from networkx_backbone.statistical import *  # noqa: F401,F403
@@ -22,6 +23,7 @@ from networkx_backbone.bipartite import *  # noqa: F401,F403
 from networkx_backbone.unweighted import *  # noqa: F401,F403
 from networkx_backbone.filters import *  # noqa: F401,F403
 from networkx_backbone.measures import *  # noqa: F401,F403
+from networkx_backbone.visualization import *  # noqa: F401,F403
 
 __all__ = [
     # Statistical
@@ -30,9 +32,18 @@ __all__ = [
     "marginal_likelihood_filter",
     "ecm_filter",
     "lans_filter",
+    "multiple_linkage_analysis",
+    # Statistical aliases
+    "disparity",
+    "mlf",
+    "lans",
     # Structural
     "global_threshold_filter",
     "strongest_n_ties",
+    "global_sparsification",
+    "primary_linkage_analysis",
+    "edge_betweenness_filter",
+    "node_degree_filter",
     "high_salience_skeleton",
     "metric_backbone",
     "ultrametric_backbone",
@@ -57,13 +68,29 @@ __all__ = [
     # Hybrid
     "glab_filter",
     # Bipartite
+    "simple_projection",
+    "hyper_projection",
+    "probs_projection",
+    "ycn_projection",
+    "bipartite_projection",
     "sdsm",
     "fdsm",
+    "fixedfill",
+    "fixedrow",
+    "fixedcol",
+    "bicm",
+    "fastball",
+    # High-level wrappers
+    "backbone_from_projection",
+    "backbone_from_weighted",
+    "backbone_from_unweighted",
+    "backbone",
     # Unweighted
     "sparsify",
     "lspar",
     "local_degree",
     # Filters
+    "multigraph_to_weighted",
     "threshold_filter",
     "fraction_filter",
     "boolean_filter",
@@ -76,4 +103,8 @@ __all__ = [
     "ks_degree",
     "ks_weight",
     "compare_backbones",
+    # Visualization
+    "graph_difference",
+    "compare_graphs",
+    "save_graph_comparison",
 ]

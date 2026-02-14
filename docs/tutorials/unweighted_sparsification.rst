@@ -12,7 +12,10 @@ Setup
     import networkx as nx
     import networkx_backbone as nb
 
-    G = nx.karate_club_graph()
+    G_full = nx.les_miserables_graph()
+    G = nx.Graph()
+    G.add_nodes_from(G_full.nodes(data=True))
+    G.add_edges_from(G_full.edges())
     print(f"Original: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
 
 The sparsify pipeline

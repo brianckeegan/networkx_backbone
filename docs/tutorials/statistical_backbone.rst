@@ -1,7 +1,7 @@
 Statistical Backbone Extraction
 ================================
 
-This tutorial demonstrates all five statistical backbone extraction methods.
+This tutorial demonstrates six statistical backbone extraction methods.
 Each method tests whether an edge's weight is statistically significant under
 a null model.
 
@@ -14,9 +14,7 @@ We use a weighted graph for this tutorial::
     import networkx_backbone as nb
 
     # Create a weighted graph
-    G = nx.karate_club_graph()
-    for u, v in G.edges():
-        G[u][v]["weight"] = 1.0
+    G = nx.les_miserables_graph()
 
     print(f"Original: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
 
@@ -86,6 +84,15 @@ assumptions::
     backbone = nb.threshold_filter(H, "lans_pvalue", 0.05)
     print(f"LANS backbone: {backbone.number_of_edges()} edges")
 
+Multiple linkage analysis
+-------------------------
+
+Multiple linkage analysis (Van Nuffel et al., 2010; Yassin et al., 2023)
+extracts a backbone using local linkage significance::
+
+    backbone = nb.multiple_linkage_analysis(G, alpha=0.05)
+    print(f"MLA backbone: {backbone.number_of_edges()} edges")
+
 Comparing all statistical methods
 ----------------------------------
 
@@ -107,6 +114,7 @@ Use :func:`~networkx_backbone.compare_backbones` to compare the results::
         "lans": nb.threshold_filter(
             nb.lans_filter(G), "lans_pvalue", 0.05
         ),
+        "mla": nb.multiple_linkage_analysis(G, alpha=0.05),
     }
 
     results = nb.compare_backbones(G, backbones)

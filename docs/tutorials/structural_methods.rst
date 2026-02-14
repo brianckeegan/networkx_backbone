@@ -12,9 +12,7 @@ Setup
     import networkx as nx
     import networkx_backbone as nb
 
-    G = nx.karate_club_graph()
-    for u, v in G.edges():
-        G[u][v]["weight"] = 1.0
+    G = nx.les_miserables_graph()
 
     print(f"Original: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
 
@@ -30,6 +28,32 @@ Simple filters
 
     backbone = nb.strongest_n_ties(G, n=2)
     print(f"Strongest 2 ties: {backbone.number_of_edges()} edges")
+
+**Global sparsification** (Satuluri et al., 2011): Keep the globally
+strongest fraction of edges::
+
+    backbone = nb.global_sparsification(G, s=0.4)
+    print(f"Global sparsification (40%): {backbone.number_of_edges()} edges")
+
+Linkage and centrality filters
+------------------------------
+
+**Primary linkage analysis** (Nystuen & Dacey, 1961): Keep each node's
+strongest outgoing edge::
+
+    primary = nb.primary_linkage_analysis(G)
+    print(f"Primary linkage: {primary.number_of_edges()} directed edges")
+
+**Edge betweenness filter** (Girvan & Newman, 2002): Keep edges with the
+highest edge-betweenness centrality::
+
+    backbone = nb.edge_betweenness_filter(G, s=0.3)
+    print(f"Edge betweenness (30%): {backbone.number_of_edges()} edges")
+
+**Node degree filter**: Keep only nodes whose degree meets a threshold::
+
+    backbone = nb.node_degree_filter(G, min_degree=2)
+    print(f"Node degree (>=2): {backbone.number_of_nodes()} nodes")
 
 Shortest-path methods
 ---------------------
@@ -118,6 +142,8 @@ Comparing structural methods
         "metric": nb.metric_backbone(G),
         "ultrametric": nb.ultrametric_backbone(G),
         "h_backbone": nb.h_backbone(G),
+        "global_sparsification": nb.global_sparsification(G, s=0.4),
+        "edge_betweenness": nb.edge_betweenness_filter(G, s=0.3),
         "pmfg": nb.planar_maximally_filtered_graph(G),
         "mst": nb.maximum_spanning_tree_backbone(G),
     }

@@ -62,9 +62,7 @@ evaluate multiple backbone methods on the same graph::
     import networkx as nx
     import networkx_backbone as nb
 
-    G = nx.karate_club_graph()
-    for u, v in G.edges():
-        G[u][v]["weight"] = 1.0
+    G = nx.les_miserables_graph()
 
     backbones = {
         "disparity": nb.threshold_filter(

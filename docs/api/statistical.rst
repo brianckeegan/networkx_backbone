@@ -15,3 +15,13 @@ Statistical Methods
 .. autofunction:: ecm_filter
 
 .. autofunction:: lans_filter
+
+.. autofunction:: multiple_linkage_analysis
+
+.. rubric:: Alias Names
+
+.. autofunction:: disparity
+
+.. autofunction:: mlf
+
+.. autofunction:: lans

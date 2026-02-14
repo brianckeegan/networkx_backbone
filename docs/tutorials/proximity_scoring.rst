@@ -14,7 +14,7 @@ Setup
     import networkx as nx
     import networkx_backbone as nb
 
-    G = nx.karate_club_graph()
+    G = nx.les_miserables_graph()
     print(f"Original: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
 
 Local proximity methods
@@ -68,6 +68,10 @@ These methods consider paths beyond immediate neighborhoods.
 **Graph distance proximity**: Reciprocal of shortest-path distance::
 
     H = nb.graph_distance_proximity(G)
+
+Compute scores for all node pairs (not just existing edges)::
+
+    H_all = nb.graph_distance_proximity(G, all_pairs=True)
 
 **Local path index**: Considers paths of length 2 and 3 using adjacency
 matrix powers::

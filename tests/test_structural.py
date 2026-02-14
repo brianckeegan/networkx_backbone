@@ -5,13 +5,17 @@ import pytest
 
 from networkx_backbone import (
     doubly_stochastic_filter,
+    edge_betweenness_filter,
     global_threshold_filter,
+    global_sparsification,
     h_backbone,
     high_salience_skeleton,
     maximum_spanning_tree_backbone,
     metric_backbone,
     modularity_backbone,
+    node_degree_filter,
     planar_maximally_filtered_graph,
+    primary_linkage_analysis,
     strongest_n_ties,
     ultrametric_backbone,
 )
@@ -48,6 +52,50 @@ class TestStrongestNTies:
     def test_preserves_all_nodes(self, weighted_triangle):
         H = strongest_n_ties(weighted_triangle, n=1)
         assert set(H.nodes()) == set(weighted_triangle.nodes())
+
+
+class TestGlobalSparsification:
+    def test_keeps_fraction_of_edges(self, weighted_triangle):
+        H = global_sparsification(weighted_triangle, s=0.5)
+        assert H.number_of_edges() == 2
+        assert set(H.nodes()) == set(weighted_triangle.nodes())
+
+    def test_invalid_fraction_raises(self, weighted_triangle):
+        with pytest.raises(ValueError):
+            global_sparsification(weighted_triangle, s=0.0)
+
+
+class TestPrimaryLinkageAnalysis:
+    def test_returns_directed_graph(self, weighted_triangle):
+        H = primary_linkage_analysis(weighted_triangle)
+        assert isinstance(H, nx.DiGraph)
+        assert set(H.nodes()) == set(weighted_triangle.nodes())
+        for node in H.nodes():
+            assert H.out_degree(node) <= 1
+
+
+class TestEdgeBetweennessFilter:
+    def test_keeps_fraction_and_adds_attribute(self, weighted_triangle):
+        H = edge_betweenness_filter(weighted_triangle, s=0.5)
+        assert H.number_of_edges() == 2
+        for _, _, data in H.edges(data=True):
+            assert "edge_betweenness" in data
+
+    def test_invalid_fraction_raises(self, weighted_triangle):
+        with pytest.raises(ValueError):
+            edge_betweenness_filter(weighted_triangle, s=1.5)
+
+
+class TestNodeDegreeFilter:
+    def test_filters_nodes_by_degree(self):
+        G = nx.path_graph(4)
+        H = node_degree_filter(G, min_degree=2)
+        assert set(H.nodes()) == {1, 2}
+        assert H.number_of_edges() == 1
+
+    def test_negative_degree_raises(self, karate):
+        with pytest.raises(ValueError):
+            node_degree_filter(karate, min_degree=-1)
 
 
 class TestHighSalienceSkeleton:

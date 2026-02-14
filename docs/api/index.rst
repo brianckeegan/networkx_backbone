@@ -1,7 +1,7 @@
 API Reference
 =============
 
-Complete API documentation for all 47 functions across 8 modules.
+Complete API documentation for backbone functions across 9 modules.
 
 .. list-table::
    :header-rows: 1
@@ -11,11 +11,11 @@ Complete API documentation for all 47 functions across 8 modules.
      - Functions
      - Description
    * - :doc:`statistical`
-     - 5
-     - Hypothesis-testing methods (disparity, noise-corrected, marginal likelihood, ECM, LANS)
+     - 9
+     - Hypothesis-testing methods plus short alias names
    * - :doc:`structural`
-     - 10
-     - Topology-based methods (threshold, spanning tree, salience, metric, planarity)
+     - 14
+     - Topology-based methods (threshold, sparsification, linkage, centrality, spanning tree, salience, metric, planarity)
    * - :doc:`proximity`
      - 12
      - Neighborhood-similarity edge scoring (Jaccard, Dice, cosine, Adamic-Adar)
@@ -23,17 +23,20 @@ Complete API documentation for all 47 functions across 8 modules.
      - 1
      - Combined statistical/structural methods (GLAB)
    * - :doc:`bipartite`
-     - 2
-     - Bipartite projection backbones (SDSM, FDSM)
+     - 11
+     - Projection backbones, fixed null models, and high-level wrappers
    * - :doc:`unweighted`
      - 3
      - Sparsification for unweighted graphs (LSpar, local degree)
    * - :doc:`filters`
-     - 4
-     - Post-hoc filtering utilities (threshold, fraction, boolean, consensus)
+     - 5
+     - Post-hoc filtering utilities and graph-conversion support
    * - :doc:`measures`
      - 7
      - Evaluation measures for comparing backbones
+   * - :doc:`visualization`
+     - 3
+     - Graph comparison and plotting helpers for backbone differences
 
 .. toctree::
    :maxdepth: 1
@@ -47,3 +50,4 @@ Complete API documentation for all 47 functions across 8 modules.
    unweighted
    filters
    measures
+   visualization

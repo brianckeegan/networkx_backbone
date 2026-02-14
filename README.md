@@ -2,7 +2,7 @@
 
 Backbone extraction algorithms for complex networks, built on [NetworkX](https://networkx.org/).
 
-This library provides 47 functions across 8 modules for extracting backbone
+This library provides 65 functions across 9 modules for extracting backbone
 structures from weighted and unweighted networks.
 
 Full documentation: https://www.brianckeegan.com/networkx_backbone/
@@ -31,14 +31,24 @@ pip install -e ".[full]"
 
 | Module | Description | Key Functions |
 |--------|-------------|---------------|
-| **statistical** | Hypothesis-testing methods | `disparity_filter`, `noise_corrected_filter`, `marginal_likelihood_filter`, `ecm_filter`, `lans_filter` |
-| **structural** | Topology-based methods | `global_threshold_filter`, `strongest_n_ties`, `high_salience_skeleton`, `metric_backbone`, `ultrametric_backbone`, `doubly_stochastic_filter`, `h_backbone`, `modularity_backbone`, `planar_maximally_filtered_graph`, `maximum_spanning_tree_backbone` |
+| **statistical** | Hypothesis-testing methods | `disparity_filter`, `noise_corrected_filter`, `marginal_likelihood_filter`, `ecm_filter`, `lans_filter`, `multiple_linkage_analysis` |
+| **structural** | Topology-based methods | `global_threshold_filter`, `strongest_n_ties`, `global_sparsification`, `primary_linkage_analysis`, `edge_betweenness_filter`, `node_degree_filter`, `high_salience_skeleton`, `metric_backbone`, `ultrametric_backbone`, `doubly_stochastic_filter`, `h_backbone`, `modularity_backbone`, `planar_maximally_filtered_graph`, `maximum_spanning_tree_backbone` |
 | **proximity** | Neighborhood-similarity scoring | `jaccard_backbone`, `dice_backbone`, `cosine_backbone`, `hub_promoted_index`, `hub_depressed_index`, `adamic_adar_index`, `resource_allocation_index`, `local_path_index`, and more |
 | **hybrid** | Combined approaches | `glab_filter` |
-| **bipartite** | Bipartite projection backbones | `sdsm`, `fdsm` |
+| **bipartite** | Bipartite projection backbones | `simple_projection`, `hyper_projection`, `probs_projection`, `ycn_projection`, `sdsm`, `fdsm`, `fixedfill`, `fixedrow`, `fixedcol`, `backbone` |
 | **unweighted** | Sparsification for unweighted graphs | `sparsify`, `lspar`, `local_degree` |
-| **filters** | Post-hoc filtering utilities | `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone` |
+| **filters** | Post-hoc filtering utilities | `multigraph_to_weighted`, `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone` |
 | **measures** | Evaluation and comparison | `node_fraction`, `edge_fraction`, `weight_fraction`, `reachability`, `ks_degree`, `ks_weight`, `compare_backbones` |
+| **visualization** | Graph comparison plotting | `graph_difference`, `compare_graphs`, `save_graph_comparison` |
+
+## NetBone Core Coverage
+
+Core method families used in [netbone](https://gitlab.liris.cnrs.fr/coregraphie/netbone)
+(Yassin et al., 2023) are represented here, including:
+
+- Statistical: `disparity_filter`, `marginal_likelihood_filter`, `ecm_filter`, `noise_corrected_filter`, `lans_filter`, `multiple_linkage_analysis`
+- Structural: `global_threshold_filter`, `global_sparsification`, `primary_linkage_analysis`, `edge_betweenness_filter`, `high_salience_skeleton`, `doubly_stochastic_filter`, `maximum_spanning_tree_backbone`
+- Hybrid: `glab_filter`
 
 ## Quick Start
 
@@ -47,9 +57,7 @@ import networkx as nx
 import networkx_backbone as nb
 
 # Create a weighted graph
-G = nx.karate_club_graph()
-for u, v in G.edges():
-    G[u][v]["weight"] = 1.0
+G = nx.les_miserables_graph()
 
 # Extract backbone using the disparity filter
 H = nb.disparity_filter(G)
@@ -75,11 +83,14 @@ backbone = nb.fraction_filter(H, "jaccard", 0.2, ascending=False)
 ### Bipartite backbone
 
 ```python
-B = nx.Graph()
-B.add_edges_from([(1, "a"), (1, "b"), (2, "a"), (2, "c"), (3, "b"), (3, "c")])
-
-backbone = nb.sdsm(B, agent_nodes=[1, 2, 3], alpha=0.05)
+B = nx.davis_southern_women_graph()
+women_nodes = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
+H = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
+backbone = nb.threshold_filter(H, "sdsm_pvalue", 0.05, mode="below")
 ```
+
+Projection weights follow the simple/hyper/ProbS/YCN formulations described in
+[Coscia & Neffke (2017)](https://arxiv.org/abs/1906.09081).
 
 ### Comparing multiple methods
 
@@ -94,7 +105,7 @@ results = nb.compare_backbones(G, backbones)
 ## Dependencies
 
 - **Required**: `networkx >= 3.0`
-- **Optional**: `numpy >= 1.23`, `scipy >= 1.9` (needed for statistical methods, bipartite methods, doubly stochastic filter, local path index, and KS measures)
+- **Optional**: `numpy >= 1.23`, `scipy >= 1.9`, `matplotlib >= 3.7` (needed for statistical methods, bipartite methods, some structural/proximity methods, visualization helpers, and docs gallery generation)
 
 ## Testing
 
@@ -103,11 +114,24 @@ pip install -e ".[test]"
 pytest
 ```
 
+## Visualization gallery
+
+Generate backbone comparison visualizations for all core methods and refresh
+the docs gallery page:
+
+```bash
+python scripts/generate_visualizations.py
+```
+
+This writes PNG assets to `docs/_static/graph_gallery/` and updates
+`docs/tutorials/graph_gallery.rst`.
+
 ## References
 
 Key papers behind the implemented methods:
 
 - Coscia, M. & Neffke, F. M. (2017). [Network backboning with noisy data](https://doi.ieeecomputersociety.org/10.1109/ICDE.2017.100). *Proc. IEEE ICDE*, 425-436.
+- Coscia, M. & Neffke, F. M. (2017). [Network backboning with noisy data (arXiv:1906.09081)](https://arxiv.org/abs/1906.09081).
 - Grady, D., Thiemann, C., & Brockmann, D. (2012). [Robust classification of salient links in complex networks](https://doi.org/10.1038/ncomms1847). *Nature Communications*, 3, 864.
 - Hamann, M., Lindner, G., Meyerhenke, H., Staudt, C. L., and Wagner, D. (2016). [Structure-Preserving Sparsification Methods for Social Networks](https://doi.org/10.1007/s13278-016-0332-2). Social Network Analysis and Mining, 6, 22.
 - Simas, T., Correia, R. B., & Rocha, L. M. (2021). [The distance backbone of complex networks](https://doi.org/10.1093/comnet/cnab021). *J. Complex Networks*, 9(6), cnab021.
@@ -121,6 +145,10 @@ Key papers behind the implemented methods:
 Other libraries and datasets:
 
 - Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023). [netbone](https://gitlab.liris.cnrs.fr/coregraphie/netbone).
+- Girvan, M., & Newman, M. E. J. (2002). [Community structure in social and biological networks](https://doi.org/10.1073/pnas.122653799). *PNAS*, 99(12), 7821-7826.
+- Nystuen, J. D., & Dacey, M. F. (1961). [A graph theory interpretation of nodal regions](https://doi.org/10.1111/j.1435-5597.1961.tb01778.x). *Papers in Regional Science*, 7(1), 29-42.
+- Van Nuffel, N., Heyndrickx, C., & Wets, G. (2010). Measuring hierarchy and reciprocity in networks.
+- Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). [Local graph sparsification for scalable clustering](https://doi.org/10.1145/1989323.1989399). *SIGMOD*, 721-732.
 - Yassin, A., et al. (2025). [structural-backbone-methods-comparison](https://github.com/al1yass2n/structural-backbone-methods-comparison).
 - Neal, Z. (2022). [backbone](https://rbackbone.net/).
 - Chrol, B. & Bojanowski, M. (2018). [Proximity-based Methods for Link Prediction](https://cran.r-project.org/web/packages/linkprediction/vignettes/proxfun.html).

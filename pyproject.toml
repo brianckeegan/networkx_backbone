@@ -43,6 +43,7 @@ docs = [
     "pydata-sphinx-theme>=0.15",
     "numpydoc>=1.6",
     "sphinx-copybutton>=0.5",
+    "matplotlib>=3.7",
     "numpy>=1.23",
     "scipy>=1.9",
 ]

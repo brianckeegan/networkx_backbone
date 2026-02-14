@@ -1,0 +1,51 @@
+# Generate backbone comparison visualizations and the docs gallery page.
+
+name: Generate Visualization Gallery
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "networkx_backbone/**/*.py"
+      - "scripts/generate_visualizations.py"
+      - "docs/**/*.rst"
+      - ".github/workflows/generate-visualizations.yml"
+
+jobs:
+  generate-gallery:
+    name: Build visual comparison gallery
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[full,docs]" matplotlib
+          python -m pip install -r docs/requirements.txt
+
+      - name: Generate visualizations and gallery RST
+        env:
+          MPLCONFIGDIR: /tmp/matplotlib
+          XDG_CACHE_HOME: /tmp/.cache
+        run: |
+          python scripts/generate_visualizations.py
+
+      - name: Build docs
+        run: |
+          cd docs
+          make html SPHINXOPTS="-W --keep-going -n"
+
+      - name: Upload gallery assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: visualization-gallery
+          path: |
+            docs/_static/graph_gallery/
+            docs/tutorials/graph_gallery.rst
+            docs/_build/html/
