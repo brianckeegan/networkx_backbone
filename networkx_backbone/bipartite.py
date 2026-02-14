@@ -879,7 +879,7 @@ def sdsm(
     alpha : float, optional (default=0.05)
         Retained for API compatibility. This function returns the full
         projected graph with p-values on all edges; apply
-        :func:`networkx_backbone.filters.threshold_filter` to select
+        :func:`~networkx_backbone.threshold_filter` to select
         significant edges.
     weight : None or string, optional (default=None)
         Not used for SDSM (bipartite is unweighted); reserved for API
@@ -1021,7 +1021,7 @@ def fdsm(
     alpha : float, optional (default=0.05)
         Retained for API compatibility. This function returns the full
         projected graph with p-values on all edges; apply
-        :func:`networkx_backbone.filters.threshold_filter` to select
+        :func:`~networkx_backbone.threshold_filter` to select
         significant edges.
     trials : int, optional (default=1000)
         Number of Monte Carlo randomisations.
