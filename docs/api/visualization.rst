@@ -1,6 +1,9 @@
 Visualization
 =============
 
+Examples in this module use ``nx.les_miserables_graph()``.
+Complexity classes are provided in each function's ``Complexity`` section.
+
 .. automodule:: networkx_backbone.visualization
    :no-members:
 
@@ -11,3 +14,9 @@ Visualization
 .. autofunction:: compare_graphs
 
 .. autofunction:: save_graph_comparison
+
+.. minigallery::
+   networkx_backbone.graph_difference
+   networkx_backbone.compare_graphs
+   networkx_backbone.save_graph_comparison
+   :add-heading: Gallery Examples

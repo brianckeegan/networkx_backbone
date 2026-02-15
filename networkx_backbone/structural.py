@@ -43,6 +43,8 @@ import math
 import networkx as nx
 from networkx.utils import not_implemented_for
 
+from networkx_backbone._docstrings import append_complexity_docstrings
+
 __all__ = [
     "global_threshold_filter",
     "strongest_n_ties",
@@ -61,17 +63,31 @@ __all__ = [
 ]
 
 
+def _edge_key(G, u, v):
+    """Return a deterministic edge key that is direction-aware."""
+    if G.is_directed():
+        return (u, v)
+    ku = (type(u).__name__, repr(u))
+    kv = (type(v).__name__, repr(v))
+    return (u, v) if ku <= kv else (v, u)
+
+
+def _mark_kept_edges(H, keep_edges, attr):
+    """Annotate every edge in H with a boolean keep flag."""
+    for u, v, data in H.edges(data=True):
+        data[attr] = _edge_key(H, u, v) in keep_edges
+
+
 # =====================================================================
 # 1. Global threshold filter
 # =====================================================================
 
 
 def global_threshold_filter(G, threshold, weight="weight"):
-    """Return a subgraph containing only edges whose weight meets a threshold.
+    """Score edges against a global weight threshold.
 
-    Construct a new graph of the same type as *G* that keeps every node
-    but retains only edges whose *weight* attribute is greater than or
-    equal to *threshold*.
+    For each edge, mark whether its *weight* attribute is greater than
+    or equal to *threshold*.
 
     Parameters
     ----------
@@ -86,24 +102,22 @@ def global_threshold_filter(G, threshold, weight="weight"):
     Returns
     -------
     H : graph
-        A new graph of the same type as *G*.  All original nodes are
-        preserved; only edges meeting the threshold are included.
+        A copy of *G* with a boolean ``"global_threshold_keep"`` edge
+        attribute.
 
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import global_threshold_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import boolean_filter, global_threshold_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = global_threshold_filter(G, threshold=3.0)
-    >>> sorted(H.edges())
-    [(0, 1), (1, 2)]
+    >>> backbone = boolean_filter(H, "global_threshold_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
-    H = G.__class__()
-    H.add_nodes_from(G.nodes(data=True))
-    for u, v, data in G.edges(data=True):
-        if data.get(weight, 0) >= threshold:
-            H.add_edge(u, v, **data)
+    H = G.copy()
+    for _, _, data in H.edges(data=True):
+        data["global_threshold_keep"] = data.get(weight, 0) >= threshold
     return H
 
 
@@ -113,7 +127,7 @@ def global_threshold_filter(G, threshold, weight="weight"):
 
 
 def strongest_n_ties(G, n=1, weight="weight"):
-    """Retain the *n* strongest edges for every node.
+    """Score edges by strongest-*n* membership per node.
 
     For each node, select the *n* incident edges with the largest
     *weight* value.  An edge is kept if *either* endpoint selects it
@@ -132,8 +146,8 @@ def strongest_n_ties(G, n=1, weight="weight"):
     Returns
     -------
     H : graph
-        A new graph of the same type as *G* containing only the
-        selected edges.  All original nodes are preserved.
+        A copy of *G* with a boolean ``"strongest_n_ties_keep"`` edge
+        attribute.
 
     Raises
     ------
@@ -143,12 +157,12 @@ def strongest_n_ties(G, n=1, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import strongest_n_ties
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import boolean_filter, strongest_n_ties
+    >>> G = nx.les_miserables_graph()
     >>> H = strongest_n_ties(G, n=1)
-    >>> sorted(H.edges())
-    [(0, 1), (1, 2)]
+    >>> backbone = boolean_filter(H, "strongest_n_ties_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     if n < 1:
         raise ValueError("n must be >= 1")
@@ -158,17 +172,15 @@ def strongest_n_ties(G, n=1, weight="weight"):
         for u in G.nodes():
             out = [(data.get(weight, 0), v) for v, data in G[u].items()]
             for _, v in heapq.nlargest(n, out):
-                kept_edges.add((u, v))
+                kept_edges.add(_edge_key(G, u, v))
     else:
         for u in G.nodes():
             nbrs = [(G[u][v].get(weight, 0), v) for v in G[u]]
             for _, v in heapq.nlargest(n, nbrs):
-                kept_edges.add((u, v) if u <= v else (v, u))
+                kept_edges.add(_edge_key(G, u, v))
 
-    H = G.__class__()
-    H.add_nodes_from(G.nodes(data=True))
-    for u, v in kept_edges:
-        H.add_edge(u, v, **G[u][v])
+    H = G.copy()
+    _mark_kept_edges(H, kept_edges, "strongest_n_ties_keep")
     return H
 
 
@@ -178,7 +190,7 @@ def strongest_n_ties(G, n=1, weight="weight"):
 
 
 def global_sparsification(G, s=0.5, weight="weight"):
-    """Keep the globally strongest fraction of edges.
+    """Score edges by global top-fraction membership.
 
     This method ranks all edges by weight and keeps the top ``s`` fraction.
 
@@ -194,7 +206,8 @@ def global_sparsification(G, s=0.5, weight="weight"):
     Returns
     -------
     H : graph
-        A new graph of the same type as *G* containing the retained edges.
+        A copy of *G* with a boolean ``"global_sparsification_keep"``
+        edge attribute.
 
     Raises
     ------
@@ -209,8 +222,7 @@ def global_sparsification(G, s=0.5, weight="weight"):
     if not 0.0 < s <= 1.0:
         raise ValueError("s must be in (0, 1]")
 
-    H = G.__class__()
-    H.add_nodes_from(G.nodes(data=True))
+    H = G.copy()
     m = G.number_of_edges()
     if m == 0:
         return H
@@ -221,8 +233,8 @@ def global_sparsification(G, s=0.5, weight="weight"):
         key=lambda x: (x[2].get(weight, 0.0), str(x[0]), str(x[1])),
         reverse=True,
     )
-    for u, v, data in ranked_edges[:keep]:
-        H.add_edge(u, v, **data)
+    keep_edges = {_edge_key(G, u, v) for u, v, _ in ranked_edges[:keep]}
+    _mark_kept_edges(H, keep_edges, "global_sparsification_keep")
     return H
 
 
@@ -232,7 +244,7 @@ def global_sparsification(G, s=0.5, weight="weight"):
 
 
 def primary_linkage_analysis(G, weight="weight"):
-    """Build a directed primary-linkage graph.
+    """Score edges by primary-linkage membership.
 
     Each node keeps only its strongest outgoing connection.
 
@@ -245,8 +257,9 @@ def primary_linkage_analysis(G, weight="weight"):
 
     Returns
     -------
-    H : networkx.DiGraph
-        Directed graph where each node has at most one outgoing edge.
+    H : graph
+        A copy of *G* with a boolean ``"primary_linkage_keep"`` edge
+        attribute.
 
     References
     ----------
@@ -254,27 +267,29 @@ def primary_linkage_analysis(G, weight="weight"):
        interpretation of nodal regions. *Papers in Regional Science*,
        7(1), 29-42.
     """
-    H = nx.DiGraph()
-    H.add_nodes_from(G.nodes(data=True))
+    H = G.copy()
+    kept_edges = set()
 
     if G.is_directed():
         for u in G.nodes():
             out_edges = list(G.out_edges(u, data=True))
             if not out_edges:
                 continue
-            _, v, data = max(
+            _, v, _ = max(
                 out_edges, key=lambda x: (x[2].get(weight, 0.0), str(x[1]))
             )
-            H.add_edge(u, v, **data)
+            kept_edges.add(_edge_key(G, u, v))
+        _mark_kept_edges(H, kept_edges, "primary_linkage_keep")
         return H
 
     for u in G.nodes():
         neighbors = list(G[u].items())
         if not neighbors:
             continue
-        v, data = max(neighbors, key=lambda x: (x[1].get(weight, 0.0), str(x[0])))
-        H.add_edge(u, v, **data)
+        v, _ = max(neighbors, key=lambda x: (x[1].get(weight, 0.0), str(x[0])))
+        kept_edges.add(_edge_key(G, u, v))
 
+    _mark_kept_edges(H, kept_edges, "primary_linkage_keep")
     return H
 
 
@@ -284,7 +299,7 @@ def primary_linkage_analysis(G, weight="weight"):
 
 
 def edge_betweenness_filter(G, s=0.5, weight="weight"):
-    """Keep edges with the highest edge-betweenness centrality.
+    """Score edges by edge betweenness and top-fraction membership.
 
     Parameters
     ----------
@@ -299,8 +314,8 @@ def edge_betweenness_filter(G, s=0.5, weight="weight"):
     Returns
     -------
     H : graph
-        A graph containing the top-``s`` fraction of edges ranked by
-        ``"edge_betweenness"``.
+        A copy of *G* with ``"edge_betweenness"`` scores and a boolean
+        ``"edge_betweenness_keep"`` edge attribute.
 
     Raises
     ------
@@ -338,12 +353,9 @@ def edge_betweenness_filter(G, s=0.5, weight="weight"):
         key=lambda x: (x[2]["edge_betweenness"], str(x[0]), str(x[1])),
         reverse=True,
     )
-
-    H = G.__class__()
-    H.add_nodes_from(scored.nodes(data=True))
-    for u, v, data in ranked_edges[:keep]:
-        H.add_edge(u, v, **data)
-    return H
+    keep_edges = {_edge_key(scored, u, v) for u, v, _ in ranked_edges[:keep]}
+    _mark_kept_edges(scored, keep_edges, "edge_betweenness_keep")
+    return scored
 
 
 # =====================================================================
@@ -352,7 +364,7 @@ def edge_betweenness_filter(G, s=0.5, weight="weight"):
 
 
 def node_degree_filter(G, min_degree=1):
-    """Keep nodes with degree at or above a minimum threshold.
+    """Score nodes and edges by a minimum node-degree criterion.
 
     Parameters
     ----------
@@ -364,7 +376,8 @@ def node_degree_filter(G, min_degree=1):
     Returns
     -------
     H : graph
-        Induced subgraph on retained nodes.
+        A copy of *G* with boolean ``"node_degree_keep"`` on nodes and
+        edges.
 
     Raises
     ------
@@ -378,8 +391,13 @@ def node_degree_filter(G, min_degree=1):
     """
     if min_degree < 0:
         raise ValueError("min_degree must be >= 0")
-    keep_nodes = [n for n, deg in G.degree() if deg >= min_degree]
-    return G.subgraph(keep_nodes).copy()
+    H = G.copy()
+    keep_nodes = {n for n, deg in G.degree() if deg >= min_degree}
+    for n in H.nodes():
+        H.nodes[n]["node_degree_keep"] = n in keep_nodes
+    for u, v, data in H.edges(data=True):
+        data["node_degree_keep"] = (u in keep_nodes) and (v in keep_nodes)
+    return H
 
 
 # =====================================================================
@@ -418,11 +436,11 @@ def high_salience_skeleton(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import high_salience_skeleton
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import high_salience_skeleton, threshold_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = high_salience_skeleton(G)
-    >>> H[0][1]["salience"] >= 0
+    >>> backbone = threshold_filter(H, "salience", 0.5, mode="above")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     H = G.copy()
@@ -473,8 +491,7 @@ def metric_backbone(G, weight="weight"):
     Returns
     -------
     H : graph
-        A new graph of the same type as *G* containing only edges that
-        lie on shortest paths.  All original nodes are preserved.
+        A copy of *G* with boolean ``"metric_keep"`` on each edge.
 
     References
     ----------
@@ -484,11 +501,11 @@ def metric_backbone(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import metric_backbone
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import boolean_filter, metric_backbone
+    >>> G = nx.les_miserables_graph()
     >>> H = metric_backbone(G)
-    >>> H.number_of_edges() <= G.number_of_edges()
+    >>> backbone = boolean_filter(H, "metric_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     return _distance_backbone(G, weight=weight, ultrametric=False)
@@ -514,9 +531,7 @@ def ultrametric_backbone(G, weight="weight"):
     Returns
     -------
     H : graph
-        A new graph of the same type as *G* containing only edges that
-        satisfy the ultrametric condition.  All original nodes are
-        preserved.
+        A copy of *G* with boolean ``"ultrametric_keep"`` on each edge.
 
     References
     ----------
@@ -526,11 +541,11 @@ def ultrametric_backbone(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import ultrametric_backbone
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import boolean_filter, ultrametric_backbone
+    >>> G = nx.les_miserables_graph()
     >>> H = ultrametric_backbone(G)
-    >>> H.number_of_edges() <= G.number_of_edges()
+    >>> backbone = boolean_filter(H, "ultrametric_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     return _distance_backbone(G, weight=weight, ultrametric=True)
@@ -538,13 +553,13 @@ def ultrametric_backbone(G, weight="weight"):
 
 def _distance_backbone(G, weight="weight", ultrametric=False):
     """Shared helper for metric and ultrametric backbones."""
-    H = G.__class__()
-    H.add_nodes_from(G.nodes(data=True))
+    H = G.copy()
 
     dist_G = nx.Graph()
     for u, v, data in G.edges(data=True):
         dist_G.add_edge(u, v, dist=1.0 / data[weight])
 
+    keep_edges = set()
     if ultrametric:
         mst = nx.minimum_spanning_tree(dist_G, weight="dist")
         for u, v, data in G.edges(data=True):
@@ -554,14 +569,16 @@ def _distance_backbone(G, weight="weight", ultrametric=False):
                 dist_G[path[i]][path[i + 1]]["dist"] for i in range(len(path) - 1)
             )
             if abs(direct_dist - max_edge) < 1e-12 or direct_dist <= max_edge:
-                H.add_edge(u, v, **data)
+                keep_edges.add(_edge_key(G, u, v))
     else:
         sp = dict(nx.all_pairs_dijkstra_path_length(dist_G, weight="dist"))
         for u, v, data in G.edges(data=True):
             direct_dist = 1.0 / data[weight]
             if abs(direct_dist - sp[u][v]) < 1e-12:
-                H.add_edge(u, v, **data)
+                keep_edges.add(_edge_key(G, u, v))
 
+    keep_attr = "ultrametric_keep" if ultrametric else "metric_keep"
+    _mark_kept_edges(H, keep_edges, keep_attr)
     return H
 
 
@@ -604,11 +621,11 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import doubly_stochastic_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import doubly_stochastic_filter, threshold_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = doubly_stochastic_filter(G)
-    >>> "ds_weight" in H[0][1]
+    >>> backbone = threshold_filter(H, "ds_weight", 0.1, mode="above")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     import numpy as np
@@ -679,7 +696,7 @@ def h_backbone(G, weight="weight"):
     Returns
     -------
     H : graph
-        The h-backbone subgraph.  All original nodes are preserved.
+        A copy of *G* with boolean ``"h_backbone_keep"`` on each edge.
 
     References
     ----------
@@ -690,11 +707,11 @@ def h_backbone(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import h_backbone
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import boolean_filter, h_backbone
+    >>> G = nx.les_miserables_graph()
     >>> H = h_backbone(G)
-    >>> H.number_of_edges() <= G.number_of_edges()
+    >>> backbone = boolean_filter(H, "h_backbone_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     # Compute h-index of the weight sequence
@@ -710,7 +727,7 @@ def h_backbone(G, weight="weight"):
     h_strength_edges = set()
     for u, v, data in G.edges(data=True):
         if data[weight] >= h:
-            h_strength_edges.add((min(u, v), max(u, v)))
+            h_strength_edges.add(_edge_key(G, u, v))
 
     # h-bridge network: top-h edges by betweenness among NON-h-strength edges
     remaining = G.copy()
@@ -723,15 +740,12 @@ def h_backbone(G, weight="weight"):
         eb = nx.edge_betweenness_centrality(remaining, weight=weight)
         top_h = sorted(eb.items(), key=lambda x: x[1], reverse=True)[:h]
         for (u, v), _ in top_h:
-            h_bridge_edges.add((min(u, v), max(u, v)))
+            h_bridge_edges.add(_edge_key(G, u, v))
 
     # Union
     backbone_edges = h_strength_edges | h_bridge_edges
-    H = G.__class__()
-    H.add_nodes_from(G.nodes(data=True))
-    for u, v in backbone_edges:
-        if G.has_edge(u, v):
-            H.add_edge(u, v, **G[u][v])
+    H = G.copy()
+    _mark_kept_edges(H, backbone_edges, "h_backbone_keep")
     return H
 
 
@@ -759,8 +773,8 @@ def modularity_backbone(G, weight="weight"):
     Returns
     -------
     H : graph
-        A copy of *G* with an additional ``"vitality"`` node attribute
-        (float).
+        A copy of *G* with ``"vitality"`` node scores and boolean
+        ``"modularity_keep"`` on edges.
 
     References
     ----------
@@ -771,11 +785,11 @@ def modularity_backbone(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import modularity_backbone
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import boolean_filter, modularity_backbone
+    >>> G = nx.les_miserables_graph()
     >>> H = modularity_backbone(G)
-    >>> "vitality" in H.nodes[0]
+    >>> backbone = boolean_filter(H, "modularity_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     H = G.copy()
@@ -804,6 +818,12 @@ def modularity_backbone(G, weight="weight"):
         )
         H.nodes[node]["vitality"] = mod_full - mod_reduced
 
+    for u, v, data in H.edges(data=True):
+        data["modularity_keep"] = (
+            H.nodes[u].get("vitality", 0.0) > 0.0
+            and H.nodes[v].get("vitality", 0.0) > 0.0
+        )
+
     return H
 
 
@@ -829,8 +849,7 @@ def planar_maximally_filtered_graph(G, weight="weight"):
     Returns
     -------
     H : graph
-        A planar subgraph of *G* with maximum total weight.  All
-        original nodes are preserved.
+        A copy of *G* with boolean ``"pmfg_keep"`` on edges.
 
     References
     ----------
@@ -841,11 +860,11 @@ def planar_maximally_filtered_graph(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import planar_maximally_filtered_graph
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import boolean_filter, planar_maximally_filtered_graph
+    >>> G = nx.les_miserables_graph()
     >>> H = planar_maximally_filtered_graph(G)
-    >>> H.number_of_edges() <= G.number_of_edges()
+    >>> backbone = boolean_filter(H, "pmfg_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     n = G.number_of_nodes()
@@ -854,17 +873,20 @@ def planar_maximally_filtered_graph(G, weight="weight"):
     # Sort edges by weight descending
     edges = sorted(G.edges(data=True), key=lambda e: e[2].get(weight, 0), reverse=True)
 
-    H = G.__class__()
-    H.add_nodes_from(G.nodes(data=True))
+    candidate = G.__class__()
+    candidate.add_nodes_from(G.nodes(data=True))
 
     for u, v, data in edges:
-        if H.number_of_edges() >= max_edges:
+        if candidate.number_of_edges() >= max_edges:
             break
-        H.add_edge(u, v, **data)
-        is_planar, _ = nx.check_planarity(H)
+        candidate.add_edge(u, v, **data)
+        is_planar, _ = nx.check_planarity(candidate)
         if not is_planar:
-            H.remove_edge(u, v)
+            candidate.remove_edge(u, v)
 
+    keep_edges = {_edge_key(candidate, u, v) for u, v in candidate.edges()}
+    H = G.copy()
+    _mark_kept_edges(H, keep_edges, "pmfg_keep")
     return H
 
 
@@ -887,16 +909,91 @@ def maximum_spanning_tree_backbone(G, weight="weight"):
     Returns
     -------
     H : graph
-        The maximum spanning tree of *G*.
+        A copy of *G* with boolean ``"mst_keep"`` on edges.
 
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import maximum_spanning_tree_backbone
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import boolean_filter, maximum_spanning_tree_backbone
+    >>> G = nx.les_miserables_graph()
     >>> H = maximum_spanning_tree_backbone(G)
-    >>> H.number_of_edges()
-    2
+    >>> backbone = boolean_filter(H, "mst_keep")
+    >>> backbone.number_of_edges() == G.number_of_nodes() - 1
+    True
     """
-    return nx.maximum_spanning_tree(G, weight=weight)
+    tree = nx.maximum_spanning_tree(G, weight=weight)
+    keep_edges = {_edge_key(tree, u, v) for u, v in tree.edges()}
+    H = G.copy()
+    _mark_kept_edges(H, keep_edges, "mst_keep")
+    return H
+
+
+_COMPLEXITY = {
+    "global_threshold_filter": {
+        "time": "O(m)",
+        "space": "O(n + m)",
+        "notes": "n=|V|, m=|E|.",
+    },
+    "strongest_n_ties": {
+        "time": "O(m log n)",
+        "space": "O(n + m)",
+        "notes": "Worst-case across per-node strongest-edge selection.",
+    },
+    "global_sparsification": {
+        "time": "O(m log m)",
+        "space": "O(n + m)",
+    },
+    "primary_linkage_analysis": {
+        "time": "O(m)",
+        "space": "O(n + m)",
+    },
+    "edge_betweenness_filter": {
+        "time": "O(nm + n^2 log n)",
+        "space": "O(n + m)",
+        "notes": "Dominated by weighted Brandes edge-betweenness.",
+    },
+    "node_degree_filter": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+    },
+    "high_salience_skeleton": {
+        "time": "O(nm + n^2 log n)",
+        "space": "O(n + m)",
+        "notes": "Runs a shortest-path tree from each root.",
+    },
+    "metric_backbone": {
+        "time": "O(nm + n^2 log n)",
+        "space": "O(n^2 + m)",
+        "notes": "All-pairs weighted shortest paths.",
+    },
+    "ultrametric_backbone": {
+        "time": "O(mn + m log n)",
+        "space": "O(n + m)",
+        "notes": "MST plus per-edge minimax path checks.",
+    },
+    "doubly_stochastic_filter": {
+        "time": "O(I * n^2 + m)",
+        "space": "O(n^2 + m)",
+        "notes": "I=max_iter for Sinkhorn-Knopp normalization.",
+    },
+    "h_backbone": {
+        "time": "O(nm + n^2 log n + m log m)",
+        "space": "O(n + m)",
+        "notes": "Dominated by edge-betweenness on residual graph.",
+    },
+    "modularity_backbone": {
+        "time": "O(nm)",
+        "space": "O(n + m)",
+        "notes": "Practical/heuristic bound due to repeated Louvain runs.",
+    },
+    "planar_maximally_filtered_graph": {
+        "time": "O(mn + m log m)",
+        "space": "O(n + m)",
+    },
+    "maximum_spanning_tree_backbone": {
+        "time": "O(m log n)",
+        "space": "O(n + m)",
+    },
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

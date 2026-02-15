@@ -68,8 +68,8 @@ evaluate multiple backbone methods on the same graph::
         "disparity": nb.threshold_filter(
             nb.disparity_filter(G), "disparity_pvalue", 0.05
         ),
-        "metric": nb.metric_backbone(G),
-        "mst": nb.maximum_spanning_tree_backbone(G),
+        "metric": nb.boolean_filter(nb.metric_backbone(G), "metric_keep"),
+        "mst": nb.boolean_filter(nb.maximum_spanning_tree_backbone(G), "mst_keep"),
     }
 
     results = nb.compare_backbones(G, backbones)

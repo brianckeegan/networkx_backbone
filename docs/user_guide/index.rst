@@ -10,3 +10,4 @@ These guides explain how to use ``networkx-backbone`` effectively.
    choosing_method
    directed_graphs
    evaluation
+   complexity

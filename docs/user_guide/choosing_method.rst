@@ -20,7 +20,8 @@ Decision guide
     Use the :mod:`~networkx_backbone.unweighted` module:
     :func:`~networkx_backbone.sparsify` (generic framework),
     :func:`~networkx_backbone.lspar` (local sparsification), or
-    :func:`~networkx_backbone.local_degree` (degree-based).
+    :func:`~networkx_backbone.local_degree` (degree-based), then apply
+    :func:`~networkx_backbone.boolean_filter` with ``"sparsify_keep"``.
 
 **Is your graph weighted?**
     Choose based on your analysis goals:
@@ -88,43 +89,43 @@ Method comparison table
    * - :func:`~networkx_backbone.multiple_linkage_analysis`
      - Yes
      - Yes
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Statistical
    * - :func:`~networkx_backbone.global_threshold_filter`
      - Yes
      - Yes
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Structural
    * - :func:`~networkx_backbone.strongest_n_ties`
      - Yes
      - Yes
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Structural
    * - :func:`~networkx_backbone.global_sparsification`
      - Yes
      - Yes
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Structural
    * - :func:`~networkx_backbone.primary_linkage_analysis`
      - Yes
      - Yes
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Structural
    * - :func:`~networkx_backbone.edge_betweenness_filter`
      - Yes
      - Yes
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Structural
    * - :func:`~networkx_backbone.node_degree_filter`
      - No
      - Yes
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Structural
    * - :func:`~networkx_backbone.high_salience_skeleton`
@@ -136,14 +137,14 @@ Method comparison table
    * - :func:`~networkx_backbone.metric_backbone`
      - Yes
      - No
-     - Subgraph
-     - Preserved
+     - Scored graph
+     - Depends on filter
      - Structural
    * - :func:`~networkx_backbone.ultrametric_backbone`
      - Yes
      - No
-     - Subgraph
-     - Preserved
+     - Scored graph
+     - Depends on filter
      - Structural
    * - :func:`~networkx_backbone.doubly_stochastic_filter`
      - Yes
@@ -154,7 +155,7 @@ Method comparison table
    * - :func:`~networkx_backbone.h_backbone`
      - Yes
      - No
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Structural
    * - :func:`~networkx_backbone.modularity_backbone`
@@ -166,14 +167,14 @@ Method comparison table
    * - :func:`~networkx_backbone.planar_maximally_filtered_graph`
      - Yes
      - No
-     - Subgraph
-     - Preserved
+     - Scored graph
+     - Depends on filter
      - Structural
    * - :func:`~networkx_backbone.maximum_spanning_tree_backbone`
      - Yes
      - No
-     - Subgraph
-     - Preserved
+     - Scored graph
+     - Depends on filter
      - Structural
    * - :func:`~networkx_backbone.glab_filter`
      - Yes
@@ -190,31 +191,31 @@ Method comparison table
    * - :func:`~networkx_backbone.sdsm`
      - Optional
      - No
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Bipartite
    * - :func:`~networkx_backbone.fdsm`
      - Optional
      - No
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Bipartite
    * - :func:`~networkx_backbone.sparsify`
      - No
      - No
-     - Subgraph
+     - Scored graph
      - Optional (UMST)
      - Unweighted
    * - :func:`~networkx_backbone.lspar`
      - No
      - No
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Unweighted
    * - :func:`~networkx_backbone.local_degree`
      - No
      - No
-     - Subgraph
+     - Scored graph
      - No guarantee
      - Unweighted
 
@@ -245,4 +246,4 @@ null models:
   each node.
 
 - :func:`~networkx_backbone.multiple_linkage_analysis`: Local linkage
-  significance method that returns a filtered backbone directly.
+  significance method that returns scored edges plus ``mla_keep`` flags.

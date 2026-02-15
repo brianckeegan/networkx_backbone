@@ -4,6 +4,7 @@ import networkx as nx
 import pytest
 
 from networkx_backbone import (
+    boolean_filter,
     disparity,
     disparity_filter,
     ecm_filter,
@@ -111,12 +112,15 @@ class TestLANSFilter:
 
 
 class TestMultipleLinkageAnalysis:
-    def test_returns_subgraph_with_mla_pvalues(self, weighted_triangle):
+    def test_returns_scored_graph_with_mla_flags(self, weighted_triangle):
         H = multiple_linkage_analysis(weighted_triangle, alpha=0.5)
-        assert H.number_of_edges() <= weighted_triangle.number_of_edges()
+        assert H.number_of_edges() == weighted_triangle.number_of_edges()
         for _, _, data in H.edges(data=True):
             assert "mla_pvalue" in data
+            assert "mla_keep" in data
             assert 0.0 <= data["mla_pvalue"] <= 1.0
+        backbone = boolean_filter(H, "mla_keep")
+        assert backbone.number_of_edges() <= weighted_triangle.number_of_edges()
 
     def test_invalid_alpha_raises(self, weighted_triangle):
         with pytest.raises(ValueError):

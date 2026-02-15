@@ -3,6 +3,16 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+from pathlib import Path
+import sys
+
+from sphinx_gallery.sorting import FileNameSortKey
+
+# Ensure local package imports resolve during docs builds.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 # -- Project information -----------------------------------------------------
 
 project = "networkx-backbone"
@@ -21,6 +31,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "numpydoc",
     "sphinx_copybutton",
+    "sphinx_gallery.gen_gallery",
 ]
 
 templates_path = ["_templates"]
@@ -91,6 +102,19 @@ intersphinx_mapping = {
     "networkx": ("https://networkx.org/documentation/stable/", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+}
+
+# -- Sphinx Gallery ----------------------------------------------------------
+
+sphinx_gallery_conf = {
+    "examples_dirs": ["examples"],
+    "gallery_dirs": ["auto_examples"],
+    "filename_pattern": r"plot_",
+    "backreferences_dir": "auto_examples/backreferences",
+    "doc_module": ("networkx_backbone",),
+    "reference_url": {"networkx_backbone": None},
+    "within_subsection_order": FileNameSortKey,
+    "remove_config_comments": True,
 }
 
 # -- HTML output -------------------------------------------------------------

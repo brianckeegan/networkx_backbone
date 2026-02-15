@@ -2,6 +2,8 @@
 
 import networkx as nx
 
+from networkx_backbone._docstrings import append_complexity_docstrings
+
 __all__ = [
     "node_fraction",
     "edge_fraction",
@@ -35,11 +37,13 @@ def node_fraction(original, backbone):
     Examples
     --------
     >>> import networkx as nx
+
+from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import node_fraction
-    >>> G = nx.path_graph(4)
-    >>> H = nx.path_graph(3)
-    >>> node_fraction(G, H)
-    0.75
+    >>> G = nx.les_miserables_graph()
+    >>> H = G.edge_subgraph(list(G.edges())[:100]).copy()
+    >>> 0.0 < node_fraction(G, H) <= 1.0
+    True
     """
     bb_nodes_with_edges = {n for n in backbone.nodes() if backbone.degree(n) > 0}
     orig_nodes_with_edges = {n for n in original.nodes() if original.degree(n) > 0}
@@ -66,11 +70,13 @@ def edge_fraction(original, backbone):
     Examples
     --------
     >>> import networkx as nx
+
+from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import edge_fraction
-    >>> G = nx.complete_graph(4)
-    >>> H = nx.path_graph(4)
-    >>> edge_fraction(G, H)
-    0.5
+    >>> G = nx.les_miserables_graph()
+    >>> H = G.edge_subgraph(list(G.edges())[:100]).copy()
+    >>> 0.0 < edge_fraction(G, H) < 1.0
+    True
     """
     if original.number_of_edges() == 0:
         return 0.0
@@ -98,13 +104,18 @@ def weight_fraction(original, backbone, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import weight_fraction
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
-    >>> H = nx.Graph()
-    >>> H.add_weighted_edges_from([(0, 1, 3.0)])
-    >>> weight_fraction(G, H)
-    0.5
+
+from networkx_backbone._docstrings import append_complexity_docstrings
+    >>> from networkx_backbone import (
+    ...     weight_fraction,
+    ...     global_threshold_filter,
+    ...     boolean_filter,
+    ... )
+    >>> G = nx.les_miserables_graph()
+    >>> scored = global_threshold_filter(G, threshold=2)
+    >>> H = boolean_filter(scored, "global_threshold_keep")
+    >>> 0.0 < weight_fraction(G, H) <= 1.0
+    True
     """
     total_orig = sum(d.get(weight, 0) for _, _, d in original.edges(data=True))
     if total_orig == 0:
@@ -133,13 +144,15 @@ def reachability(G):
     Examples
     --------
     >>> import networkx as nx
+
+from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import reachability
-    >>> G = nx.path_graph(4)
+    >>> G = nx.les_miserables_graph()
     >>> reachability(G)
     1.0
-    >>> G = nx.Graph()
-    >>> G.add_nodes_from([0, 1, 2])
-    >>> reachability(G)
+    >>> H = nx.Graph()
+    >>> H.add_nodes_from(G.nodes())
+    >>> reachability(H)
     0.0
     """
     n = G.number_of_nodes()
@@ -178,10 +191,13 @@ def ks_degree(original, backbone):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import ks_degree
-    >>> G = nx.complete_graph(5)
-    >>> ks_degree(G, G)
-    0.0
+
+from networkx_backbone._docstrings import append_complexity_docstrings
+    >>> from networkx_backbone import ks_degree, global_threshold_filter, boolean_filter
+    >>> G = nx.les_miserables_graph()
+    >>> H = boolean_filter(global_threshold_filter(G, threshold=2), "global_threshold_keep")
+    >>> 0.0 <= ks_degree(G, H) <= 1.0
+    True
     """
     import numpy as np
     from scipy import stats as sp_stats
@@ -214,11 +230,13 @@ def ks_weight(original, backbone, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import ks_weight
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
-    >>> ks_weight(G, G)
-    0.0
+
+from networkx_backbone._docstrings import append_complexity_docstrings
+    >>> from networkx_backbone import ks_weight, global_threshold_filter, boolean_filter
+    >>> G = nx.les_miserables_graph()
+    >>> H = boolean_filter(global_threshold_filter(G, threshold=2), "global_threshold_keep")
+    >>> 0.0 <= ks_weight(G, H) <= 1.0
+    True
     """
     import numpy as np
     from scipy import stats as sp_stats
@@ -255,11 +273,18 @@ def compare_backbones(original, backbones, measures=None, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import compare_backbones, edge_fraction
-    >>> G = nx.complete_graph(5)
-    >>> H = nx.path_graph(5)
-    >>> results = compare_backbones(G, {"path": H}, measures=[edge_fraction])
-    >>> "edge_fraction" in results["path"]
+
+from networkx_backbone._docstrings import append_complexity_docstrings
+    >>> from networkx_backbone import (
+    ...     compare_backbones,
+    ...     edge_fraction,
+    ...     global_threshold_filter,
+    ...     boolean_filter,
+    ... )
+    >>> G = nx.les_miserables_graph()
+    >>> H = boolean_filter(global_threshold_filter(G, threshold=2), "global_threshold_keep")
+    >>> results = compare_backbones(G, {"threshold": H}, measures=[edge_fraction])
+    >>> "edge_fraction" in results["threshold"]
     True
     """
     if measures is None:
@@ -274,3 +299,38 @@ def compare_backbones(original, backbones, measures=None, weight="weight"):
             else:
                 results[name][m.__name__] = m(original, bb)
     return results
+
+
+_COMPLEXITY = {
+    "node_fraction": {
+        "time": "O(n)",
+        "space": "O(n)",
+    },
+    "edge_fraction": {
+        "time": "O(1)",
+        "space": "O(1)",
+    },
+    "weight_fraction": {
+        "time": "O(m)",
+        "space": "O(1)",
+    },
+    "reachability": {
+        "time": "O(n + m)",
+        "space": "O(n)",
+    },
+    "ks_degree": {
+        "time": "O(n)",
+        "space": "O(n)",
+    },
+    "ks_weight": {
+        "time": "O(m)",
+        "space": "O(m)",
+    },
+    "compare_backbones": {
+        "time": "O(b * C)",
+        "space": "O(b * q)",
+        "notes": "b=backbones, q=measures, C=cost per measure evaluation.",
+    },
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

@@ -28,9 +28,9 @@ Apply several different backbone methods to the same graph::
         "noise_corrected": nb.threshold_filter(
             nb.noise_corrected_filter(G), "nc_score", 2.0, mode="above"
         ),
-        "metric": nb.metric_backbone(G),
-        "mst": nb.maximum_spanning_tree_backbone(G),
-        "strongest_3": nb.strongest_n_ties(G, n=3),
+        "metric": nb.boolean_filter(nb.metric_backbone(G), "metric_keep"),
+        "mst": nb.boolean_filter(nb.maximum_spanning_tree_backbone(G), "mst_keep"),
+        "strongest_3": nb.boolean_filter(nb.strongest_n_ties(G, n=3), "strongest_n_ties_keep"),
     }
 
 Using compare_backbones
@@ -78,8 +78,8 @@ appear in all provided backbones. This identifies the most robust edges that
 multiple methods agree are important::
 
     b1 = nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05)
-    b2 = nb.metric_backbone(G)
-    b3 = nb.maximum_spanning_tree_backbone(G)
+    b2 = nb.boolean_filter(nb.metric_backbone(G), "metric_keep")
+    b3 = nb.boolean_filter(nb.maximum_spanning_tree_backbone(G), "mst_keep")
 
     consensus = nb.consensus_backbone(b1, b2, b3)
     print(f"Consensus backbone: {consensus.number_of_edges()} edges")

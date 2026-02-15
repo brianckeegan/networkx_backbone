@@ -21,18 +21,21 @@ Simple filters
 
 **Global threshold**: Keep edges whose weight meets a minimum::
 
-    backbone = nb.global_threshold_filter(G, threshold=1.0)
+    scored = nb.global_threshold_filter(G, threshold=1.0)
+    backbone = nb.boolean_filter(scored, "global_threshold_keep")
     print(f"Global threshold: {backbone.number_of_edges()} edges")
 
 **Strongest N ties**: Keep each node's N strongest edges::
 
-    backbone = nb.strongest_n_ties(G, n=2)
+    scored = nb.strongest_n_ties(G, n=2)
+    backbone = nb.boolean_filter(scored, "strongest_n_ties_keep")
     print(f"Strongest 2 ties: {backbone.number_of_edges()} edges")
 
 **Global sparsification** (Satuluri et al., 2011): Keep the globally
 strongest fraction of edges::
 
-    backbone = nb.global_sparsification(G, s=0.4)
+    scored = nb.global_sparsification(G, s=0.4)
+    backbone = nb.boolean_filter(scored, "global_sparsification_keep")
     print(f"Global sparsification (40%): {backbone.number_of_edges()} edges")
 
 Linkage and centrality filters
@@ -41,18 +44,21 @@ Linkage and centrality filters
 **Primary linkage analysis** (Nystuen & Dacey, 1961): Keep each node's
 strongest outgoing edge::
 
-    primary = nb.primary_linkage_analysis(G)
-    print(f"Primary linkage: {primary.number_of_edges()} directed edges")
+    scored = nb.primary_linkage_analysis(G)
+    backbone = nb.boolean_filter(scored, "primary_linkage_keep")
+    print(f"Primary linkage: {backbone.number_of_edges()} edges")
 
 **Edge betweenness filter** (Girvan & Newman, 2002): Keep edges with the
 highest edge-betweenness centrality::
 
-    backbone = nb.edge_betweenness_filter(G, s=0.3)
+    scored = nb.edge_betweenness_filter(G, s=0.3)
+    backbone = nb.boolean_filter(scored, "edge_betweenness_keep")
     print(f"Edge betweenness (30%): {backbone.number_of_edges()} edges")
 
 **Node degree filter**: Keep only nodes whose degree meets a threshold::
 
-    backbone = nb.node_degree_filter(G, min_degree=2)
+    scored = nb.node_degree_filter(G, min_degree=2)
+    backbone = nb.boolean_filter(scored, "node_degree_keep")
     print(f"Node degree (>=2): {backbone.number_of_nodes()} nodes")
 
 Shortest-path methods
@@ -72,14 +78,16 @@ Edges with high salience are consistently important for communication::
 shortest paths (using the inverse of weight as distance). Always preserves
 connectivity::
 
-    backbone = nb.metric_backbone(G)
+    scored = nb.metric_backbone(G)
+    backbone = nb.boolean_filter(scored, "metric_keep")
     print(f"Metric backbone: {backbone.number_of_edges()} edges")
     print(f"Connected: {nx.is_connected(backbone)}")
 
 **Ultrametric backbone** (Simas et al., 2021): Similar to metric backbone
 but uses minimax paths instead of shortest paths::
 
-    backbone = nb.ultrametric_backbone(G)
+    scored = nb.ultrametric_backbone(G)
+    backbone = nb.boolean_filter(scored, "ultrametric_keep")
     print(f"Ultrametric backbone: {backbone.number_of_edges()} edges")
 
 Normalization
@@ -99,9 +107,10 @@ Index-based
 -----------
 
 **H-backbone** (Zhang et al., 2018): Uses an h-index inspired criterion
-to identify important edges. Returns the backbone directly::
+to identify important edges::
 
-    backbone = nb.h_backbone(G)
+    scored = nb.h_backbone(G)
+    backbone = nb.boolean_filter(scored, "h_backbone_keep")
     print(f"H-backbone: {backbone.number_of_edges()} edges")
 
 Community-based
@@ -109,12 +118,10 @@ Community-based
 
 **Modularity backbone** (Rajeh et al., 2022): Computes a vitality score for
 each node based on how much removing it changes the network's modularity.
-Use :func:`~networkx_backbone.threshold_filter` with ``filter_on="nodes"``::
+Use the boolean keep flag to extract retained edges::
 
-    H = nb.modularity_backbone(G)
-
-    # Filter nodes by vitality (keep nodes with high vitality)
-    backbone = nb.threshold_filter(H, "vitality", 0.0, mode="above", filter_on="nodes")
+    scored = nb.modularity_backbone(G)
+    backbone = nb.boolean_filter(scored, "modularity_keep")
     print(f"Modularity backbone: {backbone.number_of_nodes()} nodes")
 
 Constrained methods
@@ -123,13 +130,15 @@ Constrained methods
 **Planar maximally filtered graph** (Tumminello et al., 2005): Greedily adds
 edges from heaviest to lightest while maintaining planarity::
 
-    backbone = nb.planar_maximally_filtered_graph(G)
+    scored = nb.planar_maximally_filtered_graph(G)
+    backbone = nb.boolean_filter(scored, "pmfg_keep")
     print(f"PMFG: {backbone.number_of_edges()} edges")
 
 **Maximum spanning tree**: Wrapper around NetworkX's MST algorithm.
 Always produces a connected tree with exactly N-1 edges::
 
-    backbone = nb.maximum_spanning_tree_backbone(G)
+    scored = nb.maximum_spanning_tree_backbone(G)
+    backbone = nb.boolean_filter(scored, "mst_keep")
     print(f"MST: {backbone.number_of_edges()} edges")
     print(f"Connected: {nx.is_connected(backbone)}")
 
@@ -139,13 +148,17 @@ Comparing structural methods
 ::
 
     backbones = {
-        "metric": nb.metric_backbone(G),
-        "ultrametric": nb.ultrametric_backbone(G),
-        "h_backbone": nb.h_backbone(G),
-        "global_sparsification": nb.global_sparsification(G, s=0.4),
-        "edge_betweenness": nb.edge_betweenness_filter(G, s=0.3),
-        "pmfg": nb.planar_maximally_filtered_graph(G),
-        "mst": nb.maximum_spanning_tree_backbone(G),
+        "metric": nb.boolean_filter(nb.metric_backbone(G), "metric_keep"),
+        "ultrametric": nb.boolean_filter(nb.ultrametric_backbone(G), "ultrametric_keep"),
+        "h_backbone": nb.boolean_filter(nb.h_backbone(G), "h_backbone_keep"),
+        "global_sparsification": nb.boolean_filter(
+            nb.global_sparsification(G, s=0.4), "global_sparsification_keep"
+        ),
+        "edge_betweenness": nb.boolean_filter(
+            nb.edge_betweenness_filter(G, s=0.3), "edge_betweenness_keep"
+        ),
+        "pmfg": nb.boolean_filter(nb.planar_maximally_filtered_graph(G), "pmfg_keep"),
+        "mst": nb.boolean_filter(nb.maximum_spanning_tree_backbone(G), "mst_keep"),
     }
 
     results = nb.compare_backbones(G, backbones)

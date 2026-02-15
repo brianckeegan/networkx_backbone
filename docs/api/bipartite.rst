@@ -1,6 +1,12 @@
 Bipartite Methods
 =================
 
+Examples in this module use ``nx.davis_southern_women_graph()``.
+Projection scoring methods return full graphs with p-values/weights; use
+:func:`~networkx_backbone.threshold_filter` or
+:func:`~networkx_backbone.boolean_filter` as needed.
+Complexity classes are provided in each function's ``Complexity`` section.
+
 .. automodule:: networkx_backbone.bipartite
    :no-members:
 
@@ -29,6 +35,19 @@ Bipartite Methods
 .. autofunction:: bicm
 
 .. autofunction:: fastball
+
+.. minigallery::
+   networkx_backbone.simple_projection
+   networkx_backbone.hyper_projection
+   networkx_backbone.probs_projection
+   networkx_backbone.ycn_projection
+   networkx_backbone.bipartite_projection
+   networkx_backbone.sdsm
+   networkx_backbone.fdsm
+   networkx_backbone.fixedfill
+   networkx_backbone.fixedrow
+   networkx_backbone.fixedcol
+   :add-heading: Gallery Examples
 
 .. rubric:: High-Level Wrappers
 

@@ -1,5 +1,7 @@
 """Les Miserables benchmark tests across non-bipartite backbone methods."""
 
+import warnings
+
 import networkx as nx
 import pytest
 
@@ -8,90 +10,238 @@ import networkx_backbone as nb
 DEFAULT_PVALUE = 0.05
 
 
-def _global_threshold_filter(G):
-    return nb.global_threshold_filter(G, threshold=2)
+def _warn_if_no_edge_reduction(method_name, original_edges, filtered_edges):
+    if filtered_edges == original_edges:
+        warnings.warn(
+            (
+                f"{method_name}: filtered graph has the same number of edges "
+                f"as the original ({original_edges}). Re-test and validate."
+            ),
+            UserWarning,
+            stacklevel=2,
+        )
 
 
-def _strongest_n_ties(G):
-    return nb.strongest_n_ties(G, n=2)
-
-
-def _filter_by_default_pvalue(H):
-    """Apply default p-value filtering when a method exposes a p-value attribute."""
-    pvalue_attrs = sorted(
-        {
-            key
-            for _, _, data in H.edges(data=True)
-            for key in data
-            if key.endswith("_pvalue")
-        }
-    )
-
-    if not pvalue_attrs:
-        return H, None
-    if len(pvalue_attrs) > 1:
-        raise AssertionError(f"Expected at most one p-value attribute, got: {pvalue_attrs}")
-
-    pvalue_attr = pvalue_attrs[0]
-    filtered = nb.threshold_filter(H, pvalue_attr, DEFAULT_PVALUE, mode="below")
-    return filtered, pvalue_attr
-
-
-def _flag_full_graph_for_revision(method_name, H, original_edges, pvalue_attr):
-    """Flag methods that still return the full original edge set."""
-    if H.number_of_edges() == original_edges:
-        if pvalue_attr is None:
-            pytest.xfail(
-                f"REVISION FLAG: {method_name} returned full graph "
-                f"({original_edges} edges) without p-value filtering."
-            )
-        else:
-            pytest.xfail(
-                f"REVISION FLAG: {method_name} returned full graph "
-                f"({original_edges} edges) after {pvalue_attr} <= {DEFAULT_PVALUE} filtering."
-            )
-
-
-METHOD_EDGE_COUNTS = [
-    ("disparity_filter", nb.disparity_filter, 247),
-    ("noise_corrected_filter", nb.noise_corrected_filter, 254),
-    ("marginal_likelihood_filter", nb.marginal_likelihood_filter, 70),
-    ("ecm_filter", nb.ecm_filter, 254),
-    ("lans_filter", nb.lans_filter, 109),
-    ("multiple_linkage_analysis(alpha=0.05)", lambda G: nb.multiple_linkage_analysis(G, alpha=0.05), 109),
-    ("global_threshold_filter(threshold=2)", _global_threshold_filter, 157),
-    ("strongest_n_ties(n=2)", _strongest_n_ties, 113),
-    ("global_sparsification(s=0.5)", lambda G: nb.global_sparsification(G, s=0.5), 127),
-    ("primary_linkage_analysis", nb.primary_linkage_analysis, 77),
-    ("edge_betweenness_filter(s=0.5)", lambda G: nb.edge_betweenness_filter(G, s=0.5), 127),
-    ("node_degree_filter(min_degree=2)", lambda G: nb.node_degree_filter(G, min_degree=2), 237),
-    ("high_salience_skeleton", nb.high_salience_skeleton, 254),
-    ("metric_backbone", nb.metric_backbone, 163),
-    ("ultrametric_backbone", nb.ultrametric_backbone, 118),
-    ("doubly_stochastic_filter", nb.doubly_stochastic_filter, 254),
-    ("h_backbone", nb.h_backbone, 22),
-    ("modularity_backbone", nb.modularity_backbone, 254),
-    ("planar_maximally_filtered_graph", nb.planar_maximally_filtered_graph, 162),
-    ("maximum_spanning_tree_backbone", nb.maximum_spanning_tree_backbone, 76),
-    ("neighborhood_overlap", nb.neighborhood_overlap, 254),
-    ("jaccard_backbone", nb.jaccard_backbone, 254),
-    ("dice_backbone", nb.dice_backbone, 254),
-    ("cosine_backbone", nb.cosine_backbone, 254),
-    ("hub_promoted_index", nb.hub_promoted_index, 254),
-    ("hub_depressed_index", nb.hub_depressed_index, 254),
-    ("lhn_local_index", nb.lhn_local_index, 254),
-    ("preferential_attachment_score", nb.preferential_attachment_score, 254),
-    ("adamic_adar_index", nb.adamic_adar_index, 254),
-    ("resource_allocation_index", nb.resource_allocation_index, 254),
-    ("graph_distance_proximity", nb.graph_distance_proximity, 254),
-    ("local_path_index", nb.local_path_index, 254),
-    ("glab_filter", nb.glab_filter, 5),
+WEIGHTED_METHOD_EDGE_COUNTS = [
+    (
+        "disparity_filter",
+        lambda G: nb.disparity_filter(G),
+        lambda H: nb.threshold_filter(H, "disparity_pvalue", DEFAULT_PVALUE, mode="below"),
+        247,
+    ),
+    (
+        "noise_corrected_filter",
+        lambda G: nb.noise_corrected_filter(G),
+        lambda H: nb.threshold_filter(H, "nc_score", 2.0, mode="above"),
+        98,
+    ),
+    (
+        "marginal_likelihood_filter",
+        lambda G: nb.marginal_likelihood_filter(G),
+        lambda H: nb.threshold_filter(H, "ml_pvalue", DEFAULT_PVALUE, mode="below"),
+        70,
+    ),
+    (
+        "ecm_filter",
+        lambda G: nb.ecm_filter(G),
+        lambda H: nb.threshold_filter(H, "ecm_pvalue", DEFAULT_PVALUE, mode="below"),
+        254,
+    ),
+    (
+        "lans_filter",
+        lambda G: nb.lans_filter(G),
+        lambda H: nb.threshold_filter(H, "lans_pvalue", DEFAULT_PVALUE, mode="below"),
+        109,
+    ),
+    (
+        "multiple_linkage_analysis(alpha=0.05)",
+        lambda G: nb.multiple_linkage_analysis(G, alpha=0.05),
+        lambda H: nb.boolean_filter(H, "mla_keep"),
+        109,
+    ),
+    (
+        "global_threshold_filter(threshold=2)",
+        lambda G: nb.global_threshold_filter(G, threshold=2),
+        lambda H: nb.boolean_filter(H, "global_threshold_keep"),
+        157,
+    ),
+    (
+        "strongest_n_ties(n=2)",
+        lambda G: nb.strongest_n_ties(G, n=2),
+        lambda H: nb.boolean_filter(H, "strongest_n_ties_keep"),
+        113,
+    ),
+    (
+        "global_sparsification(s=0.5)",
+        lambda G: nb.global_sparsification(G, s=0.5),
+        lambda H: nb.boolean_filter(H, "global_sparsification_keep"),
+        127,
+    ),
+    (
+        "primary_linkage_analysis",
+        lambda G: nb.primary_linkage_analysis(G),
+        lambda H: nb.boolean_filter(H, "primary_linkage_keep"),
+        69,
+    ),
+    (
+        "edge_betweenness_filter(s=0.5)",
+        lambda G: nb.edge_betweenness_filter(G, s=0.5),
+        lambda H: nb.boolean_filter(H, "edge_betweenness_keep"),
+        127,
+    ),
+    (
+        "node_degree_filter(min_degree=2)",
+        lambda G: nb.node_degree_filter(G, min_degree=2),
+        lambda H: nb.boolean_filter(H, "node_degree_keep"),
+        237,
+    ),
+    (
+        "high_salience_skeleton",
+        lambda G: nb.high_salience_skeleton(G),
+        lambda H: nb.threshold_filter(H, "salience", 0.5, mode="above"),
+        76,
+    ),
+    (
+        "metric_backbone",
+        lambda G: nb.metric_backbone(G),
+        lambda H: nb.boolean_filter(H, "metric_keep"),
+        163,
+    ),
+    (
+        "ultrametric_backbone",
+        lambda G: nb.ultrametric_backbone(G),
+        lambda H: nb.boolean_filter(H, "ultrametric_keep"),
+        118,
+    ),
+    (
+        "doubly_stochastic_filter",
+        lambda G: nb.doubly_stochastic_filter(G),
+        lambda H: nb.threshold_filter(H, "ds_weight", 0.1, mode="above"),
+        109,
+    ),
+    (
+        "h_backbone",
+        lambda G: nb.h_backbone(G),
+        lambda H: nb.boolean_filter(H, "h_backbone_keep"),
+        22,
+    ),
+    (
+        "modularity_backbone",
+        lambda G: nb.modularity_backbone(G),
+        lambda H: nb.boolean_filter(H, "modularity_keep"),
+        72,
+    ),
+    (
+        "planar_maximally_filtered_graph",
+        lambda G: nb.planar_maximally_filtered_graph(G),
+        lambda H: nb.boolean_filter(H, "pmfg_keep"),
+        162,
+    ),
+    (
+        "maximum_spanning_tree_backbone",
+        lambda G: nb.maximum_spanning_tree_backbone(G),
+        lambda H: nb.boolean_filter(H, "mst_keep"),
+        76,
+    ),
+    (
+        "neighborhood_overlap",
+        lambda G: nb.neighborhood_overlap(G),
+        lambda H: nb.fraction_filter(H, "overlap", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "jaccard_backbone",
+        lambda G: nb.jaccard_backbone(G),
+        lambda H: nb.fraction_filter(H, "jaccard", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "dice_backbone",
+        lambda G: nb.dice_backbone(G),
+        lambda H: nb.fraction_filter(H, "dice", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "cosine_backbone",
+        lambda G: nb.cosine_backbone(G),
+        lambda H: nb.fraction_filter(H, "cosine", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "hub_promoted_index",
+        lambda G: nb.hub_promoted_index(G),
+        lambda H: nb.fraction_filter(H, "hpi", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "hub_depressed_index",
+        lambda G: nb.hub_depressed_index(G),
+        lambda H: nb.fraction_filter(H, "hdi", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "lhn_local_index",
+        lambda G: nb.lhn_local_index(G),
+        lambda H: nb.fraction_filter(H, "lhn_local", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "preferential_attachment_score",
+        lambda G: nb.preferential_attachment_score(G),
+        lambda H: nb.fraction_filter(H, "pa", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "adamic_adar_index",
+        lambda G: nb.adamic_adar_index(G),
+        lambda H: nb.fraction_filter(H, "adamic_adar", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "resource_allocation_index",
+        lambda G: nb.resource_allocation_index(G),
+        lambda H: nb.fraction_filter(H, "resource_allocation", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "graph_distance_proximity",
+        lambda G: nb.graph_distance_proximity(G),
+        lambda H: nb.fraction_filter(H, "dist", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "local_path_index",
+        lambda G: nb.local_path_index(G),
+        lambda H: nb.fraction_filter(H, "lp", 0.3, ascending=False),
+        76,
+    ),
+    (
+        "glab_filter",
+        lambda G: nb.glab_filter(G),
+        lambda H: nb.threshold_filter(H, "glab_pvalue", DEFAULT_PVALUE, mode="below"),
+        5,
+    ),
 ]
 
 UNWEIGHTED_METHOD_EDGE_COUNTS = [
-    ("sparsify", nb.sparsify, 136),
-    ("lspar", nb.lspar, 136),
-    ("local_degree", nb.local_degree, 135),
+    (
+        "sparsify",
+        lambda G: nb.sparsify(G),
+        lambda H: nb.boolean_filter(H, "sparsify_keep"),
+        136,
+    ),
+    (
+        "lspar",
+        lambda G: nb.lspar(G),
+        lambda H: nb.boolean_filter(H, "sparsify_keep"),
+        136,
+    ),
+    (
+        "local_degree",
+        lambda G: nb.local_degree(G),
+        lambda H: nb.boolean_filter(H, "sparsify_keep"),
+        135,
+    ),
 ]
 
 
@@ -102,45 +252,56 @@ def test_les_miserables_baseline(les_miserables_weighted, les_miserables_unweigh
     assert les_miserables_unweighted.number_of_edges() == 254
 
 
+def test_warning_trigger_for_no_edge_reduction():
+    with pytest.warns(UserWarning, match="same number of edges"):
+        _warn_if_no_edge_reduction("dummy_method", 10, 10)
+
+
 @pytest.mark.parametrize(
-    ("method_name", "method", "expected_edges"),
-    METHOD_EDGE_COUNTS,
-    ids=[m[0] for m in METHOD_EDGE_COUNTS],
+    ("method_name", "score_method", "filter_method", "expected_edges"),
+    WEIGHTED_METHOD_EDGE_COUNTS,
+    ids=[m[0] for m in WEIGHTED_METHOD_EDGE_COUNTS],
 )
 def test_weighted_methods_edge_counts(
-    method_name, method, expected_edges, les_miserables_weighted
+    method_name,
+    score_method,
+    filter_method,
+    expected_edges,
+    les_miserables_weighted,
 ):
-    """Each non-bipartite weighted method should reproduce documented counts."""
-    H = method(les_miserables_weighted)
-    H, pvalue_attr = _filter_by_default_pvalue(H)
-    assert isinstance(H, nx.Graph), method_name
-    assert H.number_of_nodes() == les_miserables_weighted.number_of_nodes(), method_name
-    assert H.number_of_edges() == expected_edges, method_name
-    _flag_full_graph_for_revision(
+    """Weighted methods must use score-then-filter before benchmarking."""
+    scored = score_method(les_miserables_weighted)
+    filtered = filter_method(scored)
+    assert isinstance(filtered, nx.Graph), method_name
+    assert filtered.number_of_nodes() == les_miserables_weighted.number_of_nodes(), method_name
+    assert filtered.number_of_edges() == expected_edges, method_name
+    _warn_if_no_edge_reduction(
         method_name,
-        H,
         les_miserables_weighted.number_of_edges(),
-        pvalue_attr,
+        filtered.number_of_edges(),
     )
 
 
 @pytest.mark.parametrize(
-    ("method_name", "method", "expected_edges"),
+    ("method_name", "score_method", "filter_method", "expected_edges"),
     UNWEIGHTED_METHOD_EDGE_COUNTS,
     ids=[m[0] for m in UNWEIGHTED_METHOD_EDGE_COUNTS],
 )
 def test_unweighted_methods_edge_counts(
-    method_name, method, expected_edges, les_miserables_unweighted
+    method_name,
+    score_method,
+    filter_method,
+    expected_edges,
+    les_miserables_unweighted,
 ):
-    """Unweighted methods should reproduce documented Les Miserables counts."""
-    H = method(les_miserables_unweighted)
-    H, pvalue_attr = _filter_by_default_pvalue(H)
-    assert isinstance(H, nx.Graph), method_name
-    assert H.number_of_nodes() == les_miserables_unweighted.number_of_nodes(), method_name
-    assert H.number_of_edges() == expected_edges, method_name
-    _flag_full_graph_for_revision(
+    """Unweighted methods must use score-then-filter before benchmarking."""
+    scored = score_method(les_miserables_unweighted)
+    filtered = filter_method(scored)
+    assert isinstance(filtered, nx.Graph), method_name
+    assert filtered.number_of_nodes() == les_miserables_unweighted.number_of_nodes(), method_name
+    assert filtered.number_of_edges() == expected_edges, method_name
+    _warn_if_no_edge_reduction(
         method_name,
-        H,
         les_miserables_unweighted.number_of_edges(),
-        pvalue_attr,
+        filtered.number_of_edges(),
     )

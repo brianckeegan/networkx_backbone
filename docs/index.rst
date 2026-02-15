@@ -5,6 +5,8 @@ networkx-backbone
 
 ``networkx-backbone`` provides 65 functions across 9 modules for extracting
 backbone structures from weighted and unweighted networks.
+Core usage follows a score-then-filter pattern: methods score edges on a full
+graph first, then filtering utilities extract the final sparse backbone.
 
 .. list-table::
    :header-rows: 1

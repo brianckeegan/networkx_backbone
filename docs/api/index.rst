@@ -2,6 +2,13 @@ API Reference
 =============
 
 Complete API documentation for backbone functions across 9 modules.
+API examples are standardized on ``nx.les_miserables_graph()`` for
+non-bipartite methods and ``nx.davis_southern_women_graph()`` for
+bipartite methods.
+Each module page includes Sphinx Gallery links showing score-then-filter
+visualizations for the listed functions.
+Each function entry includes a ``Complexity`` section (time/space), with
+an aggregate summary in :doc:`../user_guide/complexity`.
 
 .. list-table::
    :header-rows: 1

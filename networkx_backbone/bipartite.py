@@ -22,6 +22,8 @@ fdsm
 
 import networkx as nx
 
+from networkx_backbone._docstrings import append_complexity_docstrings
+
 __all__ = [
     # Bipartite projection methods
     "simple_projection",
@@ -754,7 +756,7 @@ def backbone_from_weighted(
         weights count distinct edge types per node pair; otherwise they count
         parallel edges.
     """
-    from networkx_backbone.filters import multigraph_to_weighted, threshold_filter
+    from networkx_backbone.filters import boolean_filter, multigraph_to_weighted, threshold_filter
     from networkx_backbone.statistical import (
         disparity_filter,
         lans_filter,
@@ -783,7 +785,8 @@ def backbone_from_weighted(
         threshold = kwargs.get("threshold")
         if threshold is None:
             raise ValueError("global threshold method requires `threshold=...`")
-        return global_threshold_filter(G, threshold=threshold, weight=weight)
+        scored = global_threshold_filter(G, threshold=threshold, weight=weight)
+        return boolean_filter(scored, "global_threshold_keep")
 
     raise ValueError(
         "Unknown weighted method. Choose one of: "
@@ -793,15 +796,19 @@ def backbone_from_weighted(
 
 def backbone_from_unweighted(G, method="sparsify", **kwargs):
     """Extract an unweighted-network backbone using method-name dispatch."""
+    from networkx_backbone.filters import boolean_filter
     from networkx_backbone.unweighted import local_degree, lspar, sparsify
 
     method_l = method.lower()
     if method_l == "sparsify":
-        return sparsify(G, **kwargs)
+        scored = sparsify(G, **kwargs)
+        return boolean_filter(scored, "sparsify_keep")
     if method_l == "lspar":
-        return lspar(G, **kwargs)
+        scored = lspar(G, **kwargs)
+        return boolean_filter(scored, "sparsify_keep")
     if method_l in ("local_degree", "localdegree"):
-        return local_degree(G, **kwargs)
+        scored = local_degree(G, **kwargs)
+        return boolean_filter(scored, "sparsify_keep")
 
     raise ValueError(
         "Unknown unweighted method. Choose one of: "
@@ -1164,3 +1171,82 @@ def _random_bipartite_matrix(row_sums, col_sums, rng):
         R[r2, swap1] = 1
 
     return R
+
+
+_COMPLEXITY = {
+    "simple_projection": {
+        "time": "O(n_a^2 n_f + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+        "notes": "n_a=agents, n_f=artifacts, e_b=bipartite edges.",
+    },
+    "hyper_projection": {
+        "time": "O(n_a^2 n_f + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+    },
+    "probs_projection": {
+        "time": "O(n_a^2 n_f + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+    },
+    "ycn_projection": {
+        "time": "O(n_a^2 n_f + I n_a^2 + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+        "notes": "I=max_iter for stationary-flow convergence.",
+    },
+    "bipartite_projection": {
+        "time": "O(n_a^2 n_f + I n_a^2 + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+        "notes": "Worst-case over supported projection methods.",
+    },
+    "sdsm": {
+        "time": "O(n_a^2 n_f + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+        "notes": "Includes projection-weight annotation.",
+    },
+    "fdsm": {
+        "time": "O(T n_a^2 n_f + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+        "notes": "T=trials for Monte Carlo fixed-degree randomization.",
+    },
+    "fixedfill": {
+        "time": "O(n_a^2 n_f + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+    },
+    "fixedrow": {
+        "time": "O(n_a^2 n_f + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+    },
+    "fixedcol": {
+        "time": "O(n_a^2 n_f + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+    },
+    "bicm": {
+        "time": "O(n_a n_f + e_b)",
+        "space": "O(n_a n_f)",
+    },
+    "fastball": {
+        "time": "O(r c + S c)",
+        "space": "O(r c)",
+        "notes": "r=rows, c=cols, S=n_swaps.",
+    },
+    "backbone_from_projection": {
+        "time": "O(T n_a^2 n_f + e_b)",
+        "space": "O(n_a n_f + n_a^2)",
+        "notes": "Worst-case over {sdsm, fdsm, fixedfill, fixedrow, fixedcol}.",
+    },
+    "backbone_from_weighted": {
+        "time": "O(m log n)",
+        "space": "O(n + m)",
+        "notes": "Worst-case over {disparity, mlf, lans, global_threshold}.",
+    },
+    "backbone_from_unweighted": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+        "notes": "Worst-case over {sparsify, lspar, local_degree}.",
+    },
+    "backbone": {
+        "time": "O(n + m) dispatch checks + selected method cost",
+        "space": "O(1) additional beyond selected method",
+    },
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

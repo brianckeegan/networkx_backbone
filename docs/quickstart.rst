@@ -26,7 +26,7 @@ Step 2: Apply a backbone method
 Apply the disparity filter to compute a p-value for each edge. This returns
 a copy of the graph with an added ``"disparity_pvalue"`` edge attribute::
 
-    H = nb.disparity_filter(G)
+    scored = nb.disparity_filter(G)
 
 Step 3: Filter to extract the backbone
 ---------------------------------------
@@ -34,7 +34,7 @@ Step 3: Filter to extract the backbone
 Use :func:`~networkx_backbone.threshold_filter` to keep only edges whose
 p-value is below a significance threshold::
 
-    backbone = nb.threshold_filter(H, "disparity_pvalue", 0.05)
+    backbone = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
 
 Step 4: Evaluate the backbone
 ------------------------------
@@ -45,32 +45,41 @@ to the original graph::
     print(f"Edges kept: {nb.edge_fraction(G, backbone):.1%}")
     print(f"Nodes kept: {nb.node_fraction(G, backbone):.1%}")
 
+Disparity filter visualization
+------------------------------
+
+The Sphinx Gallery example below visualizes retained and removed structure
+after applying ``disparity_filter`` followed by ``threshold_filter``.
+
+.. minigallery:: networkx_backbone.disparity_filter
+
 Other approaches
 ----------------
 
 **Proximity-based scoring**: Score edges by how structurally embedded they are
 using neighborhood similarity, then keep the top fraction::
 
-    H = nb.jaccard_backbone(G)
-    backbone = nb.fraction_filter(H, "jaccard", 0.2, ascending=False)
+    scored = nb.jaccard_backbone(G)
+    backbone = nb.fraction_filter(scored, "jaccard", 0.2, ascending=False)
 
-**Structural backbone**: Extract the metric backbone, which keeps only edges
-that lie on shortest paths::
+**Structural backbone**: Score edges by metric-backbone membership and then
+filter using the boolean keep attribute::
 
-    backbone = nb.metric_backbone(G)
+    scored = nb.metric_backbone(G)
+    backbone = nb.boolean_filter(scored, "metric_keep")
 
 **Bipartite backbone**: Score a bipartite projection, then filter by p-value::
 
     B = nx.davis_southern_women_graph()
     women_nodes = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
-    H = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
-    backbone = nb.threshold_filter(H, "sdsm_pvalue", 0.05, mode="below")
+    scored = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
+    backbone = nb.threshold_filter(scored, "sdsm_pvalue", 0.05, mode="below")
 
 **Comparing methods**: Systematically compare multiple backbones::
 
     backbones = {
         "disparity": nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05),
-        "mst": nb.maximum_spanning_tree_backbone(G),
+        "mst": nb.boolean_filter(nb.maximum_spanning_tree_backbone(G), "mst_keep"),
     }
     results = nb.compare_backbones(G, backbones)
 

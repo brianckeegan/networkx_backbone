@@ -7,6 +7,8 @@ these functions extract the final subgraph.
 
 import networkx as nx
 
+from networkx_backbone._docstrings import append_complexity_docstrings
+
 __all__ = [
     "multigraph_to_weighted",
     "threshold_filter",
@@ -49,14 +51,17 @@ def multigraph_to_weighted(G, weight="weight", edge_type_attr=None):
     Examples
     --------
     >>> import networkx as nx
+
+from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import multigraph_to_weighted
+    >>> B = nx.davis_southern_women_graph()
     >>> MG = nx.MultiGraph()
-    >>> MG.add_edge(0, 1, edge_type="a")
-    0
-    >>> MG.add_edge(0, 1, edge_type="b")
-    1
+    >>> MG.add_nodes_from(B.nodes(data=True))
+    >>> u, v = next(iter(B.edges()))
+    >>> _ = MG.add_edge(u, v, edge_type="attendance_a")
+    >>> _ = MG.add_edge(u, v, edge_type="attendance_b")
     >>> H = multigraph_to_weighted(MG, edge_type_attr="edge_type")
-    >>> H[0][1]["weight"]
+    >>> H[u][v]["weight"]
     2
     """
     if not G.is_multigraph():
@@ -136,9 +141,10 @@ def threshold_filter(
     Examples
     --------
     >>> import networkx as nx
+
+from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import disparity_filter, threshold_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
+    >>> G = nx.les_miserables_graph()
     >>> H = disparity_filter(G)
     >>> filtered = threshold_filter(H, "disparity_pvalue", 0.5)
     >>> filtered.number_of_edges() <= H.number_of_edges()
@@ -212,9 +218,10 @@ def fraction_filter(G, score, fraction, ascending=True, filter_on="edges"):
     Examples
     --------
     >>> import networkx as nx
+
+from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import disparity_filter, fraction_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
+    >>> G = nx.les_miserables_graph()
     >>> H = disparity_filter(G)
     >>> filtered = fraction_filter(H, "disparity_pvalue", 0.5)
     >>> filtered.number_of_edges() <= H.number_of_edges()
@@ -271,13 +278,14 @@ def boolean_filter(G, score):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter
-    >>> G = nx.Graph()
-    >>> G.add_edge(0, 1, keep=True)
-    >>> G.add_edge(1, 2, keep=False)
-    >>> H = boolean_filter(G, "keep")
-    >>> sorted(H.edges())
-    [(0, 1)]
+
+from networkx_backbone._docstrings import append_complexity_docstrings
+    >>> from networkx_backbone import boolean_filter, global_threshold_filter
+    >>> G = nx.les_miserables_graph()
+    >>> scored = global_threshold_filter(G, threshold=2)
+    >>> H = boolean_filter(scored, "global_threshold_keep")
+    >>> H.number_of_edges() <= scored.number_of_edges()
+    True
     """
     H = G.__class__()
     H.add_nodes_from(G.nodes(data=True))
@@ -313,12 +321,20 @@ def consensus_backbone(*backbones):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import consensus_backbone
-    >>> G1 = nx.Graph([(0, 1), (1, 2)])
-    >>> G2 = nx.Graph([(0, 1), (2, 3)])
-    >>> H = consensus_backbone(G1, G2)
-    >>> sorted(H.edges())
-    [(0, 1)]
+
+from networkx_backbone._docstrings import append_complexity_docstrings
+    >>> from networkx_backbone import (
+    ...     consensus_backbone,
+    ...     jaccard_backbone,
+    ...     cosine_backbone,
+    ...     fraction_filter,
+    ... )
+    >>> G = nx.les_miserables_graph()
+    >>> B1 = fraction_filter(jaccard_backbone(G), "jaccard", 0.3, ascending=False)
+    >>> B2 = fraction_filter(cosine_backbone(G), "cosine", 0.3, ascending=False)
+    >>> H = consensus_backbone(B1, B2)
+    >>> H.number_of_edges() <= min(B1.number_of_edges(), B2.number_of_edges())
+    True
     """
     if len(backbones) < 2:
         raise ValueError("consensus_backbone requires at least 2 graphs")
@@ -343,3 +359,32 @@ def consensus_backbone(*backbones):
             H.add_edge(v, u, **ref[v][u])
 
     return H
+
+
+_COMPLEXITY = {
+    "multigraph_to_weighted": {
+        "time": "O(m)",
+        "space": "O(n + m)",
+        "notes": "m counts input edge instances for multigraphs.",
+    },
+    "threshold_filter": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+    },
+    "fraction_filter": {
+        "time": "O(m log m)",
+        "space": "O(n + m)",
+        "notes": "Edge mode; node mode is O(n log n).",
+    },
+    "boolean_filter": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+    },
+    "consensus_backbone": {
+        "time": "O(km)",
+        "space": "O(m)",
+        "notes": "k=number of input backbones, m=edges per backbone.",
+    },
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

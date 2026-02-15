@@ -13,6 +13,8 @@ glab_filter
 import networkx as nx
 from networkx.utils import not_implemented_for
 
+from networkx_backbone._docstrings import append_complexity_docstrings
+
 __all__ = ["glab_filter"]
 
 
@@ -56,11 +58,11 @@ def glab_filter(G, weight="weight", c=0.5):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import glab_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
+    >>> from networkx_backbone import glab_filter, threshold_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = glab_filter(G)
-    >>> "glab_pvalue" in H[0][1]
+    >>> backbone = threshold_filter(H, "glab_pvalue", 0.05, mode="below")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     H = G.copy()
@@ -94,3 +96,14 @@ def glab_filter(G, weight="weight", c=0.5):
         data["glab_pvalue"] = pval
 
     return H
+
+
+_COMPLEXITY = {
+    "glab_filter": {
+        "time": "O(nm + n^2 log n)",
+        "space": "O(n + m)",
+        "notes": "Dominated by weighted edge-betweenness centrality.",
+    }
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

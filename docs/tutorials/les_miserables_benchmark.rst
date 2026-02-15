@@ -1,186 +1,159 @@
 Les Miserables Benchmark
 ========================
 
-This benchmark uses NetworkX's built-in ``nx.les_miserables_graph()`` as a
-common example dataset across non-bipartite backbone methods.
+This benchmark uses NetworkX's built-in ``nx.les_miserables_graph()`` and
+applies a strict **score-then-filter** workflow for every method:
+
+1. Run a scoring method that returns the full graph with edge attributes.
+2. Apply a filter (`threshold_filter`, `fraction_filter`, or `boolean_filter`).
+3. Report edge counts only from the filtered graph.
+
+If the filtered graph has the same edge count as the original graph, issue a
+warning and re-test the method parameters.
 
 Setup
 -----
 
 ::
 
+    import warnings
     import networkx as nx
     import networkx_backbone as nb
 
-    # Weighted graph from NetworkX social generators
     G = nx.les_miserables_graph()
-
-    # Unweighted version for unweighted sparsification methods
     G_unweighted = nx.Graph()
     G_unweighted.add_nodes_from(G.nodes(data=True))
     G_unweighted.add_edges_from(G.edges())
 
-    print(f"Original graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
+    ORIGINAL_EDGES = G.number_of_edges()  # 254
 
-For this graph, the original edge count is **254**.
+    def warn_if_no_reduction(name, filtered):
+        if filtered.number_of_edges() == ORIGINAL_EDGES:
+            warnings.warn(
+                f"{name}: filtered graph has the same number of edges as "
+                f"the original ({ORIGINAL_EDGES}). Re-test and validate.",
+                UserWarning,
+            )
 
-Edge Counts by Method
----------------------
+Filtered Edge Counts
+--------------------
 
-The table below reports the number of edges after each non-bipartite backbone
-function call.
+All counts below are after explicit filtering.
 
 .. list-table::
    :header-rows: 1
-   :widths: 45 20 20 15
+   :widths: 48 26 26
 
    * - Function
-     - Graph Used
-     - Parameters
-     - Edges After
+     - Filter Applied
+     - Edges After Filter
    * - :func:`~networkx_backbone.disparity_filter`
-     - ``G``
-     - defaults
-     - 254
+     - ``disparity_pvalue < 0.05``
+     - 247
    * - :func:`~networkx_backbone.noise_corrected_filter`
-     - ``G``
-     - defaults
-     - 254
+     - ``nc_score >= 2.0``
+     - 98
    * - :func:`~networkx_backbone.marginal_likelihood_filter`
-     - ``G``
-     - defaults
-     - 254
+     - ``ml_pvalue < 0.05``
+     - 70
    * - :func:`~networkx_backbone.ecm_filter`
-     - ``G``
-     - defaults
+     - ``ecm_pvalue < 0.05``
      - 254
    * - :func:`~networkx_backbone.lans_filter`
-     - ``G``
-     - defaults
-     - 254
+     - ``lans_pvalue < 0.05``
+     - 109
    * - :func:`~networkx_backbone.multiple_linkage_analysis`
-     - ``G``
-     - ``alpha=0.05``
+     - ``mla_keep`` (boolean)
      - 109
    * - :func:`~networkx_backbone.global_threshold_filter`
-     - ``G``
-     - ``threshold=2``
+     - ``global_threshold_keep`` (boolean)
      - 157
    * - :func:`~networkx_backbone.strongest_n_ties`
-     - ``G``
-     - ``n=2``
+     - ``strongest_n_ties_keep`` (boolean)
      - 113
    * - :func:`~networkx_backbone.global_sparsification`
-     - ``G``
-     - ``s=0.5``
+     - ``global_sparsification_keep`` (boolean)
      - 127
    * - :func:`~networkx_backbone.primary_linkage_analysis`
-     - ``G``
-     - defaults
-     - 77
+     - ``primary_linkage_keep`` (boolean)
+     - 69
    * - :func:`~networkx_backbone.edge_betweenness_filter`
-     - ``G``
-     - ``s=0.5``
+     - ``edge_betweenness_keep`` (boolean)
      - 127
    * - :func:`~networkx_backbone.node_degree_filter`
-     - ``G``
-     - ``min_degree=2``
+     - ``node_degree_keep`` (boolean)
      - 237
    * - :func:`~networkx_backbone.high_salience_skeleton`
-     - ``G``
-     - defaults
-     - 254
+     - ``salience >= 0.5``
+     - 76
    * - :func:`~networkx_backbone.metric_backbone`
-     - ``G``
-     - defaults
+     - ``metric_keep`` (boolean)
      - 163
    * - :func:`~networkx_backbone.ultrametric_backbone`
-     - ``G``
-     - defaults
+     - ``ultrametric_keep`` (boolean)
      - 118
    * - :func:`~networkx_backbone.doubly_stochastic_filter`
-     - ``G``
-     - defaults
-     - 254
+     - ``ds_weight >= 0.1``
+     - 109
    * - :func:`~networkx_backbone.h_backbone`
-     - ``G``
-     - defaults
+     - ``h_backbone_keep`` (boolean)
      - 22
    * - :func:`~networkx_backbone.modularity_backbone`
-     - ``G``
-     - defaults
-     - 254
+     - ``modularity_keep`` (boolean)
+     - 72
    * - :func:`~networkx_backbone.planar_maximally_filtered_graph`
-     - ``G``
-     - defaults
+     - ``pmfg_keep`` (boolean)
      - 162
    * - :func:`~networkx_backbone.maximum_spanning_tree_backbone`
-     - ``G``
-     - defaults
+     - ``mst_keep`` (boolean)
      - 76
    * - :func:`~networkx_backbone.neighborhood_overlap`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``overlap``
+     - 76
    * - :func:`~networkx_backbone.jaccard_backbone`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``jaccard``
+     - 76
    * - :func:`~networkx_backbone.dice_backbone`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``dice``
+     - 76
    * - :func:`~networkx_backbone.cosine_backbone`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``cosine``
+     - 76
    * - :func:`~networkx_backbone.hub_promoted_index`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``hpi``
+     - 76
    * - :func:`~networkx_backbone.hub_depressed_index`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``hdi``
+     - 76
    * - :func:`~networkx_backbone.lhn_local_index`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``lhn_local``
+     - 76
    * - :func:`~networkx_backbone.preferential_attachment_score`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``pa``
+     - 76
    * - :func:`~networkx_backbone.adamic_adar_index`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``adamic_adar``
+     - 76
    * - :func:`~networkx_backbone.resource_allocation_index`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``resource_allocation``
+     - 76
    * - :func:`~networkx_backbone.graph_distance_proximity`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``dist``
+     - 76
    * - :func:`~networkx_backbone.local_path_index`
-     - ``G``
-     - defaults
-     - 254
+     - top 30% by ``lp``
+     - 76
    * - :func:`~networkx_backbone.glab_filter`
-     - ``G``
-     - defaults
-     - 254
+     - ``glab_pvalue < 0.05``
+     - 5
    * - :func:`~networkx_backbone.sparsify`
-     - ``G_unweighted``
-     - defaults
+     - ``sparsify_keep`` (boolean)
      - 136
    * - :func:`~networkx_backbone.lspar`
-     - ``G_unweighted``
-     - defaults
+     - ``sparsify_keep`` (boolean)
      - 136
    * - :func:`~networkx_backbone.local_degree`
-     - ``G_unweighted``
-     - defaults
+     - ``sparsify_keep`` (boolean)
      - 135
 
 Reproducibility Script
@@ -188,6 +161,7 @@ Reproducibility Script
 
 ::
 
+    import warnings
     import networkx as nx
     import networkx_backbone as nb
 
@@ -196,46 +170,54 @@ Reproducibility Script
     G_unweighted.add_nodes_from(G.nodes(data=True))
     G_unweighted.add_edges_from(G.edges())
 
+    original_edges = G.number_of_edges()
+
     methods = [
-        ("disparity_filter", lambda: nb.disparity_filter(G)),
-        ("noise_corrected_filter", lambda: nb.noise_corrected_filter(G)),
-        ("marginal_likelihood_filter", lambda: nb.marginal_likelihood_filter(G)),
-        ("ecm_filter", lambda: nb.ecm_filter(G)),
-        ("lans_filter", lambda: nb.lans_filter(G)),
-        ("multiple_linkage_analysis(alpha=0.05)", lambda: nb.multiple_linkage_analysis(G, alpha=0.05)),
-        ("global_threshold_filter(threshold=2)", lambda: nb.global_threshold_filter(G, threshold=2)),
-        ("strongest_n_ties(n=2)", lambda: nb.strongest_n_ties(G, n=2)),
-        ("global_sparsification(s=0.5)", lambda: nb.global_sparsification(G, s=0.5)),
-        ("primary_linkage_analysis", lambda: nb.primary_linkage_analysis(G)),
-        ("edge_betweenness_filter(s=0.5)", lambda: nb.edge_betweenness_filter(G, s=0.5)),
-        ("node_degree_filter(min_degree=2)", lambda: nb.node_degree_filter(G, min_degree=2)),
-        ("high_salience_skeleton", lambda: nb.high_salience_skeleton(G)),
-        ("metric_backbone", lambda: nb.metric_backbone(G)),
-        ("ultrametric_backbone", lambda: nb.ultrametric_backbone(G)),
-        ("doubly_stochastic_filter", lambda: nb.doubly_stochastic_filter(G)),
-        ("h_backbone", lambda: nb.h_backbone(G)),
-        ("modularity_backbone", lambda: nb.modularity_backbone(G)),
-        ("planar_maximally_filtered_graph", lambda: nb.planar_maximally_filtered_graph(G)),
-        ("maximum_spanning_tree_backbone", lambda: nb.maximum_spanning_tree_backbone(G)),
-        ("neighborhood_overlap", lambda: nb.neighborhood_overlap(G)),
-        ("jaccard_backbone", lambda: nb.jaccard_backbone(G)),
-        ("dice_backbone", lambda: nb.dice_backbone(G)),
-        ("cosine_backbone", lambda: nb.cosine_backbone(G)),
-        ("hub_promoted_index", lambda: nb.hub_promoted_index(G)),
-        ("hub_depressed_index", lambda: nb.hub_depressed_index(G)),
-        ("lhn_local_index", lambda: nb.lhn_local_index(G)),
-        ("preferential_attachment_score", lambda: nb.preferential_attachment_score(G)),
-        ("adamic_adar_index", lambda: nb.adamic_adar_index(G)),
-        ("resource_allocation_index", lambda: nb.resource_allocation_index(G)),
-        ("graph_distance_proximity", lambda: nb.graph_distance_proximity(G)),
-        ("local_path_index", lambda: nb.local_path_index(G)),
-        ("glab_filter", lambda: nb.glab_filter(G)),
-        ("sparsify", lambda: nb.sparsify(G_unweighted)),
-        ("lspar", lambda: nb.lspar(G_unweighted)),
-        ("local_degree", lambda: nb.local_degree(G_unweighted)),
+        ("disparity_filter", lambda: nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05, mode="below")),
+        ("noise_corrected_filter", lambda: nb.threshold_filter(nb.noise_corrected_filter(G), "nc_score", 2.0, mode="above")),
+        ("marginal_likelihood_filter", lambda: nb.threshold_filter(nb.marginal_likelihood_filter(G), "ml_pvalue", 0.05, mode="below")),
+        ("ecm_filter", lambda: nb.threshold_filter(nb.ecm_filter(G), "ecm_pvalue", 0.05, mode="below")),
+        ("lans_filter", lambda: nb.threshold_filter(nb.lans_filter(G), "lans_pvalue", 0.05, mode="below")),
+        ("multiple_linkage_analysis(alpha=0.05)", lambda: nb.boolean_filter(nb.multiple_linkage_analysis(G, alpha=0.05), "mla_keep")),
+        ("global_threshold_filter(threshold=2)", lambda: nb.boolean_filter(nb.global_threshold_filter(G, threshold=2), "global_threshold_keep")),
+        ("strongest_n_ties(n=2)", lambda: nb.boolean_filter(nb.strongest_n_ties(G, n=2), "strongest_n_ties_keep")),
+        ("global_sparsification(s=0.5)", lambda: nb.boolean_filter(nb.global_sparsification(G, s=0.5), "global_sparsification_keep")),
+        ("primary_linkage_analysis", lambda: nb.boolean_filter(nb.primary_linkage_analysis(G), "primary_linkage_keep")),
+        ("edge_betweenness_filter(s=0.5)", lambda: nb.boolean_filter(nb.edge_betweenness_filter(G, s=0.5), "edge_betweenness_keep")),
+        ("node_degree_filter(min_degree=2)", lambda: nb.boolean_filter(nb.node_degree_filter(G, min_degree=2), "node_degree_keep")),
+        ("high_salience_skeleton", lambda: nb.threshold_filter(nb.high_salience_skeleton(G), "salience", 0.5, mode="above")),
+        ("metric_backbone", lambda: nb.boolean_filter(nb.metric_backbone(G), "metric_keep")),
+        ("ultrametric_backbone", lambda: nb.boolean_filter(nb.ultrametric_backbone(G), "ultrametric_keep")),
+        ("doubly_stochastic_filter", lambda: nb.threshold_filter(nb.doubly_stochastic_filter(G), "ds_weight", 0.1, mode="above")),
+        ("h_backbone", lambda: nb.boolean_filter(nb.h_backbone(G), "h_backbone_keep")),
+        ("modularity_backbone", lambda: nb.boolean_filter(nb.modularity_backbone(G), "modularity_keep")),
+        ("planar_maximally_filtered_graph", lambda: nb.boolean_filter(nb.planar_maximally_filtered_graph(G), "pmfg_keep")),
+        ("maximum_spanning_tree_backbone", lambda: nb.boolean_filter(nb.maximum_spanning_tree_backbone(G), "mst_keep")),
+        ("neighborhood_overlap", lambda: nb.fraction_filter(nb.neighborhood_overlap(G), "overlap", 0.3, ascending=False)),
+        ("jaccard_backbone", lambda: nb.fraction_filter(nb.jaccard_backbone(G), "jaccard", 0.3, ascending=False)),
+        ("dice_backbone", lambda: nb.fraction_filter(nb.dice_backbone(G), "dice", 0.3, ascending=False)),
+        ("cosine_backbone", lambda: nb.fraction_filter(nb.cosine_backbone(G), "cosine", 0.3, ascending=False)),
+        ("hub_promoted_index", lambda: nb.fraction_filter(nb.hub_promoted_index(G), "hpi", 0.3, ascending=False)),
+        ("hub_depressed_index", lambda: nb.fraction_filter(nb.hub_depressed_index(G), "hdi", 0.3, ascending=False)),
+        ("lhn_local_index", lambda: nb.fraction_filter(nb.lhn_local_index(G), "lhn_local", 0.3, ascending=False)),
+        ("preferential_attachment_score", lambda: nb.fraction_filter(nb.preferential_attachment_score(G), "pa", 0.3, ascending=False)),
+        ("adamic_adar_index", lambda: nb.fraction_filter(nb.adamic_adar_index(G), "adamic_adar", 0.3, ascending=False)),
+        ("resource_allocation_index", lambda: nb.fraction_filter(nb.resource_allocation_index(G), "resource_allocation", 0.3, ascending=False)),
+        ("graph_distance_proximity", lambda: nb.fraction_filter(nb.graph_distance_proximity(G), "dist", 0.3, ascending=False)),
+        ("local_path_index", lambda: nb.fraction_filter(nb.local_path_index(G), "lp", 0.3, ascending=False)),
+        ("glab_filter", lambda: nb.threshold_filter(nb.glab_filter(G), "glab_pvalue", 0.05, mode="below")),
+        ("sparsify", lambda: nb.boolean_filter(nb.sparsify(G_unweighted), "sparsify_keep")),
+        ("lspar", lambda: nb.boolean_filter(nb.lspar(G_unweighted), "sparsify_keep")),
+        ("local_degree", lambda: nb.boolean_filter(nb.local_degree(G_unweighted), "sparsify_keep")),
     ]
 
-    print("original_edges", G.number_of_edges())
+    print("original_edges", original_edges)
     for name, fn in methods:
-        H = fn()
-        print(name, H.number_of_edges())
+        filtered = fn()
+        if filtered.number_of_edges() == original_edges:
+            warnings.warn(
+                f"{name}: filtered graph has the same number of edges as "
+                f"the original ({original_edges}). Re-test and validate.",
+                UserWarning,
+            )
+        print(name, filtered.number_of_edges())

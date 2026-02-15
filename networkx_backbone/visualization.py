@@ -10,6 +10,8 @@ the differences using consistent defaults:
 
 import networkx as nx
 
+from networkx_backbone._docstrings import append_complexity_docstrings
+
 __all__ = [
     "graph_difference",
     "compare_graphs",
@@ -209,3 +211,22 @@ def save_graph_comparison(
     fig, _ = compare_graphs(original, backbone, pos=pos, **kwargs)
     fig.savefig(output_path, dpi=dpi, bbox_inches=bbox_inches)
     return output_path
+
+
+_COMPLEXITY = {
+    "graph_difference": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+    },
+    "compare_graphs": {
+        "time": "O(n + m) without layout; plus layout cost if pos is None",
+        "space": "O(n + m)",
+        "notes": "Spring layout adds iterative graph-drawing overhead.",
+    },
+    "save_graph_comparison": {
+        "time": "O(n + m) without layout; plus rendering/write cost",
+        "space": "O(n + m)",
+    },
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

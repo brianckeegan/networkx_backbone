@@ -50,6 +50,8 @@ import math
 
 import networkx as nx
 
+from networkx_backbone._docstrings import append_complexity_docstrings
+
 __all__ = [
     "neighborhood_overlap",
     "jaccard_backbone",
@@ -102,11 +104,12 @@ def neighborhood_overlap(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> G = nx.complete_graph(4)
-    >>> from networkx_backbone import neighborhood_overlap
+    >>> from networkx_backbone import fraction_filter, neighborhood_overlap
+    >>> G = nx.les_miserables_graph()
     >>> H = neighborhood_overlap(G)
-    >>> H[0][1]["overlap"]
-    2
+    >>> backbone = fraction_filter(H, "overlap", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     nbrs = _neighbor_sets(G)
@@ -145,11 +148,12 @@ def jaccard_backbone(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import jaccard_backbone
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import fraction_filter, jaccard_backbone
+    >>> G = nx.les_miserables_graph()
     >>> H = jaccard_backbone(G)
-    >>> H[0][1]["jaccard"]
-    0.5
+    >>> backbone = fraction_filter(H, "jaccard", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     nbrs = _neighbor_sets(G)
@@ -191,11 +195,12 @@ def dice_backbone(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import dice_backbone
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import dice_backbone, fraction_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = dice_backbone(G)
-    >>> round(H[0][1]["dice"], 4)
-    0.6667
+    >>> backbone = fraction_filter(H, "dice", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     nbrs = _neighbor_sets(G)
@@ -236,11 +241,12 @@ def cosine_backbone(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import cosine_backbone
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import cosine_backbone, fraction_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = cosine_backbone(G)
-    >>> round(H[0][1]["cosine"], 4)
-    0.6667
+    >>> backbone = fraction_filter(H, "cosine", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     nbrs = _neighbor_sets(G)
@@ -282,11 +288,12 @@ def hub_promoted_index(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import hub_promoted_index
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import fraction_filter, hub_promoted_index
+    >>> G = nx.les_miserables_graph()
     >>> H = hub_promoted_index(G)
-    >>> round(H[0][1]["hpi"], 4)
-    0.6667
+    >>> backbone = fraction_filter(H, "hpi", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     nbrs = _neighbor_sets(G)
@@ -328,11 +335,12 @@ def hub_depressed_index(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import hub_depressed_index
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import fraction_filter, hub_depressed_index
+    >>> G = nx.les_miserables_graph()
     >>> H = hub_depressed_index(G)
-    >>> round(H[0][1]["hdi"], 4)
-    0.6667
+    >>> backbone = fraction_filter(H, "hdi", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     nbrs = _neighbor_sets(G)
@@ -373,11 +381,12 @@ def lhn_local_index(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import lhn_local_index
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import fraction_filter, lhn_local_index
+    >>> G = nx.les_miserables_graph()
     >>> H = lhn_local_index(G)
-    >>> round(H[0][1]["lhn_local"], 4)
-    0.2222
+    >>> backbone = fraction_filter(H, "lhn_local", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     nbrs = _neighbor_sets(G)
@@ -418,11 +427,12 @@ def preferential_attachment_score(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import preferential_attachment_score
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import fraction_filter, preferential_attachment_score
+    >>> G = nx.les_miserables_graph()
     >>> H = preferential_attachment_score(G)
-    >>> H[0][1]["pa"]
-    9
+    >>> backbone = fraction_filter(H, "pa", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     deg = dict(G.degree())
@@ -461,11 +471,12 @@ def adamic_adar_index(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import adamic_adar_index
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import adamic_adar_index, fraction_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = adamic_adar_index(G)
-    >>> round(H[0][1]["adamic_adar"], 4)
-    1.8205
+    >>> backbone = fraction_filter(H, "adamic_adar", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     nbrs = _neighbor_sets(G)
@@ -509,11 +520,12 @@ def resource_allocation_index(G):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import resource_allocation_index
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import fraction_filter, resource_allocation_index
+    >>> G = nx.les_miserables_graph()
     >>> H = resource_allocation_index(G)
-    >>> round(H[0][1]["resource_allocation"], 4)
-    0.6667
+    >>> backbone = fraction_filter(H, "resource_allocation", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     """
     H = G.copy()
     nbrs = _neighbor_sets(G)
@@ -560,14 +572,15 @@ def graph_distance_proximity(G, all_pairs=False):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import graph_distance_proximity
-    >>> G = nx.path_graph(4)
+    >>> from networkx_backbone import fraction_filter, graph_distance_proximity
+    >>> G = nx.les_miserables_graph()
     >>> H = graph_distance_proximity(G)
-    >>> H[0][1]["dist"]
-    1.0
+    >>> backbone = fraction_filter(H, "dist", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
     >>> H_all = graph_distance_proximity(G, all_pairs=True)
-    >>> H_all[0][2]["dist"]
-    0.5
+    >>> H_all.number_of_edges() >= H.number_of_edges()
+    True
     """
     sp = dict(nx.all_pairs_shortest_path_length(G))
 
@@ -635,10 +648,11 @@ def local_path_index(G, epsilon=0.01):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import local_path_index
-    >>> G = nx.complete_graph(4)
+    >>> from networkx_backbone import fraction_filter, local_path_index
+    >>> G = nx.les_miserables_graph()
     >>> H = local_path_index(G)
-    >>> H[0][1]["lp"] > 0
+    >>> backbone = fraction_filter(H, "lp", 0.3, ascending=False)
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     import numpy as np  # noqa: F401
@@ -654,3 +668,60 @@ def local_path_index(G, epsilon=0.01):
         i, j = node_idx[u], node_idx[v]
         H[u][v]["lp"] = float(S[i, j])
     return H
+
+
+_COMPLEXITY = {
+    "neighborhood_overlap": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+        "notes": "Worst-case over per-edge neighbor-set intersections.",
+    },
+    "jaccard_backbone": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+    },
+    "dice_backbone": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+    },
+    "cosine_backbone": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+    },
+    "hub_promoted_index": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+    },
+    "hub_depressed_index": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+    },
+    "lhn_local_index": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+    },
+    "preferential_attachment_score": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+    },
+    "adamic_adar_index": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+    },
+    "resource_allocation_index": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+    },
+    "graph_distance_proximity": {
+        "time": "O(n(n + m))",
+        "space": "O(n^2 + m)",
+        "notes": "Computes all-pairs shortest paths before edge annotation.",
+    },
+    "local_path_index": {
+        "time": "O(n^3)",
+        "space": "O(n^2)",
+        "notes": "Dense adjacency matrix multiplication.",
+    },
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

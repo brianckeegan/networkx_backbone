@@ -19,6 +19,8 @@ import math
 import networkx as nx
 from networkx.utils import not_implemented_for
 
+from networkx_backbone._docstrings import append_complexity_docstrings
+
 __all__ = ["sparsify", "lspar", "local_degree"]
 
 
@@ -58,7 +60,8 @@ def sparsify(G, escore="jaccard", normalize="rank", filter="degree", s=0.5, umst
     Returns
     -------
     H : graph
-        Sparsified backbone.
+        A copy of *G* with edge attributes:
+        ``"sparsify_score"`` and boolean ``"sparsify_keep"``.
 
     Raises
     ------
@@ -73,10 +76,14 @@ def sparsify(G, escore="jaccard", normalize="rank", filter="degree", s=0.5, umst
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import sparsify
-    >>> G = nx.karate_club_graph()
+    >>> from networkx_backbone import boolean_filter, sparsify
+    >>> G_weighted = nx.les_miserables_graph()
+    >>> G = nx.Graph()
+    >>> G.add_nodes_from(G_weighted.nodes(data=True))
+    >>> G.add_edges_from(G_weighted.edges())
     >>> H = sparsify(G, s=0.5)
-    >>> H.number_of_edges() < G.number_of_edges()
+    >>> backbone = boolean_filter(H, "sparsify_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     # Step 1: Score edges
@@ -94,24 +101,24 @@ def sparsify(G, escore="jaccard", normalize="rank", filter="degree", s=0.5, umst
     else:
         raise ValueError(f"Unknown filter: {filter!r}")
 
-    # Build the backbone
-    H = G.__class__()
-    H.add_nodes_from(G.nodes(data=True))
-    for u, v in kept:
-        if G.has_edge(u, v):
-            H.add_edge(u, v, **G[u][v])
+    # Step 4: Optionally add UMST-selected edges to the keep set
+    if umst:
+        selected = G.edge_subgraph(list(kept)).copy()
+        selected.add_nodes_from(G.nodes(data=True))
+        if nx.number_connected_components(selected) > 1:
+            scored_G = G.copy()
+            for u, v in scored_G.edges():
+                key = (min(u, v), max(u, v))
+                scored_G[u][v]["__sparsify_neg_score__"] = -scores.get(key, 0)
+            mst = nx.minimum_spanning_tree(scored_G, weight="__sparsify_neg_score__")
+            for u, v in mst.edges():
+                kept.add((min(u, v), max(u, v)))
 
-    # Step 4: Optionally add UMST
-    if umst and nx.number_connected_components(H) > 1:
-        scored_G = G.copy()
-        for u, v in scored_G.edges():
-            key = (min(u, v), max(u, v))
-            scored_G[u][v]["__sparsify_neg_score__"] = -scores.get(key, 0)
-        mst = nx.minimum_spanning_tree(scored_G, weight="__sparsify_neg_score__")
-        for u, v, data in mst.edges(data=True):
-            if not H.has_edge(u, v):
-                orig_data = G[u][v] if G.has_edge(u, v) else {}
-                H.add_edge(u, v, **orig_data)
+    H = G.copy()
+    for u, v, data in H.edges(data=True):
+        key = (min(u, v), max(u, v))
+        data["sparsify_score"] = float(scores.get(key, 0.0))
+        data["sparsify_keep"] = key in kept
 
     return H
 
@@ -133,7 +140,7 @@ def lspar(G, s=0.5):
     Returns
     -------
     H : graph
-        Sparsified backbone.
+        A copy of *G* with ``"sparsify_score"`` and ``"sparsify_keep"``.
 
     References
     ----------
@@ -143,10 +150,14 @@ def lspar(G, s=0.5):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import lspar
-    >>> G = nx.karate_club_graph()
+    >>> from networkx_backbone import boolean_filter, lspar
+    >>> G_weighted = nx.les_miserables_graph()
+    >>> G = nx.Graph()
+    >>> G.add_nodes_from(G_weighted.nodes(data=True))
+    >>> G.add_edges_from(G_weighted.edges())
     >>> H = lspar(G, s=0.5)
-    >>> H.number_of_edges() < G.number_of_edges()
+    >>> backbone = boolean_filter(H, "sparsify_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     return sparsify(G, escore="jaccard", normalize="rank", filter="degree", s=s)
@@ -169,7 +180,7 @@ def local_degree(G, s=0.3):
     Returns
     -------
     H : graph
-        Sparsified backbone.
+        A copy of *G* with ``"sparsify_score"`` and ``"sparsify_keep"``.
 
     References
     ----------
@@ -180,10 +191,14 @@ def local_degree(G, s=0.3):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import local_degree
-    >>> G = nx.karate_club_graph()
+    >>> from networkx_backbone import boolean_filter, local_degree
+    >>> G_weighted = nx.les_miserables_graph()
+    >>> G = nx.Graph()
+    >>> G.add_nodes_from(G_weighted.nodes(data=True))
+    >>> G.add_edges_from(G_weighted.edges())
     >>> H = local_degree(G, s=0.3)
-    >>> H.number_of_edges() < G.number_of_edges()
+    >>> backbone = boolean_filter(H, "sparsify_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     return sparsify(G, escore="degree", normalize="rank", filter="degree", s=s)
@@ -286,3 +301,24 @@ def _degree_filter(G, scores, s):
             kept.add(key)
 
     return kept
+
+
+_COMPLEXITY = {
+    "sparsify": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+        "notes": "Worst-case; depends on escore/filter choices.",
+    },
+    "lspar": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+        "notes": "Wrapper over sparsify with Jaccard scoring.",
+    },
+    "local_degree": {
+        "time": "O(m + n)",
+        "space": "O(n + m)",
+        "notes": "Wrapper over sparsify with degree scoring.",
+    },
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

@@ -124,18 +124,13 @@ For example::
     # Step 2: Filter edges
     backbone = nb.threshold_filter(H, "disparity_pvalue", 0.05)
 
-Some methods return the backbone directly without a separate filter step.
-These include :func:`~networkx_backbone.metric_backbone`,
-:func:`~networkx_backbone.ultrametric_backbone`,
-:func:`~networkx_backbone.maximum_spanning_tree_backbone`,
-:func:`~networkx_backbone.planar_maximally_filtered_graph`,
-:func:`~networkx_backbone.global_threshold_filter`, and
-:func:`~networkx_backbone.strongest_n_ties`,
-:func:`~networkx_backbone.global_sparsification`,
-:func:`~networkx_backbone.primary_linkage_analysis`,
-:func:`~networkx_backbone.edge_betweenness_filter`,
-:func:`~networkx_backbone.node_degree_filter`, and
-:func:`~networkx_backbone.multiple_linkage_analysis`.
+Many structural and unweighted methods expose boolean edge flags (for example
+``metric_keep`` or ``sparsify_keep``). These still follow score-then-filter:
+
+::
+
+    scored = nb.metric_backbone(G)               # adds "metric_keep"
+    backbone = nb.boolean_filter(scored, "metric_keep")
 
 Evaluation
 ----------

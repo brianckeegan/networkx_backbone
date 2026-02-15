@@ -90,7 +90,8 @@ Multiple linkage analysis
 Multiple linkage analysis (Van Nuffel et al., 2010; Yassin et al., 2023)
 extracts a backbone using local linkage significance::
 
-    backbone = nb.multiple_linkage_analysis(G, alpha=0.05)
+    H = nb.multiple_linkage_analysis(G, alpha=0.05)
+    backbone = nb.boolean_filter(H, "mla_keep")
     print(f"MLA backbone: {backbone.number_of_edges()} edges")
 
 Comparing all statistical methods
@@ -114,7 +115,9 @@ Use :func:`~networkx_backbone.compare_backbones` to compare the results::
         "lans": nb.threshold_filter(
             nb.lans_filter(G), "lans_pvalue", 0.05
         ),
-        "mla": nb.multiple_linkage_analysis(G, alpha=0.05),
+        "mla": nb.boolean_filter(
+            nb.multiple_linkage_analysis(G, alpha=0.05), "mla_keep"
+        ),
     }
 
     results = nb.compare_backbones(G, backbones)

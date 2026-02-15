@@ -59,25 +59,29 @@ import networkx_backbone as nb
 # Create a weighted graph
 G = nx.les_miserables_graph()
 
-# Extract backbone using the disparity filter
-H = nb.disparity_filter(G)
+# 1) Score edges
+scored = nb.disparity_filter(G)
 
-# Filter to keep only significant edges (p < 0.05)
-backbone = nb.threshold_filter(H, "disparity_pvalue", 0.05)
+# 2) Filter edges
+backbone = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
 
 # Compare backbone to original
 print(f"Edges kept: {nb.edge_fraction(G, backbone):.1%}")
 print(f"Nodes kept: {nb.node_fraction(G, backbone):.1%}")
 ```
 
+### Disparity filter visualization
+
+![Disparity filter on Les Miserables](docs/_static/graph_gallery/les_miserables/disparity_filter.png)
+
 ### Proximity-based scoring
 
 ```python
 # Score edges by Jaccard similarity of endpoint neighborhoods
-H = nb.jaccard_backbone(G)
+scored = nb.jaccard_backbone(G)
 
 # Keep only the top 20% most structurally embedded edges
-backbone = nb.fraction_filter(H, "jaccard", 0.2, ascending=False)
+backbone = nb.fraction_filter(scored, "jaccard", 0.2, ascending=False)
 ```
 
 ### Bipartite backbone
@@ -85,8 +89,8 @@ backbone = nb.fraction_filter(H, "jaccard", 0.2, ascending=False)
 ```python
 B = nx.davis_southern_women_graph()
 women_nodes = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
-H = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
-backbone = nb.threshold_filter(H, "sdsm_pvalue", 0.05, mode="below")
+scored = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
+backbone = nb.threshold_filter(scored, "sdsm_pvalue", 0.05, mode="below")
 ```
 
 Projection weights follow the simple/hyper/ProbS/YCN formulations described in
@@ -97,7 +101,7 @@ Projection weights follow the simple/hyper/ProbS/YCN formulations described in
 ```python
 backbones = {
     "disparity": nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05),
-    "mst": nb.maximum_spanning_tree_backbone(G),
+    "mst": nb.boolean_filter(nb.maximum_spanning_tree_backbone(G), "mst_keep"),
 }
 results = nb.compare_backbones(G, backbones)
 ```
@@ -116,15 +120,16 @@ pytest
 
 ## Visualization gallery
 
-Generate backbone comparison visualizations for all core methods and refresh
-the docs gallery page:
+Backbone visualizations in the docs are generated with **Sphinx Gallery** from
+example scripts under `docs/examples/`.
+
+Build docs (including the graph comparison gallery and function-linked
+visualizations):
 
 ```bash
-python scripts/generate_visualizations.py
+pip install -e ".[docs]"
+sphinx-build -b html docs docs/_build/html
 ```
-
-This writes PNG assets to `docs/_static/graph_gallery/` and updates
-`docs/tutorials/graph_gallery.rst`.
 
 ## References
 

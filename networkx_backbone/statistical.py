@@ -25,6 +25,8 @@ import math
 
 import networkx as nx
 
+from networkx_backbone._docstrings import append_complexity_docstrings
+
 __all__ = [
     "disparity_filter",
     "noise_corrected_filter",
@@ -103,11 +105,11 @@ def disparity_filter(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import disparity_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
+    >>> from networkx_backbone import disparity_filter, threshold_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = disparity_filter(G)
-    >>> "disparity_pvalue" in H[0][1]
+    >>> backbone = threshold_filter(H, "disparity_pvalue", 0.05, mode="below")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     H = G.copy()
@@ -192,11 +194,11 @@ def noise_corrected_filter(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import noise_corrected_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
+    >>> from networkx_backbone import noise_corrected_filter, threshold_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = noise_corrected_filter(G)
-    >>> "nc_score" in H[0][1]
+    >>> backbone = threshold_filter(H, "nc_score", 2.0, mode="above")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     H = G.copy()
@@ -271,11 +273,11 @@ def marginal_likelihood_filter(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import marginal_likelihood_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
+    >>> from networkx_backbone import marginal_likelihood_filter, threshold_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = marginal_likelihood_filter(G)
-    >>> "ml_pvalue" in H[0][1]
+    >>> backbone = threshold_filter(H, "ml_pvalue", 0.05, mode="below")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     from scipy import stats as sp_stats
@@ -354,11 +356,11 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import ecm_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
+    >>> from networkx_backbone import ecm_filter, threshold_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = ecm_filter(G)
-    >>> "ecm_pvalue" in H[0][1]
+    >>> backbone = threshold_filter(H, "ecm_pvalue", 0.05, mode="below")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     import numpy as np
@@ -486,11 +488,11 @@ def lans_filter(G, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import lans_filter
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
+    >>> from networkx_backbone import lans_filter, threshold_filter
+    >>> G = nx.les_miserables_graph()
     >>> H = lans_filter(G)
-    >>> "lans_pvalue" in H[0][1]
+    >>> backbone = threshold_filter(H, "lans_pvalue", 0.05, mode="below")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
     H = G.copy()
@@ -544,8 +546,8 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight"):
     Returns
     -------
     H : graph
-        Backbone graph containing significant edges. Kept edges include both
-        ``"lans_pvalue"`` and ``"mla_pvalue"`` attributes.
+        A copy of *G* with ``"lans_pvalue"``, ``"mla_pvalue"``, and boolean
+        ``"mla_keep"`` edge attributes.
 
     Raises
     ------
@@ -565,23 +567,22 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight"):
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import multiple_linkage_analysis
-    >>> G = nx.Graph()
-    >>> G.add_weighted_edges_from([(0, 1, 3.0), (1, 2, 1.0), (0, 2, 2.0)])
+    >>> from networkx_backbone import boolean_filter, multiple_linkage_analysis
+    >>> G = nx.les_miserables_graph()
     >>> H = multiple_linkage_analysis(G, alpha=0.5)
-    >>> all("mla_pvalue" in d for _, _, d in H.edges(data=True))
+    >>> backbone = boolean_filter(H, "mla_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
-    from networkx_backbone.filters import threshold_filter
-
     if not 0.0 <= alpha <= 1.0:
         raise ValueError("alpha must be in [0, 1]")
 
     scored = lans_filter(G, weight=weight)
-    backbone = threshold_filter(scored, "lans_pvalue", alpha, mode="below")
-    for _, _, data in backbone.edges(data=True):
-        data["mla_pvalue"] = data["lans_pvalue"]
-    return backbone
+    for _, _, data in scored.edges(data=True):
+        pvalue = data["lans_pvalue"]
+        data["mla_pvalue"] = pvalue
+        data["mla_keep"] = pvalue <= alpha
+    return scored
 
 
 def _empirical_cdf(w, sorted_weights):
@@ -612,3 +613,54 @@ def mlf(G, weight="weight"):
 def lans(G, weight="weight"):
     """Alias for :func:`lans_filter`."""
     return lans_filter(G, weight=weight)
+
+
+_COMPLEXITY = {
+    "disparity_filter": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+        "notes": "n=|V|, m=|E|.",
+    },
+    "noise_corrected_filter": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+        "notes": "n=|V|, m=|E|.",
+    },
+    "marginal_likelihood_filter": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+        "notes": "n=|V|, m=|E|.",
+    },
+    "ecm_filter": {
+        "time": "O(I * n^2 + m)",
+        "space": "O(n + m)",
+        "notes": "I=max_iter, n=|V|, m=|E|.",
+    },
+    "lans_filter": {
+        "time": "O(m log n)",
+        "space": "O(n + m)",
+        "notes": "Worst-case over node-local sorted edge-weight lookups.",
+    },
+    "multiple_linkage_analysis": {
+        "time": "O(m log n)",
+        "space": "O(n + m)",
+        "notes": "Dominated by lans_filter.",
+    },
+    "disparity": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+        "notes": "Alias for disparity_filter.",
+    },
+    "mlf": {
+        "time": "O(n + m)",
+        "space": "O(n + m)",
+        "notes": "Alias for marginal_likelihood_filter.",
+    },
+    "lans": {
+        "time": "O(m log n)",
+        "space": "O(n + m)",
+        "notes": "Alias for lans_filter.",
+    },
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

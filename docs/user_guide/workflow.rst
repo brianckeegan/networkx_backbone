@@ -57,12 +57,42 @@ attribute name when calling a filter function.
    * - :func:`~networkx_backbone.lans_filter`
      - ``lans_pvalue``
      - p-value (lower = more significant)
+   * - :func:`~networkx_backbone.multiple_linkage_analysis`
+     - ``mla_pvalue`` + ``mla_keep``
+     - p-value + boolean keep flag
+   * - :func:`~networkx_backbone.global_threshold_filter`
+     - ``global_threshold_keep``
+     - Boolean keep flag
+   * - :func:`~networkx_backbone.strongest_n_ties`
+     - ``strongest_n_ties_keep``
+     - Boolean keep flag
+   * - :func:`~networkx_backbone.global_sparsification`
+     - ``global_sparsification_keep``
+     - Boolean keep flag
+   * - :func:`~networkx_backbone.primary_linkage_analysis`
+     - ``primary_linkage_keep``
+     - Boolean keep flag
+   * - :func:`~networkx_backbone.edge_betweenness_filter`
+     - ``edge_betweenness`` + ``edge_betweenness_keep``
+     - centrality score + boolean keep flag
+   * - :func:`~networkx_backbone.node_degree_filter`
+     - ``node_degree_keep`` (node + edge)
+     - Boolean keep flag
    * - :func:`~networkx_backbone.high_salience_skeleton`
      - ``salience``
      - Fraction in [0, 1] (higher = more important)
+   * - :func:`~networkx_backbone.metric_backbone`
+     - ``metric_keep``
+     - Boolean keep flag
+   * - :func:`~networkx_backbone.ultrametric_backbone`
+     - ``ultrametric_keep``
+     - Boolean keep flag
    * - :func:`~networkx_backbone.doubly_stochastic_filter`
      - ``ds_weight``
      - Normalized weight (higher = more important)
+   * - :func:`~networkx_backbone.h_backbone`
+     - ``h_backbone_keep``
+     - Boolean keep flag
    * - :func:`~networkx_backbone.glab_filter`
      - ``glab_pvalue``
      - p-value (lower = more significant)
@@ -102,6 +132,9 @@ attribute name when calling a filter function.
    * - :func:`~networkx_backbone.local_path_index`
      - ``lp``
      - Score (higher = more embedded)
+   * - :func:`~networkx_backbone.sparsify` / :func:`~networkx_backbone.lspar` / :func:`~networkx_backbone.local_degree`
+     - ``sparsify_score`` + ``sparsify_keep``
+     - score + boolean keep flag
    * - :func:`~networkx_backbone.sdsm`
      - ``sdsm_pvalue``
      - p-value (lower = more significant)
@@ -109,8 +142,8 @@ attribute name when calling a filter function.
      - ``fdsm_pvalue``
      - p-value (lower = more significant)
    * - :func:`~networkx_backbone.modularity_backbone`
-     - ``vitality`` (node)
-     - Vitality score (node attribute)
+     - ``vitality`` (node) + ``modularity_keep`` (edge)
+     - node score + boolean keep flag
 
 Filtering functions
 -------------------
@@ -154,14 +187,15 @@ graph-preparation support utilities.
 :func:`~networkx_backbone.boolean_filter`
     Keep edges where a boolean attribute is truthy::
 
-        backbone = nb.boolean_filter(H, "is_significant")
+        H = nb.global_sparsification(G, s=0.4)
+        backbone = nb.boolean_filter(H, "global_sparsification_keep")
 
 :func:`~networkx_backbone.consensus_backbone`
     Take the intersection of multiple backbones -- only edges present in
     all input backbones are kept::
 
         b1 = nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05)
-        b2 = nb.metric_backbone(G)
+        b2 = nb.boolean_filter(nb.metric_backbone(G), "metric_keep")
         consensus = nb.consensus_backbone(b1, b2)
 
 Visual comparison
@@ -176,27 +210,28 @@ graph with a backbone and highlight dropped structure::
     fig, ax, diff = nb.compare_graphs(G, backbone, return_diff=True)
     print(f"Removed nodes: {len(diff['removed_nodes'])}")
 
-Methods that return subgraphs directly
---------------------------------------
+Methods with boolean keep flags
+-------------------------------
 
-Some methods return the backbone directly without needing a separate filter
-step:
+Several methods provide built-in boolean edge attributes specifically for
+the filter step. Apply :func:`~networkx_backbone.boolean_filter` to extract
+the final backbone:
 
-- :func:`~networkx_backbone.metric_backbone` -- edges on shortest paths
-- :func:`~networkx_backbone.ultrametric_backbone` -- edges on minimax paths
-- :func:`~networkx_backbone.maximum_spanning_tree_backbone` -- maximum spanning tree
-- :func:`~networkx_backbone.planar_maximally_filtered_graph` -- planar subgraph
-- :func:`~networkx_backbone.global_threshold_filter` -- simple weight cutoff
-- :func:`~networkx_backbone.strongest_n_ties` -- top-N edges per node
-- :func:`~networkx_backbone.global_sparsification` -- global edge ranking by weight
-- :func:`~networkx_backbone.primary_linkage_analysis` -- strongest outgoing edge per node
-- :func:`~networkx_backbone.edge_betweenness_filter` -- top edges by betweenness
-- :func:`~networkx_backbone.node_degree_filter` -- induced subgraph by node degree
-- :func:`~networkx_backbone.h_backbone` -- h-index inspired subgraph
-- :func:`~networkx_backbone.sparsify` -- unweighted sparsification
-- :func:`~networkx_backbone.lspar` -- local sparsification
-- :func:`~networkx_backbone.local_degree` -- degree-based sparsification
-- :func:`~networkx_backbone.multiple_linkage_analysis` -- statistical linkage subgraph
+- :func:`~networkx_backbone.global_threshold_filter` -> ``global_threshold_keep``
+- :func:`~networkx_backbone.strongest_n_ties` -> ``strongest_n_ties_keep``
+- :func:`~networkx_backbone.global_sparsification` -> ``global_sparsification_keep``
+- :func:`~networkx_backbone.primary_linkage_analysis` -> ``primary_linkage_keep``
+- :func:`~networkx_backbone.edge_betweenness_filter` -> ``edge_betweenness_keep``
+- :func:`~networkx_backbone.node_degree_filter` -> ``node_degree_keep``
+- :func:`~networkx_backbone.metric_backbone` -> ``metric_keep``
+- :func:`~networkx_backbone.ultrametric_backbone` -> ``ultrametric_keep``
+- :func:`~networkx_backbone.h_backbone` -> ``h_backbone_keep``
+- :func:`~networkx_backbone.modularity_backbone` -> ``modularity_keep``
+- :func:`~networkx_backbone.planar_maximally_filtered_graph` -> ``pmfg_keep``
+- :func:`~networkx_backbone.maximum_spanning_tree_backbone` -> ``mst_keep``
+- :func:`~networkx_backbone.multiple_linkage_analysis` -> ``mla_keep``
+- :func:`~networkx_backbone.sparsify` / :func:`~networkx_backbone.lspar` /
+  :func:`~networkx_backbone.local_degree` -> ``sparsify_keep``
 
 For bipartite projections, :func:`~networkx_backbone.sdsm` and
 :func:`~networkx_backbone.fdsm` return full projected graphs with p-values

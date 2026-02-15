@@ -3,13 +3,18 @@
 import networkx as nx
 import pytest
 
-from networkx_backbone import local_degree, lspar, sparsify
+from networkx_backbone import boolean_filter, local_degree, lspar, sparsify
 
 
 class TestSparsify:
-    def test_reduces_edges(self, karate):
+    def test_adds_keep_and_score_attributes(self, karate):
         H = sparsify(karate, s=0.5)
-        assert H.number_of_edges() < karate.number_of_edges()
+        assert H.number_of_edges() == karate.number_of_edges()
+        for _, _, data in H.edges(data=True):
+            assert "sparsify_score" in data
+            assert "sparsify_keep" in data
+        backbone = boolean_filter(H, "sparsify_keep")
+        assert backbone.number_of_edges() < karate.number_of_edges()
 
     def test_preserves_nodes(self, karate):
         H = sparsify(karate, s=0.5)
@@ -21,12 +26,15 @@ class TestSparsify:
 
     def test_threshold_filter(self, karate):
         H = sparsify(karate, filter="threshold", s=0.5)
-        assert H.number_of_edges() <= karate.number_of_edges()
+        assert H.number_of_edges() == karate.number_of_edges()
+        backbone = boolean_filter(H, "sparsify_keep")
+        assert backbone.number_of_edges() <= karate.number_of_edges()
 
     def test_different_scoring_methods(self, karate):
         for method in ["jaccard", "degree", "triangles"]:
             H = sparsify(karate, escore=method, s=0.5)
-            assert H.number_of_edges() < karate.number_of_edges()
+            backbone = boolean_filter(H, "sparsify_keep")
+            assert backbone.number_of_edges() < karate.number_of_edges()
 
     def test_rejects_directed(self):
         G = nx.DiGraph([(0, 1), (1, 2)])
@@ -35,12 +43,16 @@ class TestSparsify:
 
 
 class TestLSpar:
-    def test_reduces_edges(self, karate):
+    def test_marks_edges(self, karate):
         H = lspar(karate, s=0.5)
-        assert H.number_of_edges() < karate.number_of_edges()
+        assert H.number_of_edges() == karate.number_of_edges()
+        backbone = boolean_filter(H, "sparsify_keep")
+        assert backbone.number_of_edges() < karate.number_of_edges()
 
 
 class TestLocalDegree:
-    def test_reduces_edges(self, karate):
+    def test_marks_edges(self, karate):
         H = local_degree(karate, s=0.3)
-        assert H.number_of_edges() < karate.number_of_edges()
+        assert H.number_of_edges() == karate.number_of_edges()
+        backbone = boolean_filter(H, "sparsify_keep")
+        assert backbone.number_of_edges() < karate.number_of_edges()

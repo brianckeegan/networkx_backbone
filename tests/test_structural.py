@@ -4,6 +4,7 @@ import networkx as nx
 import pytest
 
 from networkx_backbone import (
+    boolean_filter,
     doubly_stochastic_filter,
     edge_betweenness_filter,
     global_threshold_filter,
@@ -22,28 +23,26 @@ from networkx_backbone import (
 
 
 class TestGlobalThresholdFilter:
-    def test_filters_by_weight(self, weighted_triangle):
+    def test_scores_edges_by_weight_threshold(self, weighted_triangle):
         H = global_threshold_filter(weighted_triangle, threshold=2.0)
-        assert H.number_of_edges() == 2
-        assert H.has_edge(0, 1)  # weight 3.0
-        assert H.has_edge(0, 2)  # weight 2.0
-        assert not H.has_edge(1, 2)  # weight 1.0
+        assert H.number_of_edges() == weighted_triangle.number_of_edges()
+        assert H[0][1]["global_threshold_keep"] is True
+        assert H[0][2]["global_threshold_keep"] is True
+        assert H[1][2]["global_threshold_keep"] is False
 
-    def test_preserves_all_nodes(self, weighted_triangle):
+    def test_boolean_filter_applies_threshold(self, weighted_triangle):
         H = global_threshold_filter(weighted_triangle, threshold=10.0)
-        assert set(H.nodes()) == set(weighted_triangle.nodes())
-        assert H.number_of_edges() == 0
-
-    def test_high_threshold_removes_all_edges(self, weighted_triangle):
-        H = global_threshold_filter(weighted_triangle, threshold=100.0)
-        assert H.number_of_edges() == 0
+        backbone = boolean_filter(H, "global_threshold_keep")
+        assert set(backbone.nodes()) == set(weighted_triangle.nodes())
+        assert backbone.number_of_edges() == 0
 
 
 class TestStrongestNTies:
-    def test_keeps_n_edges_per_node(self, weighted_triangle):
+    def test_scores_keep_flags(self, weighted_triangle):
         H = strongest_n_ties(weighted_triangle, n=1)
-        # Each node keeps its strongest edge; results in 2 edges
-        assert H.number_of_edges() == 2
+        assert H.number_of_edges() == weighted_triangle.number_of_edges()
+        backbone = boolean_filter(H, "strongest_n_ties_keep")
+        assert backbone.number_of_edges() == 2
 
     def test_n_less_than_1_raises(self, weighted_triangle):
         with pytest.raises(ValueError):
@@ -55,9 +54,11 @@ class TestStrongestNTies:
 
 
 class TestGlobalSparsification:
-    def test_keeps_fraction_of_edges(self, weighted_triangle):
+    def test_scores_fraction_of_edges(self, weighted_triangle):
         H = global_sparsification(weighted_triangle, s=0.5)
-        assert H.number_of_edges() == 2
+        assert H.number_of_edges() == weighted_triangle.number_of_edges()
+        backbone = boolean_filter(H, "global_sparsification_keep")
+        assert backbone.number_of_edges() == 2
         assert set(H.nodes()) == set(weighted_triangle.nodes())
 
     def test_invalid_fraction_raises(self, weighted_triangle):
@@ -66,20 +67,23 @@ class TestGlobalSparsification:
 
 
 class TestPrimaryLinkageAnalysis:
-    def test_returns_directed_graph(self, weighted_triangle):
+    def test_adds_keep_attribute(self, weighted_triangle):
         H = primary_linkage_analysis(weighted_triangle)
-        assert isinstance(H, nx.DiGraph)
+        assert isinstance(H, nx.Graph)
         assert set(H.nodes()) == set(weighted_triangle.nodes())
-        for node in H.nodes():
-            assert H.out_degree(node) <= 1
+        for _, _, data in H.edges(data=True):
+            assert "primary_linkage_keep" in data
 
 
 class TestEdgeBetweennessFilter:
-    def test_keeps_fraction_and_adds_attribute(self, weighted_triangle):
+    def test_scores_fraction_and_adds_attribute(self, weighted_triangle):
         H = edge_betweenness_filter(weighted_triangle, s=0.5)
-        assert H.number_of_edges() == 2
+        assert H.number_of_edges() == weighted_triangle.number_of_edges()
         for _, _, data in H.edges(data=True):
             assert "edge_betweenness" in data
+            assert "edge_betweenness_keep" in data
+        backbone = boolean_filter(H, "edge_betweenness_keep")
+        assert backbone.number_of_edges() == 2
 
     def test_invalid_fraction_raises(self, weighted_triangle):
         with pytest.raises(ValueError):
@@ -87,11 +91,14 @@ class TestEdgeBetweennessFilter:
 
 
 class TestNodeDegreeFilter:
-    def test_filters_nodes_by_degree(self):
+    def test_scores_nodes_and_edges_by_degree(self):
         G = nx.path_graph(4)
         H = node_degree_filter(G, min_degree=2)
-        assert set(H.nodes()) == {1, 2}
-        assert H.number_of_edges() == 1
+        assert H.number_of_edges() == G.number_of_edges()
+        assert H.nodes[1]["node_degree_keep"] is True
+        assert H.nodes[0]["node_degree_keep"] is False
+        backbone = boolean_filter(H, "node_degree_keep")
+        assert backbone.number_of_edges() == 1
 
     def test_negative_degree_raises(self, karate):
         with pytest.raises(ValueError):
@@ -117,9 +124,11 @@ class TestHighSalienceSkeleton:
 
 
 class TestMetricBackbone:
-    def test_subset_of_original(self, weighted_triangle):
+    def test_adds_metric_keep_attribute(self, weighted_triangle):
         H = metric_backbone(weighted_triangle)
-        assert H.number_of_edges() <= weighted_triangle.number_of_edges()
+        assert H.number_of_edges() == weighted_triangle.number_of_edges()
+        for _, _, data in H.edges(data=True):
+            assert "metric_keep" in data
 
     def test_preserves_nodes(self, weighted_triangle):
         H = metric_backbone(weighted_triangle)
@@ -127,9 +136,11 @@ class TestMetricBackbone:
 
 
 class TestUltrametricBackbone:
-    def test_subset_of_original(self, weighted_triangle):
+    def test_adds_ultrametric_keep_attribute(self, weighted_triangle):
         H = ultrametric_backbone(weighted_triangle)
-        assert H.number_of_edges() <= weighted_triangle.number_of_edges()
+        assert H.number_of_edges() == weighted_triangle.number_of_edges()
+        for _, _, data in H.edges(data=True):
+            assert "ultrametric_keep" in data
 
 
 class TestDoublyStochasticFilter:
@@ -140,9 +151,11 @@ class TestDoublyStochasticFilter:
 
 
 class TestHBackbone:
-    def test_subset_of_original(self, weighted_triangle):
+    def test_adds_h_keep_attribute(self, weighted_triangle):
         H = h_backbone(weighted_triangle)
-        assert H.number_of_edges() <= weighted_triangle.number_of_edges()
+        assert H.number_of_edges() == weighted_triangle.number_of_edges()
+        for _, _, data in H.edges(data=True):
+            assert "h_backbone_keep" in data
 
 
 class TestModularityBackbone:
@@ -155,7 +168,8 @@ class TestModularityBackbone:
 class TestPlanarMaximallyFilteredGraph:
     def test_result_is_planar(self, weighted_triangle):
         H = planar_maximally_filtered_graph(weighted_triangle)
-        is_planar, _ = nx.check_planarity(H)
+        backbone = boolean_filter(H, "pmfg_keep")
+        is_planar, _ = nx.check_planarity(backbone)
         assert is_planar
 
     def test_subset_of_original(self):
@@ -163,18 +177,23 @@ class TestPlanarMaximallyFilteredGraph:
         for u, v in G.edges():
             G[u][v]["weight"] = 1.0
         H = planar_maximally_filtered_graph(G)
-        assert H.number_of_edges() <= G.number_of_edges()
+        assert H.number_of_edges() == G.number_of_edges()
+        backbone = boolean_filter(H, "pmfg_keep")
+        assert backbone.number_of_edges() <= G.number_of_edges()
 
 
 class TestMaximumSpanningTreeBackbone:
     def test_is_spanning_tree(self, weighted_triangle):
         H = maximum_spanning_tree_backbone(weighted_triangle)
-        assert H.number_of_edges() == weighted_triangle.number_of_nodes() - 1
-        assert nx.is_connected(H)
+        assert H.number_of_edges() == weighted_triangle.number_of_edges()
+        backbone = boolean_filter(H, "mst_keep")
+        assert backbone.number_of_edges() == weighted_triangle.number_of_nodes() - 1
+        assert nx.is_connected(backbone)
 
     def test_selects_heaviest_edges(self):
         G = nx.Graph()
         G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 3.0), (0, 2, 1.0)])
         H = maximum_spanning_tree_backbone(G)
-        assert H.has_edge(0, 1)  # weight 5.0
-        assert H.has_edge(1, 2)  # weight 3.0
+        backbone = boolean_filter(H, "mst_keep")
+        assert backbone.has_edge(0, 1)  # weight 5.0
+        assert backbone.has_edge(1, 2)  # weight 3.0
