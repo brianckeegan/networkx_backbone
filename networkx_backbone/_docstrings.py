@@ -25,7 +25,7 @@ def append_complexity_docstrings(namespace, complexity_map):
         # Normalize indentation first so appending new sections does not
         # accidentally change the minimum indentation and break RST parsing.
         doc = inspect.cleandoc(raw_doc)
-        if "Complexity\n----------" in doc:
+        if "Complexity:" in doc:
             continue
 
         def _rst_safe(text):
@@ -33,14 +33,15 @@ def append_complexity_docstrings(namespace, complexity_map):
 
         lines = [
             "",
-            "Complexity",
-            "----------",
-            f"Time complexity ``{_rst_safe(spec['time'])}``.",
-            f"Space complexity ``{_rst_safe(spec['space'])}``.",
+            (
+                "Complexity: "
+                f"time {_rst_safe(spec['time'])}; "
+                f"space {_rst_safe(spec['space'])}."
+            ),
         ]
         notes = spec.get("notes")
         if notes:
             notes_text = _rst_safe(notes).rstrip(".")
-            lines.append(f"Additional notes {notes_text}.")
+            lines.append(f"Complexity notes: {notes_text}.")
 
         func.__doc__ = doc.rstrip() + "\n" + "\n".join(lines)

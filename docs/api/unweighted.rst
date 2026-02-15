@@ -6,7 +6,7 @@ Examples in this module use the unweighted version of
 Methods return scored full graphs with ``sparsify_score`` and
 ``sparsify_keep``; apply :func:`~networkx_backbone.boolean_filter` to
 extract sparse backbones.
-Complexity classes are provided in each function's ``Complexity`` section.
+Complexity classes are provided in each function docstring.
 
 .. automodule:: networkx_backbone.unweighted
    :no-members:

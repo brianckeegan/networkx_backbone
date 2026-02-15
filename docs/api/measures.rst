@@ -2,7 +2,7 @@ Measures
 ========
 
 Examples in this module use ``nx.les_miserables_graph()``.
-Complexity classes are provided in each function's ``Complexity`` section.
+Complexity classes are provided in each function docstring.
 
 .. automodule:: networkx_backbone.measures
    :no-members:

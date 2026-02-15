@@ -6,7 +6,7 @@ These functions return scored full graphs. Extract final backbones with
 :func:`~networkx_backbone.boolean_filter` on ``*_keep`` flags (or
 :func:`~networkx_backbone.threshold_filter` for continuous scores such as
 ``salience`` and ``ds_weight``).
-Complexity classes are provided in each function's ``Complexity`` section.
+Complexity classes are provided in each function docstring.
 
 .. automodule:: networkx_backbone.structural
    :no-members:
