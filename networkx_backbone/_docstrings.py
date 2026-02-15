@@ -34,14 +34,10 @@ def append_complexity_docstrings(namespace, complexity_map):
         lines = [
             "",
             (
-                "Complexity: "
-                f"time {_rst_safe(spec['time'])}; "
-                f"space {_rst_safe(spec['space'])}."
+                "Computational complexity estimate is "
+                f"``{_rst_safe(spec['time'])}`` time and "
+                f"``{_rst_safe(spec['space'])}`` space."
             ),
         ]
-        notes = spec.get("notes")
-        if notes:
-            notes_text = _rst_safe(notes).rstrip(".")
-            lines.append(f"Complexity notes: {notes_text}.")
 
         func.__doc__ = doc.rstrip() + "\n" + "\n".join(lines)

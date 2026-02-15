@@ -83,7 +83,7 @@ nitpick_ignore_regex = [
     (r"py:exc", r"NetworkXError"),
 ]
 
-suppress_warnings = ["ref.citation"]
+suppress_warnings = ["ref.citation", "ref.class"]
 
 # -- Autodoc settings --------------------------------------------------------
 
