@@ -3,7 +3,7 @@ Complexity Summary
 
 This page summarizes the asymptotic complexity classes used in API docstrings.
 
-Notation: ``n=|V|``, ``m=|E|``, ``n_a``=agents, ``n_f``=artifacts, ``e_b``=bipartite edges, ``I``=iterations, ``T``=trials.
+Notation: n = |V|, m = |E|, n_a = agents, n_f = artifacts, e_b = bipartite edges, I = iterations, T = trials.
 
 Statistical
 -----------
@@ -392,4 +392,3 @@ Visualization
      - ``O(n + m) without layout; plus rendering/write cost``
      - ``O(n + m)``
      - 
-

@@ -32,11 +32,13 @@ def append_complexity_docstrings(namespace, complexity_map):
             "",
             "Complexity",
             "----------",
-            f"Time: {spec['time']}",
-            f"Space: {spec['space']}",
+            ".. code-block:: text",
+            "",
+            f"   Time: {spec['time']}",
+            f"   Space: {spec['space']}",
         ]
         notes = spec.get("notes")
         if notes:
-            lines.append(f"Notes: {notes}")
+            lines.append(f"   Notes: {notes}")
 
         func.__doc__ = doc.rstrip() + "\n" + "\n".join(lines)
