@@ -43,6 +43,7 @@ napoleon_use_param = True
 napoleon_use_rtype = True
 numpydoc_show_class_members = False
 numpydoc_validation_checks = set()
+numpydoc_custom_sections = ["Complexity"]
 
 # -- Nitpick settings --------------------------------------------------------
 # Suppress warnings for type references that numpydoc extracts from docstrings
