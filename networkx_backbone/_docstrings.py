@@ -28,17 +28,18 @@ def append_complexity_docstrings(namespace, complexity_map):
         if "Complexity\n----------" in doc:
             continue
 
+        def _rst_safe(text):
+            return str(text).replace("|", r"\|")
+
         lines = [
             "",
             "Complexity",
             "----------",
-            ".. code-block:: text",
-            "",
-            f"   Time: {spec['time']}",
-            f"   Space: {spec['space']}",
+            f"- Time: ``{_rst_safe(spec['time'])}``",
+            f"- Space: ``{_rst_safe(spec['space'])}``",
         ]
         notes = spec.get("notes")
         if notes:
-            lines.append(f"   Notes: {notes}")
+            lines.append(f"- Notes: {_rst_safe(notes)}")
 
         func.__doc__ = doc.rstrip() + "\n" + "\n".join(lines)

@@ -9,6 +9,7 @@ import networkx as nx
 
 from networkx_backbone._docstrings import append_complexity_docstrings
 
+
 __all__ = [
     "multigraph_to_weighted",
     "threshold_filter",
@@ -52,7 +53,6 @@ def multigraph_to_weighted(G, weight="weight", edge_type_attr=None):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import multigraph_to_weighted
     >>> B = nx.davis_southern_women_graph()
     >>> MG = nx.MultiGraph()
@@ -142,7 +142,6 @@ def threshold_filter(
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import disparity_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = disparity_filter(G)
@@ -219,7 +218,6 @@ def fraction_filter(G, score, fraction, ascending=True, filter_on="edges"):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import disparity_filter, fraction_filter
     >>> G = nx.les_miserables_graph()
     >>> H = disparity_filter(G)
@@ -279,7 +277,6 @@ def boolean_filter(G, score):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import boolean_filter, global_threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> scored = global_threshold_filter(G, threshold=2)
@@ -322,7 +319,6 @@ def consensus_backbone(*backbones):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import (
     ...     consensus_backbone,
     ...     jaccard_backbone,

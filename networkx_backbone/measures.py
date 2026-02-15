@@ -4,6 +4,7 @@ import networkx as nx
 
 from networkx_backbone._docstrings import append_complexity_docstrings
 
+
 __all__ = [
     "node_fraction",
     "edge_fraction",
@@ -38,7 +39,6 @@ def node_fraction(original, backbone):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import node_fraction
     >>> G = nx.les_miserables_graph()
     >>> H = G.edge_subgraph(list(G.edges())[:100]).copy()
@@ -71,7 +71,6 @@ def edge_fraction(original, backbone):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import edge_fraction
     >>> G = nx.les_miserables_graph()
     >>> H = G.edge_subgraph(list(G.edges())[:100]).copy()
@@ -105,7 +104,6 @@ def weight_fraction(original, backbone, weight="weight"):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import (
     ...     weight_fraction,
     ...     global_threshold_filter,
@@ -145,7 +143,6 @@ def reachability(G):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import reachability
     >>> G = nx.les_miserables_graph()
     >>> reachability(G)
@@ -192,7 +189,6 @@ def ks_degree(original, backbone):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import ks_degree, global_threshold_filter, boolean_filter
     >>> G = nx.les_miserables_graph()
     >>> H = boolean_filter(global_threshold_filter(G, threshold=2), "global_threshold_keep")
@@ -231,7 +227,6 @@ def ks_weight(original, backbone, weight="weight"):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import ks_weight, global_threshold_filter, boolean_filter
     >>> G = nx.les_miserables_graph()
     >>> H = boolean_filter(global_threshold_filter(G, threshold=2), "global_threshold_keep")
@@ -274,7 +269,6 @@ def compare_backbones(original, backbones, measures=None, weight="weight"):
     --------
     >>> import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
     >>> from networkx_backbone import (
     ...     compare_backbones,
     ...     edge_fraction,

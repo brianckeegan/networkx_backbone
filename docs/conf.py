@@ -6,8 +6,6 @@
 from pathlib import Path
 import sys
 
-from sphinx_gallery.sorting import FileNameSortKey
-
 # Ensure local package imports resolve during docs builds.
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -113,7 +111,7 @@ sphinx_gallery_conf = {
     "backreferences_dir": "auto_examples/backreferences",
     "doc_module": ("networkx_backbone",),
     "reference_url": {"networkx_backbone": None},
-    "within_subsection_order": FileNameSortKey,
+    "within_subsection_order": "FileNameSortKey",
     "remove_config_comments": True,
 }
 

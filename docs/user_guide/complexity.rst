@@ -3,7 +3,7 @@ Complexity Summary
 
 This page summarizes the asymptotic complexity classes used in API docstrings.
 
-Notation: n = |V|, m = |E|, n_a = agents, n_f = artifacts, e_b = bipartite edges, I = iterations, T = trials.
+Notation: n = number of nodes, m = number of edges, n_a = agents, n_f = artifacts, e_b = bipartite edges, I = iterations, T = trials.
 
 Statistical
 -----------
@@ -23,11 +23,11 @@ Statistical
    * - ``disparity_filter``
      - ``O(n + m)``
      - ``O(n + m)``
-     - n=|V|, m=|E|.
+     - n=V, m=E.
    * - ``ecm_filter``
      - ``O(I * n^2 + m)``
      - ``O(n + m)``
-     - I=max_iter, n=|V|, m=|E|.
+     - I=max_iter, n=V, m=E.
    * - ``lans``
      - ``O(m log n)``
      - ``O(n + m)``
@@ -39,7 +39,7 @@ Statistical
    * - ``marginal_likelihood_filter``
      - ``O(n + m)``
      - ``O(n + m)``
-     - n=|V|, m=|E|.
+     - n=V, m=E.
    * - ``mlf``
      - ``O(n + m)``
      - ``O(n + m)``
@@ -51,7 +51,7 @@ Statistical
    * - ``noise_corrected_filter``
      - ``O(n + m)``
      - ``O(n + m)``
-     - n=|V|, m=|E|.
+     - n=V, m=E.
 
 Structural
 ----------
@@ -79,7 +79,7 @@ Structural
    * - ``global_threshold_filter``
      - ``O(m)``
      - ``O(n + m)``
-     - n=|V|, m=|E|.
+     - n=V, m=E.
    * - ``h_backbone``
      - ``O(nm + n^2 log n + m log m)``
      - ``O(n + m)``
