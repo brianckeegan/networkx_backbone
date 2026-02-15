@@ -1,5 +1,7 @@
 """Helpers for enriching public API docstrings."""
 
+import inspect
+
 
 def append_complexity_docstrings(namespace, complexity_map):
     """Append a standardized Complexity section to function docstrings.
@@ -16,9 +18,13 @@ def append_complexity_docstrings(namespace, complexity_map):
         if func is None or not callable(func):
             continue
 
-        doc = getattr(func, "__doc__", None)
-        if not doc:
+        raw_doc = getattr(func, "__doc__", None)
+        if not raw_doc:
             continue
+
+        # Normalize indentation first so appending new sections does not
+        # accidentally change the minimum indentation and break RST parsing.
+        doc = inspect.cleandoc(raw_doc)
         if "Complexity\n----------" in doc:
             continue
 
