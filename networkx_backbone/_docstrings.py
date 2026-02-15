@@ -35,11 +35,12 @@ def append_complexity_docstrings(namespace, complexity_map):
             "",
             "Complexity",
             "----------",
-            f"- Time: ``{_rst_safe(spec['time'])}``",
-            f"- Space: ``{_rst_safe(spec['space'])}``",
+            f"Time complexity ``{_rst_safe(spec['time'])}``.",
+            f"Space complexity ``{_rst_safe(spec['space'])}``.",
         ]
         notes = spec.get("notes")
         if notes:
-            lines.append(f"- Notes: {_rst_safe(notes)}")
+            notes_text = _rst_safe(notes).rstrip(".")
+            lines.append(f"Additional notes {notes_text}.")
 
         func.__doc__ = doc.rstrip() + "\n" + "\n".join(lines)
