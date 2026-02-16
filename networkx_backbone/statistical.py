@@ -72,7 +72,7 @@ def disparity_filter(G, weight="weight"):
     weight of edge (u, v) is ``p_uv = w_uv / s_u``.  Under the null the
     probability of observing a normalised weight >= p_uv is::
 
-        alpha_uv = 1 - (k_u - 1) * (1 - p_uv) ** (k_u - 2)
+        alpha_uv = (1.0 - p_uv) ** (k_u - 1)
 
     For an undirected edge the p-value is the *minimum* of the values
     computed from each endpoint.  For a directed edge the p-value is
