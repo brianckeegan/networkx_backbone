@@ -141,7 +141,7 @@ def _disparity_node_pvalue(w, s, k):
         return 1.0
     p = min(w / s, 1.0)
     try:
-        alpha = 1.0 - (k - 1) * (1.0 - p) ** (k - 2)
+        alpha = (1.0 - p) ** (k - 1)
     except (OverflowError, ValueError):
         alpha = 0.0
     return max(alpha, 0.0)
