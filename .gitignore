@@ -14,3 +14,4 @@ venv/
 env/
 *.whl
 docs/_build/
+.DS_Store
