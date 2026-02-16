@@ -24,3 +24,7 @@ Complexity classes are provided in each function docstring.
    networkx_backbone.lspar
    networkx_backbone.local_degree
    :add-heading: Gallery Examples
+
+.. rubric:: Function Image Reference
+
+.. include:: ../_includes/gallery/unweighted.rst

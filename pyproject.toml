@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "networkx-backbone"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Backbone extraction algorithms for complex networks"
 readme = "README.md"
 license = "BSD-3-Clause"
@@ -57,6 +57,11 @@ Issues = "https://github.com/brianckeegan/networkx_backbone/issues"
 
 [tool.setuptools.packages.find]
 include = ["networkx_backbone*"]
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"
+local_scheme = "no-local-version"
+fallback_version = "0.0.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

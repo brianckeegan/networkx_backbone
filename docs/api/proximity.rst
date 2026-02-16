@@ -49,3 +49,7 @@ Complexity classes are provided in each function docstring.
    networkx_backbone.graph_distance_proximity
    networkx_backbone.local_path_index
    :add-heading: Gallery Examples
+
+.. rubric:: Function Image Reference
+
+.. include:: ../_includes/gallery/proximity.rst

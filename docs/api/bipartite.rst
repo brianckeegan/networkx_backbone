@@ -49,6 +49,10 @@ Complexity classes are provided in each function docstring.
    networkx_backbone.fixedcol
    :add-heading: Gallery Examples
 
+.. rubric:: Function Image Reference
+
+.. include:: ../_includes/gallery/bipartite.rst
+
 .. rubric:: High-Level Wrappers
 
 .. autofunction:: backbone_from_projection

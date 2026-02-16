@@ -33,6 +33,10 @@ Complexity classes are provided in each function docstring.
    networkx_backbone.multiple_linkage_analysis
    :add-heading: Gallery Examples
 
+.. rubric:: Function Image Reference
+
+.. include:: ../_includes/gallery/statistical.rst
+
 .. rubric:: Alias Names
 
 .. autofunction:: disparity

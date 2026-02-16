@@ -16,3 +16,7 @@ Complexity classes are provided in each function docstring.
 .. minigallery::
    networkx_backbone.glab_filter
    :add-heading: Gallery Examples
+
+.. rubric:: Function Image Reference
+
+.. include:: ../_includes/gallery/hybrid.rst

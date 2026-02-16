@@ -57,3 +57,7 @@ Complexity classes are provided in each function docstring.
    networkx_backbone.planar_maximally_filtered_graph
    networkx_backbone.maximum_spanning_tree_backbone
    :add-heading: Gallery Examples
+
+.. rubric:: Function Image Reference
+
+.. include:: ../_includes/gallery/structural.rst
