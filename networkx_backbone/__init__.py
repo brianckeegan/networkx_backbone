@@ -2,13 +2,14 @@
 Backbone extraction algorithms for complex networks.
 
 This package provides algorithms for extracting backbone structures from
-networks, organized into nine submodules:
+networks, organized into ten submodules:
 
 - **statistical**: Hypothesis-testing methods (disparity, noise-corrected, etc.)
 - **structural**: Topology-based methods (threshold, spanning tree, salience, etc.)
 - **proximity**: Neighborhood-similarity edge scoring (Jaccard, Dice, cosine, etc.)
 - **hybrid**: Combined statistical/structural methods (GLAB)
 - **bipartite**: Bipartite projection backbones (SDSM, FDSM, fixed models, wrappers)
+- **hypergraph**: Hypergraph backbones (information-theoretic MDL pruning)
 - **unweighted**: Sparsification for unweighted graphs (LSpar, local degree)
 - **filters**: Post-hoc filtering utilities (threshold, fraction, boolean, consensus)
 - **measures**: Evaluation measures for comparing backbones
@@ -20,6 +21,7 @@ from networkx_backbone.structural import *  # noqa: F401,F403
 from networkx_backbone.proximity import *  # noqa: F401,F403
 from networkx_backbone.hybrid import *  # noqa: F401,F403
 from networkx_backbone.bipartite import *  # noqa: F401,F403
+from networkx_backbone.hypergraph import *  # noqa: F401,F403
 from networkx_backbone.unweighted import *  # noqa: F401,F403
 from networkx_backbone.filters import *  # noqa: F401,F403
 from networkx_backbone.measures import *  # noqa: F401,F403
@@ -85,6 +87,11 @@ __all__ = [
     "backbone_from_weighted",
     "backbone_from_unweighted",
     "backbone",
+    # Hypergraph
+    "intersection_graph",
+    "mdl_hypergraph_backbone",
+    "hypergraph_compression_ratio",
+    "HypergraphBackbone",
     # Unweighted
     "sparsify",
     "lspar",

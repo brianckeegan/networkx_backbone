@@ -2,8 +2,8 @@
 
 Backbone extraction algorithms for complex networks, built on [NetworkX](https://networkx.org/).
 
-This library provides 65 functions across 9 modules for extracting backbone
-structures from weighted and unweighted networks.
+This library provides 68 functions across 10 modules for extracting backbone
+structures from weighted, unweighted, and higher-order (hypergraph) networks.
 
 Full documentation: https://www.brianckeegan.com/networkx_backbone/
 
@@ -36,6 +36,7 @@ pip install -e ".[full]"
 | **proximity** | Neighborhood-similarity scoring | `jaccard_backbone`, `dice_backbone`, `cosine_backbone`, `hub_promoted_index`, `hub_depressed_index`, `adamic_adar_index`, `resource_allocation_index`, `local_path_index`, and more |
 | **hybrid** | Combined approaches | `glab_filter` |
 | **bipartite** | Bipartite projection backbones | `simple_projection`, `hyper_projection`, `probs_projection`, `ycn_projection`, `sdsm`, `fdsm`, `fixedfill`, `fixedrow`, `fixedcol`, `backbone` |
+| **hypergraph** | Higher-order (hypergraph) backbones | `mdl_hypergraph_backbone`, `hypergraph_compression_ratio`, `intersection_graph` |
 | **unweighted** | Sparsification for unweighted graphs | `sparsify`, `lspar`, `local_degree` |
 | **filters** | Post-hoc filtering utilities | `multigraph_to_weighted`, `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone` |
 | **measures** | Evaluation and comparison | `node_fraction`, `edge_fraction`, `weight_fraction`, `reachability`, `ks_degree`, `ks_weight`, `compare_backbones` |

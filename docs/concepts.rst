@@ -15,9 +15,10 @@ is a sparser graph that preserves the essential structure of the original.
 Taxonomy of methods
 -------------------
 
-The 65 functions in ``networkx-backbone`` are organized into nine modules based
+The 68 functions in ``networkx-backbone`` are organized into ten modules based
 on the approach they take. The method taxonomy aligns with the categories used
-in ``netbone`` (Yassin et al., 2023; https://gitlab.liris.cnrs.fr/coregraphie/netbone).
+in ``netbone`` (Yassin et al., 2023; https://gitlab.liris.cnrs.fr/coregraphie/netbone),
+extended with a hypergraph module for higher-order networks.
 
 Statistical methods
 ^^^^^^^^^^^^^^^^^^^
@@ -92,6 +93,28 @@ significant edges from bipartite graph projections:
   :func:`~networkx_backbone.fixedcol` -- fixed null-model variants
 - :func:`~networkx_backbone.backbone_from_projection` /
   :func:`~networkx_backbone.backbone` -- high-level wrappers
+
+Hypergraph methods
+^^^^^^^^^^^^^^^^^^
+
+The :mod:`~networkx_backbone.hypergraph` module backbones higher-order networks
+(hypergraphs) directly, rather than dyadic graphs. Unlike the projection-based
+:mod:`~networkx_backbone.bipartite` methods, which reduce a hypergraph to a
+weighted pairwise graph, these methods return a sub-hypergraph (a subset of
+hyperedges).
+
+- :func:`~networkx_backbone.mdl_hypergraph_backbone` -- parameter-free,
+  information-theoretic (minimum description length) backbone that prunes nested
+  and redundant hyperedges, with an optional weighted extension (Kirkley,
+  Felippe, Malizia & Battiston, 2026)
+- :func:`~networkx_backbone.hypergraph_compression_ratio` -- inverse compression
+  ratio achieved by the MDL backbone
+- :func:`~networkx_backbone.intersection_graph` -- graph linking hyperedges that
+  share at least one node
+
+Because a hypergraph backbone is a subset of hyperedges rather than a graph, this
+module returns a :class:`~networkx_backbone.HypergraphBackbone` result instead of
+using the :mod:`~networkx_backbone.filters` utilities.
 
 Unweighted methods
 ^^^^^^^^^^^^^^^^^^
