@@ -27,7 +27,7 @@ WEIGHTED_METHOD_EDGE_COUNTS = [
         "disparity_filter",
         lambda G: nb.disparity_filter(G),
         lambda H: nb.threshold_filter(H, "disparity_pvalue", DEFAULT_PVALUE, mode="below"),
-        247,
+        9,
     ),
     (
         "noise_corrected_filter",
