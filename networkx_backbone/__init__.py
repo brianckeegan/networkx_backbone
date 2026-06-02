@@ -92,6 +92,9 @@ __all__ = [
     "mdl_hypergraph_backbone",
     "hypergraph_compression_ratio",
     "HypergraphBackbone",
+    "maximal_hyperedges",
+    "order_filter",
+    "s_components",
     # Unweighted
     "sparsify",
     "lspar",

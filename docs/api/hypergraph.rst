@@ -25,3 +25,15 @@ hyperedges and naturally extends to weighted hypergraphs.
 
 .. autoclass:: HypergraphBackbone
    :members:
+
+.. rubric:: Structural methods
+
+Purely structural hypergraph backbones and utilities with no dyadic analog.
+These return plain hyperedge collections rather than a
+:class:`~networkx_backbone.HypergraphBackbone`.
+
+.. autofunction:: maximal_hyperedges
+
+.. autofunction:: order_filter
+
+.. autofunction:: s_components

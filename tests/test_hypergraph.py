@@ -8,7 +8,10 @@ from networkx_backbone import (
     HypergraphBackbone,
     hypergraph_compression_ratio,
     intersection_graph,
+    maximal_hyperedges,
     mdl_hypergraph_backbone,
+    order_filter,
+    s_components,
 )
 from networkx_backbone.hypergraph import (
     _child_codelength,
@@ -76,6 +79,79 @@ def test_intersection_graph_disjoint_has_no_edges():
     I = intersection_graph([(0, 1), (2, 3), (4, 5)])
     assert I.number_of_nodes() == 3
     assert I.number_of_edges() == 0
+
+
+def test_intersection_graph_s_threshold():
+    G = [(1, 2, 3), (2, 3, 4), (5, 6)]
+    assert intersection_graph(G, s=1).number_of_edges() == 1
+    assert intersection_graph(G, s=2).number_of_edges() == 1  # overlap is exactly 2
+    assert intersection_graph(G, s=3).number_of_edges() == 0
+
+
+def test_intersection_graph_invalid_s_raises():
+    with pytest.raises(ValueError):
+        intersection_graph([(1, 2, 3)], s=0)
+
+
+# ---------------------------------------------------------------------------
+# Structural methods: inclusion reduction, order filter, s-components
+# ---------------------------------------------------------------------------
+
+
+def test_maximal_hyperedges_removes_subsets():
+    result = maximal_hyperedges([(1, 2, 3), (1, 2), (2, 3), (4, 5), (4, 5, 6)])
+    assert set(result) == {frozenset({1, 2, 3}), frozenset({4, 5, 6})}
+    # Ordered by decreasing size.
+    assert [len(e) for e in result] == sorted((len(e) for e in result), reverse=True)
+
+
+def test_maximal_hyperedges_nested_chain():
+    assert maximal_hyperedges([(1,), (1, 2), (1, 2, 3)]) == [frozenset({1, 2, 3})]
+
+
+def test_maximal_hyperedges_all_maximal():
+    result = maximal_hyperedges([(1, 2), (3, 4), (5, 6)])
+    assert set(result) == {frozenset({1, 2}), frozenset({3, 4}), frozenset({5, 6})}
+
+
+def test_maximal_hyperedges_merges_duplicates():
+    assert maximal_hyperedges([(1, 2, 3), (3, 2, 1)]) == [frozenset({1, 2, 3})]
+
+
+def test_order_filter_min_max_and_orders():
+    G = [(1, 2), (1, 2, 3), (1, 2, 3, 4)]
+    assert set(order_filter(G, min_order=3)) == {
+        frozenset({1, 2, 3}),
+        frozenset({1, 2, 3, 4}),
+    }
+    assert order_filter(G, max_order=2) == [frozenset({1, 2})]
+    assert order_filter(G, min_order=3, max_order=3) == [frozenset({1, 2, 3})]
+    assert set(order_filter(G, orders=[2, 4])) == {
+        frozenset({1, 2}),
+        frozenset({1, 2, 3, 4}),
+    }
+
+
+def test_order_filter_invalid_range_raises():
+    with pytest.raises(ValueError):
+        order_filter([(1, 2, 3)], min_order=4, max_order=2)
+
+
+def test_s_components_threshold():
+    G = [(1, 2, 3), (2, 3, 4), (5, 6, 7)]
+    # s=1 and s=2: first two hyperedges connect; the third is isolated.
+    for s in (1, 2):
+        comps = s_components(G, s=s)
+        assert [len(c) for c in comps] == [2, 1]
+    # s=3: no pair shares 3 nodes, so every hyperedge is its own component.
+    assert [len(c) for c in s_components(G, s=3)] == [1, 1, 1]
+
+
+def test_s_components_chain():
+    comps = s_components([(1, 2), (2, 3), (3, 4), (10, 11)], s=1)
+    assert [len(c) for c in comps] == [3, 1]
+    # The big component holds the chain; the disjoint pair stands alone.
+    assert frozenset({10, 11}) in comps[1]
 
 
 # ---------------------------------------------------------------------------

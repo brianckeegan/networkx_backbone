@@ -32,6 +32,9 @@ __all__ = [
     "mdl_hypergraph_backbone",
     "hypergraph_compression_ratio",
     "HypergraphBackbone",
+    "maximal_hyperedges",
+    "order_filter",
+    "s_components",
 ]
 
 _LN2 = math.log(2.0)
@@ -242,18 +245,23 @@ class HypergraphBackbone:
 # ---------------------------------------------------------------------------
 
 
-def intersection_graph(hyperedges, weight="overlap"):
-    """Build the intersection graph of a hypergraph.
+def intersection_graph(hyperedges, s=1, weight="overlap"):
+    """Build the intersection graph (or s-line graph) of a hypergraph.
 
     Each hyperedge becomes a node (labelled by its integer index after
-    deduplication); two hyperedges are linked when they share at least one node.
-    This is the structure over which MDL parent--child relationships are formed
-    (Kirkley et al. 2026, Appendix D).
+    deduplication); two hyperedges are linked when they share at least *s*
+    nodes.  With ``s=1`` this is the intersection graph over which MDL
+    parent--child relationships are formed (Kirkley et al. 2026, Appendix D);
+    with ``s > 1`` it is the *s-line graph*, the basis of s-connectivity in
+    higher-order networks.
 
     Parameters
     ----------
     hyperedges : iterable of iterables
         The hypergraph.  Each hyperedge is an iterable of node labels.
+    s : int, optional (default=1)
+        Minimum shared-node count ``|e_i ∩ e_j|`` for two hyperedges to be
+        linked.  Must be ``>= 1``.
     weight : string, optional (default="overlap")
         Edge attribute name used to store the overlap size ``|e_i ∩ e_j|``.
 
@@ -264,6 +272,11 @@ def intersection_graph(hyperedges, weight="overlap"):
         (the hyperedge as a :class:`frozenset`); each edge stores the overlap
         size under *weight*.
 
+    Raises
+    ------
+    ValueError
+        If *s* is less than 1.
+
     Examples
     --------
     >>> from networkx_backbone import intersection_graph
@@ -272,7 +285,12 @@ def intersection_graph(hyperedges, weight="overlap"):
     3
     >>> I[0][1]["overlap"]
     2
+    >>> intersection_graph([(1, 2, 3), (2, 3, 4), (5, 6)], s=3).number_of_edges()
+    0
     """
+    if s < 1:
+        raise ValueError(f"s must be >= 1, got {s}")
+
     edges, _ = _normalize_hyperedges(hyperedges, None)
     graph = nx.Graph()
     for i, e in enumerate(edges):
@@ -295,7 +313,8 @@ def intersection_graph(hyperedges, weight="overlap"):
                 overlaps[key] = overlaps.get(key, 0) + 1
 
     for (i, j), o in overlaps.items():
-        graph.add_edge(i, j, **{weight: o})
+        if o >= s:
+            graph.add_edge(i, j, **{weight: o})
     return graph
 
 
@@ -526,6 +545,135 @@ def hypergraph_compression_ratio(
     ).compression_ratio
 
 
+def maximal_hyperedges(hyperedges):
+    """Inclusion (toplex) reduction: keep only the maximal hyperedges.
+
+    Removes every hyperedge that is a strict subset of another hyperedge,
+    retaining the *toplexes* -- hyperedges not contained in any other.  This is
+    the simplest structural hypergraph backbone, pruning nested redundancy
+    purely by set inclusion (cf. ``HyperNetX``'s ``toplexes``).  For a richer,
+    information-theoretic treatment of nested *and* overlapping redundancy, see
+    :func:`mdl_hypergraph_backbone`.
+
+    Parameters
+    ----------
+    hyperedges : iterable of iterables
+        The hypergraph.  Duplicate hyperedges are merged.
+
+    Returns
+    -------
+    maximal : list of frozenset
+        The maximal hyperedges, ordered by decreasing size.
+
+    Examples
+    --------
+    >>> from networkx_backbone import maximal_hyperedges
+    >>> sorted(map(sorted, maximal_hyperedges([(1, 2, 3), (1, 2), (2, 3), (4, 5)])))
+    [[1, 2, 3], [4, 5]]
+    """
+    edges, _ = _normalize_hyperedges(hyperedges, None)
+    order = sorted(range(len(edges)), key=lambda i: (-len(edges[i]), sorted(edges[i])))
+    kept = []
+    for i in order:
+        e = edges[i]
+        if not any(e < bigger for bigger in kept):
+            kept.append(e)
+    return kept
+
+
+def order_filter(hyperedges, min_order=None, max_order=None, orders=None):
+    """Keep hyperedges whose order (size) falls in a range or set.
+
+    Order-resolved filtering has no analog in dyadic graphs, where every edge
+    has order 2; in a hypergraph it selects interactions at chosen scales.
+
+    Parameters
+    ----------
+    hyperedges : iterable of iterables
+        The hypergraph.  Duplicate hyperedges are merged.
+    min_order : int or None, optional (default=None)
+        Keep hyperedges with size ``>= min_order``.
+    max_order : int or None, optional (default=None)
+        Keep hyperedges with size ``<= max_order``.
+    orders : iterable of int or None, optional (default=None)
+        If given, keep only hyperedges whose size is in this set (applied in
+        addition to *min_order*/*max_order*).
+
+    Returns
+    -------
+    selected : list of frozenset
+        The retained hyperedges, in first-occurrence order.
+
+    Raises
+    ------
+    ValueError
+        If *min_order* and *max_order* are both given and ``min_order > max_order``.
+
+    Examples
+    --------
+    >>> from networkx_backbone import order_filter
+    >>> sorted(map(sorted, order_filter([(1, 2), (1, 2, 3), (1, 2, 3, 4)], min_order=3)))
+    [[1, 2, 3], [1, 2, 3, 4]]
+    """
+    if min_order is not None and max_order is not None and min_order > max_order:
+        raise ValueError("min_order must not exceed max_order")
+    order_set = set(orders) if orders is not None else None
+
+    edges, _ = _normalize_hyperedges(hyperedges, None)
+    selected = []
+    for e in edges:
+        k = len(e)
+        if min_order is not None and k < min_order:
+            continue
+        if max_order is not None and k > max_order:
+            continue
+        if order_set is not None and k not in order_set:
+            continue
+        selected.append(e)
+    return selected
+
+
+def s_components(hyperedges, s=1):
+    """Group hyperedges into s-connected components.
+
+    Two hyperedges are *s-adjacent* when they share at least *s* nodes; an
+    s-component is a connected component of the resulting s-line graph
+    (:func:`intersection_graph` with the same *s*).  s-connectivity is a
+    higher-order notion with no dyadic counterpart and underlies s-centrality
+    and s-distance analyses of hypergraphs.
+
+    Parameters
+    ----------
+    hyperedges : iterable of iterables
+        The hypergraph.  Duplicate hyperedges are merged.
+    s : int, optional (default=1)
+        Minimum shared-node count for s-adjacency.  Must be ``>= 1``.
+
+    Returns
+    -------
+    components : list of list of frozenset
+        Each inner list is the hyperedges of one s-connected component,
+        ordered by decreasing component size.
+
+    Examples
+    --------
+    >>> from networkx_backbone import s_components
+    >>> comps = s_components([(1, 2, 3), (2, 3, 4), (5, 6, 7)], s=2)
+    >>> [len(c) for c in comps]
+    [2, 1]
+    """
+    edges, _ = _normalize_hyperedges(hyperedges, None)
+    graph = intersection_graph(edges, s=s)
+    components = [
+        [edges[i] for i in sorted(component)]
+        for component in nx.connected_components(graph)
+    ]
+    components.sort(
+        key=lambda comp: (-len(comp), sorted(sorted(e) for e in comp))
+    )
+    return components
+
+
 _COMPLEXITY = {
     "intersection_graph": {
         "time": "O(sum_i |G_i|^2)",
@@ -540,6 +688,20 @@ _COMPLEXITY = {
     "hypergraph_compression_ratio": {
         "time": "O(sum_i |G_i|^2 + P log P)",
         "space": "O(m + P)",
+    },
+    "maximal_hyperedges": {
+        "time": "O(m^2 * k)",
+        "space": "O(m)",
+        "notes": "m=hyperedges, k=mean hyperedge size.",
+    },
+    "order_filter": {
+        "time": "O(m)",
+        "space": "O(m)",
+    },
+    "s_components": {
+        "time": "O(sum_i |G_i|^2)",
+        "space": "O(m + P)",
+        "notes": "P=overlapping pairs in the s-line graph.",
     },
 }
 

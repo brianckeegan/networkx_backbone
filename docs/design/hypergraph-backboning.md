@@ -281,10 +281,15 @@ terms (`gammaln`-based), greedy "node"/"edge" optimizers over the star partition
 and optional pair-sampling for very large/dense inputs. The local variant
 (Appendix E) is a natural follow-up.
 
-### 9.4 Phase 2 — complementary methods (optional)
+### 9.4 Phase 2 — complementary methods
 
-SVH/SVC (statistical, α-based; cross-checked against HGX), toplex/inclusion
-reduction, s-line/s-connectivity backbones, order-resolved filtering.
+Structural sui generis methods (**implemented**): `maximal_hyperedges`
+(inclusion/toplex reduction), `order_filter` (order-resolved filtering), and
+`intersection_graph(..., s=...)` + `s_components` (s-line graph / s-connectivity).
+These are stdlib + networkx only and return plain hyperedge collections.
+
+Statistical sui generis methods (**remaining**): SVH/SVC (α-based; would add a
+lazy `scipy` dependency and should be cross-checked against HGX `get_svh`/`get_svc`).
 
 ### 9.5 Testing strategy
 

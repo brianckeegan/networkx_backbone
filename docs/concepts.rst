@@ -15,7 +15,7 @@ is a sparser graph that preserves the essential structure of the original.
 Taxonomy of methods
 -------------------
 
-The 68 functions in ``networkx-backbone`` are organized into ten modules based
+The 71 functions in ``networkx-backbone`` are organized into ten modules based
 on the approach they take. The method taxonomy aligns with the categories used
 in ``netbone`` (Yassin et al., 2023; https://gitlab.liris.cnrs.fr/coregraphie/netbone),
 extended with a hypergraph module for higher-order networks.
@@ -109,8 +109,13 @@ hyperedges).
   Felippe, Malizia & Battiston, 2026)
 - :func:`~networkx_backbone.hypergraph_compression_ratio` -- inverse compression
   ratio achieved by the MDL backbone
-- :func:`~networkx_backbone.intersection_graph` -- graph linking hyperedges that
-  share at least one node
+- :func:`~networkx_backbone.intersection_graph` -- graph (or s-line graph)
+  linking hyperedges that share at least *s* nodes
+- :func:`~networkx_backbone.maximal_hyperedges` -- inclusion (toplex) reduction,
+  keeping only hyperedges not contained in another
+- :func:`~networkx_backbone.order_filter` -- select hyperedges by order (size)
+- :func:`~networkx_backbone.s_components` -- s-connected components of a
+  hypergraph
 
 Because a hypergraph backbone is a subset of hyperedges rather than a graph, this
 module returns a :class:`~networkx_backbone.HypergraphBackbone` result instead of

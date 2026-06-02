@@ -33,8 +33,8 @@ an aggregate summary in :doc:`../user_guide/complexity`.
      - 11
      - Projection backbones, fixed null models, and high-level wrappers
    * - :doc:`hypergraph`
-     - 4
-     - Information-theoretic (MDL) hypergraph backbone, compression ratio, intersection graph, and result class
+     - 7
+     - MDL hypergraph backbone, compression ratio, intersection / s-line graph, inclusion (toplex) reduction, order filter, and s-components
    * - :doc:`unweighted`
      - 3
      - Sparsification for unweighted graphs (LSpar, local degree)
