@@ -3,116 +3,149 @@
 - **Status:** Draft / for discussion
 - **Scope:** Evaluation + proposed integration plan (no library code changed by this document)
 - **Trigger:** Request to evaluate incorporating hypergraph network backboning
-  methods (in the spirit of arXiv:2606.00893) into `networkx-backbone`, with
-  optional interoperability for the `xgi`, `hypergraphx`, `HyperNetX`, and
-  `Hypergraph-Analysis-Toolbox` libraries, and an assessment of which hypergraph
-  backbone methods are genuinely distinct (sui generis) versus generalizations of
-  existing methods.
+  methods into `networkx-backbone`, specifically the method of *Kirkley, Felippe,
+  Malizia & Battiston, "Hypergraph backboning," arXiv:2606.00893 (2026)*, with
+  optional interoperability for `xgi`, `hypergraphx`, `HyperNetX`, and the
+  `Hypergraph-Analysis-Toolbox`, and an assessment of which hypergraph backbone
+  methods are genuinely distinct from the existing ensemble.
+
+> **Revision note (after reading the paper).** An earlier draft of this document
+> was written without access to arXiv:2606.00893 and hypothesized that the paper
+> belonged to the *statistical* hyperedge-filtering family (SVH/SVC). The paper
+> has now been read in full: it is a **parameter-free, information-theoretic
+> (MDL) compression** method — a *different paradigm* from statistical
+> null-model testing. Sections 2, 6, and 9 are updated accordingly; the headline
+> method to port is now the MDL backbone, with statistical/structural methods
+> repositioned as complementary.
 
 ---
 
 ## 1. Summary and recommendation
 
-**Recommendation: incorporate hypergraph backboning in phases, treating it as two
-distinct problems, add optional interoperability with the major hypergraph
-libraries (centered on the HIF interchange format), and port a small set of
-genuinely hypergraph-native ("sui generis") methods that the current ensemble
-cannot express.**
+**Recommendation: yes — port the paper's MDL hypergraph backbone as the headline
+method, add optional interoperability with the major hypergraph libraries
+(centered on the HIF interchange format), and offer a small set of complementary
+hypergraph-native methods.** The case is now stronger than in the first draft: the
+method is principled, **parameter-free** (unweighted), **handles weights** (the
+paper's main novelty — no prior hypergraph filter did), needs only
+`networkx` + `numpy`/`scipy`, and runs in minutes on real data.
 
-Hypergraph backboning in the literature splits into two families with *different
-output types*:
+Hypergraph backboning organizes into three paradigms:
 
-| Family | What it does | Output | Library readiness |
-|--------|--------------|--------|-------------------|
-| **A — Projection backboning** | Hypergraph → weighted pairwise graph → null-model edge test | a normal graph | **~90% already built** (verified working today) |
-| **B — Direct hyperedge filtering** | Keep statistically/structurally significant *hyperedges* | a sub-hypergraph | **new surface** (needs representation + hyperedge filters + an output type) |
+| Paradigm | What it does | Output | Library status |
+|----------|--------------|--------|----------------|
+| **A — Projection backboning** | Hypergraph → weighted pairwise graph → null-model edge test | a graph | **already works** (verified, §5) |
+| **B1 — Statistical hyperedge filtering** | Keep hyperedges over-expressed vs a null model (needs significance level α) | sub-hypergraph | not present (optional, §6) |
+| **B2 — Information-theoretic (MDL) backboning ← this paper** | Compress nested/redundant hyperedges; keep the minimal "parent" set | sub-hypergraph | **port this** (§2, §9) |
 
 Key conclusions:
 
-1. **Family A already works** with today's API: a hypergraph's incidence matrix
-   *is* a bipartite graph (nodes ↔ hyperedges), and the `bipartite` module already
-   runs degree-preserving null models (`sdsm`, `fdsm`, `fixedrow`, ...) on it
-   (verified end-to-end, §5).
-2. **Most weighted-hypergraph backbones are generalizations** of methods we already
-   ship and become reachable for free once a hypergraph can enter the pipeline
-   (§6).
-3. **A few methods are genuinely sui generis** — they have no clean dyadic analog
-   and the current ensemble cannot produce them. These are worth porting: the
-   **Statistically Validated Hypergraph (SVH)** and **Statistically Validated
-   Cores (SVC)** filters, **toplex/inclusion (encapsulation) reduction**,
-   **s-connectivity / s-line-graph backbones**, and **order-resolved hyperedge
-   filtering** (§6).
-4. **All four target libraries already converge on a common substrate** (an
-   incidence/bipartite representation) and on the **HIF** JSON interchange format,
-   so optional interoperability is cheap and need not add any *required*
-   dependency (§7).
+1. **Family A already works today** with the existing `bipartite` module (§5).
+2. **Most weighted-hypergraph backbones are generalizations** of methods we ship
+   and become reachable for free once a hypergraph can enter the pipeline (§6.1).
+3. **The paper's MDL method is genuinely sui generis** — it exploits overlap and
+   nestedness, structural signatures unique to hypergraphs, via a global
+   compression objective with no dyadic analog and no significance parameter
+   (§2, §6.2). It is the right headline method to port.
+4. **Optional interop is cheap** because all four target libraries converge on an
+   incidence/bipartite substrate and on the **HIF** JSON format; none needs to
+   become a *required* dependency (§7).
 
-Proposed phasing (details in §9):
+Phasing (details in §9): **Phase 0** ingestion (HIF + per-library adapters) and
+surfacing of Family A; **Phase 1** the MDL backbone (unweighted + weighted);
+**Phase 2** complementary statistical (SVH/SVC) and structural (toplex, s-line)
+methods. Out of scope: hypergraph neural networks; any required third-party
+hypergraph dependency.
 
-- **Phase 0** — surface Family A + add input adapters (HIF + per-library
-  converters) so hypergraphs from any of the four libraries can enter the
-  pipeline. Near-zero risk.
-- **Phase 1** — a `hypergraph` module implementing the sui generis methods (SVH,
-  SVC, toplex/inclusion, s-line/s-connectivity, order-resolved), natively on an
-  incidence substrate, returning a sub-hypergraph and able to export back to the
-  external libraries / HIF.
-- **Out of scope** — hypergraph neural networks / representation learning; making
-  any third-party hypergraph library a *required* dependency.
+## 2. The source paper (arXiv:2606.00893)
 
-## 2. Note on the source paper (arXiv:2606.00893)
+*A. Kirkley, H. Felippe, F. Malizia, F. Battiston, "Hypergraph backboning" (2026).*
 
-The specific paper could not be retrieved while preparing this proposal:
+**Idea.** Given a hypergraph `G` on `N` nodes (undirected hyperedges, no repeated
+nodes within an edge, no multi-edges) with `L` distinct hyperedge sizes (orders),
+find a backbone `B ⊆ G`: a subset of hyperedges ("parents") such that every
+non-backbone hyperedge ("child") can be cheaply reconstructed from a parent it
+overlaps. The best backbone is the one that **minimizes a two-part description
+length** (MDL) — equivalently, that maximizes the structural redundancy
+(overlap/nestedness) explained. It is **fully nonparametric** for unweighted
+hypergraphs.
 
-- The execution environment's network egress is allow-listed and excludes
-  `arxiv.org`, `export.arxiv.org`, and the relevant docs hosts ("Host not in
-  allowlist"); arXiv additionally returns HTTP 403 to automated fetchers.
-- The ID `2606.00893` corresponds to **June 2026** and was only ~1 day old at the
-  time of writing, so it is not yet indexed by web search or paper hubs.
+**Unweighted objective.** With `log ≡ log2` and `C(n,k)` the binomial:
 
-Consequently this proposal is grounded in (a) a full reading of this library,
-(b) the source code and READMEs of the four target libraries (fetched from
-`raw.githubusercontent.com`, which *is* reachable), and (c) the established
-hypergraph-backboning literature any such paper builds on (see §11) — **not** on
-the paper's exact formulation. §10 lists the specific details to confirm against
-the paper before implementing Phase 1.
+- Transmit each parent `p ∈ B`:  `H(p) = log L + log C(N, |p|)`;  `L(B) = Σ_p H(p)`.
+- Transmit each child `c` from its parent `p` (with `|p ∩ c| ≥ 1`):
+  `H(c|p) = log L + log min(|p|,|c|) + log C(|p|, |p∩c|) + log C(N−|p|, |c|−|p∩c|)`.
+- Total: `L(G,B) = L(B) + Σ_{p∈B} Σ_{c∈∂p} H(c|p)`, where `∂p` are the children of
+  `p`.  The optimum is `B* = argmin_B L(G,B)`.
+- Equivalent reduced-mutual-information form: `L(G,B) = L(G,G) − Σ_c R(c, p(c))`,
+  so minimizing description length = **maximizing parent–child overlap/nestedness**.
+- **Inverse compression ratio** `η = L(G,B*) / L(G,G) ∈ [0,1]` measures how
+  compressible (redundant) the hypergraph is (`η→0` very compressible, `η=1` none).
 
-## 3. Background: what "hypergraph network backboning" means
+**Weighted extension.** `Lw(G,B) = L(G,B) + Σ_e L(w(e), b_e)`, where `b_e∈{0,1}` is
+backbone membership and weights follow a role-dependent **Poisson or Geometric**
+prior under an empirical-Bayes mean constraint. A single hyperparameter
+`γ ∈ (0,1]` trades off weight vs. topology: `γ=1` recovers the unweighted
+objective (weights ignored); `γ→0` makes it infinitely costly to leave a
+high-weight edge out of the backbone. The backbone-inclusion reward is **linear in
+the weight** `w(e)`, with a closed-form weight threshold `w*` below which weight no
+longer favors inclusion. (Integer weights `≥1`; continuous weights need a
+resolution parameter.) **No prior hypergraph filtering method handled weights** —
+this is the paper's central novelty and aligns with this library's weighted focus.
 
-A hypergraph `H = (V, E)` has hyperedges `e ⊆ V` that may join more than two
-nodes. "Backboning" means keeping only its most informative structure. Two
-distinct families exist:
+**Optimization (Appendix D).** Exact minimization is combinatorial; the paper uses
+greedy approximations on the **intersection graph** `Int(G)` (one node per
+hyperedge; link two hyperedges that share ≥1 node). Parent–child assignments form a
+**partition of `Int(G)` into disjoint stars** (each child has exactly one parent;
+parents/children don't nest further). Two greedy schemes — "node" addition and
+"edge" addition (the latter usually better) — are run and the lower description
+length is kept. Greedy compression is **indistinguishable from exact** on small
+samples.
 
-- **Family A — projection backboning.** Represent `H` as an incidence
-  (node × hyperedge) structure, project to a node–node weighted graph, then apply
-  a degree-preserving null model to decide which *pairwise* links are significant.
-  Lineage: Neal's `backbone` R package (Backbone 3.0, PLOS One 2026, explicitly
-  supports hypergraph-projection backbones) and Coscia & Neffke (2017). Output is
-  an ordinary graph and fits the existing score-then-filter idiom.
-- **Family B — direct hyperedge filtering.** Keep the *hyperedges themselves* that
-  are significant (statistically over-expressed, or structurally essential).
-  Reference: Musciotto, Battiston & Mantegna, "Detecting informative higher-order
-  interactions in statistically validated hypergraphs," *Communications Physics*
-  (2021). Output is a *subset of hyperedges* (a sub-hypergraph), which does **not**
-  map onto the current graph-in/graph-out filter functions.
+**Complexity / cost.** Bottleneck is building `Int(G)`: `O(Σ_i |G_i|²)` over node
+neighborhoods `G_i = {e : i ∈ e}` (best case `O(N)`, worst `O(N|G|²)`); optional
+random pair sampling gives `O(N s²)`. Empirically ~`N^1.17`, **≤6 minutes** on the
+empirical corpus with a plain Python implementation. A **local variant**
+(Appendix E) backbones each node neighborhood separately.
 
-Given the phrase "hypergraph network backboning," the source paper is most
-plausibly in Family B.
+**Inputs / outputs.** Input: a hyperedge list over `N` nodes (+ optional integer
+weights). Output: the backbone sub-hypergraph `B`, the parent→children assignment
+(star forest), and `η`.
+
+**Dependencies implied.** Only a hyperedge list and arithmetic; `Int(G)` is an
+ordinary graph (build with NetworkX), and the log-binomials use
+`scipy.special.gammaln`. **No third-party hypergraph library is required to
+implement it.** No public reference code is cited (the authors describe a "simple
+Python implementation"; datasets come from the Hypergraphx-data repository).
+
+## 3. Background: three paradigms
+
+- **A — projection backboning.** Represent `G` as an incidence (node × hyperedge)
+  structure, project to a node–node weighted graph, apply a degree-preserving null
+  model. Output is a graph. Lineage: Neal's `backbone` (Backbone 3.0, 2026),
+  Coscia & Neffke (2017).
+- **B1 — statistical hyperedge filtering.** Keep hyperedges over-expressed vs a
+  configuration null, *given a significance level α*. Output is a sub-hypergraph.
+  Reference: Musciotto, Battiston & Mantegna (2021); impl in HGX (`get_svh`/`get_svc`).
+- **B2 — information-theoretic (MDL) backboning — this paper.** Compress nested and
+  redundant hyperedges; keep the minimal parent set. Output is a sub-hypergraph.
+  **Parameter-free** (unweighted), weighted via one knob. Distinct from B1: it is a
+  global compression optimum, not a per-hyperedge hypothesis test, and needs no α.
+
+Families B1/B2 share the "sub-hypergraph output" problem that does not fit the
+current graph-in/graph-out filters.
 
 ## 4. Current library capabilities relevant to this
 
-- **Score-then-filter pattern.** Methods annotate edges with a score
-  (e.g. `disparity_pvalue`) and return a copy of the graph; `threshold_filter` /
-  `boolean_filter` / `fraction_filter` then extract the subgraph.
-- **Dependency policy.** Core requires only `networkx>=3.0`; `numpy`/`scipy` are
-  the optional `[full]` extra, imported lazily inside functions.
-- **The `bipartite` module already is an incidence engine.**
-  `_bipartite_projection_matrix(B, agent_nodes)` builds the binary incidence matrix
-  `R` (agents × artifacts) and the co-occurrence `R @ R.T`; on top of it the module
-  provides `sdsm`, `fdsm`, `fixedfill`/`fixedrow`/`fixedcol`, plus reusable
-  randomizers `fastball` and `_random_bipartite_matrix`, and `bicm` probabilities.
-
-A hypergraph encoded with nodes in one partition and hyperedges in the other is
-*exactly* the input these functions already expect.
+- **Two idioms already in use:** *score-then-filter* (e.g. `disparity_filter` →
+  `threshold_filter`) and *direct boolean flag* (e.g.
+  `maximum_spanning_tree_backbone` → `boolean_filter` on `mst_keep`). The MDL
+  method is a global optimizer, so it maps onto the **boolean-flag idiom** (annotate
+  each hyperedge with an `mdl_keep` role), not onto per-edge p-value thresholding.
+- **Dependency policy:** core `networkx`-only; `numpy`/`scipy` are the optional
+  `[full]` extra, imported lazily. The MDL method fits this exactly.
+- **The `bipartite` module is already an incidence engine** (`_bipartite_projection_matrix`,
+  `sdsm`/`fdsm`/`fixed*`, `fastball`, `bicm`), so Family A is essentially built.
 
 ## 5. Key finding: Family A already works today
 
@@ -135,207 +168,161 @@ backbone = nb.threshold_filter(scored, "sdsm_pvalue", 0.30, mode="below")
 # backbone.edges() -> [(1, 2), (4, 5), (4, 6), (5, 6)]   (verified)
 ```
 
-`fdsm(...)` works identically with Monte-Carlo, exactly-degree-preserving nulls.
 A large slice of "hypergraph backboning" is therefore a **latent, undocumented
-capability** today.
+capability** today (projection family). The paper's method is a *different* output
+type (a sub-hypergraph) and is the new work.
 
-## 6. Method inventory: generalizations vs. sui generis methods
+## 6. Method inventory: generalizations vs. sui generis
 
-The user's question — are hypergraph backbone methods just generalizations of what
-we have, or are some genuinely distinct? — resolves as **"mostly generalizations,
-plus a short list of genuinely hypergraph-native methods."**
-
-### 6.1 Generalizations (already reachable, or trivially so)
-
-These reduce to existing methods once a hypergraph enters the pipeline as its
-incidence/bipartite form or via an expansion. **No new algorithms needed** beyond
-the Phase 0 adapters.
+### 6.1 Generalizations (reachable once a hypergraph enters the pipeline)
 
 | Hypergraph method | Reduces to | Notes |
 |-------------------|-----------|-------|
 | Hyperedge global-weight threshold | `global_threshold_filter` | trivial |
 | Degree-preserving projection null (SDSM/FDSM/fixed*) | `sdsm`/`fdsm`/`fixed*` on incidence | **already works** (§5) |
-| Disparity / MLF / LANS / noise-corrected / ECM on the projection | the matching statistical filter | applied to the projected graph; the only wrinkle is the "which incident node's disparity" choice, identical to the bipartite case |
-| Clique-expansion or line-graph + any graph backbone | existing graph methods | apply a transform, then any current method |
+| Disparity / MLF / LANS / NC / ECM on the projection | matching statistical filter | applied to the projected graph |
+| Clique- or line-graph expansion + any graph backbone | existing graph methods | transform, then any current method |
 
-### 6.2 Sui generis methods (no clean dyadic analog — worth porting)
+### 6.2 Sui generis methods (no clean dyadic analog)
 
-These cannot be produced by the current ensemble, primarily because (a) the
-hypothesis or structure is defined over *groups of arbitrary size*, and (b) the
-output is a *sub-hypergraph*, not a graph.
+| Method | Paradigm | Reference / impl | Distinctness |
+|--------|----------|------------------|--------------|
+| **MDL hypergraph backbone (this paper)** | B2 (compression) | Kirkley+ 2026 | **Headline.** Global MDL optimum over parent/child overlap & nestedness; parameter-free; weighted via γ; sub-hypergraph output. Naive toplex/maximal-face reduction is a degenerate special case. |
+| Statistically Validated Hypergraph / Cores (SVH/SVC) | B1 (statistical) | Musciotto+ 2021; HGX `get_svh`/`get_svc` | Complementary α-based alternative; group-level null-model test. |
+| Toplex / inclusion (encapsulation) reduction | structural | HNX `toplexes()`, XGI `encapsulation_dag` | Cheap heuristic; subsumed by the MDL objective. |
+| s-connectivity / s-line-graph backbone | structural | HNX `s_components` | Parameterized by shared-node threshold `s`; no dyadic analog. |
+| Order-resolved hyperedge filtering | utility | building block | Meaningful only with variable arity. |
 
-| Method | Type | Reference / reference impl | Why it is distinct |
-|--------|------|----------------------------|--------------------|
-| **Statistically Validated Hypergraph (SVH)** | statistical | Musciotto+ 2021; HGX `get_svh` | Tests each *hyperedge of order k* for over-expression under a node-degree-preserving null, with FDR correction across tests. The hypothesis is about a k-node group, not a dyad — irreducible to pairwise filtering. |
-| **Statistically Validated Cores / significant interacting groups (SVC)** | statistical | HGX `get_svc` | Validates significant *groups* (cores) order-by-order, including groups not present as a single hyperedge. Complements SVH. |
-| **Toplex / inclusion (encapsulation) reduction** | structural | HNX `toplexes()`; XGI `encapsulation_dag` | Keep only maximal hyperedges (or filter nested/encapsulated ones). A "subset-of" relation between edges has no analog in simple graphs. |
-| **s-connectivity / s-line-graph backbone** | structural | HNX `s_components`, `s_connected_components`, s-line graph | Two hyperedges are *s-adjacent* if they share ≥ s nodes. Backbones that preserve s-components, or that backbone the (weighted) s-line graph, form a family parameterized by `s` with no dyadic counterpart. |
-| **Order-resolved hyperedge filtering** | structural / utility | building block of SVH | Score/keep hyperedges per order (size). Meaningful only because hyperedges have variable arity; also the substrate for SVH/SVC. |
-
-**Characterization.** The *statistical* sui generis methods (SVH/SVC) are best
-described as higher-order descendants of statistically-validated-network ideas,
-but the group-level hypothesis and sub-hypergraph output make them irreducible to
-any pairwise backbone in our ensemble. The *structural* ones (toplex/inclusion,
-s-connectivity, order-resolved) are genuinely unique to set systems.
-
-**Recommendation.** Port SVH and SVC first (statistical; likely the source paper's
-family), then the structural trio. Implement them **natively** on our incidence
-substrate (numpy/scipy only), so they require no third-party hypergraph library;
-use HGX/HNX as references for correctness fixtures and as optional fast paths
-(§7).
+**Bottom line for the user's question:** hypergraph backboning is *mostly*
+generalizations of existing methods (§6.1), **but the paper's MDL method is
+genuinely new** and cannot be produced by the current ensemble — both because the
+objective exploits higher-order overlap/nestedness and because the output is a
+sub-hypergraph. It is worth porting; SVH/SVC and the structural primitives are
+worthwhile but secondary.
 
 ## 7. Optional interoperability with hypergraph libraries
 
-The four target libraries differ in focus but **converge on the same substrate**
-— every one can produce/consume an incidence matrix and/or a bipartite
-representation, and **all four support the HIF JSON interchange format**. This
-makes optional interop cheap and keeps the core `networkx`-only.
+All four target libraries converge on an incidence/bipartite substrate and **all
+support the HIF JSON interchange format**, so interop is cheap and adds **no
+required dependency**.
 
-### 7.1 What each library exposes (verified from source)
+| Library | Hypergraph type(s) | → incidence / bipartite (in) | ← construct (from our output) | HIF |
+|---------|--------------------|------------------------------|-------------------------------|-----|
+| **XGI** (`xgi`) | `Hypergraph`, `DiHypergraph`, `SimplicialComplex` | `xgi.to_bipartite_graph`, `xgi.to_incidence_matrix` | `xgi.from_bipartite_graph`, `xgi.from_incidence_matrix` | `xgi.read_hif`/`write_hif` |
+| **HyperNetX** (`hypernetx`) | `Hypergraph` | `.bipartite()`, `.incidence_matrix()`, `.incidence_dict` | `Hypergraph.from_bipartite`, `.restrict_to_edges(keep)` | supported |
+| **HypergraphX** (`hypergraphx`) | `Hypergraph`, Temporal/Directed/Multiplex | `.binary_incidence_matrix(return_mapping=True)` | `Hypergraph(edge_list=...)` | supported |
+| **HAT** (`HAT`) | `Hypergraph` (tensor/incidence) | `.incidence_matrix` | `Hypergraph(incidence_matrix=...)` | import/export |
 
-| Library | Hypergraph type(s) | → incidence / bipartite (into our pipeline) | ← construct (from our output) | HIF |
-|---------|--------------------|---------------------------------------------|-------------------------------|-----|
-| **XGI** (`xgi`) | `Hypergraph`, `DiHypergraph`, `SimplicialComplex` | `xgi.to_bipartite_graph(H)`, `xgi.to_incidence_matrix(H)` | `xgi.from_bipartite_graph(B)`, `xgi.from_incidence_matrix(M)` | `xgi.read_hif` / `xgi.write_hif` |
-| **HyperNetX** (`hypernetx`) | `Hypergraph` | `H.bipartite()`, `H.incidence_matrix()`, `H.incidence_dict` | `Hypergraph.from_bipartite(B)`, `H.restrict_to_edges(keep)` | supported |
-| **HypergraphX** (`hypergraphx`) | `Hypergraph`, `Temporal/Directed/Multiplex` | `H.binary_incidence_matrix(return_mapping=True)` | `Hypergraph(edge_list=...)` | supported |
-| **HAT** (`HAT`) | `Hypergraph` (tensor/incidence) | `H.incidence_matrix` | `Hypergraph(incidence_matrix=...)` | import/export |
-
-Notes:
-- **HNX `restrict_to_edges`** is the natural way to return a sub-hypergraph backbone
-  in HNX terms; **XGI `encapsulation_dag`** and **HNX `toplexes`** directly support
-  the inclusion-reduction method (§6.2).
-- **HAT** is tensor/controllability/entropy-focused; it contributes interop value
-  (and an incidence matrix), not new backbone methods.
-
-### 7.2 Proposed interop design
-
-Two complementary, fully optional layers — neither becomes a hard dependency
-(adapters lazily import the third party and raise a friendly `ImportError` if it
-is absent; HIF needs only the stdlib `json`):
-
-1. **HIF as the primary hub (recommended).** Add dependency-free `read_hif(path)`
-   / `write_hif(H, path)` that parse/emit the HIF JSON schema into our internal
-   incidence form. Because XGI, HGX, HNX, and HAT all read/write HIF themselves,
-   this yields universal round-tripping with *zero* third-party dependencies and
-   minimal maintenance.
-2. **Thin direct adapters (ergonomic convenience).** `from_xgi`/`to_xgi`,
-   `from_hypernetx`/`to_hypernetx`, `from_hypergraphx`/`to_hypergraphx`,
-   `from_hat`/`to_hat`. Each is ~10–20 lines because each library already exposes
-   incidence/bipartite converters (table above). Example sketch:
-
-   ```python
-   def from_xgi(H):
-       """Convert an xgi.Hypergraph to our incidence bipartite graph (lazy import)."""
-       import xgi  # optional; raises ImportError with install hint if missing
-       return xgi.to_bipartite_graph(H)        # already a NetworkX bipartite graph
-
-   def to_hypernetx(hyperedges):
-       import hypernetx as hnx
-       return hnx.Hypergraph(hyperedges)
-   ```
-
-3. **Packaging.** Add extras so users can opt in:
-   `pip install networkx-backbone[xgi|hypernetx|hypergraphx|hat]` (and a `hif`
-   extra is unnecessary — HIF is stdlib-only). Core install is unchanged.
-
-This means a user can take a hypergraph from *any* of the four libraries, run our
-backbone methods, and hand the result back to their library of choice.
+- **`restrict_to_edges`** (HNX) is the natural way to return the MDL backbone as a
+  native object in each library; HGX/HNX also give SVH/toplex references.
+- Design: (1) **HIF** as a stdlib-only hub (`read_hif`/`write_hif` into our
+  hyperedge-list form); (2) thin lazy `from_*`/`to_*` adapters (~10–20 lines each,
+  since the converters above already exist); (3) optional extras
+  `networkx-backbone[xgi|hypernetx|hypergraphx|hat]`. Core install unchanged; each
+  adapter imports its library lazily and errors with an install hint if absent.
 
 ## 8. Gap analysis and challenges
 
-1. **No native hypergraph type in NetworkX.** A representation must be chosen
-   (§9.1). This is the central decision.
-2. **Output-type mismatch for Family B / sui generis methods.** A sub-hypergraph
-   cannot flow through `threshold_filter`. Options: return the kept hyperedges
-   (list/`frozenset`s), annotate the *hyperedge* nodes of the bipartite encoding
-   and filter those (preserving the idiom), and/or return an external-library
-   object (`restrict_to_edges`, etc.).
-3. **Dependency policy.** Keep `networkx`-only core; sui generis methods need only
-   `numpy`/`scipy` (already the `[full]` extra). The four libraries stay *optional*
-   extras; HIF needs only the stdlib.
-4. **Multiple testing and cost.** SVH/SVC test one hypothesis per candidate group,
-   so they need FDR/Bonferroni correction (HGX uses FDR) and benefit from the
-   existing Monte-Carlo randomizers and per-order guardrails.
-5. **Scope discipline.** Stay within classical backboning. Hypergraph neural
-   networks are out of scope.
+1. **No native hypergraph type in NetworkX.** Use a hyperedge-list / incidence
+   representation internally (§9.1); the MDL optimizer's `Int(G)` is itself a
+   NetworkX graph.
+2. **Sub-hypergraph output.** Doesn't flow through `threshold_filter`. Mirror the
+   boolean-flag idiom: annotate hyperedges with an `mdl_keep` role + a
+   `hyperedge_filter`, and optionally return a native library object.
+3. **Global optimizer, not a per-edge score.** The MDL backbone is a combinatorial
+   optimum (greedy), unlike independent per-edge p-values — document it as a
+   "direct" method like the spanning-tree/metric backbones.
+4. **One knob for weights (γ).** Parameter-free unweighted; `γ` only for weighted,
+   default `γ=1`. Far less parameter burden than α-based methods.
+5. **Dependency policy preserved.** `networkx` + `numpy`/`scipy`
+   (`scipy.special.gammaln`); the four libraries stay optional; HIF is stdlib-only.
 
-## 9. Proposed design and phased plan
+## 9. Proposed design and re-scoped plan
 
-### 9.1 Hypergraph representation
+### 9.1 Representation
 
-Primary internal representation: **the incidence form** — a list of hyperedges
-(tuples/`frozenset`s) plus a node ordering, with the equivalent incidence bipartite
-graph and incidence matrix available on demand. Rationale: zero new dependencies,
-reuses the entire `bipartite` engine, matches the substrate all four libraries
-share, and round-trips through HIF.
+Internal: a **hyperedge list** (tuples/`frozenset`s) + node ordering, with
+incidence matrix / incidence bipartite graph available on demand. Zero new deps;
+matches the substrate every target library and HIF share.
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Incidence form / bipartite graph** (recommended) | no new deps; reuses null models; matches every target library + HIF | hyperedge identity lives in labels |
-| Lightweight `list[frozenset]` + matrix | natural sub-hypergraph output | minor plumbing |
-| Direct dependence on one library's type | rich features | violates dependency policy; picks a winner |
+### 9.2 Phase 0 — ingestion + surface Family A
 
-### 9.2 Phase 0 — surface Family A + input adapters
+`hypergraph_to_bipartite`, `incidence_to_bipartite`, `read_hif`/`write_hif`, and
+the four `from_*`/`to_*` adapters; a tutorial showing SDSM/FDSM/fixed projection
+backbones and ingestion from each library; tests. No changes to existing functions.
 
-- Converters: `hypergraph_to_bipartite(hyperedges)`, `incidence_to_bipartite(M)`,
-  `read_hif`/`write_hif`, and the four `from_*`/`to_*` adapters (§7).
-- A tutorial showing SDSM/FDSM/fixed-model hypergraph projection backbones and
-  ingestion from each library.
-- Tests + a note in `docs/concepts.rst`. No changes to existing functions.
+### 9.3 Phase 1 — MDL hypergraph backbone (the paper)
 
-### 9.3 Phase 1 — `hypergraph` module (sui generis methods)
-
-Native implementations on the incidence substrate, preserving score-then-filter.
-Indicative API (finalize against the paper and HGX for SVH/SVC):
+A `hypergraph` module implementing Kirkley+ 2026:
 
 ```python
 # networkx_backbone/hypergraph.py
-def svh(hyperedges, max_order=None, alpha=0.05, correction="fdr", seed=None): ...
-def svc(hyperedges, min_order=2, max_order=None, alpha=0.05, correction="fdr"): ...
-def toplex_backbone(hyperedges): ...               # inclusion / encapsulation reduction
-def s_line_backbone(hyperedges, s=1, method="disparity", **kw): ...  # backbone the s-line graph
-def order_filter(hyperedges, min_order=2, max_order=None): ...
+def mdl_hypergraph_backbone(
+    hyperedges, weights=None, gamma=1.0, prior="poisson",
+    method="auto",          # "node" | "edge" | "auto" (run both, keep lower L)
+    sample_pairs=None, seed=None,
+):
+    """Return the MDL-optimal backbone (Kirkley et al. 2026).
 
-def hyperedge_filter(scored, score="svh_pvalue", alpha=0.05): ...   # -> sub-hypergraph
+    Returns a result with: backbone hyperedges, parent->children assignment,
+    description_length, and compression_ratio eta. Also annotates each hyperedge
+    with an `mdl_keep` boolean role.
+    """
+
+def hyperedge_filter(scored, role="mdl_keep"):
+    """Boolean-flag filter -> the backbone sub-hypergraph."""
+
+def hypergraph_compression_ratio(hyperedges, backbone=None, weights=None, gamma=1.0):
+    """Inverse compression ratio eta (Eq. 8) as an evaluation measure."""
 ```
 
-- Reuse `fastball` / `_random_bipartite_matrix` for null ensembles; lazy
-  `numpy`/`scipy` imports per the existing convention.
-- Output: the kept hyperedges; optionally also the bipartite encoding (so existing
-  graph filters apply) and/or an external-library object via the §7 adapters.
+Building blocks: `intersection_graph(hyperedges)` (NetworkX), the parent/child MDL
+terms (`gammaln`-based), greedy "node"/"edge" optimizers over the star partition,
+and optional pair-sampling for very large/dense inputs. The local variant
+(Appendix E) is a natural follow-up.
 
-### 9.4 Testing strategy
+### 9.4 Phase 2 — complementary methods (optional)
 
-- Phase 0: round-trip converter tests for each library + HIF; equivalence test that
-  `hypergraph_to_bipartite(...) + sdsm` matches the manual recipe.
-- Phase 1: known-answer tests on tiny hypergraphs (planted over-represented group
-  retained; random groups not); determinism via `seed`; FDR behavior; degenerate
-  inputs; **cross-validation against HGX `get_svh`/`get_svc` and HNX `toplexes`**
-  where those libraries are installed (skipped otherwise).
+SVH/SVC (statistical, α-based; cross-checked against HGX), toplex/inclusion
+reduction, s-line/s-connectivity backbones, order-resolved filtering.
 
-## 10. Open questions to confirm against arXiv:2606.00893
+### 9.5 Testing strategy
 
-1. Which family — direct hyperedge filtering (B) or a projection method (A)?
-2. The exact null model (node-degree-preserving, hyperedge-size-preserving, both).
-3. Test statistic and the multiple-comparison correction used.
-4. Output: a sub-hypergraph, a validated projection, or both.
-5. Whether it coincides with SVH/SVC or is a distinct method to add to §6.2.
+- Phase 0: round-trip converter tests per library + HIF; equivalence of
+  `hypergraph_to_bipartite + sdsm` with the manual recipe.
+- Phase 1: **reproduce the paper's controlled synthetic experiments** — planted
+  fully-nested simplices and parent/child-with-noise hypergraphs (Figs. 1–3):
+  backbone recovers planted top faces; `η` behaves as reported; greedy ≈ exact on
+  tiny inputs; `γ=1` ≡ unweighted; `γ→0` forces high-weight edges in; determinism
+  via `seed`.
+- Cross-validate against HGX/HNX where installed (skipped otherwise).
+
+## 10. Resolved questions and remaining implementation decisions
+
+The first-draft "open questions" are now answered by the paper:
+family = **B2 (MDL compression)**; null model = **none** (information-theoretic,
+parameter-free unweighted); correction = **n/a**; output = **sub-hypergraph** + star
+forest + `η`; relationship to SVH/SVC = **distinct paradigm**.
+
+Remaining choices for implementation:
+1. Default optimizer (`"auto"` running both greedy schemes, per the paper).
+2. Weight prior default (`poisson` vs `geometric`) and `γ` default (`1.0`).
+3. Result object shape vs. plain annotation (recommend a small dataclass **and** an
+   `mdl_keep` flag for idiom consistency).
+4. Whether to ship the Appendix E local variant in Phase 1 or Phase 2.
 
 ## 11. References
 
-- Musciotto, Battiston & Mantegna — Detecting informative higher-order
-  interactions in statistically validated hypergraphs — Communications Physics
-  (2021). https://www.nature.com/articles/s42005-021-00710-4 (arXiv:2103.16484)
+- **Kirkley, Felippe, Malizia & Battiston — Hypergraph backboning — arXiv:2606.00893 (2026).**
+- Musciotto, Battiston & Mantegna — Detecting informative higher-order interactions
+  in statistically validated hypergraphs — Communications Physics (2021),
+  arXiv:2103.16484. https://www.nature.com/articles/s42005-021-00710-4
 - Backbone 3.0: An R package for extracting network backbones — PLOS One (2026).
   https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0349258
 - Coscia & Neffke — Network backboning with noisy data — arXiv:1906.09081.
-  https://arxiv.org/pdf/1906.09081
-- HIF: The hypergraph interchange format for higher-order networks — Network
-  Science / arXiv:2507.11520. https://arxiv.org/html/2507.11520v1 ·
+- HIF: The hypergraph interchange format — arXiv:2507.11520;
   standard: https://github.com/HIF-org/HIF-standard
-- Hypergraphx (HGX) — J. Complex Networks (2023), arXiv:2303.15356.
-  https://github.com/HGX-Team/hypergraphx
+- Hypergraphx (HGX) — arXiv:2303.15356. https://github.com/HGX-Team/hypergraphx
 - HyperNetX (HNX) — arXiv:2310.11626. https://github.com/pnnl/HyperNetX
 - XGI — https://github.com/xgi-org/xgi
-- Hypergraph Analysis Toolbox (HAT) — PLOS Comput. Biol. (2023).
-  https://github.com/Jpickard1/Hypergraph-Analysis-Toolbox
+- Hypergraph Analysis Toolbox (HAT) — https://github.com/Jpickard1/Hypergraph-Analysis-Toolbox
