@@ -15,7 +15,7 @@ is a sparser graph that preserves the essential structure of the original.
 Taxonomy of methods
 -------------------
 
-The 75 functions in ``networkx-backbone`` are organized into ten modules based
+The 86 functions in ``networkx-backbone`` are organized into ten modules based
 on the approach they take. The method taxonomy aligns with the categories used
 in ``netbone`` (Yassin et al., 2023; https://gitlab.liris.cnrs.fr/coregraphie/netbone),
 extended with a hypergraph module for higher-order networks.
@@ -122,8 +122,15 @@ hyperedges).
   Battiston & Mantegna, 2021)
 
 Because a hypergraph backbone is a subset of hyperedges rather than a graph, this
-module returns a :class:`~networkx_backbone.HypergraphBackbone` result instead of
-using the :mod:`~networkx_backbone.filters` utilities.
+module returns a :class:`~networkx_backbone.HypergraphBackbone` (or
+:class:`~networkx_backbone.ValidatedHypergraph`) result instead of using the
+:mod:`~networkx_backbone.filters` utilities.
+
+The :mod:`~networkx_backbone.hypergraph_io` helpers convert hyperedge lists to and
+from a NetworkX incidence bipartite graph (so the
+:mod:`~networkx_backbone.bipartite` projection backbones apply to hypergraphs),
+the HIF interchange format, and the ``xgi`` / ``HyperNetX`` / ``HypergraphX`` /
+HAT hypergraph classes (optional, imported lazily).
 
 Unweighted methods
 ^^^^^^^^^^^^^^^^^^

@@ -2,7 +2,7 @@
 
 Backbone extraction algorithms for complex networks, built on [NetworkX](https://networkx.org/).
 
-This library provides 75 functions across 10 modules for extracting backbone
+This library provides 86 functions across 10 modules for extracting backbone
 structures from weighted, unweighted, and higher-order (hypergraph) networks.
 
 Full documentation: https://www.brianckeegan.com/networkx_backbone/
@@ -96,6 +96,34 @@ backbone = nb.threshold_filter(scored, "sdsm_pvalue", 0.05, mode="below")
 
 Projection weights follow the simple/hyper/ProbS/YCN formulations described in
 [Coscia & Neffke (2017)](https://arxiv.org/abs/1906.09081).
+
+### Hypergraph backbones
+
+Backbone a hypergraph (a collection of arbitrary-size hyperedges) directly:
+
+```python
+# Parameter-free MDL backbone -- prunes nested/redundant hyperedges
+# (Kirkley, Felippe, Malizia & Battiston, 2026)
+H = [(1, 2, 3, 4), (1, 2, 3), (2, 3, 4), (8, 9)]
+result = nb.mdl_hypergraph_backbone(H)
+print(result.backbone)            # [frozenset({1, 2, 3, 4}), frozenset({8, 9})]
+print(result.compression_ratio)   # inverse compression ratio eta
+
+# Statistically validated hypergraph (Musciotto, Battiston & Mantegna, 2021)
+events = [(1, 2)] * 5 + [(3, 4)] * 100          # repeats = interaction counts
+svh = nb.statistically_validated_hypergraph(events, alpha=0.05)
+```
+
+Interoperate with the higher-order ecosystem (all optional, lazily imported), or
+reuse the bipartite projection backbones via the incidence graph:
+
+```python
+B, nodes = nb.hypergraph_to_bipartite(H)        # -> NetworkX bipartite graph
+scored = nb.sdsm(B, agent_nodes=nodes)          # projection backbone of a hypergraph
+
+nb.write_hif(H, "graph.hif")                    # HIF interchange (xgi/HNX/HGX/HAT)
+edges = nb.from_xgi(xgi_hypergraph)             # xgi / hypernetx / hypergraphx / hat
+```
 
 ### Comparing multiple methods
 

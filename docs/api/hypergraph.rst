@@ -51,3 +51,32 @@ Mantegna, 2021).  These require ``scipy`` and return a
 
 .. autoclass:: ValidatedHypergraph
    :members:
+
+.. rubric:: Interoperability and ingestion
+
+Convert between the hyperedge-list representation and a NetworkX incidence
+bipartite graph (enabling the bipartite projection backbones), the HIF
+interchange format, and the ``xgi`` / ``HyperNetX`` / ``HypergraphX`` / HAT
+hypergraph classes.  The third-party libraries are optional and imported lazily.
+
+.. autofunction:: hypergraph_to_bipartite
+
+.. autofunction:: read_hif
+
+.. autofunction:: write_hif
+
+.. autofunction:: from_xgi
+
+.. autofunction:: to_xgi
+
+.. autofunction:: from_hypernetx
+
+.. autofunction:: to_hypernetx
+
+.. autofunction:: from_hypergraphx
+
+.. autofunction:: to_hypergraphx
+
+.. autofunction:: from_hat
+
+.. autofunction:: to_hat

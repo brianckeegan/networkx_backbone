@@ -9,7 +9,9 @@ networks, organized into ten submodules:
 - **proximity**: Neighborhood-similarity edge scoring (Jaccard, Dice, cosine, etc.)
 - **hybrid**: Combined statistical/structural methods (GLAB)
 - **bipartite**: Bipartite projection backbones (SDSM, FDSM, fixed models, wrappers)
-- **hypergraph**: Hypergraph backbones (information-theoretic MDL pruning)
+- **hypergraph**: Hypergraph backbones (MDL pruning, statistical validation,
+  structural reduction); ingestion/interoperability helpers live in
+  ``hypergraph_io`` (HIF, xgi, HyperNetX, HypergraphX, HAT)
 - **unweighted**: Sparsification for unweighted graphs (LSpar, local degree)
 - **filters**: Post-hoc filtering utilities (threshold, fraction, boolean, consensus)
 - **measures**: Evaluation measures for comparing backbones
@@ -22,6 +24,7 @@ from networkx_backbone.proximity import *  # noqa: F401,F403
 from networkx_backbone.hybrid import *  # noqa: F401,F403
 from networkx_backbone.bipartite import *  # noqa: F401,F403
 from networkx_backbone.hypergraph import *  # noqa: F401,F403
+from networkx_backbone.hypergraph_io import *  # noqa: F401,F403
 from networkx_backbone.unweighted import *  # noqa: F401,F403
 from networkx_backbone.filters import *  # noqa: F401,F403
 from networkx_backbone.measures import *  # noqa: F401,F403
@@ -100,6 +103,18 @@ __all__ = [
     "ValidatedHypergraph",
     "svh",
     "svc",
+    # Hypergraph interoperability
+    "hypergraph_to_bipartite",
+    "read_hif",
+    "write_hif",
+    "from_xgi",
+    "to_xgi",
+    "from_hypernetx",
+    "to_hypernetx",
+    "from_hypergraphx",
+    "to_hypergraphx",
+    "from_hat",
+    "to_hat",
     # Unweighted
     "sparsify",
     "lspar",

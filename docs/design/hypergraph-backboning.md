@@ -245,11 +245,13 @@ Internal: a **hyperedge list** (tuples/`frozenset`s) + node ordering, with
 incidence matrix / incidence bipartite graph available on demand. Zero new deps;
 matches the substrate every target library and HIF share.
 
-### 9.2 Phase 0 — ingestion + surface Family A
+### 9.2 Phase 0 — ingestion + surface Family A (**implemented**)
 
-`hypergraph_to_bipartite`, `incidence_to_bipartite`, `read_hif`/`write_hif`, and
-the four `from_*`/`to_*` adapters; a tutorial showing SDSM/FDSM/fixed projection
-backbones and ingestion from each library; tests. No changes to existing functions.
+`networkx_backbone.hypergraph_io` provides `hypergraph_to_bipartite` (enabling the
+existing SDSM/FDSM/fixed projection backbones on hypergraphs), `read_hif`/`write_hif`
+(stdlib-only HIF interchange, cross-checked against xgi in tests), and lazy
+`from_*`/`to_*` adapters for xgi, HyperNetX, HypergraphX, and HAT. No required
+dependency is added. (A worked tutorial is still a nice-to-have follow-up.)
 
 ### 9.3 Phase 1 — MDL hypergraph backbone (the paper)
 
