@@ -11,6 +11,10 @@ on:
     types: [published]
   workflow_dispatch: 
 
+env:
+  # Force Node 24 for JS actions still on Node 20 (deprecation 2026-06-16).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build-and-test:
     name: Build and test conda package
@@ -19,7 +23,7 @@ jobs:
       max-parallel: 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
