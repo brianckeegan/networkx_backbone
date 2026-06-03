@@ -15,7 +15,7 @@ is a sparser graph that preserves the essential structure of the original.
 Taxonomy of methods
 -------------------
 
-The 71 functions in ``networkx-backbone`` are organized into ten modules based
+The 75 functions in ``networkx-backbone`` are organized into ten modules based
 on the approach they take. The method taxonomy aligns with the categories used
 in ``netbone`` (Yassin et al., 2023; https://gitlab.liris.cnrs.fr/coregraphie/netbone),
 extended with a hypergraph module for higher-order networks.
@@ -116,6 +116,10 @@ hyperedges).
 - :func:`~networkx_backbone.order_filter` -- select hyperedges by order (size)
 - :func:`~networkx_backbone.s_components` -- s-connected components of a
   hypergraph
+- :func:`~networkx_backbone.statistically_validated_hypergraph` and
+  :func:`~networkx_backbone.statistically_validated_cores` -- statistical
+  validation of recurring hyperedges/groups under a null model (Musciotto,
+  Battiston & Mantegna, 2021)
 
 Because a hypergraph backbone is a subset of hyperedges rather than a graph, this
 module returns a :class:`~networkx_backbone.HypergraphBackbone` result instead of

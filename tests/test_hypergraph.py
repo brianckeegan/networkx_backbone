@@ -6,12 +6,17 @@ import pytest
 
 from networkx_backbone import (
     HypergraphBackbone,
+    ValidatedHypergraph,
     hypergraph_compression_ratio,
     intersection_graph,
     maximal_hyperedges,
     mdl_hypergraph_backbone,
     order_filter,
     s_components,
+    statistically_validated_cores,
+    statistically_validated_hypergraph,
+    svc,
+    svh,
 )
 from networkx_backbone.hypergraph import (
     _child_codelength,
@@ -337,3 +342,103 @@ def test_weights_length_mismatch_raises():
 def test_weight_below_one_raises():
     with pytest.raises(ValueError):
         mdl_hypergraph_backbone([(1, 2, 3)], weights=[0.5])
+
+
+# ---------------------------------------------------------------------------
+# Statistically validated hypergraphs (SVH) and cores (SVC)
+# ---------------------------------------------------------------------------
+
+
+def test_svh_pvalue_matches_binomial():
+    from scipy.stats import binom
+
+    edges = [(1, 2)] * 5 + [(1, 3), (2, 4), (3, 4), (5, 6)]
+    result = statistically_validated_hypergraph(edges)
+    # order-2 instances N=9; node 1 and 2 each have degree 6; {1,2} co-occurs 5x.
+    expected = binom.sf(5 - 1, 9, (6 / 9) * (6 / 9))
+    assert result.pvalues[frozenset({1, 2})] == pytest.approx(expected)
+
+
+def test_svh_validates_over_represented_pair():
+    # {1,2} recurs 5x; a high-multiplicity background pair inflates the instance
+    # count so the planted pair is significant while the background is not.
+    edges = [(1, 2)] * 5 + [(3, 4)] * 100
+    result = statistically_validated_hypergraph(edges, alpha=0.05)
+    assert isinstance(result, ValidatedHypergraph)
+    assert frozenset({1, 2}) in result.validated
+    assert frozenset({3, 4}) not in result.validated  # expected background
+    assert result.method == "svh"
+
+
+def test_svh_weights_equal_repeated_edges():
+    repeated = statistically_validated_hypergraph([(1, 2)] * 5 + [(3, 4)] * 100)
+    weighted = statistically_validated_hypergraph(
+        [(1, 2), (3, 4)], weights=[5, 100]
+    )
+    assert weighted.pvalues[frozenset({1, 2})] == pytest.approx(
+        repeated.pvalues[frozenset({1, 2})]
+    )
+    assert set(weighted.validated) == set(repeated.validated)
+
+
+def test_svh_alpha_monotonic():
+    edges = [(1, 2)] * 5 + [(3, 4)] * 100
+    strict = set(svh(edges, alpha=0.001).validated)
+    loose = set(svh(edges, alpha=0.5).validated)
+    assert strict <= loose
+
+
+def test_svh_single_occurrences_not_validated():
+    result = statistically_validated_hypergraph([(1, 2), (3, 4), (5, 6)], alpha=0.05)
+    assert result.validated == []
+
+
+def test_svh_max_order_restricts_tests():
+    edges = [(1, 2)] * 5 + [(3, 4)] * 100 + [(5, 6, 7)] * 5
+    result = statistically_validated_hypergraph(edges, max_order=2)
+    assert all(len(e) == 2 for e in result.pvalues)
+
+
+def test_svh_empty():
+    result = statistically_validated_hypergraph([])
+    assert len(result) == 0
+    assert list(result) == []
+
+
+def test_svc_validates_core_and_drops_subgroups():
+    edges = [(1, 2, 3)] * 5 + [(7, 8)] * 200
+    result = statistically_validated_cores(edges, alpha=0.05)
+    assert result.method == "svc"
+    assert frozenset({1, 2, 3}) in result.validated
+    # Sub-pairs of a validated core are not separately validated.
+    assert frozenset({1, 2}) not in result.validated
+    assert frozenset({2, 3}) not in result.validated
+
+
+def test_svc_counts_subgroup_cooccurrence():
+    # {1,2} appears inside both a triangle and a separate pair: co-occurrence 2.
+    edges = [(1, 2, 3), (1, 2)]
+    result = statistically_validated_cores(edges, min_order=2)
+    assert result.counts[frozenset({1, 2})] == 2
+
+
+@pytest.mark.parametrize("func", [statistically_validated_hypergraph, statistically_validated_cores])
+def test_svh_svc_integer_multiplicity_required(func):
+    with pytest.raises(ValueError):
+        func([(1, 2), (3, 4)], weights=[1.5, 2])
+
+
+@pytest.mark.parametrize("func", [statistically_validated_hypergraph, statistically_validated_cores])
+def test_svh_svc_weights_length_checked(func):
+    with pytest.raises(ValueError):
+        func([(1, 2), (3, 4)], weights=[1])
+
+
+def test_svh_svc_aliases():
+    edges = [(1, 2)] * 5 + [(3, 4)] * 100
+    assert set(svh(edges).validated) == set(
+        statistically_validated_hypergraph(edges).validated
+    )
+    assert set(svc(edges).validated) == set(
+        statistically_validated_cores(edges).validated
+    )

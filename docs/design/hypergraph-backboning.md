@@ -288,8 +288,11 @@ Structural sui generis methods (**implemented**): `maximal_hyperedges`
 `intersection_graph(..., s=...)` + `s_components` (s-line graph / s-connectivity).
 These are stdlib + networkx only and return plain hyperedge collections.
 
-Statistical sui generis methods (**remaining**): SVH/SVC (α-based; would add a
-lazy `scipy` dependency and should be cross-checked against HGX `get_svh`/`get_svc`).
+Statistical sui generis methods (**implemented**): `statistically_validated_hypergraph`
+(SVH) and `statistically_validated_cores` (SVC) — the Musciotto, Battiston &
+Mantegna (2021) null-model validation, faithfully re-implemented from HGX
+`get_svh`/`get_svc` with a lazy `scipy` dependency (binomial tail + Benjamini-Hochberg
+FDR). P-values verified exactly against `scipy.stats.binom`.
 
 ### 9.5 Testing strategy
 

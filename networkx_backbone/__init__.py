@@ -95,6 +95,11 @@ __all__ = [
     "maximal_hyperedges",
     "order_filter",
     "s_components",
+    "statistically_validated_hypergraph",
+    "statistically_validated_cores",
+    "ValidatedHypergraph",
+    "svh",
+    "svc",
     # Unweighted
     "sparsify",
     "lspar",

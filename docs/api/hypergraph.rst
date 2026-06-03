@@ -37,3 +37,17 @@ These return plain hyperedge collections rather than a
 .. autofunction:: order_filter
 
 .. autofunction:: s_components
+
+.. rubric:: Statistical methods
+
+Hypothesis-testing hypergraph backbones that validate hyperedges/groups
+recurring more than expected under a null model (Musciotto, Battiston &
+Mantegna, 2021).  These require ``scipy`` and return a
+:class:`~networkx_backbone.ValidatedHypergraph`.
+
+.. autofunction:: statistically_validated_hypergraph
+
+.. autofunction:: statistically_validated_cores
+
+.. autoclass:: ValidatedHypergraph
+   :members:

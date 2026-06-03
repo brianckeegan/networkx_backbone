@@ -35,6 +35,11 @@ __all__ = [
     "maximal_hyperedges",
     "order_filter",
     "s_components",
+    "statistically_validated_hypergraph",
+    "statistically_validated_cores",
+    "ValidatedHypergraph",
+    "svh",
+    "svc",
 ]
 
 _LN2 = math.log(2.0)
@@ -238,6 +243,45 @@ class HypergraphBackbone:
         """Fraction of (unique) input hyperedges retained in the backbone."""
         total = self.n_input_hyperedges
         return len(self.backbone) / total if total else 1.0
+
+
+@dataclass
+class ValidatedHypergraph:
+    """Result of :func:`statistically_validated_hypergraph` / cores.
+
+    Attributes
+    ----------
+    validated : list of frozenset
+        The statistically validated hyperedges (SVH) or cores (SVC) -- the
+        sub-hypergraph that survived FDR validation.
+    pvalues : dict
+        Mapping from each tested hyperedge/group to its p-value.
+    counts : dict
+        Mapping from each tested hyperedge/group to its observed co-occurrence
+        count (multiplicity for SVH; number of containing instances for SVC).
+    alpha : float
+        Significance level used for FDR validation.
+    method : str
+        ``"svh"`` or ``"svc"``.
+    n_nodes : int
+        Number of distinct nodes in the input hypergraph.
+    n_instances : int
+        Total number of hyperedge instances (sum of multiplicities).
+    """
+
+    validated: list = field(default_factory=list)
+    pvalues: dict = field(default_factory=dict)
+    counts: dict = field(default_factory=dict)
+    alpha: float = 0.01
+    method: str = "svh"
+    n_nodes: int = 0
+    n_instances: int = 0
+
+    def __len__(self):
+        return len(self.validated)
+
+    def __iter__(self):
+        return iter(self.validated)
 
 
 # ---------------------------------------------------------------------------
@@ -674,6 +718,283 @@ def s_components(hyperedges, s=1):
     return components
 
 
+# ---------------------------------------------------------------------------
+# Statistically validated hypergraphs (Musciotto, Battiston & Mantegna 2021)
+# ---------------------------------------------------------------------------
+
+
+def _normalize_multiplicities(hyperedges, weights):
+    """Collapse duplicate hyperedges into integer multiplicities.
+
+    Unlike :func:`_normalize_hyperedges` (which treats the hypergraph as a set),
+    this counts repeated occurrences: with ``weights=None`` a hyperedge appearing
+    ``r`` times has multiplicity ``r``; with explicit *weights* the integer
+    weights of duplicates are summed.  Multiplicities are interaction counts for
+    the statistical filters.
+    """
+    raw = [frozenset(e) for e in hyperedges]
+    if weights is not None:
+        weights = list(weights)
+        if len(weights) != len(raw):
+            raise ValueError("weights must have the same length as hyperedges")
+
+    edges = []
+    mult = []
+    index = {}
+    for i, fs in enumerate(raw):
+        if len(fs) == 0:
+            continue
+        if weights is not None:
+            w = weights[i]
+            if not (w >= 1 and float(w).is_integer()):
+                raise ValueError(
+                    "statistical hypergraph filters require integer "
+                    "multiplicities >= 1"
+                )
+            w = int(w)
+        else:
+            w = 1
+        if fs in index:
+            mult[index[fs]] += w
+        else:
+            index[fs] = len(edges)
+            edges.append(fs)
+            mult.append(w)
+    return edges, mult
+
+
+def _bh_threshold(pvalues, alpha, n_possible):
+    """Benjamini-Hochberg FDR threshold with per-rank increment alpha/n_possible.
+
+    Returns the largest ``i * alpha / n_possible`` such that the i-th smallest
+    p-value is below it (0.0 if none), matching Tumminello et al. / HGX.
+    """
+    n = len(pvalues)
+    if n == 0:
+        return 0.0
+    bonf = alpha / n_possible if n_possible > 0 else alpha
+    threshold = 0.0
+    for rank, p in enumerate(sorted(pvalues), start=1):
+        kv = rank * bonf
+        if p < kv:
+            threshold = kv
+    return threshold
+
+
+def _svh_pvalue(observed, n_instances, degrees, binom):
+    """Upper-tail p-value P(X >= observed) with X ~ Binomial(N, prod d_i / N)."""
+    p = 1.0
+    for d in degrees:
+        p *= d / n_instances
+    return float(binom.sf(observed - 1, n_instances, p))
+
+
+def statistically_validated_hypergraph(
+    hyperedges, weights=None, max_order=None, alpha=0.01
+):
+    """Extract the Statistically Validated Hypergraph (SVH).
+
+    Keeps the observed hyperedges that recur (co-occur) significantly more often
+    than expected under a null model preserving node activity, following
+    Musciotto, Battiston & Mantegna [1]_ (the method implemented as ``get_svh``
+    in Hypergraphx).  Each hyperedge of order ``k`` is tested independently per
+    order: with ``N`` order-``k`` instances and node activities ``d_i`` (number
+    of order-``k`` instances containing node ``i``), the probability of seeing a
+    group co-occur at least ``n`` times is ``P(X >= n)`` for
+    ``X ~ Binomial(N, prod_i d_i / N)``.  P-values are validated with a
+    Benjamini-Hochberg FDR at level *alpha* (corrected for the number of
+    possible order-``k`` hyperedges).
+
+    Unlike :func:`mdl_hypergraph_backbone` (an information-theoretic, parameter-
+    free method), this is a statistical hypothesis test requiring a significance
+    level, and is most informative for **weighted** hypergraphs whose weights are
+    integer interaction multiplicities.
+
+    Parameters
+    ----------
+    hyperedges : iterable of iterables
+        The hypergraph.  Duplicate hyperedges are merged (multiplicities summed).
+    weights : iterable of int or None, optional (default=None)
+        Per-hyperedge integer multiplicities (interaction counts).  ``None``
+        treats every hyperedge as occurring once.
+    max_order : int or None, optional (default=None)
+        Only test hyperedges up to this order (size).  ``None`` tests all orders.
+    alpha : float, optional (default=0.01)
+        FDR significance level.
+
+    Returns
+    -------
+    result : ValidatedHypergraph
+        The validated hyperedges plus per-hyperedge p-values and counts.
+
+    References
+    ----------
+    .. [1] Musciotto, F., Battiston, F., & Mantegna, R. N. (2021). Detecting
+       informative higher-order interactions in statistically validated
+       hypergraphs. *Communications Physics*, 4, 218.
+
+    Examples
+    --------
+    >>> from networkx_backbone import statistically_validated_hypergraph
+    >>> edges = [(1, 2), (1, 2), (1, 2), (1, 3), (2, 4), (5, 6)]
+    >>> result = statistically_validated_hypergraph(edges)
+    >>> isinstance(result.validated, list)
+    True
+    """
+    from scipy.stats import binom
+
+    edges, mult = _normalize_multiplicities(hyperedges, weights)
+    result = ValidatedHypergraph(alpha=alpha, method="svh")
+    if not edges:
+        return result
+
+    all_nodes = set()
+    for e in edges:
+        all_nodes.update(e)
+    result.n_nodes = len(all_nodes)
+    result.n_instances = sum(mult)
+
+    by_order = {}
+    for e, w in zip(edges, mult):
+        by_order.setdefault(len(e), []).append((e, w))
+
+    for order, members in by_order.items():
+        if order < 2 or (max_order is not None and order > max_order):
+            continue
+        n_instances = sum(w for _, w in members)
+        degree = {}
+        order_nodes = set()
+        for e, w in members:
+            order_nodes.update(e)
+            for node in e:
+                degree[node] = degree.get(node, 0) + w
+
+        groups = [e for e, _ in members]
+        pvals = [
+            _svh_pvalue(w, n_instances, [degree[n] for n in e], binom)
+            for e, w in members
+        ]
+        n_possible = math.comb(len(order_nodes), order)
+        threshold = _bh_threshold(pvals, alpha, n_possible)
+
+        for (e, w), p in zip(members, pvals):
+            result.pvalues[e] = p
+            result.counts[e] = w
+            if p < threshold:
+                result.validated.append(e)
+
+    return result
+
+
+def statistically_validated_cores(
+    hyperedges, weights=None, min_order=2, max_order=None, alpha=0.01
+):
+    """Extract the Statistically Validated Cores (SVC).
+
+    A complement to :func:`statistically_validated_hypergraph` that validates
+    significant *groups* (cores) of nodes, including sub-groups that are not
+    themselves present as a single hyperedge (the ``get_svc`` method of
+    Hypergraphx, built on [1]_).  Orders are processed from high to low; once a
+    core is validated, its sub-combinations are not re-tested at lower orders, so
+    significance is attributed to the largest validated group.  The co-occurrence
+    of a group is the number of hyperedge instances (of any order) containing it,
+    tested against ``Binomial(N, prod_i d_i / N)`` with global node activities,
+    and validated with the same Benjamini-Hochberg FDR as SVH.
+
+    Parameters
+    ----------
+    hyperedges : iterable of iterables
+        The hypergraph.  Duplicate hyperedges are merged (multiplicities summed).
+    weights : iterable of int or None, optional (default=None)
+        Per-hyperedge integer multiplicities.  ``None`` treats each as occurring once.
+    min_order : int, optional (default=2)
+        Smallest group size to test.
+    max_order : int or None, optional (default=None)
+        Largest group size to test.  ``None`` uses the largest hyperedge size.
+    alpha : float, optional (default=0.01)
+        FDR significance level.
+
+    Returns
+    -------
+    result : ValidatedHypergraph
+        The validated cores plus per-group p-values and co-occurrence counts.
+
+    References
+    ----------
+    .. [1] Musciotto, F., Battiston, F., & Mantegna, R. N. (2021). Detecting
+       informative higher-order interactions in statistically validated
+       hypergraphs. *Communications Physics*, 4, 218.
+
+    Examples
+    --------
+    >>> from networkx_backbone import statistically_validated_cores
+    >>> edges = [(1, 2, 3), (1, 2, 3), (1, 2, 3), (1, 4), (2, 5)]
+    >>> result = statistically_validated_cores(edges)
+    >>> result.method
+    'svc'
+    """
+    from itertools import combinations
+
+    from scipy.stats import binom
+
+    edges, mult = _normalize_multiplicities(hyperedges, weights)
+    result = ValidatedHypergraph(alpha=alpha, method="svc")
+    if not edges:
+        return result
+
+    n_instances = sum(mult)
+    degree = {}
+    all_nodes = set()
+    for e, w in zip(edges, mult):
+        all_nodes.update(e)
+        for node in e:
+            degree[node] = degree.get(node, 0) + w
+    result.n_nodes = len(all_nodes)
+    result.n_instances = n_instances
+
+    largest = max(len(e) for e in edges)
+    top = largest if max_order is None else min(max_order, largest)
+
+    validated_groups = []
+    for order in range(top, min_order - 1, -1):
+        drop = set()
+        for g in validated_groups:
+            if len(g) > order:
+                drop.update(frozenset(c) for c in combinations(tuple(g), order))
+
+        counts = {}
+        for e, w in zip(edges, mult):
+            if len(e) >= order:
+                for c in combinations(tuple(e), order):
+                    fs = frozenset(c)
+                    if fs not in drop:
+                        counts[fs] = counts.get(fs, 0) + w
+        if not counts:
+            continue
+
+        groups = list(counts)
+        pvals = [
+            _svh_pvalue(counts[g], n_instances, [degree[n] for n in g], binom)
+            for g in groups
+        ]
+        n_possible = math.comb(len(all_nodes), order)
+        threshold = _bh_threshold(pvals, alpha, n_possible)
+
+        for g, p in zip(groups, pvals):
+            result.pvalues[g] = p
+            result.counts[g] = counts[g]
+            if p < threshold:
+                result.validated.append(g)
+                validated_groups.append(g)
+
+    return result
+
+
+# Short aliases
+svh = statistically_validated_hypergraph
+svc = statistically_validated_cores
+
+
 _COMPLEXITY = {
     "intersection_graph": {
         "time": "O(sum_i |G_i|^2)",
@@ -702,6 +1023,16 @@ _COMPLEXITY = {
         "time": "O(sum_i |G_i|^2)",
         "space": "O(m + P)",
         "notes": "P=overlapping pairs in the s-line graph.",
+    },
+    "statistically_validated_hypergraph": {
+        "time": "O(sum_e |e| + m log m)",
+        "space": "O(m + n)",
+        "notes": "m=hyperedges, n=nodes; per-order binomial tests with FDR.",
+    },
+    "statistically_validated_cores": {
+        "time": "O(sum_e 2^|e|)",
+        "space": "O(G)",
+        "notes": "Enumerates sub-groups per order; G=number of distinct sub-groups.",
     },
 }
 
