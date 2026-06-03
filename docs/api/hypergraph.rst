@@ -24,7 +24,7 @@ hyperedges and naturally extends to weighted hypergraphs.
 .. autofunction:: intersection_graph
 
 .. autoclass:: HypergraphBackbone
-   :members:
+   :no-members:
 
 .. rubric:: Structural methods
 
@@ -50,7 +50,7 @@ Mantegna, 2021).  These require ``scipy`` and return a
 .. autofunction:: statistically_validated_cores
 
 .. autoclass:: ValidatedHypergraph
-   :members:
+   :no-members:
 
 .. rubric:: Interoperability and ingestion
 
@@ -58,6 +58,11 @@ Convert between the hyperedge-list representation and a NetworkX incidence
 bipartite graph (enabling the bipartite projection backbones), the HIF
 interchange format, and the ``xgi`` / ``HyperNetX`` / ``HypergraphX`` / HAT
 hypergraph classes.  The third-party libraries are optional and imported lazily.
+
+.. automodule:: networkx_backbone.hypergraph_io
+   :no-members:
+
+.. currentmodule:: networkx_backbone
 
 .. autofunction:: hypergraph_to_bipartite
 
