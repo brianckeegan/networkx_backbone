@@ -917,6 +917,8 @@ def sdsm(
     alpha=0.05,
     weight=None,
     signed=False,
+    prohibited=None,
+    required=None,
     projection="simple",
     projection_weight="weight",
     projection_directed=False,
@@ -948,6 +950,12 @@ def sdsm(
         If ``True``, run a two-tailed test: the stored p-value becomes two-sided
         and a ``"sign"`` edge attribute marks significantly strong (``+1``)
         versus significantly weak (``-1``) co-occurrences.
+    prohibited : iterable of (agent, artifact) pairs or None, optional
+        SDSM-EC edge constraints (Neal & Neal, 2023): cells fixed to probability
+        0 in the null model (edges that cannot occur).
+    required : iterable of (agent, artifact) pairs or None, optional
+        SDSM-EC edge constraints: cells fixed to probability 1 in the null model
+        (edges that must occur).
     projection : {"simple", "hyper", "probs", "ycn"}, optional
         Projection weighting assigned to each returned edge.
     projection_weight : str, optional
@@ -976,6 +984,9 @@ def sdsm(
     .. [1] Neal, Z. P. (2014). The backbone of bipartite projections:
        Inferring relationships from co-authorship, co-sponsorship,
        co-attendance and other co-behaviors. *Social Networks*, 39, 84-97.
+    .. [2] Neal, Z. P., & Neal, J. W. (2023). Stochastic Degree Sequence Model
+       with Edge Constraints (SDSM-EC) for Backbone Extraction. *Complex
+       Networks 12*, 127-136.
 
     Examples
     --------
@@ -1019,6 +1030,17 @@ def sdsm(
 
     P = np.outer(row_sums, col_sums) / total
     P = np.clip(P, 0, 1)
+
+    # SDSM-EC (Neal & Neal 2023): fix the null probability of constrained cells.
+    if prohibited or required:
+        a_idx = {v: idx for idx, v in enumerate(agents)}
+        f_idx = {v: idx for idx, v in enumerate(artifacts)}
+        for a, f in required or ():
+            if a in a_idx and f in f_idx:
+                P[a_idx[a], f_idx[f]] = 1.0
+        for a, f in prohibited or ():
+            if a in a_idx and f in f_idx:
+                P[a_idx[a], f_idx[f]] = 0.0
 
     for i in range(na):
         for j in range(i + 1, na):

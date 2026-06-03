@@ -346,3 +346,52 @@ class TestSignedProjections:
             signed=True,
         )
         assert all("sign" in d for _, _, d in H.edges(data=True))
+
+
+class TestSDSMEdgeConstraints:
+    def test_constraints_change_null(self, davis_southern_women_graph, davis_women_nodes):
+        B = davis_southern_women_graph
+        women = davis_women_nodes
+        artifact = next(n for n, d in B.nodes(data=True) if d["bipartite"] == 1)
+        cell = (women[0], artifact)
+
+        base = sdsm(B, agent_nodes=women)
+        prohibited = sdsm(B, agent_nodes=women, prohibited=[cell])
+        required = sdsm(B, agent_nodes=women, required=[cell])
+
+        diff_pro = sum(
+            1
+            for u, v, d in prohibited.edges(data=True)
+            if abs(d["sdsm_pvalue"] - base[u][v]["sdsm_pvalue"]) > 1e-9
+        )
+        diff_req = sum(
+            1
+            for u, v, d in required.edges(data=True)
+            if abs(d["sdsm_pvalue"] - base[u][v]["sdsm_pvalue"]) > 1e-9
+        )
+        assert diff_pro > 0 and diff_req > 0
+
+    def test_unknown_constraint_nodes_ignored(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B = davis_southern_women_graph
+        base = sdsm(B, agent_nodes=davis_women_nodes)
+        constrained = sdsm(
+            B, agent_nodes=davis_women_nodes, prohibited=[("missing", "absent")]
+        )
+        assert base.number_of_edges() == constrained.number_of_edges()
+
+    def test_constraints_compose_with_signed(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        artifact = next(
+            n for n, d in davis_southern_women_graph.nodes(data=True)
+            if d["bipartite"] == 1
+        )
+        H = sdsm(
+            davis_southern_women_graph,
+            agent_nodes=davis_women_nodes,
+            signed=True,
+            required=[(davis_women_nodes[0], artifact)],
+        )
+        assert all("sign" in d for _, _, d in H.edges(data=True))
