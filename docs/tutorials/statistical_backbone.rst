@@ -161,3 +161,23 @@ for a significantly weak one::
     positive = [(u, v) for u, v, d in backbone.edges(data=True) if d["sign"] == 1]
     negative = [(u, v) for u, v, d in backbone.edges(data=True) if d["sign"] == -1]
     print(f"strong (+): {len(positive)}, weak (-): {len(negative)}")
+
+References
+----------
+
+- Serrano, M. A., Boguna, M., & Vespignani, A. (2009). *Extracting the multiscale
+  backbone of complex weighted networks*. PNAS, 106(16), 6483-6488.
+- Coscia, M., & Neffke, F. M. (2017). *Network backboning with noisy data*.
+  Proc. IEEE ICDE, 425-436.
+- Dianati, N. (2016). *Unwinding the hairball graph: Pruning algorithms for
+  weighted complex networks*. Physical Review E, 93, 012304.
+- Gemmetto, V., Cardillo, A., & Garlaschelli, D. (2017). *Irreducible network
+  backbones: unbiased graph filtering via maximum entropy*. arXiv:1706.00230.
+- Foti, N. J., Hughes, J. M., & Rockmore, D. N. (2011). *Nonparametric
+  sparsification of complex multiscale networks*. PLOS ONE, 6(2), e16431.
+- Van Nuffel, N., Heyndrickx, C., & Wets, G. (2010). *Measuring hierarchy and
+  reciprocity in networks*.
+- Benjamini, Y., & Hochberg, Y. (1995). *Controlling the false discovery rate*.
+  J. Royal Statistical Society B, 57(1), 289-300.
+- Benjamini, Y., & Yekutieli, D. (2001). *The control of the false discovery rate
+  in multiple testing under dependency*. Annals of Statistics, 29(4), 1165-1188.

@@ -167,5 +167,16 @@ References
 
 - Coscia, M., & Neffke, F. M. (2017). *Network backboning with noisy data*.
   https://arxiv.org/abs/1906.09081
+- Neal, Z. P. (2014). *The backbone of bipartite projections*. Social Networks,
+  39, 84-97.
+- Neal, Z. P., Domagalski, R., & Sagan, B. (2021). *Comparing alternatives to the
+  fixed degree sequence model for extracting the backbone of bipartite
+  projections*. Scientific Reports, 11, 23929.
+- Saracco, F., Di Clemente, R., Gabrielli, A., & Squartini, T. (2015).
+  *Randomizing bipartite networks: the case of the World Trade Web*. Scientific
+  Reports, 5, 10595.
+- Godard, K., & Neal, Z. P. (2022). *fastball: A fast algorithm to sample
+  bipartite graphs with fixed degree sequences*. J. Complex Networks, 10(6),
+  cnac049.
 - Neal, Z. P., & Neal, J. W. (2023). *Stochastic Degree Sequence Model with Edge
   Constraints (SDSM-EC) for Backbone Extraction*. Complex Networks 12, 127-136.

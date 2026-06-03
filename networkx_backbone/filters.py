@@ -49,6 +49,18 @@ def adjust_pvalues(pvalues, method="bh"):
     ValueError
         If *method* is not recognised.
 
+    References
+    ----------
+    .. [1] Holm, S. (1979). A simple sequentially rejective multiple test
+       procedure. *Scandinavian Journal of Statistics*, 6(2), 65-70.
+    .. [2] Hochberg, Y. (1988). A sharper Bonferroni procedure for multiple
+       tests of significance. *Biometrika*, 75(4), 800-802.
+    .. [3] Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery
+       rate. *J. Royal Statistical Society B*, 57(1), 289-300.
+    .. [4] Benjamini, Y., & Yekutieli, D. (2001). The control of the false
+       discovery rate in multiple testing under dependency. *Annals of
+       Statistics*, 29(4), 1165-1188.
+
     Examples
     --------
     >>> from networkx_backbone import adjust_pvalues

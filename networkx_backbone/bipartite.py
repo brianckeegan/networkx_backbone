@@ -385,6 +385,12 @@ def bicm(B, agent_nodes, return_labels=False):
         agent ``i`` and artifact ``k``.
     (P, agents, artifacts) : tuple
         Returned when ``return_labels=True``.
+
+    References
+    ----------
+    .. [1] Saracco, F., Di Clemente, R., Gabrielli, A., & Squartini, T. (2015).
+       Randomizing bipartite networks: the case of the World Trade Web.
+       *Scientific Reports*, 5, 10595.
     """
     import numpy as np
 
@@ -424,6 +430,12 @@ def fastball(matrix, n_swaps=None, seed=None):
     -------
     randomized : np.ndarray
         Randomized binary matrix with preserved row/column sums.
+
+    References
+    ----------
+    .. [1] Godard, K., & Neal, Z. P. (2022). fastball: A fast algorithm to
+       sample bipartite graphs with fixed degree sequences. *Journal of Complex
+       Networks*, 10(6), cnac049.
     """
     import numpy as np
 
