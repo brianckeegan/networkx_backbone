@@ -58,6 +58,17 @@ def _validate_bipartite(B, agent_nodes):
         raise nx.NetworkXError("agent_nodes contains nodes not in B.")
 
 
+def _combine_tails(p_hi, p_lo):
+    """Two-sided p-value and sign from upper/lower tails (see statistical module).
+
+    ``sign`` is ``+1`` for a significantly strong (over-represented) co-occurrence
+    and ``-1`` for a significantly weak (under-represented) one.
+    """
+    p_hi = min(max(p_hi, 0.0), 1.0)
+    p_lo = min(max(p_lo, 0.0), 1.0)
+    return min(1.0, 2.0 * min(p_hi, p_lo)), (1 if p_hi <= p_lo else -1)
+
+
 def _bipartite_projection_matrix(B, agent_nodes):
     """Build the co-occurrence matrix for agent nodes.
 
@@ -463,6 +474,7 @@ def fixedfill(
     B,
     agent_nodes,
     alpha=0.05,
+    signed=False,
     projection="simple",
     projection_weight="weight",
     projection_directed=False,
@@ -503,9 +515,16 @@ def fixedfill(
     for i in range(na):
         for j in range(i + 1, na):
             obs = int(observed[i, j])
-            pval = float(sp_stats.binom.sf(obs - 1, nf, q))
-            if pval < alpha:
-                backbone.add_edge(agents[i], agents[j], fixedfill_pvalue=pval)
+            p_hi = float(sp_stats.binom.sf(obs - 1, nf, q))
+            if signed:
+                p_lo = float(sp_stats.binom.cdf(obs, nf, q))
+                pval, sign = _combine_tails(p_hi, p_lo)
+                if pval < alpha:
+                    backbone.add_edge(
+                        agents[i], agents[j], fixedfill_pvalue=pval, sign=sign
+                    )
+            elif p_hi < alpha:
+                backbone.add_edge(agents[i], agents[j], fixedfill_pvalue=p_hi)
 
     return _apply_projection_weights(
         backbone,
@@ -523,6 +542,7 @@ def fixedrow(
     B,
     agent_nodes,
     alpha=0.05,
+    signed=False,
     projection="simple",
     projection_weight="weight",
     projection_directed=False,
@@ -558,9 +578,16 @@ def fixedrow(
             obs = int(observed[i, j])
             di = int(row_sums[i])
             dj = int(row_sums[j])
-            pval = float(sp_stats.hypergeom.sf(obs - 1, nf, di, dj))
-            if pval < alpha:
-                backbone.add_edge(agents[i], agents[j], fixedrow_pvalue=pval)
+            p_hi = float(sp_stats.hypergeom.sf(obs - 1, nf, di, dj))
+            if signed:
+                p_lo = float(sp_stats.hypergeom.cdf(obs, nf, di, dj))
+                pval, sign = _combine_tails(p_hi, p_lo)
+                if pval < alpha:
+                    backbone.add_edge(
+                        agents[i], agents[j], fixedrow_pvalue=pval, sign=sign
+                    )
+            elif p_hi < alpha:
+                backbone.add_edge(agents[i], agents[j], fixedrow_pvalue=p_hi)
 
     return _apply_projection_weights(
         backbone,
@@ -578,6 +605,7 @@ def fixedcol(
     B,
     agent_nodes,
     alpha=0.05,
+    signed=False,
     projection="simple",
     projection_weight="weight",
     projection_directed=False,
@@ -617,12 +645,24 @@ def fixedcol(
             obs = float(observed[i, j])
             if sigma2 > 0:
                 z = (obs - mu) / np.sqrt(sigma2)
-                pval = float(1.0 - sp_stats.norm.cdf(z))
+                p_hi = float(1.0 - sp_stats.norm.cdf(z))
+                p_lo = float(sp_stats.norm.cdf(z))
+            elif obs > mu:
+                p_hi, p_lo = 0.0, 1.0
+            elif obs < mu:
+                p_hi, p_lo = 1.0, 0.0
             else:
-                pval = 0.0 if obs > mu else 1.0
-            pval = float(max(min(pval, 1.0), 0.0))
-            if pval < alpha:
-                backbone.add_edge(agents[i], agents[j], fixedcol_pvalue=pval)
+                p_hi, p_lo = 1.0, 1.0
+            if signed:
+                pval, sign = _combine_tails(p_hi, p_lo)
+                if pval < alpha:
+                    backbone.add_edge(
+                        agents[i], agents[j], fixedcol_pvalue=pval, sign=sign
+                    )
+            else:
+                p_hi = float(max(min(p_hi, 1.0), 0.0))
+                if p_hi < alpha:
+                    backbone.add_edge(agents[i], agents[j], fixedcol_pvalue=p_hi)
 
     return _apply_projection_weights(
         backbone,
@@ -703,6 +743,7 @@ def backbone_from_projection(
             projection_directed=projection_directed,
             projection_max_iter=projection_max_iter,
             projection_tol=projection_tol,
+            **kwargs,
         )
     if method_l == "fixedrow":
         return fixedrow(
@@ -714,6 +755,7 @@ def backbone_from_projection(
             projection_directed=projection_directed,
             projection_max_iter=projection_max_iter,
             projection_tol=projection_tol,
+            **kwargs,
         )
     if method_l == "fixedcol":
         return fixedcol(
@@ -725,6 +767,7 @@ def backbone_from_projection(
             projection_directed=projection_directed,
             projection_max_iter=projection_max_iter,
             projection_tol=projection_tol,
+            **kwargs,
         )
     raise ValueError(
         "Unknown projection method. Choose one of: "
@@ -737,6 +780,8 @@ def backbone_from_weighted(
     method="disparity",
     weight="weight",
     alpha=0.05,
+    signed=False,
+    mtc="none",
     collapse_multiedges=True,
     edge_type_attr=None,
     **kwargs,
@@ -747,6 +792,13 @@ def backbone_from_weighted(
 
     Parameters
     ----------
+    signed : bool, optional (default=False)
+        If ``True``, use a two-tailed test (for ``disparity``/``mlf``/``lans``)
+        so the backbone retains significantly strong and significantly weak
+        edges, each annotated with a ``"sign"`` attribute.
+    mtc : string, optional (default="none")
+        Multiple-testing correction applied before thresholding (see
+        :func:`~networkx_backbone.adjust_pvalues`).
     collapse_multiedges : bool, optional (default=True)
         If ``True`` and ``G`` is a ``MultiGraph`` or ``MultiDiGraph``,
         collapse parallel edges using
@@ -770,16 +822,16 @@ def backbone_from_weighted(
     method_l = method.lower()
 
     if method_l in ("disparity", "disparity_filter"):
-        scored = disparity_filter(G, weight=weight)
-        return threshold_filter(scored, "disparity_pvalue", alpha, mode="below")
+        scored = disparity_filter(G, weight=weight, signed=signed)
+        return threshold_filter(scored, "disparity_pvalue", alpha, mode="below", mtc=mtc)
 
     if method_l in ("mlf", "marginal_likelihood", "marginal_likelihood_filter"):
-        scored = marginal_likelihood_filter(G, weight=weight)
-        return threshold_filter(scored, "ml_pvalue", alpha, mode="below")
+        scored = marginal_likelihood_filter(G, weight=weight, signed=signed)
+        return threshold_filter(scored, "ml_pvalue", alpha, mode="below", mtc=mtc)
 
     if method_l in ("lans", "lans_filter"):
-        scored = lans_filter(G, weight=weight)
-        return threshold_filter(scored, "lans_pvalue", alpha, mode="below")
+        scored = lans_filter(G, weight=weight, signed=signed)
+        return threshold_filter(scored, "lans_pvalue", alpha, mode="below", mtc=mtc)
 
     if method_l in ("global", "global_threshold", "global_threshold_filter"):
         threshold = kwargs.get("threshold")
@@ -864,6 +916,7 @@ def sdsm(
     agent_nodes,
     alpha=0.05,
     weight=None,
+    signed=False,
     projection="simple",
     projection_weight="weight",
     projection_directed=False,
@@ -891,6 +944,10 @@ def sdsm(
     weight : None or string, optional (default=None)
         Not used for SDSM (bipartite is unweighted); reserved for API
         consistency.
+    signed : bool, optional (default=False)
+        If ``True``, run a two-tailed test: the stored p-value becomes two-sided
+        and a ``"sign"`` edge attribute marks significantly strong (``+1``)
+        versus significantly weak (``-1``) co-occurrences.
     projection : {"simple", "hyper", "probs", "ycn"}, optional
         Projection weighting assigned to each returned edge.
     projection_weight : str, optional
@@ -976,12 +1033,23 @@ def sdsm(
 
             if sigma2 > 0:
                 z = (obs - mu) / np.sqrt(sigma2)
-                pval = 1.0 - sp_stats.norm.cdf(z)
+                p_hi = 1.0 - sp_stats.norm.cdf(z)
+                p_lo = sp_stats.norm.cdf(z)
+            elif obs > mu:
+                p_hi, p_lo = 0.0, 1.0
+            elif obs < mu:
+                p_hi, p_lo = 1.0, 0.0
             else:
-                pval = 0.0 if obs > mu else 1.0
+                p_hi, p_lo = 1.0, 1.0
 
-            pval = float(max(min(pval, 1.0), 0.0))
-            backbone.add_edge(agents[i], agents[j], sdsm_pvalue=pval)
+            if signed:
+                pval, sign = _combine_tails(p_hi, p_lo)
+                backbone.add_edge(agents[i], agents[j], sdsm_pvalue=pval, sign=sign)
+            else:
+                backbone.add_edge(
+                    agents[i], agents[j],
+                    sdsm_pvalue=float(max(min(p_hi, 1.0), 0.0)),
+                )
 
     return _apply_projection_weights(
         backbone,
@@ -1006,6 +1074,7 @@ def fdsm(
     alpha=0.05,
     trials=1000,
     seed=None,
+    signed=False,
     projection="simple",
     projection_weight="weight",
     projection_directed=False,
@@ -1034,6 +1103,10 @@ def fdsm(
         Number of Monte Carlo randomisations.
     seed : integer, random_state, or None (default)
         Random seed for reproducibility.
+    signed : bool, optional (default=False)
+        If ``True``, run a two-tailed test: the stored p-value becomes two-sided
+        and a ``"sign"`` edge attribute marks significantly strong (``+1``)
+        versus significantly weak (``-1``) co-occurrences.
     projection : {"simple", "hyper", "probs", "ycn"}, optional
         Projection weighting assigned to each returned edge.
     projection_weight : str, optional
@@ -1089,22 +1162,31 @@ def fdsm(
     row_sums = R.sum(axis=1)
     col_sums = R.sum(axis=0)
 
-    # Count how many times the random co-occurrence >= observed
+    # Count how often the random co-occurrence is >= observed (upper tail) and
+    # <= observed (lower tail, for signed backbones).
     exceed_count = np.zeros((na, na), dtype=int)
+    below_count = np.zeros((na, na), dtype=int)
 
     for _ in range(trials):
         R_rand = _random_bipartite_matrix(row_sums, col_sums, rng)
         co_rand = R_rand @ R_rand.T
         np.fill_diagonal(co_rand, 0)
         exceed_count += (co_rand >= observed).astype(int)
+        if signed:
+            below_count += (co_rand <= observed).astype(int)
 
     backbone = nx.Graph()
     backbone.add_nodes_from(agents)
 
     for i in range(na):
         for j in range(i + 1, na):
-            pval = exceed_count[i, j] / trials
-            backbone.add_edge(agents[i], agents[j], fdsm_pvalue=float(pval))
+            p_hi = exceed_count[i, j] / trials
+            if signed:
+                p_lo = below_count[i, j] / trials
+                pval, sign = _combine_tails(p_hi, p_lo)
+                backbone.add_edge(agents[i], agents[j], fdsm_pvalue=pval, sign=sign)
+            else:
+                backbone.add_edge(agents[i], agents[j], fdsm_pvalue=float(p_hi))
 
     return _apply_projection_weights(
         backbone,

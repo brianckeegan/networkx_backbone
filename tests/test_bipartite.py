@@ -307,3 +307,42 @@ def test_backbone_dispatch(davis_southern_women_graph, davis_women_nodes, weight
 
     with pytest.raises(ValueError):
         backbone(weighted_triangle, method="not_a_method")
+
+
+class TestSignedProjections:
+    def test_sdsm_signed_adds_sign(self, davis_southern_women_graph, davis_women_nodes):
+        H = sdsm(davis_southern_women_graph, agent_nodes=davis_women_nodes, signed=True)
+        assert all("sign" in d and d["sign"] in (-1, 1) for _, _, d in H.edges(data=True))
+        assert {d["sign"] for _, _, d in H.edges(data=True)} == {-1, 1}
+        assert all(0.0 <= d["sdsm_pvalue"] <= 1.0 for _, _, d in H.edges(data=True))
+
+    def test_sdsm_unsigned_has_no_sign(self, davis_southern_women_graph, davis_women_nodes):
+        H = sdsm(davis_southern_women_graph, agent_nodes=davis_women_nodes)
+        assert all("sign" not in d for _, _, d in H.edges(data=True))
+
+    def test_fdsm_signed_deterministic(self, davis_southern_women_graph, davis_women_nodes):
+        kw = dict(agent_nodes=davis_women_nodes, trials=200, seed=7, signed=True)
+        a = fdsm(davis_southern_women_graph, **kw)
+        b = fdsm(davis_southern_women_graph, **kw)
+        assert all("sign" in d for _, _, d in a.edges(data=True))
+        assert {(u, v): d["sign"] for u, v, d in a.edges(data=True)} == {
+            (u, v): d["sign"] for u, v, d in b.edges(data=True)
+        }
+
+    @pytest.mark.parametrize("model", [fixedrow, fixedcol, fixedfill])
+    def test_fixed_models_signed(self, model, davis_southern_women_graph, davis_women_nodes):
+        H = model(davis_southern_women_graph, davis_women_nodes, alpha=0.3, signed=True)
+        assert H.number_of_edges() > 0
+        assert all("sign" in d and d["sign"] in (-1, 1) for _, _, d in H.edges(data=True))
+
+    def test_backbone_from_projection_signed_passthrough(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        H = backbone_from_projection(
+            davis_southern_women_graph,
+            davis_women_nodes,
+            method="fixedrow",
+            alpha=0.3,
+            signed=True,
+        )
+        assert all("sign" in d for _, _, d in H.edges(data=True))
