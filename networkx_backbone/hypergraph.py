@@ -362,12 +362,118 @@ def intersection_graph(hyperedges, s=1, weight="overlap"):
     return graph
 
 
+def _greedy_edge(n_edges, edges, neighbors, wterm):
+    """Greedy "edge" optimiser: accept parent->child links by decreasing gain.
+
+    Builds a star partition of the intersection graph by greedily accepting the
+    highest-gain parent--child assignment that preserves the star structure
+    (Kirkley et al. 2026, Appendix D).  Returns ``parent_of`` (child index ->
+    parent index).
+    """
+    candidates = []
+    for i in range(n_edges):
+        si = len(edges[i])
+        for j, rmi in neighbors[i]:
+            gain = rmi + wterm[i]  # i becomes a child of parent j
+            if gain > 0.0:
+                candidates.append((gain, len(edges[j]), si, i, j))
+    # Highest gain first; prefer the larger hyperedge as parent on ties.
+    candidates.sort(key=lambda t: (-t[0], -t[1], t[2], t[3], t[4]))
+
+    UNDECIDED, PARENT, CHILD = 0, 1, 2
+    role = [UNDECIDED] * n_edges
+    parent_of = {}
+    for _gain, _psize, _csize, c, p in candidates:
+        if role[c] != UNDECIDED or role[p] == CHILD:
+            continue
+        role[c] = CHILD
+        parent_of[c] = p
+        if role[p] == UNDECIDED:
+            role[p] = PARENT
+    return parent_of
+
+
+def _greedy_node(n_edges, neighbors, wterm):
+    """Greedy "node" optimiser: add backbone parents by decreasing total gain.
+
+    The alternative scheme of Kirkley et al. 2026 (Appendix D): repeatedly add to
+    the backbone the hyperedge whose promotion to a parent most increases the
+    total parent--child savings (a facility-location-style greedy), then force any
+    still-uncovered hyperedge to be a parent.  Returns ``parent_of``.
+    """
+    in_backbone = [False] * n_edges
+    best_saving = [0.0] * n_edges
+    best_parent = [None] * n_edges
+
+    def _attach_children(parent):
+        for c, rmi in neighbors[parent]:
+            if in_backbone[c]:
+                continue
+            gain = rmi + wterm[c]
+            if gain > best_saving[c]:
+                best_saving[c] = gain
+                best_parent[c] = parent
+
+    while True:
+        chosen, best_gain = None, 1e-12  # require a strictly positive improvement
+        for e in range(n_edges):
+            if in_backbone[e]:
+                continue
+            gain = -best_saving[e]
+            for c, rmi in neighbors[e]:
+                if in_backbone[c]:
+                    continue
+                delta = (rmi + wterm[c]) - best_saving[c]
+                if delta > 0.0:
+                    gain += delta
+            if gain > best_gain:
+                best_gain, chosen = gain, e
+        if chosen is None:
+            break
+        in_backbone[chosen] = True
+        best_saving[chosen] = 0.0
+        best_parent[chosen] = None
+        _attach_children(chosen)
+
+    # Force-cover any hyperedge still without a parent (no overlap with backbone).
+    for e in range(n_edges):
+        if not in_backbone[e] and best_parent[e] is None:
+            in_backbone[e] = True
+            _attach_children(e)
+
+    return {e: best_parent[e] for e in range(n_edges) if not in_backbone[e]}
+
+
+def _description_length(
+    edges, parent_of, weight_list, n_nodes, n_orders, weighted, gamma, mean_weight, prior
+):
+    """Return ``(L(G, B), L(G, G))`` in bits for a given parent/child assignment."""
+    dl = 0.0
+    dl0 = 0.0
+    for i, e in enumerate(edges):
+        size = len(e)
+        dl0 += _parent_codelength(size, n_orders, n_nodes)
+        if weighted:
+            dl0 += _weight_codelength(weight_list[i], 1, gamma, mean_weight, prior)
+        if i in parent_of:
+            p = parent_of[i]
+            overlap = len(e & edges[p])
+            dl += _child_codelength(size, len(edges[p]), overlap, n_orders, n_nodes)
+            if weighted:
+                dl += _weight_codelength(weight_list[i], 0, gamma, mean_weight, prior)
+        else:
+            dl += _parent_codelength(size, n_orders, n_nodes)
+            if weighted:
+                dl += _weight_codelength(weight_list[i], 1, gamma, mean_weight, prior)
+    return dl, dl0
+
+
 def mdl_hypergraph_backbone(
     hyperedges,
     weights=None,
     gamma=1.0,
     prior="poisson",
-    method="edge",
+    method="auto",
 ):
     """Extract a hypergraph backbone via minimum description length (MDL).
 
@@ -400,9 +506,11 @@ def mdl_hypergraph_backbone(
         Ignored when *weights* is ``None``.
     prior : {"poisson", "geometric"}, optional (default="poisson")
         Weight prior family (Eqs (16)-(17)).  Ignored when *weights* is ``None``.
-    method : {"edge"}, optional (default="edge")
-        Greedy optimiser.  Only the "edge"-addition scheme (the better-performing
-        one in [1]_) is currently implemented.
+    method : {"auto", "edge", "node"}, optional (default="auto")
+        Greedy optimiser (Kirkley et al. 2026, Appendix D).  ``"edge"`` adds
+        parent--child links by decreasing gain; ``"node"`` adds backbone parents
+        by decreasing total gain; ``"auto"`` runs both and keeps the lower
+        description length (the procedure used in [1]_).
 
     Returns
     -------
@@ -418,7 +526,7 @@ def mdl_hypergraph_backbone(
 
     Notes
     -----
-    Exact minimisation is combinatorial; this uses the greedy "edge" heuristic of
+    Exact minimisation is combinatorial; this uses the greedy heuristics of
     [1]_, which forms a maximum-reward partition of the intersection graph into
     disjoint stars (each child attached to a single parent).  On small inputs the
     greedy compression matches exhaustive search.
@@ -443,9 +551,9 @@ def mdl_hypergraph_backbone(
         raise ValueError(f"gamma must be in (0, 1], got {gamma}")
     if prior not in ("poisson", "geometric"):
         raise ValueError(f"prior must be 'poisson' or 'geometric', got {prior!r}")
-    if method != "edge":
+    if method not in ("edge", "node", "auto"):
         raise ValueError(
-            f"method={method!r} is not supported; only 'edge' is implemented"
+            f"method must be 'edge', 'node', or 'auto', got {method!r}"
         )
 
     edges, weight_list = _normalize_hyperedges(hyperedges, weights)
@@ -491,59 +599,39 @@ def mdl_hypergraph_backbone(
     else:
         wterm = [0.0] * n_edges
 
-    # Candidate parent->child moves; gain = R(c, p) + weight_term(c).
-    candidates = []
+    # Intersection-graph adjacency with reduced mutual information per pair.
+    neighbors = [[] for _ in range(n_edges)]
     for (i, j), o in overlaps.items():
-        si, sj = len(edges[i]), len(edges[j])
-        rmi = _reduced_mutual_information(si, sj, o, n_nodes)
-        gain_i_child = rmi + wterm[i]  # i becomes child of parent j
-        gain_j_child = rmi + wterm[j]  # j becomes child of parent i
-        if gain_i_child > 0.0:
-            candidates.append((gain_i_child, sj, si, i, j))
-        if gain_j_child > 0.0:
-            candidates.append((gain_j_child, si, sj, j, i))
+        rmi = _reduced_mutual_information(len(edges[i]), len(edges[j]), o, n_nodes)
+        neighbors[i].append((j, rmi))
+        neighbors[j].append((i, rmi))
 
-    # Highest gain first; prefer the larger hyperedge as parent on ties.
-    candidates.sort(key=lambda t: (-t[0], -t[1], t[2], t[3], t[4]))
+    if method == "edge":
+        parent_of = _greedy_edge(n_edges, edges, neighbors, wterm)
+    elif method == "node":
+        parent_of = _greedy_node(n_edges, neighbors, wterm)
+    else:  # "auto": run both and keep the lower description length.
+        parent_of = min(
+            (
+                _greedy_edge(n_edges, edges, neighbors, wterm),
+                _greedy_node(n_edges, neighbors, wterm),
+            ),
+            key=lambda po: _description_length(
+                edges, po, weight_list, n_nodes, n_orders,
+                weighted, gamma, mean_weight, prior,
+            )[0],
+        )
 
-    UNDECIDED, PARENT, CHILD = 0, 1, 2
-    role = [UNDECIDED] * n_edges
-    parent_of = {}
-    for _gain, _psize, _csize, c, p in candidates:
-        if role[c] != UNDECIDED or role[p] == CHILD:
-            continue
-        role[c] = CHILD
-        parent_of[c] = p
-        if role[p] == UNDECIDED:
-            role[p] = PARENT
+    dl, dl0 = _description_length(
+        edges, parent_of, weight_list, n_nodes, n_orders,
+        weighted, gamma, mean_weight, prior,
+    )
 
-    backbone_idx = [i for i in range(n_edges) if role[i] != CHILD]
-    result.backbone = [edges[i] for i in backbone_idx]
-
+    result.backbone = [edges[i] for i in range(n_edges) if i not in parent_of]
     assignment = {}
     for c, p in parent_of.items():
         assignment.setdefault(edges[p], []).append(edges[c])
     result.assignment = assignment
-
-    # Description lengths and compression ratio.
-    dl = 0.0
-    dl0 = 0.0
-    for i, e in enumerate(edges):
-        size = len(e)
-        dl0 += _parent_codelength(size, n_orders, n_nodes)
-        if weighted:
-            dl0 += _weight_codelength(weight_list[i], 1, gamma, mean_weight, prior)
-        if role[i] == CHILD:
-            p = parent_of[i]
-            o = len(e & edges[p])
-            dl += _child_codelength(size, len(edges[p]), o, n_orders, n_nodes)
-            if weighted:
-                dl += _weight_codelength(weight_list[i], 0, gamma, mean_weight, prior)
-        else:
-            dl += _parent_codelength(size, n_orders, n_nodes)
-            if weighted:
-                dl += _weight_codelength(weight_list[i], 1, gamma, mean_weight, prior)
-
     result.description_length = dl
     result.baseline_description_length = dl0
     result.compression_ratio = dl / dl0 if dl0 > 0 else 1.0
@@ -1004,7 +1092,10 @@ _COMPLEXITY = {
     "mdl_hypergraph_backbone": {
         "time": "O(sum_i |G_i|^2 + P log P)",
         "space": "O(m + P)",
-        "notes": "Bottleneck is building the intersection graph; P=overlapping pairs.",
+        "notes": (
+            "P=overlapping pairs. method='edge' sorts candidates; method='node'/"
+            "'auto' run a facility-location greedy up to O(m*(m+P))."
+        ),
     },
     "hypergraph_compression_ratio": {
         "time": "O(sum_i |G_i|^2 + P log P)",

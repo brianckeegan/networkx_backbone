@@ -105,9 +105,10 @@ Backbone a hypergraph (a collection of arbitrary-size hyperedges) directly:
 # Parameter-free MDL backbone -- prunes nested/redundant hyperedges
 # (Kirkley, Felippe, Malizia & Battiston, 2026)
 H = [(1, 2, 3, 4), (1, 2, 3), (2, 3, 4), (8, 9)]
-result = nb.mdl_hypergraph_backbone(H)
+result = nb.mdl_hypergraph_backbone(H)          # method="auto" runs both greedy
 print(result.backbone)            # [frozenset({1, 2, 3, 4}), frozenset({8, 9})]
 print(result.compression_ratio)   # inverse compression ratio eta
+# method="edge" (fastest single pass) or "node" are also available
 
 # Statistically validated hypergraph (Musciotto, Battiston & Mantegna, 2021)
 events = [(1, 2)] * 5 + [(3, 4)] * 100          # repeats = interaction counts

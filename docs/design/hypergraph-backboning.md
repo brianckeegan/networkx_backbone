@@ -314,12 +314,15 @@ family = **B2 (MDL compression)**; null model = **none** (information-theoretic,
 parameter-free unweighted); correction = **n/a**; output = **sub-hypergraph** + star
 forest + `η`; relationship to SVH/SVC = **distinct paradigm**.
 
-Remaining choices for implementation:
-1. Default optimizer (`"auto"` running both greedy schemes, per the paper).
-2. Weight prior default (`poisson` vs `geometric`) and `γ` default (`1.0`).
-3. Result object shape vs. plain annotation (recommend a small dataclass **and** an
-   `mdl_keep` flag for idiom consistency).
-4. Whether to ship the Appendix E local variant in Phase 1 or Phase 2.
+Resolved during implementation:
+1. Optimizer — **both** greedy schemes implemented (`method="edge"`, `"node"`),
+   with `method="auto"` (the default) running both and keeping the lower
+   description length, per the paper.
+2. Weight prior default `poisson`, `γ` default `1.0`.
+3. Result object — a `HypergraphBackbone` dataclass (backbone, assignment, `η`,
+   description lengths).
+
+Remaining nice-to-have: the Appendix E local (per-node-neighbourhood) variant.
 
 ## 11. References
 

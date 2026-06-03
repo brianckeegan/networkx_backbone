@@ -11,6 +11,7 @@ extraction methods.
    proximity_scoring
    structural_methods
    bipartite_backbone
+   hypergraph_backbone
    comparing_methods
    unweighted_sparsification
    les_miserables_benchmark

@@ -331,7 +331,37 @@ def test_invalid_prior_raises():
 
 def test_invalid_method_raises():
     with pytest.raises(ValueError):
-        mdl_hypergraph_backbone([(1, 2, 3)], method="node")
+        mdl_hypergraph_backbone([(1, 2, 3)], method="bogus")
+
+
+@pytest.mark.parametrize("method", ["edge", "node", "auto"])
+def test_mdl_methods_recover_nested_top_faces(method):
+    a, b = range(0, 5), range(5, 10)
+    G = simplex_with_subfaces(a) + simplex_with_subfaces(b)
+    result = mdl_hypergraph_backbone(G, method=method)
+    assert frozenset(a) in result.backbone
+    assert frozenset(b) in result.backbone
+    assert result.description_length <= result.baseline_description_length
+
+
+def test_mdl_auto_is_best_of_edge_and_node():
+    # On a downward-closed simplex the two greedy schemes differ; "auto" must
+    # match the lower-description-length one.
+    G = simplex_with_subfaces(range(0, 6), min_order=2)
+    edge = mdl_hypergraph_backbone(G, method="edge").description_length
+    node = mdl_hypergraph_backbone(G, method="node").description_length
+    auto = mdl_hypergraph_backbone(G, method="auto").description_length
+    assert auto == pytest.approx(min(edge, node))
+
+
+def test_mdl_node_weighting_keeps_high_weight_child():
+    # The gamma weight knob must work under the node optimiser too.
+    A = [(0, 1, 2, 3, 4), (0, 1, 2, 3)]
+    filler = simplex_with_subfaces(range(5, 10))
+    G = A + filler
+    weights = [1.0, 100.0] + [1.0] * len(filler)
+    result = mdl_hypergraph_backbone(G, weights=weights, gamma=0.01, method="node")
+    assert frozenset({0, 1, 2, 3}) in result.backbone
 
 
 def test_weights_length_mismatch_raises():
