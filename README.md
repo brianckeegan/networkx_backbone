@@ -51,6 +51,15 @@ Core method families used in [netbone](https://gitlab.liris.cnrs.fr/coregraphie/
 - Structural: `global_threshold_filter`, `global_sparsification`, `primary_linkage_analysis`, `edge_betweenness_filter`, `high_salience_skeleton`, `doubly_stochastic_filter`, `maximum_spanning_tree_backbone`
 - Hybrid: `glab_filter`
 
+Every backbone *model* in Neal's
+[Backbone 3.0](https://doi.org/10.1371/journal.pone.0349258) R package is also
+covered (`disparity`, `mlf`, `lans`, `sdsm`, `fdsm`, `fixedfill`/`fixedrow`/`fixedcol`,
+`bicm`, `fastball`, and the `backbone_from_*` wrappers), including its
+hypergraph-projection input via `hypergraph_to_bipartite`. See
+[docs/design/backbone-3.0-coverage.md](docs/design/backbone-3.0-coverage.md) for a
+full coverage analysis and proposed gaps (signed backbones, multiple-testing
+correction, SDSM-EC).
+
 ## Quick Start
 
 ```python
@@ -173,6 +182,8 @@ Key papers behind the implemented methods:
 - Simas, T., Correia, R. B., & Rocha, L. M. (2021). [The distance backbone of complex networks](https://doi.org/10.1093/comnet/cnab021). *J. Complex Networks*, 9(6), cnab021.
 - Neal, Z. P. (2014). [The backbone of bipartite projections](https://doi.org/10.1016/j.socnet.2014.06.001). *Social Networks*, 39, 84-97.
 - Neal, Z. P. (2022). [backbone: An R package to extract network backbones](https://doi.org/10.1371/journal.pone.0269137). *PLoS One*, 17(5), e0269137.
+- Neal, Z. P. (2026). [Backbone 3.0: An R package for extracting network backbones](https://doi.org/10.1371/journal.pone.0349258). *PLoS One*.
+- Neal, Z. P., & Neal, J. W. (2023). [Stochastic Degree Sequence Model with Edge Constraints (SDSM-EC) for Backbone Extraction](https://doi.org/10.1007/978-3-031-53468-3_11). *Complex Networks 12*, 127-136.
 - Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). [Local graph sparsification for scalable clustering](https://doi.org/10.1145/1989323.1989399). *SIGMOD*, 721-732.Serrano, M. A., Boguna, M., & Vespignani, A. (2009). [Extracting the multiscale backbone of complex weighted networks](https://doi.org/10.1073/pnas.0808904106). *PNAS*, 106(16), 6483-6488.
 - Van Nuffel, N., Heyndrickx, C., & Wets, G. (2010). Measuring hierarchy and reciprocity in networks.
 - Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023). [An evaluation tool for backbone extraction techniques in weighted complex networks](https://doi.org/10.1038/s41598-023-42076-3). *Scientific Reports*, 13, 17000. 
