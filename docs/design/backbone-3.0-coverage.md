@@ -82,13 +82,14 @@ and the `hypergraph` module (`mdl_hypergraph_backbone`,
 
 ## 4. Gap analysis and proposed implementations
 
-### 4.1 Multiple-testing correction (`mtc`) — recommended first
+### 4.1 Multiple-testing correction (`mtc`) — ✅ implemented
 
 Backbone 3.0 adjusts the matrix of edge p-values with R's `p.adjust()` before
-thresholding at `alpha`. `networkx-backbone` currently thresholds raw p-values
-(`threshold_filter`); only the new SVH/SVC bake in Benjamini–Hochberg.
-
-**Proposal.** Add a small, dependency-free utility and an opt-in parameter:
+thresholding at `alpha`. `networkx-backbone` now provides `adjust_pvalues()`
+(reproducing R's `p.adjust` for `bonferroni`, `holm`, `hochberg`, `bh`/`fdr`,
+`by`; verified against `scipy.stats.false_discovery_control`) and an `mtc`
+parameter on `threshold_filter`, so every p-value method is FDR/Bonferroni-aware
+through one shared path. Original API sketch:
 
 ```python
 # networkx_backbone/filters.py

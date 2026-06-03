@@ -125,6 +125,7 @@ __all__ = [
     "fraction_filter",
     "boolean_filter",
     "consensus_backbone",
+    "adjust_pvalues",
     # Measures
     "node_fraction",
     "edge_fraction",

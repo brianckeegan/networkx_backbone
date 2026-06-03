@@ -19,3 +19,5 @@ Complexity classes are provided in each function docstring.
 .. autofunction:: boolean_filter
 
 .. autofunction:: consensus_backbone
+
+.. autofunction:: adjust_pvalues
