@@ -56,12 +56,26 @@ def _validate_weights(G, weight):
             )
 
 
+def _combine_tails(p_hi, p_lo):
+    """Combine upper/lower-tail p-values into a two-sided p-value and a sign.
+
+    Returns ``(two_sided_pvalue, sign)`` where ``sign`` is ``+1`` for a
+    significantly strong (over-represented) edge and ``-1`` for a significantly
+    weak (under-represented) edge.  Used by the signed backbone variants.
+    """
+    p_hi = min(max(p_hi, 0.0), 1.0)
+    p_lo = min(max(p_lo, 0.0), 1.0)
+    pval = min(1.0, 2.0 * min(p_hi, p_lo))
+    sign = 1 if p_hi <= p_lo else -1
+    return pval, sign
+
+
 # =====================================================================
 # 1. Disparity filter -- Serrano et al. (2009)
 # =====================================================================
 
 
-def disparity_filter(G, weight="weight"):
+def disparity_filter(G, weight="weight", signed=False):
     r"""Compute disparity filter p-values for each edge.
 
     The disparity filter [1]_ tests whether an edge's weight is
@@ -84,12 +98,16 @@ def disparity_filter(G, weight="weight"):
         A NetworkX graph.
     weight : string, optional (default="weight")
         Edge attribute key for weights.  All weights must be positive.
+    signed : bool, optional (default=False)
+        If ``True``, run a two-tailed test: the stored p-value becomes two-sided
+        and a ``"sign"`` edge attribute marks significantly strong (``+1``)
+        versus significantly weak (``-1``) edges.
 
     Returns
     -------
     H : graph
         A copy of *G* (same type) with ``"disparity_pvalue"`` added as an
-        edge attribute.
+        edge attribute (and ``"sign"`` when ``signed=True``).
 
     Raises
     ------
@@ -125,26 +143,32 @@ def disparity_filter(G, weight="weight"):
     for u, v, data in H.edges(data=True):
         w = data[weight]
         if G.is_directed():
-            pval = _disparity_node_pvalue(w, strength[u], degree[u])
+            p_hi, p_lo = _disparity_node_tails(w, strength[u], degree[u])
         else:
-            pval_u = _disparity_node_pvalue(w, strength[u], degree[u])
-            pval_v = _disparity_node_pvalue(w, strength[v], degree[v])
-            pval = min(pval_u, pval_v)
-        data["disparity_pvalue"] = pval
+            hi_u, lo_u = _disparity_node_tails(w, strength[u], degree[u])
+            hi_v, lo_v = _disparity_node_tails(w, strength[v], degree[v])
+            # OR rule: strong/weak if significant from either endpoint.
+            p_hi = min(hi_u, hi_v)
+            p_lo = min(lo_u, lo_v)
+        if signed:
+            data["disparity_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
+        else:
+            data["disparity_pvalue"] = p_hi
 
     return H
 
 
-def _disparity_node_pvalue(w, s, k):
-    """Disparity p-value from one node's perspective."""
+def _disparity_node_tails(w, s, k):
+    """Upper- and lower-tail disparity p-values from one node's perspective."""
     if k <= 1:
-        return 1.0
+        return 1.0, 1.0
     p = min(w / s, 1.0)
     try:
-        alpha = (1.0 - p) ** (k - 1)
+        p_hi = (1.0 - p) ** (k - 1)
     except (OverflowError, ValueError):
-        alpha = 0.0
-    return max(alpha, 0.0)
+        p_hi = 0.0
+    p_hi = max(p_hi, 0.0)
+    return p_hi, max(1.0 - p_hi, 0.0)
 
 
 # =====================================================================
@@ -240,7 +264,7 @@ def noise_corrected_filter(G, weight="weight"):
 # =====================================================================
 
 
-def marginal_likelihood_filter(G, weight="weight"):
+def marginal_likelihood_filter(G, weight="weight", signed=False):
     r"""Compute marginal likelihood p-values for each edge.
 
     The marginal likelihood filter [1]_ considers edge weights as
@@ -253,6 +277,9 @@ def marginal_likelihood_filter(G, weight="weight"):
         A NetworkX graph.  Integer weights are recommended.
     weight : string, optional (default="weight")
         Edge attribute key for weights.  All weights must be positive.
+    signed : bool, optional (default=False)
+        If ``True``, run a two-tailed test and add a ``"sign"`` edge attribute
+        (``+1`` significantly strong, ``-1`` significantly weak).
 
     Returns
     -------
@@ -305,11 +332,16 @@ def marginal_likelihood_filter(G, weight="weight"):
         denom = W - su
         if denom > 0 and n_param > 0:
             p_param = min(sv / denom, 1.0)
-            pval = sp_stats.binom.sf(int(round(w)) - 1, n_param, p_param)
+            k = int(round(w))
+            p_hi = sp_stats.binom.sf(k - 1, n_param, p_param)
+            p_lo = sp_stats.binom.cdf(k, n_param, p_param)
         else:
-            pval = 1.0
+            p_hi, p_lo = 1.0, 1.0
 
-        data["ml_pvalue"] = float(pval)
+        if signed:
+            data["ml_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
+        else:
+            data["ml_pvalue"] = float(p_hi)
 
     return H
 
@@ -451,7 +483,7 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6):
 # =====================================================================
 
 
-def lans_filter(G, weight="weight"):
+def lans_filter(G, weight="weight", signed=False):
     r"""Compute LANS (Locally Adaptive Network Sparsification) p-values.
 
     LANS [1]_ is a nonparametric method that makes no distributional
@@ -468,6 +500,9 @@ def lans_filter(G, weight="weight"):
         A NetworkX graph.
     weight : string, optional (default="weight")
         Edge attribute key for weights.  All weights must be positive.
+    signed : bool, optional (default=False)
+        If ``True``, run a two-tailed test and add a ``"sign"`` edge attribute
+        (``+1`` significantly strong, ``-1`` significantly weak).
 
     Returns
     -------
@@ -515,13 +550,19 @@ def lans_filter(G, weight="weight"):
 
         if G.is_directed():
             ecdf_u = _empirical_cdf(w, node_weights[u])
-            pval = 1.0 - ecdf_u
+            p_hi = 1.0 - ecdf_u
+            p_lo = ecdf_u
         else:
             ecdf_u = _empirical_cdf(w, node_weights[u])
             ecdf_v = _empirical_cdf(w, node_weights[v])
-            pval = 1.0 - max(ecdf_u, ecdf_v)
+            # OR rule: strong/weak if significant from either endpoint.
+            p_hi = 1.0 - max(ecdf_u, ecdf_v)
+            p_lo = min(ecdf_u, ecdf_v)
 
-        data["lans_pvalue"] = max(pval, 0.0)
+        if signed:
+            data["lans_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
+        else:
+            data["lans_pvalue"] = max(p_hi, 0.0)
 
     return H
 
@@ -600,19 +641,19 @@ def _empirical_cdf(w, sorted_weights):
     return lo / n
 
 
-def disparity(G, weight="weight"):
+def disparity(G, weight="weight", signed=False):
     """Alias for :func:`disparity_filter`."""
-    return disparity_filter(G, weight=weight)
+    return disparity_filter(G, weight=weight, signed=signed)
 
 
-def mlf(G, weight="weight"):
+def mlf(G, weight="weight", signed=False):
     """Alias for :func:`marginal_likelihood_filter`."""
-    return marginal_likelihood_filter(G, weight=weight)
+    return marginal_likelihood_filter(G, weight=weight, signed=signed)
 
 
-def lans(G, weight="weight"):
+def lans(G, weight="weight", signed=False):
     """Alias for :func:`lans_filter`."""
-    return lans_filter(G, weight=weight)
+    return lans_filter(G, weight=weight, signed=signed)
 
 
 _COMPLEXITY = {

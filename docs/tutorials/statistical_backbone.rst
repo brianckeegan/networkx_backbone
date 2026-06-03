@@ -125,3 +125,59 @@ Use :func:`~networkx_backbone.compare_backbones` to compare the results::
         ef = metrics["edge_fraction"]
         nf = metrics["node_fraction"]
         print(f"{name:25s}: edges={ef:.1%}, nodes={nf:.1%}")
+
+Multiple-testing correction
+---------------------------
+
+Because a statistical backbone tests every edge, correcting for multiple
+comparisons avoids retaining edges by chance. Pass ``mtc`` to
+:func:`~networkx_backbone.threshold_filter` (or use
+:func:`~networkx_backbone.adjust_pvalues` directly). Supported corrections match
+R's ``p.adjust``: ``"bonferroni"``, ``"holm"``, ``"hochberg"``, ``"bh"``/``"fdr"``
+(Benjamini-Hochberg), and ``"by"`` (Benjamini-Yekutieli)::
+
+    scored = nb.disparity_filter(G)
+
+    raw = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
+    fdr = nb.threshold_filter(scored, "disparity_pvalue", 0.05, mtc="bh")
+    bonf = nb.threshold_filter(scored, "disparity_pvalue", 0.05, mtc="bonferroni")
+
+    print(f"raw={raw.number_of_edges()}, BH={fdr.number_of_edges()}, "
+          f"Bonferroni={bonf.number_of_edges()}")
+
+Signed backbones
+----------------
+
+By default the statistical filters run a one-tailed test that keeps only
+*significantly strong* edges. With ``signed=True``, the
+``disparity_filter``, ``marginal_likelihood_filter``, and ``lans_filter`` run a
+**two-tailed** test: the stored p-value becomes two-sided, and each edge gains a
+``"sign"`` attribute that is ``+1`` for a significantly strong edge and ``-1``
+for a significantly weak one::
+
+    signed = nb.disparity_filter(G, signed=True)
+    backbone = nb.threshold_filter(signed, "disparity_pvalue", 0.05, mtc="bh")
+
+    positive = [(u, v) for u, v, d in backbone.edges(data=True) if d["sign"] == 1]
+    negative = [(u, v) for u, v, d in backbone.edges(data=True) if d["sign"] == -1]
+    print(f"strong (+): {len(positive)}, weak (-): {len(negative)}")
+
+References
+----------
+
+- Serrano, M. A., Boguna, M., & Vespignani, A. (2009). *Extracting the multiscale
+  backbone of complex weighted networks*. PNAS, 106(16), 6483-6488.
+- Coscia, M., & Neffke, F. M. (2017). *Network backboning with noisy data*.
+  Proc. IEEE ICDE, 425-436.
+- Dianati, N. (2016). *Unwinding the hairball graph: Pruning algorithms for
+  weighted complex networks*. Physical Review E, 93, 012304.
+- Gemmetto, V., Cardillo, A., & Garlaschelli, D. (2017). *Irreducible network
+  backbones: unbiased graph filtering via maximum entropy*. arXiv:1706.00230.
+- Foti, N. J., Hughes, J. M., & Rockmore, D. N. (2011). *Nonparametric
+  sparsification of complex multiscale networks*. PLOS ONE, 6(2), e16431.
+- Van Nuffel, N., Heyndrickx, C., & Wets, G. (2010). *Measuring hierarchy and
+  reciprocity in networks*.
+- Benjamini, Y., & Hochberg, Y. (1995). *Controlling the false discovery rate*.
+  J. Royal Statistical Society B, 57(1), 289-300.
+- Benjamini, Y., & Yekutieli, D. (2001). *The control of the false discovery rate
+  in multiple testing under dependency*. Annals of Statistics, 29(4), 1165-1188.

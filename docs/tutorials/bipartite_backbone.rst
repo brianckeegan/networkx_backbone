@@ -134,8 +134,49 @@ Partition selection note
 which makes partition selection straightforward. In general, pass whichever
 partition you want to project as ``agent_nodes``.
 
+Signed backbones
+----------------
+
+By default the null-model tests are one-tailed and retain only
+*significantly strong* co-occurrences. Pass ``signed=True`` to ``sdsm``,
+``fdsm``, ``fixedfill``, ``fixedrow``, or ``fixedcol`` for a **two-tailed** test:
+the stored p-value becomes two-sided and each edge gains a ``"sign"`` attribute
+(``+1`` significantly strong, ``-1`` significantly weak)::
+
+    H = nb.sdsm(B, agent_nodes=women_nodes, signed=True)
+    backbone = nb.threshold_filter(H, "sdsm_pvalue", 0.05, mode="below")
+    weak = [(u, v) for u, v, d in backbone.edges(data=True) if d["sign"] == -1]
+
+Edge constraints (SDSM-EC)
+--------------------------
+
+The Stochastic Degree Sequence Model with Edge Constraints (Neal & Neal, 2023)
+lets you fix some cells of the null model: ``prohibited`` edges cannot occur
+(null probability 0) and ``required`` edges must occur (null probability 1).
+Pass them to ``sdsm`` as iterables of ``(agent, artifact)`` pairs::
+
+    H = nb.sdsm(
+        B,
+        agent_nodes=women_nodes,
+        prohibited=[(women_nodes[0], event_nodes[0])],
+        required=[(women_nodes[1], event_nodes[1])],
+    )
+
 References
 ----------
 
 - Coscia, M., & Neffke, F. M. (2017). *Network backboning with noisy data*.
   https://arxiv.org/abs/1906.09081
+- Neal, Z. P. (2014). *The backbone of bipartite projections*. Social Networks,
+  39, 84-97.
+- Neal, Z. P., Domagalski, R., & Sagan, B. (2021). *Comparing alternatives to the
+  fixed degree sequence model for extracting the backbone of bipartite
+  projections*. Scientific Reports, 11, 23929.
+- Saracco, F., Di Clemente, R., Gabrielli, A., & Squartini, T. (2015).
+  *Randomizing bipartite networks: the case of the World Trade Web*. Scientific
+  Reports, 5, 10595.
+- Godard, K., & Neal, Z. P. (2022). *fastball: A fast algorithm to sample
+  bipartite graphs with fixed degree sequences*. J. Complex Networks, 10(6),
+  cnac049.
+- Neal, Z. P., & Neal, J. W. (2023). *Stochastic Degree Sequence Model with Edge
+  Constraints (SDSM-EC) for Backbone Extraction*. Complex Networks 12, 127-136.

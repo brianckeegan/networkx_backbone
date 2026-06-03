@@ -137,3 +137,46 @@ class TestStatisticalAliases:
             assert "disparity_pvalue" in h_disparity[u][v]
             assert "lans_pvalue" in h_lans[u][v]
             assert "ml_pvalue" in h_mlf[u][v]
+
+
+class TestSignedBackbones:
+    @staticmethod
+    def _hub_star():
+        # Hub "c" with one very strong edge and several weak edges.
+        G = nx.Graph()
+        G.add_weighted_edges_from(
+            [("c", 1, 100.0), ("c", 2, 1.0), ("c", 3, 1.0), ("c", 4, 1.0)]
+        )
+        return G
+
+    def test_disparity_signed_marks_strong_and_weak(self):
+        G = self._hub_star()
+        H = disparity_filter(G, signed=True)
+        assert H["c"][1]["sign"] == 1  # strong edge
+        assert H["c"][2]["sign"] == -1  # weak edge
+        assert all(0.0 <= d["disparity_pvalue"] <= 1.0 for _, _, d in H.edges(data=True))
+
+    def test_unsigned_unchanged(self):
+        G = self._hub_star()
+        H = disparity_filter(G)
+        assert all("sign" not in d for _, _, d in H.edges(data=True))
+        # one-tailed p-value preserved: (1 - w/s)^(k-1) for the strong edge
+        assert H["c"][1]["disparity_pvalue"] == pytest.approx((1 - 100 / 103) ** 3)
+
+    @pytest.mark.parametrize(
+        "scorer,attr",
+        [(disparity_filter, "disparity_pvalue"), (mlf, "ml_pvalue"), (lans, "lans_pvalue")],
+    )
+    def test_signed_adds_sign_and_two_sided_pvalue(self, scorer, attr):
+        G = nx.les_miserables_graph()
+        H = scorer(G, signed=True)
+        assert all("sign" in d and d["sign"] in (-1, 1) for _, _, d in H.edges(data=True))
+        assert all(0.0 <= d[attr] <= 1.0 for _, _, d in H.edges(data=True))
+
+    def test_signed_pvalue_is_two_sided(self):
+        # Two-sided p-value is twice the smaller one-tailed tail (clipped to 1).
+        G = self._hub_star()
+        unsigned = disparity_filter(G)
+        signed = disparity_filter(G, signed=True)
+        p_hi = unsigned["c"][1]["disparity_pvalue"]
+        assert signed["c"][1]["disparity_pvalue"] == pytest.approx(min(1.0, 2 * p_hi))

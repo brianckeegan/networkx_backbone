@@ -16,7 +16,102 @@ __all__ = [
     "fraction_filter",
     "boolean_filter",
     "consensus_backbone",
+    "adjust_pvalues",
 ]
+
+
+_MTC_METHODS = ("none", "bonferroni", "holm", "hochberg", "bh", "fdr", "by")
+
+
+def adjust_pvalues(pvalues, method="bh"):
+    """Apply a multiple-testing correction to a collection of p-values.
+
+    Reproduces R's ``p.adjust`` for the methods used by Neal's *Backbone 3.0*
+    ``mtc`` option, so statistical backbone p-values can be corrected for the
+    number of edges tested before thresholding.
+
+    Parameters
+    ----------
+    pvalues : iterable of float
+        The raw p-values.
+    method : string, optional (default="bh")
+        One of ``"none"``, ``"bonferroni"``, ``"holm"`` (step-down),
+        ``"hochberg"`` (step-up), ``"bh"``/``"fdr"`` (Benjamini-Hochberg), or
+        ``"by"`` (Benjamini-Yekutieli).
+
+    Returns
+    -------
+    adjusted : list of float
+        Adjusted p-values in the same order as the input, each in ``[0, 1]``.
+
+    Raises
+    ------
+    ValueError
+        If *method* is not recognised.
+
+    References
+    ----------
+    .. [1] Holm, S. (1979). A simple sequentially rejective multiple test
+       procedure. *Scandinavian Journal of Statistics*, 6(2), 65-70.
+    .. [2] Hochberg, Y. (1988). A sharper Bonferroni procedure for multiple
+       tests of significance. *Biometrika*, 75(4), 800-802.
+    .. [3] Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery
+       rate. *J. Royal Statistical Society B*, 57(1), 289-300.
+    .. [4] Benjamini, Y., & Yekutieli, D. (2001). The control of the false
+       discovery rate in multiple testing under dependency. *Annals of
+       Statistics*, 29(4), 1165-1188.
+
+    Examples
+    --------
+    >>> from networkx_backbone import adjust_pvalues
+    >>> adjust_pvalues([0.01, 0.02, 0.5], method="bonferroni")
+    [0.03, 0.06, 1.0]
+    """
+    method_l = method.lower()
+    if method_l not in _MTC_METHODS:
+        raise ValueError(
+            f"method must be one of {_MTC_METHODS}, got {method!r}"
+        )
+
+    p = [float(x) for x in pvalues]
+    n = len(p)
+    if n == 0:
+        return []
+    if method_l == "none":
+        return [min(1.0, max(0.0, x)) for x in p]
+    if method_l == "bonferroni":
+        return [min(1.0, n * x) for x in p]
+
+    if method_l == "holm":
+        # Step-down over ascending p-values with running maximum.
+        order = sorted(range(n), key=lambda k: p[k])
+        out = [0.0] * n
+        running = 0.0
+        for rank, idx in enumerate(order):
+            running = max(running, (n - rank) * p[idx])
+            out[idx] = min(1.0, running)
+        return out
+
+    # Step-up methods over descending p-values with running minimum.
+    order = sorted(range(n), key=lambda k: p[k], reverse=True)
+    out = [0.0] * n
+    running = float("inf")
+    if method_l == "hochberg":
+        for j, idx in enumerate(order):
+            running = min(running, (j + 1) * p[idx])
+            out[idx] = min(1.0, running)
+        return out
+    if method_l in ("bh", "fdr"):
+        for j, idx in enumerate(order):
+            running = min(running, (n / (n - j)) * p[idx])
+            out[idx] = min(1.0, running)
+        return out
+    # Benjamini-Yekutieli
+    c = sum(1.0 / k for k in range(1, n + 1))
+    for j, idx in enumerate(order):
+        running = min(running, c * (n / (n - j)) * p[idx])
+        out[idx] = min(1.0, running)
+    return out
 
 
 def multigraph_to_weighted(G, weight="weight", edge_type_attr=None):
@@ -98,7 +193,8 @@ def multigraph_to_weighted(G, weight="weight", edge_type_attr=None):
 
 
 def threshold_filter(
-    G, score, threshold, mode="below", filter_on="edges", include_all_nodes=True
+    G, score, threshold, mode="below", filter_on="edges", include_all_nodes=True,
+    mtc="none",
 ):
     """Retain edges or nodes whose score passes a threshold test.
 
@@ -124,6 +220,10 @@ def threshold_filter(
         - If ``filter_on="nodes"`` and ``True``, all retained nodes are kept
           even if isolated in the induced subgraph. If ``False``, retained
           nodes with degree 0 are removed.
+    mtc : string, optional (default="none")
+        Multiple-testing correction applied to *score* values before
+        thresholding (see :func:`adjust_pvalues`).  Only valid with
+        ``mode="below"`` (p-values).  Default ``"none"`` leaves scores unchanged.
 
     Returns
     -------
@@ -135,8 +235,9 @@ def threshold_filter(
     Raises
     ------
     ValueError
-        If *mode* is not ``"below"`` or ``"above"``, or if *filter_on* is
-        not ``"edges"`` or ``"nodes"``.
+        If *mode* is not ``"below"`` or ``"above"``, if *filter_on* is
+        not ``"edges"`` or ``"nodes"``, or if *mtc* is used with
+        ``mode="above"``.
 
     Examples
     --------
@@ -151,31 +252,39 @@ def threshold_filter(
     """
     if mode not in ("below", "above"):
         raise ValueError(f"mode must be 'below' or 'above', got {mode!r}")
+    if mtc != "none" and mode != "below":
+        raise ValueError("mtc correction requires mode='below' (p-values)")
+
+    def _passes(val):
+        return (mode == "below" and val < threshold) or (
+            mode == "above" and val >= threshold
+        )
 
     if filter_on == "edges":
         H = G.__class__()
         if include_all_nodes:
             H.add_nodes_from(G.nodes(data=True))
-        for u, v, data in G.edges(data=True):
-            val = data.get(score)
-            if val is None:
-                continue
-            if (mode == "below" and val < threshold) or (
-                mode == "above" and val >= threshold
-            ):
+        scored = [
+            (u, v, data) for u, v, data in G.edges(data=True) if data.get(score) is not None
+        ]
+        if mtc != "none":
+            values = adjust_pvalues([data[score] for _, _, data in scored], mtc)
+        else:
+            values = [data[score] for _, _, data in scored]
+        for (u, v, data), val in zip(scored, values):
+            if _passes(val):
                 H.add_edge(u, v, **data)
         return H
 
     elif filter_on == "nodes":
-        keep = set()
-        for node, data in G.nodes(data=True):
-            val = data.get(score)
-            if val is None:
-                continue
-            if (mode == "below" and val < threshold) or (
-                mode == "above" and val >= threshold
-            ):
-                keep.add(node)
+        scored = [
+            (node, data) for node, data in G.nodes(data=True) if data.get(score) is not None
+        ]
+        if mtc != "none":
+            values = adjust_pvalues([data[score] for _, data in scored], mtc)
+        else:
+            values = [data[score] for _, data in scored]
+        keep = {node for (node, _), val in zip(scored, values) if _passes(val)}
         H = G.subgraph(keep).copy()
         if not include_all_nodes:
             isolates = list(nx.isolates(H))

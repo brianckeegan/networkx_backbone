@@ -15,9 +15,10 @@ is a sparser graph that preserves the essential structure of the original.
 Taxonomy of methods
 -------------------
 
-The 65 functions in ``networkx-backbone`` are organized into nine modules based
+The 87 functions in ``networkx-backbone`` are organized into ten modules based
 on the approach they take. The method taxonomy aligns with the categories used
-in ``netbone`` (Yassin et al., 2023; https://gitlab.liris.cnrs.fr/coregraphie/netbone).
+in ``netbone`` (Yassin et al., 2023; https://gitlab.liris.cnrs.fr/coregraphie/netbone),
+extended with a hypergraph module for higher-order networks.
 
 Statistical methods
 ^^^^^^^^^^^^^^^^^^^
@@ -32,6 +33,14 @@ These methods produce a p-value or z-score for each edge.
 - :func:`~networkx_backbone.ecm_filter` -- maximum-entropy null model (Gemmetto et al., 2017)
 - :func:`~networkx_backbone.lans_filter` -- nonparametric empirical CDF (Foti et al., 2011)
 - :func:`~networkx_backbone.multiple_linkage_analysis` -- local linkage significance (Van Nuffel et al., 2010; Yassin et al., 2023)
+
+P-values can be corrected for multiple comparisons with
+:func:`~networkx_backbone.adjust_pvalues` or the ``mtc`` argument of
+:func:`~networkx_backbone.threshold_filter` (Bonferroni, Holm, Hochberg,
+Benjamini-Hochberg, Benjamini-Yekutieli).  The ``disparity_filter``,
+``marginal_likelihood_filter``, and ``lans_filter`` methods also accept
+``signed=True`` for a two-tailed test that keeps significantly strong (``+1``)
+and significantly weak (``-1``) edges, each tagged with a ``"sign"`` attribute.
 
 Structural methods
 ^^^^^^^^^^^^^^^^^^
@@ -92,6 +101,44 @@ significant edges from bipartite graph projections:
   :func:`~networkx_backbone.fixedcol` -- fixed null-model variants
 - :func:`~networkx_backbone.backbone_from_projection` /
   :func:`~networkx_backbone.backbone` -- high-level wrappers
+
+Hypergraph methods
+^^^^^^^^^^^^^^^^^^
+
+The :mod:`~networkx_backbone.hypergraph` module backbones higher-order networks
+(hypergraphs) directly, rather than dyadic graphs. Unlike the projection-based
+:mod:`~networkx_backbone.bipartite` methods, which reduce a hypergraph to a
+weighted pairwise graph, these methods return a sub-hypergraph (a subset of
+hyperedges).
+
+- :func:`~networkx_backbone.mdl_hypergraph_backbone` -- parameter-free,
+  information-theoretic (minimum description length) backbone that prunes nested
+  and redundant hyperedges, with an optional weighted extension (Kirkley,
+  Felippe, Malizia & Battiston, 2026)
+- :func:`~networkx_backbone.hypergraph_compression_ratio` -- inverse compression
+  ratio achieved by the MDL backbone
+- :func:`~networkx_backbone.intersection_graph` -- graph (or s-line graph)
+  linking hyperedges that share at least *s* nodes
+- :func:`~networkx_backbone.maximal_hyperedges` -- inclusion (toplex) reduction,
+  keeping only hyperedges not contained in another
+- :func:`~networkx_backbone.order_filter` -- select hyperedges by order (size)
+- :func:`~networkx_backbone.s_components` -- s-connected components of a
+  hypergraph
+- :func:`~networkx_backbone.statistically_validated_hypergraph` and
+  :func:`~networkx_backbone.statistically_validated_cores` -- statistical
+  validation of recurring hyperedges/groups under a null model (Musciotto,
+  Battiston & Mantegna, 2021)
+
+Because a hypergraph backbone is a subset of hyperedges rather than a graph, this
+module returns a :class:`~networkx_backbone.HypergraphBackbone` (or
+:class:`~networkx_backbone.ValidatedHypergraph`) result instead of using the
+:mod:`~networkx_backbone.filters` utilities.
+
+The :mod:`~networkx_backbone.hypergraph_io` helpers convert hyperedge lists to and
+from a NetworkX incidence bipartite graph (so the
+:mod:`~networkx_backbone.bipartite` projection backbones apply to hypergraphs),
+the HIF interchange format, and the ``xgi`` / ``HyperNetX`` / ``HypergraphX`` /
+HAT hypergraph classes (optional, imported lazily).
 
 Unweighted methods
 ^^^^^^^^^^^^^^^^^^

@@ -4,6 +4,7 @@ import networkx as nx
 import pytest
 
 from networkx_backbone import (
+    adjust_pvalues,
     boolean_filter,
     consensus_backbone,
     disparity_filter,
@@ -11,6 +12,74 @@ from networkx_backbone import (
     multigraph_to_weighted,
     threshold_filter,
 )
+
+
+class TestAdjustPvalues:
+    PS = [0.001, 0.008, 0.012, 0.03, 0.04, 0.2, 0.5, 0.9]
+
+    def test_bonferroni(self):
+        assert adjust_pvalues([0.01, 0.02, 0.5], "bonferroni") == [0.03, 0.06, 1.0]
+
+    def test_holm_step_down(self):
+        assert adjust_pvalues([0.01, 0.02, 0.5], "holm") == pytest.approx(
+            [0.03, 0.04, 0.5]
+        )
+
+    def test_none_clips_to_unit_interval(self):
+        assert adjust_pvalues([0.2, 1.5, -0.1], "none") == [0.2, 1.0, 0.0]
+
+    def test_order_preserved_and_bounded(self):
+        adj = adjust_pvalues(self.PS, "bh")
+        assert len(adj) == len(self.PS)
+        assert all(0.0 <= a <= 1.0 for a in adj)
+
+    @pytest.mark.parametrize("method", ["bh", "fdr", "by"])
+    def test_matches_scipy(self, method):
+        sp = pytest.importorskip("scipy.stats")
+        import numpy as np
+
+        expected = sp.false_discovery_control(
+            self.PS, method="by" if method == "by" else "bh"
+        )
+        assert np.allclose(adjust_pvalues(self.PS, method), expected)
+
+    def test_correction_is_conservative(self):
+        raw = self.PS
+        for method in ("bonferroni", "holm", "hochberg", "bh", "by"):
+            adj = adjust_pvalues(raw, method)
+            assert all(a >= r - 1e-12 for a, r in zip(adj, raw))
+
+    def test_empty(self):
+        assert adjust_pvalues([], "bh") == []
+
+    def test_invalid_method_raises(self):
+        with pytest.raises(ValueError):
+            adjust_pvalues([0.1], "hommel")
+
+
+class TestThresholdFilterMTC:
+    def test_mtc_reduces_or_equal_edges(self):
+        G = nx.les_miserables_graph()
+        H = disparity_filter(G)
+        raw = threshold_filter(H, "disparity_pvalue", 0.05).number_of_edges()
+        for method in ("bonferroni", "bh"):
+            corrected = threshold_filter(
+                H, "disparity_pvalue", 0.05, mtc=method
+            ).number_of_edges()
+            assert corrected <= raw
+
+    def test_mtc_requires_below_mode(self):
+        G = nx.les_miserables_graph()
+        H = disparity_filter(G)
+        with pytest.raises(ValueError):
+            threshold_filter(H, "disparity_pvalue", 0.05, mode="above", mtc="bh")
+
+    def test_mtc_none_matches_plain(self):
+        G = nx.les_miserables_graph()
+        H = disparity_filter(G)
+        a = threshold_filter(H, "disparity_pvalue", 0.3).number_of_edges()
+        b = threshold_filter(H, "disparity_pvalue", 0.3, mtc="none").number_of_edges()
+        assert a == b
 
 
 class TestMultigraphToWeighted:

@@ -1,7 +1,7 @@
 API Reference
 =============
 
-Complete API documentation for backbone functions across 9 modules.
+Complete API documentation for backbone functions across 10 modules.
 API examples are standardized on ``nx.les_miserables_graph()`` for
 non-bipartite methods and ``nx.davis_southern_women_graph()`` for
 bipartite methods.
@@ -32,12 +32,15 @@ an aggregate summary in :doc:`../user_guide/complexity`.
    * - :doc:`bipartite`
      - 11
      - Projection backbones, fixed null models, and high-level wrappers
+   * - :doc:`hypergraph`
+     - 12
+     - MDL backbone, compression ratio, intersection / s-line graph, inclusion (toplex) reduction, order filter, s-components, and statistically validated hypergraphs / cores
    * - :doc:`unweighted`
      - 3
      - Sparsification for unweighted graphs (LSpar, local degree)
    * - :doc:`filters`
-     - 5
-     - Post-hoc filtering utilities and graph-conversion support
+     - 6
+     - Post-hoc filtering utilities, multiple-testing correction, and graph-conversion support
    * - :doc:`measures`
      - 7
      - Evaluation measures for comparing backbones
@@ -54,6 +57,7 @@ an aggregate summary in :doc:`../user_guide/complexity`.
    proximity
    hybrid
    bipartite
+   hypergraph
    unweighted
    filters
    measures
