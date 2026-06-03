@@ -24,15 +24,15 @@ structural, proximity, and a full hypergraph module: MDL backbone, SVH/SVC,
 interop).
 
 The differences are **features layered on the statistical models**, not missing
-models. Backbone 3.0 adds four cross-cutting options that `networkx-backbone`
-does not yet expose:
+models. Backbone 3.0 adds four cross-cutting options; three are now implemented
+in `networkx-backbone` and the fourth is parked:
 
-| Gap | What it is | Value | Effort |
-|-----|-----------|-------|--------|
-| **`mtc`** multiple-testing correction | Bonferroni / Holm / Hochberg / Hommel / BH (fdr) / BY adjustment of edge p-values before thresholding | High | Low |
-| **`signed`** backbones | Two-tailed test retaining significantly *strong* (+) and significantly *weak* (−) edges, with a `sign` attribute | Medium–High | Medium |
-| **SDSM-EC** edge constraints | `sdsm` with prohibited/required edges (structural 0s/1s; Neal & Neal 2023) | Medium (niche) | Medium |
-| **`narrative`** | Auto-generated methods text + citations for a chosen backbone | Low | Low |
+| Feature | What it is | Status |
+|---------|-----------|--------|
+| **`mtc`** multiple-testing correction | Bonferroni / Holm / Hochberg / BH (fdr) / BY adjustment of edge p-values before thresholding | ✅ `adjust_pvalues`, `threshold_filter(mtc=...)` |
+| **`signed`** backbones | Two-tailed test retaining significantly *strong* (+) and significantly *weak* (−) edges, with a `sign` attribute | ✅ `signed=` on disparity/mlf/lans + sdsm/fdsm/fixed* |
+| **SDSM-EC** edge constraints | `sdsm` with prohibited/required edges (structural 0s/1s; Neal & Neal 2023) | ✅ `sdsm(prohibited=, required=)` |
+| **`narrative`** | Auto-generated methods text + citations for a chosen backbone | Parked (low value; utility only) |
 
 ## 2. What Backbone 3.0 provides
 
@@ -110,34 +110,33 @@ Benjamini–Hochberg/Yekutieli step-up); the existing `_bh_threshold` in
 (`disparity`, `mlf`, `lans`, `sdsm`, `fdsm`, `fixed*`) FDR/Bonferroni-aware
 through one shared path, matching Backbone 3.0's `mtc` semantics.
 
-### 4.2 Signed backbones (`signed`)
+### 4.2 Signed backbones (`signed`) — ✅ implemented
 
 With `signed=TRUE`, Backbone 3.0 runs a **two-tailed** test and keeps edges that
 are significantly *strong* (sign `+1`) **and** significantly *weak* (sign `−1`),
 annotating each retained edge with a `sign`.
 
-**Proposal.** Add a `signed=False` option to the statistical scorers. Each
-already computes an upper-tail p-value `p_hi`; add the lower-tail `p_lo` (for the
-null models this is the complementary tail; for `disparity`/`lans`/`mlf` it is the
-analogous lower-tail integral). Store `*_pvalue = min(p_hi, p_lo)` plus a `sign`
-edge attribute, and extend `threshold_filter`/`boolean_filter` to carry `sign`.
-A signed `global_threshold_filter` (retain above `hi`, mark below `lo` as
-negative) covers Backbone 3.0's signed `global`. Scope: per-scorer lower-tail
-formula + a `sign` attribute; the filter layer is largely unchanged.
+`networkx-backbone` now exposes `signed=False` on the weighted scorers
+(`disparity_filter`/`mlf`/`lans_filter`) and the projection null models
+(`sdsm`/`fdsm`/`fixedfill`/`fixedrow`/`fixedcol`). Each adds the lower-tail
+p-value, stores a two-sided p-value (`2·min(p_hi, p_lo)`, clipped to 1) and a
+`"sign"` edge attribute (`+1` strong, `−1` weak). The `sign` flows through
+`threshold_filter`/`boolean_filter` automatically (edge data is copied).
+`backbone_from_weighted` and `backbone_from_projection` forward `signed`.
 
-### 4.3 SDSM with edge constraints (SDSM-EC)
+### 4.3 SDSM with edge constraints (SDSM-EC) — ✅ implemented
 
 Backbone 3.0's `sdsm` switches to **SDSM-EC** (Neal & Neal 2023) when the
 incidence matrix carries structural values: `10` = prohibited edge, `11` =
-required edge. `networkx-backbone`'s `sdsm` has no constraint mechanism.
+required edge.
 
-**Proposal.** Accept optional `prohibited`/`required` masks (or the 10/11
-convention) in `sdsm`, and condition the Bipartite Configuration Model
-probabilities accordingly (fix `P=0`/`P=1` for constrained cells) before the
-Poisson-binomial test. Niche but a faithful Backbone 3.0 match; gate behind the
-new arguments so default behavior is unchanged.
+`networkx-backbone`'s `sdsm` now accepts `prohibited`/`required` as iterables of
+`(agent, artifact)` pairs and fixes those cells' null probability to 0/1 before
+the Poisson-binomial test. Defaults (`None`) leave behavior unchanged; unknown
+nodes are ignored; constraints compose with `signed` and are forwarded by
+`backbone_from_projection`.
 
-### 4.4 Narrative (`narrative`)
+### 4.4 Narrative (`narrative`) — parked
 
 Backbone 3.0 can emit suggested methods text and citations for a chosen backbone.
 
@@ -156,12 +155,12 @@ result objects.
 - **`print`/`summary`/`plot`** — this library returns NetworkX graphs and provides
   its own `visualization` module and `measures` (`compare_backbones`).
 
-## 5. Recommendation
+## 5. Status
 
-Implement in priority order: **(1) `mtc`** (highest value, lowest effort, one
-shared utility benefiting every statistical method), **(2) `signed`** backbones,
-then **(3) SDSM-EC** and **(4) narrative** as optional follow-ups. None changes
-default behavior; all are additive parameters.
+**`mtc`, `signed`, and SDSM-EC are implemented** (additive parameters; no change
+to default behavior), closing the methodological gaps versus Backbone 3.0. Only
+`narrative` (auto methods text — a utility, not an algorithm) is parked for a
+future follow-up.
 
 ## 6. References
 

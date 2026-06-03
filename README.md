@@ -2,7 +2,7 @@
 
 Backbone extraction algorithms for complex networks, built on [NetworkX](https://networkx.org/).
 
-This library provides 86 functions across 10 modules for extracting backbone
+This library provides 87 functions across 10 modules for extracting backbone
 structures from weighted, unweighted, and higher-order (hypergraph) networks.
 
 Full documentation: https://www.brianckeegan.com/networkx_backbone/
@@ -55,10 +55,12 @@ Every backbone *model* in Neal's
 [Backbone 3.0](https://doi.org/10.1371/journal.pone.0349258) R package is also
 covered (`disparity`, `mlf`, `lans`, `sdsm`, `fdsm`, `fixedfill`/`fixedrow`/`fixedcol`,
 `bicm`, `fastball`, and the `backbone_from_*` wrappers), including its
-hypergraph-projection input via `hypergraph_to_bipartite`. See
-[docs/design/backbone-3.0-coverage.md](docs/design/backbone-3.0-coverage.md) for a
-full coverage analysis and proposed gaps (signed backbones, multiple-testing
-correction, SDSM-EC).
+hypergraph-projection input via `hypergraph_to_bipartite`, plus its
+cross-cutting **features**: multiple-testing correction (`adjust_pvalues`,
+`threshold_filter(mtc=...)`), **signed** backbones (`signed=True` adds a `sign`
+edge attribute), and **SDSM-EC** edge constraints (`sdsm(prohibited=, required=)`).
+See [docs/design/backbone-3.0-coverage.md](docs/design/backbone-3.0-coverage.md)
+for the full coverage analysis.
 
 ## Quick Start
 
@@ -78,6 +80,19 @@ backbone = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
 # Compare backbone to original
 print(f"Edges kept: {nb.edge_fraction(G, backbone):.1%}")
 print(f"Nodes kept: {nb.node_fraction(G, backbone):.1%}")
+```
+
+### Significance options: multiple-testing correction and signed backbones
+
+```python
+# Correct p-values for the number of edges tested (Bonferroni, Holm, BH/FDR, BY)
+backbone = nb.threshold_filter(scored, "disparity_pvalue", 0.05, mtc="bh")
+
+# Signed backbone: keep significantly strong (+1) and significantly weak (-1)
+# edges under a two-tailed test; read direction from the "sign" attribute
+signed = nb.disparity_filter(G, signed=True)
+strong = nb.threshold_filter(signed, "disparity_pvalue", 0.05, mtc="holm")
+positives = [(u, v) for u, v, d in strong.edges(data=True) if d["sign"] == 1]
 ```
 
 ### Disparity filter visualization

@@ -39,8 +39,8 @@ an aggregate summary in :doc:`../user_guide/complexity`.
      - 3
      - Sparsification for unweighted graphs (LSpar, local degree)
    * - :doc:`filters`
-     - 5
-     - Post-hoc filtering utilities and graph-conversion support
+     - 6
+     - Post-hoc filtering utilities, multiple-testing correction, and graph-conversion support
    * - :doc:`measures`
      - 7
      - Evaluation measures for comparing backbones

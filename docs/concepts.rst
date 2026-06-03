@@ -15,7 +15,7 @@ is a sparser graph that preserves the essential structure of the original.
 Taxonomy of methods
 -------------------
 
-The 86 functions in ``networkx-backbone`` are organized into ten modules based
+The 87 functions in ``networkx-backbone`` are organized into ten modules based
 on the approach they take. The method taxonomy aligns with the categories used
 in ``netbone`` (Yassin et al., 2023; https://gitlab.liris.cnrs.fr/coregraphie/netbone),
 extended with a hypergraph module for higher-order networks.
@@ -33,6 +33,14 @@ These methods produce a p-value or z-score for each edge.
 - :func:`~networkx_backbone.ecm_filter` -- maximum-entropy null model (Gemmetto et al., 2017)
 - :func:`~networkx_backbone.lans_filter` -- nonparametric empirical CDF (Foti et al., 2011)
 - :func:`~networkx_backbone.multiple_linkage_analysis` -- local linkage significance (Van Nuffel et al., 2010; Yassin et al., 2023)
+
+P-values can be corrected for multiple comparisons with
+:func:`~networkx_backbone.adjust_pvalues` or the ``mtc`` argument of
+:func:`~networkx_backbone.threshold_filter` (Bonferroni, Holm, Hochberg,
+Benjamini-Hochberg, Benjamini-Yekutieli).  The ``disparity_filter``,
+``marginal_likelihood_filter``, and ``lans_filter`` methods also accept
+``signed=True`` for a two-tailed test that keeps significantly strong (``+1``)
+and significantly weak (``-1``) edges, each tagged with a ``"sign"`` attribute.
 
 Structural methods
 ^^^^^^^^^^^^^^^^^^

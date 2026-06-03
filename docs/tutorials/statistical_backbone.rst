@@ -125,3 +125,39 @@ Use :func:`~networkx_backbone.compare_backbones` to compare the results::
         ef = metrics["edge_fraction"]
         nf = metrics["node_fraction"]
         print(f"{name:25s}: edges={ef:.1%}, nodes={nf:.1%}")
+
+Multiple-testing correction
+---------------------------
+
+Because a statistical backbone tests every edge, correcting for multiple
+comparisons avoids retaining edges by chance. Pass ``mtc`` to
+:func:`~networkx_backbone.threshold_filter` (or use
+:func:`~networkx_backbone.adjust_pvalues` directly). Supported corrections match
+R's ``p.adjust``: ``"bonferroni"``, ``"holm"``, ``"hochberg"``, ``"bh"``/``"fdr"``
+(Benjamini-Hochberg), and ``"by"`` (Benjamini-Yekutieli)::
+
+    scored = nb.disparity_filter(G)
+
+    raw = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
+    fdr = nb.threshold_filter(scored, "disparity_pvalue", 0.05, mtc="bh")
+    bonf = nb.threshold_filter(scored, "disparity_pvalue", 0.05, mtc="bonferroni")
+
+    print(f"raw={raw.number_of_edges()}, BH={fdr.number_of_edges()}, "
+          f"Bonferroni={bonf.number_of_edges()}")
+
+Signed backbones
+----------------
+
+By default the statistical filters run a one-tailed test that keeps only
+*significantly strong* edges. With ``signed=True``, the
+``disparity_filter``, ``marginal_likelihood_filter``, and ``lans_filter`` run a
+**two-tailed** test: the stored p-value becomes two-sided, and each edge gains a
+``"sign"`` attribute that is ``+1`` for a significantly strong edge and ``-1``
+for a significantly weak one::
+
+    signed = nb.disparity_filter(G, signed=True)
+    backbone = nb.threshold_filter(signed, "disparity_pvalue", 0.05, mtc="bh")
+
+    positive = [(u, v) for u, v, d in backbone.edges(data=True) if d["sign"] == 1]
+    negative = [(u, v) for u, v, d in backbone.edges(data=True) if d["sign"] == -1]
+    print(f"strong (+): {len(positive)}, weak (-): {len(negative)}")
