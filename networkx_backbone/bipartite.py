@@ -2275,6 +2275,11 @@ def backbone_from_weighted(
     collapse_multiedges=True,
     edge_type_attr=None,
     missing_as_zero=False,
+    *,
+    nodelist=None,
+    directed=False,
+    source="source",
+    target="target",
     **kwargs,
 ):
     """Extract a weighted-network backbone using method-name dispatch.
@@ -2283,12 +2288,16 @@ def backbone_from_weighted(
 
     Parameters
     ----------
-    G : graph
-        A weighted NetworkX graph.
+    G : graph, array-like, sparse array or DataFrame
+        A weighted NetworkX graph, a weighted adjacency matrix (NumPy array
+        or SciPy sparse array or matrix), or a pandas edge-list
+        ``DataFrame``; non-graph input is converted with
+        :func:`~networkx_backbone.to_graph`.
     method : {"disparity", "mlf", "lans", "global"}, optional
         Backbone method (aliases such as ``"disparity_filter"`` accepted).
     weight : string, optional (default="weight")
-        Edge weight attribute.
+        Edge weight attribute (and the edge-list column or attribute that
+        holds the matrix entries for non-graph *G*).
     alpha : float, optional (default=0.05)
         Significance level for the statistical methods.
     signed : bool, optional (default=False)
@@ -2321,6 +2330,13 @@ def backbone_from_weighted(
         :func:`~networkx_backbone.marginal_likelihood_filter` and
         :func:`~networkx_backbone.lans_filter` for how each model scores
         them.  Not supported for ``method="global"``.
+    nodelist : sequence or None, optional (default=None)
+        Node labels for the rows and columns of an adjacency matrix *G*.
+    directed : bool, optional (default=False)
+        Read an adjacency matrix or edge list *G* as a directed graph; if
+        ``False`` an adjacency matrix must be symmetric.
+    source, target : str, optional (default="source", "target")
+        Columns of an edge-list *G* holding the endpoints of each edge.
     **kwargs
         ``threshold=...`` for ``method="global"``.
 
@@ -2332,8 +2348,9 @@ def backbone_from_weighted(
     Raises
     ------
     ValueError
-        If *method* is unknown, ``method="global"`` lacks ``threshold``, or
-        ``missing_as_zero=True`` is combined with ``method="global"``.
+        If *method* is unknown, ``method="global"`` lacks ``threshold``,
+        ``missing_as_zero=True`` is combined with ``method="global"``, or
+        a non-graph *G* is invalid (see :func:`~networkx_backbone.to_graph`).
 
     Warns
     -----
@@ -2343,7 +2360,12 @@ def backbone_from_weighted(
 
     See Also
     --------
-    backbone, backbone_from_projection, backbone_from_unweighted
+    backbone, backbone_from_projection, backbone_from_unweighted, to_graph
+
+    Notes
+    -----
+    *nodelist*, *directed*, *source* and *target* only apply to non-graph
+    input; a NetworkX graph is used as given.
 
     Examples
     --------
@@ -2352,6 +2374,14 @@ def backbone_from_weighted(
     >>> G = nx.les_miserables_graph()
     >>> H = backbone_from_weighted(G, method="disparity", alpha=0.05)
     >>> H.number_of_edges() <= G.number_of_edges()
+    True
+
+    A SciPy sparse adjacency matrix gives the same backbone:
+
+    >>> nodes = list(G)
+    >>> A = nx.to_scipy_sparse_array(G, nodelist=nodes)
+    >>> H2 = backbone_from_weighted(A, method="disparity", nodelist=nodes)
+    >>> dict(H2.edges) == dict(H.edges)
     True
 
     With ``missing_as_zero=True`` and ``signed=True``, pairs of strong nodes
@@ -2363,6 +2393,7 @@ def backbone_from_weighted(
     >>> sorted((u, v, d["sign"]) for u, v, d in S.edges(data=True) if d["weight"] == 0)
     [('a', 'd', -1), ('b', 'c', -1), ('b', 'd', -1)]
     """
+    from networkx_backbone.convert import to_graph
     from networkx_backbone.filters import (
         boolean_filter,
         multigraph_to_weighted,
@@ -2375,6 +2406,14 @@ def backbone_from_weighted(
     )
     from networkx_backbone.structural import global_threshold_filter
 
+    G = to_graph(
+        G,
+        nodelist=nodelist,
+        directed=directed,
+        source=source,
+        target=target,
+        weight=weight,
+    )
     if collapse_multiedges and G.is_multigraph():
         G = multigraph_to_weighted(G, weight=weight, edge_type_attr=edge_type_attr)
 
@@ -2417,15 +2456,34 @@ def backbone_from_weighted(
     )
 
 
-def backbone_from_unweighted(G, method="sparsify", **kwargs):
+def backbone_from_unweighted(
+    G,
+    method="sparsify",
+    *,
+    nodelist=None,
+    directed=False,
+    source="source",
+    target="target",
+    **kwargs,
+):
     """Extract an unweighted-network backbone using method-name dispatch.
 
     Parameters
     ----------
-    G : graph
-        An unweighted NetworkX graph.
+    G : graph, array-like, sparse array or DataFrame
+        An unweighted NetworkX graph, an adjacency matrix (NumPy array or
+        SciPy sparse array or matrix; every nonzero entry is an edge), or a
+        pandas edge-list ``DataFrame``; non-graph input is converted with
+        :func:`~networkx_backbone.to_graph`, without edge weights.
     method : {"sparsify", "lspar", "local_degree"}, optional
         Sparsification method (default ``"sparsify"``).
+    nodelist : sequence or None, optional (default=None)
+        Node labels for the rows and columns of an adjacency matrix *G*.
+    directed : bool, optional (default=False)
+        Read an adjacency matrix or edge list *G* as a directed graph; if
+        ``False`` an adjacency matrix must be symmetric.
+    source, target : str, optional (default="source", "target")
+        Columns of an edge-list *G* holding the endpoints of each edge.
     **kwargs
         Passed to the selected method (e.g. ``s`` for ``"lspar"``).
 
@@ -2437,11 +2495,17 @@ def backbone_from_unweighted(G, method="sparsify", **kwargs):
     Raises
     ------
     ValueError
-        If *method* is unknown.
+        If *method* is unknown or a non-graph *G* is invalid (see
+        :func:`~networkx_backbone.to_graph`).
 
     See Also
     --------
-    backbone, backbone_from_weighted
+    backbone, backbone_from_weighted, to_graph
+
+    Notes
+    -----
+    *nodelist*, *directed*, *source* and *target* only apply to non-graph
+    input; a NetworkX graph is used as given.
 
     Examples
     --------
@@ -2451,10 +2515,26 @@ def backbone_from_unweighted(G, method="sparsify", **kwargs):
     >>> H = backbone_from_unweighted(G, method="lspar", s=0.5)
     >>> H.number_of_nodes() == G.number_of_nodes()
     True
+
+    The same backbone from a NumPy adjacency matrix:
+
+    >>> A = nx.to_numpy_array(G, weight=None)
+    >>> H2 = backbone_from_unweighted(A, method="lspar", s=0.5, nodelist=list(G))
+    >>> sorted(H2.edges()) == sorted(H.edges())
+    True
     """
+    from networkx_backbone.convert import to_graph
     from networkx_backbone.filters import boolean_filter
     from networkx_backbone.unweighted import local_degree, lspar, sparsify
 
+    G = to_graph(
+        G,
+        nodelist=nodelist,
+        directed=directed,
+        source=source,
+        target=target,
+        weight=None,
+    )
     method_l = method.lower()
     if method_l == "sparsify":
         scored = sparsify(G, **kwargs)
@@ -2476,19 +2556,28 @@ def backbone(G, method=None, **kwargs):
 
     Parameters
     ----------
-    G : graph or array-like
-        A NetworkX graph, or an agents x artifacts incidence matrix (passed
-        to :func:`backbone_from_projection`).
+    G : graph, array-like, sparse array or DataFrame
+        A NetworkX graph; a matrix (NumPy array, SciPy sparse array or
+        matrix, or pandas ``DataFrame``); or a pandas edge-list
+        ``DataFrame``.  A matrix is read as an agents x artifacts incidence
+        matrix for the projection methods (and when *method* is ``None``),
+        and as an adjacency matrix for the weighted and unweighted methods.
+        A ``DataFrame`` with the *source* and *target* columns (default
+        ``"source"`` and ``"target"``) is an edge list.  Non-graph input to
+        the weighted and unweighted methods is converted with
+        :func:`~networkx_backbone.to_graph`.
     method : string or None, optional (default=None)
         Any method name accepted by :func:`backbone_from_projection`,
         :func:`backbone_from_weighted` or :func:`backbone_from_unweighted`.
         If ``None``, the method family is chosen from *G*: incidence
         matrices and undirected simple graphs with ``bipartite`` node
-        attributes use the SDSM projection backbone, graphs with ``weight`` edge attributes use the disparity
-        filter, and other graphs use ``sparsify``.
+        attributes use the SDSM projection backbone, graphs (and edge
+        lists) with *weight* edge attributes (default ``"weight"``) use the
+        disparity filter, and other graphs use ``sparsify``.
     **kwargs
         Passed to the selected wrapper (e.g. ``alpha``, ``agent_nodes``,
-        ``mtc``, ``signed``).
+        ``mtc``, ``signed``, or the conversion options ``nodelist``,
+        ``directed``, ``source`` and ``target``).
 
     Returns
     -------
@@ -2498,11 +2587,12 @@ def backbone(G, method=None, **kwargs):
     Raises
     ------
     ValueError
-        If *method* is not recognised.
+        If *method* is not recognised, or non-graph *G* is invalid.
 
     See Also
     --------
-    backbone_from_projection, backbone_from_weighted, backbone_from_unweighted
+    backbone_from_projection, backbone_from_weighted, backbone_from_unweighted,
+    to_graph
 
     Examples
     --------
@@ -2512,10 +2602,33 @@ def backbone(G, method=None, **kwargs):
     >>> H = backbone(B, alpha=0.05)  # bipartite attributes -> SDSM
     >>> all(d["sdsm_pvalue"] < 0.05 for _, _, d in H.edges(data=True))
     True
+
+    Naming a weighted method reads a matrix as a weighted adjacency matrix:
+
+    >>> G = nx.les_miserables_graph()
+    >>> A = nx.to_scipy_sparse_array(G, nodelist=list(G))
+    >>> H = backbone(A, method="disparity", nodelist=list(G))
+    >>> dict(H.edges) == dict(backbone(G, method="disparity").edges)
+    True
     """
+    from networkx_backbone.convert import _is_dataframe, to_graph
+
     method_l = method.lower() if isinstance(method, str) else None
+    weight = kwargs.get("weight", "weight")
+    if method_l is None and _is_dataframe(G):
+        source = kwargs.get("source", "source")
+        target = kwargs.get("target", "target")
+        if source in G.columns and target in G.columns:
+            # An edge list: convert it, then choose the method from the graph.
+            G = to_graph(
+                G,
+                directed=kwargs.pop("directed", False),
+                source=kwargs.pop("source", "source"),
+                target=kwargs.pop("target", "target"),
+                weight=weight,
+            )
     if not isinstance(G, nx.Graph) and method_l is None:
-        # An incidence matrix can only mean a bipartite projection.
+        # Any other matrix is an incidence matrix for a bipartite projection.
         return backbone_from_projection(G, **kwargs)
 
     projection_methods = {"sdsm", "fdsm", "fixedfill", "fixedrow", "fixedcol"}
@@ -2551,7 +2664,7 @@ def backbone(G, method=None, **kwargs):
     ):
         return backbone_from_projection(G, **kwargs)
 
-    weighted = any("weight" in data for _, _, data in G.edges(data=True))
+    weighted = any(weight in data for _, _, data in G.edges(data=True))
     if weighted:
         return backbone_from_weighted(G, **kwargs)
     return backbone_from_unweighted(G, **kwargs)

@@ -199,6 +199,46 @@ graph-preparation support utilities.
         b2 = nb.boolean_filter(nb.metric_backbone(G), "metric_keep")
         consensus = nb.consensus_backbone(b1, b2)
 
+Matrices and edge lists
+-----------------------
+
+Networks held as a NumPy or SciPy sparse adjacency matrix, or as a pandas
+edge-list ``DataFrame``, can be passed straight to
+:func:`~networkx_backbone.backbone`,
+:func:`~networkx_backbone.backbone_from_weighted` and
+:func:`~networkx_backbone.backbone_from_unweighted`. They are converted with
+:func:`~networkx_backbone.to_graph`, which uses NetworkX's own converters and
+takes ``nodelist`` (matrix row and column labels), ``directed``, and
+``source`` / ``target`` / ``weight`` (edge-list column names). An undirected
+graph must come from a symmetric matrix, and an edge list must not repeat a
+node pair. :func:`~networkx.convert_matrix.to_pandas_edgelist` turns the
+backbone back into a tidy ``DataFrame`` with one column per weight and
+score::
+
+    import networkx as nx
+    import pandas as pd
+    import networkx_backbone as nb
+
+    edges = pd.DataFrame(
+        {"from": ["a", "a", "b", "c"], "to": ["b", "c", "c", "d"],
+         "trips": [12, 1, 7, 3]}
+    )
+    backbone = nb.backbone_from_weighted(
+        edges, source="from", target="to", weight="trips", alpha=0.3
+    )
+    nx.to_pandas_edgelist(backbone, source="from", target="to")
+
+The individual scorers such as :func:`~networkx_backbone.disparity_filter`
+keep graph-only signatures, as NetworkX functions do: convert once with
+:func:`~networkx_backbone.to_graph` and pass the graph to as many scorers and
+filters as you like. Bipartite functions are the exception; they take an
+agents x artifacts incidence matrix directly (see :doc:`../api/bipartite`).
+
+When no ``method`` is given, :func:`~networkx_backbone.backbone` treats a
+``DataFrame`` with the ``source`` and ``target`` columns as an edge list and
+any other matrix as a bipartite incidence matrix. Name a weighted or
+unweighted method to read a matrix as an adjacency matrix.
+
 Visual comparison
 -----------------
 

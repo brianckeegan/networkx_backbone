@@ -23,7 +23,8 @@ own *References* sections).  The coverage policy is:
   building blocks (``bicm``, ``fastball``), hypergraph helpers that are not
   backbones, and result classes.
 - The helper modules ``filters``, ``measures``, ``hypergraph_io``,
-  ``visualization`` and ``describe`` are not methods and are skipped.
+  ``visualization``, ``describe`` and ``convert`` are not methods and are
+  skipped.
 
 The test suite checks that every public name falls in one of these groups, so
 a new method cannot be added without a registry entry.
@@ -43,7 +44,7 @@ REPOSITORY = "https://github.com/brianckeegan/networkx_backbone"
 
 #: Modules whose public functions are helpers rather than backbone methods.
 HELPER_MODULES = frozenset(
-    {"filters", "measures", "hypergraph_io", "visualization", "describe"}
+    {"filters", "measures", "hypergraph_io", "visualization", "describe", "convert"}
 )
 
 
