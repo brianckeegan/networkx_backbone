@@ -4,6 +4,11 @@ Evaluating Backbones
 The :mod:`~networkx_backbone.measures` module provides metrics for evaluating
 how well a backbone preserves the properties of the original network.
 
+For an end-to-end walk-through -- multiple-testing correction, comparing
+methods with these measures, consensus across methods, signed backbones and
+generating methods text with :func:`~networkx_backbone.describe_backbone` --
+see the :doc:`../tutorials/validating_backbones` tutorial.
+
 Basic fraction metrics
 ----------------------
 
@@ -84,3 +89,19 @@ You can also pass custom measures as callables::
         backbones,
         measures=[nb.edge_fraction, nb.reachability, nb.ks_degree],
     )
+
+Reporting a backbone
+--------------------
+
+:func:`~networkx_backbone.describe_backbone` turns the method, significance
+level, correction and the original and backbone graphs into a methods
+paragraph with citations (the counterpart of the ``narrative`` option of
+Backbone 3.0)::
+
+    scored = nb.disparity_filter(G)
+    bb = nb.threshold_filter(scored, "disparity_pvalue", 0.05, mtc="holm")
+    print(nb.describe_backbone("disparity_filter", alpha=0.05, mtc="holm",
+                               original=G, backbone=bb))
+
+Pass ``style="markdown"`` for Markdown or ``style="bibtex"`` for the BibTeX
+entries of the method, the correction and this package.

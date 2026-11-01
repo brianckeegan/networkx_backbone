@@ -1,5 +1,6 @@
 """Tests for describe_backbone and its method/citation registry."""
 
+import doctest
 import inspect
 import re
 import unicodedata
@@ -341,3 +342,24 @@ def test_describe_without_optional_dependencies():
             "disparity", style="bibtex")
         """
     )
+
+
+# ---------------------------------------------------------------------------
+# Tutorial
+# ---------------------------------------------------------------------------
+
+
+def test_validating_backbones_tutorial_runs():
+    # Every code block of the tutorial, with its printed output, must hold.
+    path = ROOT / "docs" / "tutorials" / "validating_backbones.rst"
+    if not path.exists():
+        pytest.skip("docs not available")
+    pytest.importorskip("scipy")
+    result = doctest.testfile(
+        str(path),
+        module_relative=False,
+        optionflags=doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE,
+        encoding="utf-8",
+    )
+    assert result.attempted > 0
+    assert result.failed == 0
