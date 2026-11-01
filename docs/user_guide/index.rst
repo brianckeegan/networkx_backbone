@@ -9,6 +9,7 @@ These guides explain how to use ``networkx-backbone`` effectively.
    workflow
    choosing_method
    directed_graphs
+   temporal
    evaluation
    complexity
    backends

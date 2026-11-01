@@ -18,6 +18,8 @@ networks, organized into the following submodules:
 - **visualization**: Graph-comparison plotting helpers
 - **describe**: Methods-section text and citations for a backbone
 - **convert**: NumPy/SciPy adjacency matrices and pandas edge lists to graphs
+- **temporal**: Temporal networks as snapshots, events or spans, conversions
+  between the three forms, and pandas event tables
 """
 
 from networkx_backbone.bipartite import *
@@ -31,6 +33,7 @@ from networkx_backbone.measures import *
 from networkx_backbone.proximity import *
 from networkx_backbone.statistical import *
 from networkx_backbone.structural import *
+from networkx_backbone.temporal import *
 from networkx_backbone.unweighted import *
 from networkx_backbone.visualization import *
 
@@ -149,4 +152,15 @@ __all__ = [
     "describe_backbone",
     # Conversion
     "to_graph",
+    # Temporal networks
+    "temporal_form",
+    "convert_temporal",
+    "snapshots_from_events",
+    "snapshots_from_spans",
+    "events_from_snapshots",
+    "spans_from_snapshots",
+    "events_from_spans",
+    "spans_from_events",
+    "from_event_table",
+    "to_event_table",
 ]

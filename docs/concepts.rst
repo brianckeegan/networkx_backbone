@@ -170,6 +170,20 @@ filtering, and optional connectivity restoration:
 - :func:`~networkx_backbone.lspar` -- Local Sparsification (Satuluri et al., 2011)
 - :func:`~networkx_backbone.local_degree` -- Degree-based (Hamann et al., 2016)
 
+Temporal networks
+^^^^^^^^^^^^^^^^^
+
+The :mod:`~networkx_backbone.temporal` module takes a network observed over
+time in any of three forms: **snapshots** (a dict or list of graphs),
+**events** (a multigraph with one timed edge per event), or **spans** (a
+multigraph whose edges last from ``start`` to ``end``, read as the half-open
+interval ``[start, end)``). :func:`~networkx_backbone.temporal_form` tells them
+apart and :func:`~networkx_backbone.convert_temporal` converts between them.
+Events and spans become snapshots by binning time into steps of width
+``freq``. Converting snapshots to events or spans and back is lossless. See
+:doc:`user_guide/temporal` for worked examples. Temporal backbone methods
+will build on these forms (see the :doc:`roadmap`).
+
 The score-then-filter pattern
 -----------------------------
 

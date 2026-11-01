@@ -140,6 +140,27 @@ the :doc:`roadmap` and in GitHub issues.
     ``write_hif`` now always writes both.
 - ``multigraph_to_weighted(aggregate=...)``, which can sum, average, or take
   the max/min of parallel-edge weights.
+- New module ``networkx_backbone.temporal`` (first part of #67): temporal
+  networks as snapshots (a dict or list of graphs), events (a multigraph
+  with a ``time`` per edge), or spans (``start``/``end``, read as the
+  half-open interval ``[start, end)``). :func:`~networkx_backbone.temporal_form`
+  detects the form; :func:`~networkx_backbone.snapshots_from_events`,
+  :func:`~networkx_backbone.snapshots_from_spans`,
+  :func:`~networkx_backbone.events_from_snapshots`,
+  :func:`~networkx_backbone.spans_from_snapshots`,
+  :func:`~networkx_backbone.events_from_spans`,
+  :func:`~networkx_backbone.spans_from_events` and
+  :func:`~networkx_backbone.convert_temporal` convert between them, binning
+  with ``freq=``/``origin=`` and combining weights with
+  ``multigraph_to_weighted(aggregate=...)``. Snapshots to events or spans and
+  back is lossless (empty snapshots, isolated nodes, and node, edge and graph
+  attributes are kept in ``M.graph["temporal"]``). Numeric times and
+  ``datetime`` times with ``timedelta`` steps need only NetworkX; frequency
+  strings such as ``"1D"`` import pandas lazily. See
+  :doc:`user_guide/temporal`.
+- :func:`~networkx_backbone.from_event_table` and
+  :func:`~networkx_backbone.to_event_table` read and write pandas event (or
+  span) tables, keeping duplicate rows as separate events (#70, pandas part).
 
 *Reporting and documentation*
 
