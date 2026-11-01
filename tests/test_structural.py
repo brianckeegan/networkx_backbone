@@ -68,6 +68,14 @@ def test_custom_weight_name():
     assert all(keep for *_, keep in H.edges(data="metric_keep"))
 
 
+def _reversed_rebuild(G):
+    """The same graph built in reverse node and edge order, edges flipped."""
+    R = G.__class__()
+    R.add_nodes_from(reversed(list(G.nodes(data=True))))
+    R.add_edges_from((v, u, d) for u, v, d in reversed(list(G.edges(data=True))))
+    return R
+
+
 class TestStrongestNTiesAndPrimaryLinkage:
     @pytest.fixture
     def digraph(self):
@@ -96,6 +104,110 @@ class TestStrongestNTiesAndPrimaryLinkage:
         H = strongest_n_ties(digraph, n=2)
         kept = {(u, v) for u, v, k in H.edges(data="strongest_n_ties_keep") if k}
         assert kept == {("a", "b"), ("a", "c"), ("b", "c"), ("b", "a"), ("c", "a")}
+
+    @pytest.fixture
+    def tied_hub(self):
+        # Hub "h" has one heaviest edge and three edges tied for second
+        # place; "e" has two edges tied for first place.
+        G = nx.Graph()
+        G.add_weighted_edges_from(
+            [
+                ("h", "a", 5),
+                ("h", "b", 3),
+                ("h", "c", 3),
+                ("h", "d", 3),
+                ("h", "e", 1),
+                ("a", "b", 2),
+                ("d", "e", 1),
+            ]
+        )
+        return G
+
+    def test_strongest_n_ties_keeps_ties_together(self, tied_hub):
+        H = strongest_n_ties(tied_hub, n=1)
+        assert _kept(H, "strongest_n_ties_keep") == {
+            frozenset(e) for e in [("h", "a"), ("h", "b"), ("h", "c"), ("h", "d")]
+        } | {frozenset(("h", "e")), frozenset(("d", "e"))}  # e's two tied edges
+        assert H["a"]["b"]["strongest_n_ties_keep"] is False
+        # With n=2 "h" keeps all three edges tied for second place; every
+        # other node has at most two edges, so every edge is kept.
+        H = strongest_n_ties(tied_hub, n=2)
+        assert all(keep for *_, keep in H.edges(data="strongest_n_ties_keep"))
+
+    def test_strongest_n_ties_directed_ties(self):
+        D = nx.DiGraph()
+        D.add_weighted_edges_from(
+            [("h", v, w) for v, w in zip("abcde", (5, 3, 3, 3, 1))]
+            + [("x", "h", 10), ("x", "a", 10), ("x", "b", 1)]
+        )
+        H = strongest_n_ties(D, n=2)
+        kept = {(u, v) for u, v, k in H.edges(data="strongest_n_ties_keep") if k}
+        # Only successors count: "h" keeps 5 and the three 3s, not the 1;
+        # the heavy in-edge from "x" does not change h's selection.
+        assert kept == {
+            ("h", "a"),
+            ("h", "b"),
+            ("h", "c"),
+            ("h", "d"),
+            ("x", "h"),
+            ("x", "a"),
+        }
+
+    def test_strongest_n_ties_mixed_type_labels(self):
+        G = nx.Graph()
+        G.add_weighted_edges_from(
+            [(1, "1", 2), (1, (2, 3), 2), (1, 2.5, 1), ("1", 2.5, 1), ((2, 3), 2.5, 1)]
+        )
+        # Node 1 has two weight-2 edges tied, to labels of different types,
+        # and 2.5 has three weight-1 edges tied, so each keeps all of them;
+        # no tie is broken, so the labels are never compared.
+        expected = {
+            frozenset(e)
+            for e in [(1, "1"), (1, (2, 3)), (1, 2.5), ("1", 2.5), ((2, 3), 2.5)]
+        }
+        for H in (G, G.copy(), _reversed_rebuild(G)):
+            assert _kept(strongest_n_ties(H, n=1), "strongest_n_ties_keep") == expected
+        # The weakest edge of both endpoints, so neither selects it.
+        G.add_edge("1", (2, 3), weight=0.5)
+        for H in (G, G.copy(), _reversed_rebuild(G)):
+            assert _kept(strongest_n_ties(H, n=1), "strongest_n_ties_keep") == expected
+
+    def test_strongest_n_ties_unweighted_keeps_every_edge(self, karate):
+        U = nx.Graph(karate.edges())
+        H = strongest_n_ties(U, n=1)
+        assert all(keep for *_, keep in H.edges(data="strongest_n_ties_keep"))
+
+    @pytest.mark.parametrize(("n", "expected"), [(1, 108), (2, 146), (3, 165)])
+    def test_strongest_n_ties_order_invariant(
+        self, les_miserables_weighted, n, expected
+    ):
+        G = les_miserables_weighted
+        kept = [
+            _kept(strongest_n_ties(H, n=n), "strongest_n_ties_keep")
+            for H in (G, G.copy(), _reversed_rebuild(G))
+        ]
+        assert kept[0] == kept[1] == kept[2]
+        assert len(kept[0]) == expected
+
+    def test_strongest_n_ties_matches_definition(self):
+        rng = random.Random(7)
+        for _ in range(20):
+            G = nx.gnm_random_graph(15, 40, seed=rng.randrange(10**6))
+            for u, v in G.edges():
+                G[u][v]["weight"] = rng.randint(1, 3)
+            n = rng.randint(1, 4)
+            expected = set()
+            for u in G:
+                ws = sorted((d["weight"] for d in G[u].values()), reverse=True)
+                if ws:
+                    cutoff = ws[min(n, len(ws)) - 1]
+                    expected |= {
+                        frozenset((u, v))
+                        for v, d in G[u].items()
+                        if d["weight"] >= cutoff
+                    }
+            H = strongest_n_ties(G, n=n)
+            assert _kept(H, "strongest_n_ties_keep") == expected
 
     def test_primary_linkage_directed(self, digraph):
         H = primary_linkage_analysis(digraph)
@@ -131,6 +243,33 @@ class TestGlobalAndBetweenness:
             frozenset((0, 1)),
             frozenset((2, 3)),
             frozenset((0, 3)),
+        }
+
+    @pytest.mark.parametrize("flip", [False, True])
+    def test_global_sparsification_ties_ignore_edge_orientation(self, flip):
+        # Two edges tie at the cutoff.  Ties go to the larger string form of
+        # the sorted endpoints, ("d", "a") > ("c", "b"), however each edge
+        # happens to be stored.
+        G = nx.Graph()
+        edges = [("x", "y", 5), ("a", "d", 1), ("b", "c", 1)]
+        G.add_weighted_edges_from((v, u, w) if flip else (u, v, w) for u, v, w in edges)
+        H = global_sparsification(G, s=0.5)  # ceil(0.5 * 3) = 2
+        assert _kept(H, "global_sparsification_keep") == {
+            frozenset(("x", "y")),
+            frozenset(("a", "d")),
+        }
+
+    @pytest.mark.parametrize("flip", [False, True])
+    def test_edge_betweenness_ties_ignore_edge_orientation(self, flip):
+        # Every edge of a 4-cycle has the same betweenness.  Sorted endpoint
+        # strings rank ("d", "c") > ("d", "a") > ("c", "b") > ("b", "a").
+        G = nx.Graph()
+        edges = [("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")]
+        G.add_edges_from((v, u) if flip else (u, v) for u, v in edges)
+        H = edge_betweenness_filter(G, s=0.5)
+        assert _kept(H, "edge_betweenness_keep") == {
+            frozenset(("c", "d")),
+            frozenset(("a", "d")),
         }
 
     def test_edge_betweenness_uses_inverse_weight_distance(self):
