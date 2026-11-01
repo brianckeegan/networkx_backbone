@@ -236,6 +236,18 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   order.
 - Functions that used a hardcoded ``seed=42`` now default to ``seed=None``,
   following NetworkX. Pass a seed for reproducible results.
+- The graph-in, graph-out functions (statistical, structural, proximity,
+  hybrid, and unweighted methods, ``multigraph_to_weighted``, and the
+  threshold, fraction, and boolean filters) are dispatchable through
+  ``nx._dispatchable``: they accept ``backend=`` and follow
+  ``nx.config.backend_priority``, under dispatch names prefixed with
+  ``backbone_`` so they cannot clash with NetworkX's own (two would have:
+  ``adamic_adar_index`` and ``resource_allocation_index``). A new
+  :doc:`user_guide/backends` guide shows how to use backends and records
+  nx-parallel timings for the shortest-path methods. Bipartite, hypergraph,
+  measure, and conversion functions are not dispatchable, since they take
+  matrices or hyperedge lists or return numbers. The ``RuntimeWarning`` of
+  ``ecm_filter`` and ``polya_filter`` now points at the caller's line (#19).
 
 **Performance**
 
@@ -299,6 +311,10 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   doctests on Python 3.12-3.14, a job pinned to the oldest supported
   versions, and a NetworkX-only job that checks the optional dependencies
   stay optional. Test coverage is 97%.
+- A CI job (and a step in the oldest-versions job) runs the tests and
+  doctests under NetworkX's dispatch test harness,
+  ``NETWORKX_TEST_BACKEND=nx_loopback``, which checks that every dispatchable
+  call gives the same result through a backend as without one (#19).
 - An "Interop" workflow (pull requests, weekly, and on demand) installs
   ``.[interop,test]`` and runs ``pytest -m interop``: round trips of
   hyperedges, weights, and node labels through the real xgi, HyperNetX,
