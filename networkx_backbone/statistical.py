@@ -21,6 +21,8 @@ multiple_linkage_analysis
     Van Nuffel (2007) -- dominant links by fitting ideal distributions.
 polya_filter
     Marcaccioli & Livan (2019) -- Polya urn (beta-binomial) null model.
+gloss_filter
+    Radicchi et al. (2011) -- global null with the empirical weight distribution.
 """
 
 import math
@@ -39,6 +41,7 @@ __all__ = [
     "lans_filter",
     "multiple_linkage_analysis",
     "polya_filter",
+    "gloss_filter",
     # Short alias names
     "disparity",
     "mlf",
@@ -1922,6 +1925,266 @@ def _polya_ml_estimate(rows):
     return float(math.exp(res.x))
 
 
+# =====================================================================
+# 8. GloSS filter -- Radicchi, Ramasco & Fortunato (2011)
+# =====================================================================
+
+
+@not_implemented_for("multigraph")
+def gloss_filter(G, weight="weight", resolution=None):
+    r"""Compute Global Statistical Significance (GloSS) p-values for each edge.
+
+    The GloSS filter [1]_ tests every edge weight against a *global* null
+    model: the topology of *G* is kept as it is and every edge draws its
+    weight independently from :math:`P_{obs}(w)`, the empirical
+    distribution of all the edge weights of *G*.  The test of edge
+    :math:`(i, j)` conditions on the degrees :math:`k_i, k_j` and strengths
+    :math:`s_i, s_j` of its endpoints.  The weights of the other
+    :math:`k_i - 1` edges of *i* must add up to :math:`s_i - w`, and those of
+    *j* to :math:`s_j - w`, so the weight of :math:`(i, j)` has the
+    posterior (Eqs. 1-2 of [1]_)
+
+    .. math::
+
+        P(w \mid s_i, k_i, s_j, k_j) \propto
+        P_{obs}(w)\, F(s_i - w, k_i - 1)\, F(s_j - w, k_j - 1),
+
+    where :math:`F(s, k)` is the probability that *k* independent draws from
+    :math:`P_{obs}` sum to *s*, the *k*-fold convolution of
+    :math:`P_{obs}` (Eq. 3; :math:`F(s, 0)` is 1 at :math:`s = 0` and 0
+    elsewhere).  The p-value is the posterior probability of a weight at
+    least as large as the observed one (Eq. 4):
+
+    .. math::
+
+        \alpha_{ij} = \frac{\sum_{w \geq w_{ij}} P_{obs}(w)\,
+                            F(s_i - w, k_i - 1)\, F(s_j - w, k_j - 1)}
+                           {\sum_{w} P_{obs}(w)\,
+                            F(s_i - w, k_i - 1)\, F(s_j - w, k_j - 1)}.
+
+    For a directed edge :math:`i \to j` the source's out-degree and
+    out-strength replace :math:`k_i, s_i`, and the target's in-degree and
+    in-strength replace :math:`k_j, s_j`, as in [1]_.  The p-values are
+    computed from these formulas; nothing is simulated.
+
+    Parameters
+    ----------
+    G : networkx.Graph or networkx.DiGraph
+        A NetworkX graph.
+    weight : string, optional (default="weight")
+        Edge attribute key for weights.  All weights must be positive.
+    resolution : float or None, optional (default=None)
+        Spacing of the lattice on which the weights are placed to compute
+        the convolutions.  If ``None``, integer weights use the largest
+        spacing that represents them exactly (the greatest common divisor of
+        their differences from the smallest weight), and other weights use
+        the smallest gap between two distinct weights, as in Appendix A of
+        [1]_.  A coarser lattice is faster but rounds the weights more.
+
+    Returns
+    -------
+    H : graph
+        A copy of *G* (same type) with ``"gloss_pvalue"`` added as an edge
+        attribute.
+
+    Raises
+    ------
+    NetworkXError
+        If any edge has a non-positive, non-finite, or missing weight.
+    NetworkXNotImplemented
+        If *G* is a multigraph.  Collapse parallel edges first with
+        :func:`~networkx_backbone.multigraph_to_weighted`.
+    ValueError
+        If *resolution* is not a positive finite number.
+
+    See Also
+    --------
+    threshold_filter : Keep edges whose p-value is below a threshold.
+    disparity_filter : Local null model that tests each node's edges.
+
+    Notes
+    -----
+    In a simple graph the other edges of *i* and the other edges of *j* are
+    disjoint sets, so :math:`\alpha_{ij}` is exactly the probability, under
+    the null model, that edge :math:`(i, j)` gets a weight of at least
+    :math:`w_{ij}` given the strengths of its endpoints.  The tail includes
+    the observed weight, which makes it a valid p-value for discrete
+    weights.  If an endpoint has degree 1, its strength fixes the weight of
+    the edge (Sec. II A of [1]_) and the p-value is 1.  Self-loops are left
+    out of the null model (of :math:`P_{obs}`, the degrees and the
+    strengths) and get a p-value of 1.
+
+    The weights are placed on the lattice :math:`w_{min} + n\,\delta` before
+    convolving.  Every endpoint has a fixed number of free weights, so
+    shifting all weights by the same constant only shifts each
+    :math:`F(s, k)` by a known amount and leaves :math:`\alpha_{ij}`
+    unchanged; integer weights are therefore represented exactly.
+    Non-integer weights are rounded to the nearest lattice point, which
+    approximates the p-values as the binning in [1]_ does.
+
+    [1]_ evaluates the convolutions with fast Fourier transforms.  FFT
+    round-off is absolute, about :math:`10^{-16}` times the largest
+    probability, while the probabilities that matter for an endpoint whose
+    strength is far from typical can be much smaller than that.  This
+    implementation convolves directly instead, rescaling at every step and
+    recomputing in log space any probability too small for that, so every
+    term keeps full relative precision for any degree.  It takes
+    :math:`O(k_{max}^2 L^2)` time, where *L* is the number of lattice steps
+    between the smallest and the largest weight; pass a coarser
+    *resolution* to reduce *L*.
+
+    References
+    ----------
+    .. [1] Radicchi, F., Ramasco, J. J., & Fortunato, S. (2011).
+       Information filtering in complex weighted networks.
+       *Physical Review E*, 83(4), 046101.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> from networkx_backbone import gloss_filter, threshold_filter
+    >>> G = nx.les_miserables_graph()
+    >>> H = gloss_filter(G)
+    >>> backbone = threshold_filter(H, "gloss_pvalue", 0.05, mode="below")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
+
+    An edge whose endpoint has degree 1 is fully determined by that
+    endpoint's strength, so its p-value is 1:
+
+    >>> P = nx.path_graph(3)
+    >>> nx.set_edge_attributes(P, {(0, 1): 1, (1, 2): 3}, "weight")
+    >>> gloss_filter(P)[0][1]["gloss_pvalue"]
+    1.0
+    """
+    if resolution is not None and not (0 < resolution < math.inf):
+        raise ValueError(
+            f"resolution must be a positive finite number, got {resolution!r}."
+        )
+    H = G.copy()
+    _validate_weights(H, weight)
+    for _, _, data in nx.selfloop_edges(H, data=True):
+        data["gloss_pvalue"] = 1.0
+    edges = [(u, v) for u, v in H.edges() if u != v]
+    if not edges:
+        return H
+
+    import numpy as np
+
+    w = np.array([H[u][v][weight] for u, v in edges], dtype=float)
+    x = _gloss_lattice(w, resolution)
+    values, counts = np.unique(x, return_counts=True)
+    logp = np.log(counts / counts.sum())
+
+    # Each edge (u, v) is tested from a row for u and a row for v.  A row
+    # holds the degree and lattice strength of a node (undirected), or of its
+    # out-side (rows 0..n-1) or in-side (rows n..2n-1) in a directed graph.
+    index = {node: i for i, node in enumerate(H)}
+    n = len(index)
+    a = np.array([index[u] for u, _ in edges])
+    b = np.array([index[v] for _, v in edges])
+    if H.is_directed():
+        b += n
+    n_rows = 2 * n if H.is_directed() else n
+    degree = np.bincount(np.concatenate([a, b]), minlength=n_rows)
+    strength = np.zeros(n_rows, dtype=np.int64)
+    np.add.at(strength, a, x)
+    np.add.at(strength, b, x)
+
+    # log F(s_r - w, k_r - 1) for every row r and every distinct weight w.
+    log_f = _gloss_log_windows(degree - 1, strength, values, logp)
+
+    pos = np.searchsorted(values, x)
+    pvals = np.empty(len(edges))
+    chunk = max(1, 2**22 // len(values))
+    for start in range(0, len(edges), chunk):
+        sl = slice(start, start + chunk)
+        terms = logp + log_f[a[sl]] + log_f[b[sl]]
+        # tail[:, t] = log of the sum of exp(terms[:, t:]) (Eq. 4 numerator).
+        tail = np.logaddexp.accumulate(terms[:, ::-1], axis=1)[:, ::-1]
+        num = tail[np.arange(len(tail)), pos[sl]]
+        pvals[sl] = np.exp(num - tail[:, 0])
+    np.clip(pvals, 0.0, 1.0, out=pvals)
+
+    for (u, v), p in zip(edges, pvals):
+        H[u][v]["gloss_pvalue"] = float(p)
+    return H
+
+
+def _gloss_lattice(w, resolution):
+    """Integer lattice coordinates ``round((w - min(w)) / resolution)``.
+
+    With ``resolution=None``, integer weights use the gcd of their offsets
+    from the minimum (exact); other weights use the smallest gap between
+    distinct weights (Radicchi et al., 2011, Appendix A).
+    """
+    import numpy as np
+
+    offset = w - w.min()
+    if not offset.any():
+        return np.zeros(len(w), dtype=np.int64)
+    if resolution is None:
+        if np.all(w == np.floor(w)) and w.max() < 2**53:
+            ints = offset.astype(np.int64)
+            return ints // np.gcd.reduce(ints)
+        resolution = float(np.diff(np.unique(w)).min())
+    return np.floor(offset / resolution + 0.5).astype(np.int64)
+
+
+def _gloss_log_windows(free, strength, values, logp):
+    """``log F(strength[r] - values[u], free[r])`` for every row *r* and *u*.
+
+    ``F(., d)`` is the d-fold convolution of the lattice pmf ``exp(logp)``
+    supported on ``values``, kept in log space and built one convolution at a
+    time.  Each step convolves directly (no FFT, so every output has full
+    relative precision) after scaling by the maximum; outputs below
+    ``_GLOSS_TINY`` of that maximum, where underflow could have cost precision,
+    are recomputed as log-sum-exps.  Rows with ``free < 0`` stay at ``-inf``.
+    """
+    import numpy as np
+
+    out = np.full((len(free), len(values)), -np.inf)
+    active = np.flatnonzero(free >= 0)
+    if active.size == 0:
+        return out
+    order = active[np.argsort(free[active], kind="stable")]
+    d_max = int(free[order[-1]])
+    bounds = np.searchsorted(free[order], np.arange(d_max + 2))
+    pmf = np.zeros(int(values[-1]) + 1)
+    pmf[values] = np.exp(logp)
+    chunk = max(1, 2**22 // len(values))
+    log_f = np.zeros(1)  # F(., 0): all the mass at 0
+    for d in range(d_max + 1):
+        if d:
+            top = log_f.max()
+            conv = np.convolve(np.exp(log_f - top), pmf)
+            with np.errstate(divide="ignore"):
+                nxt = np.log(conv) + top
+            bad = np.flatnonzero(conv < _GLOSS_TINY)
+            for i in range(0, len(bad), chunk):
+                pos = bad[i : i + chunk]
+                terms = _gloss_lookup(log_f, pos[:, None] - values) + logp
+                nxt[pos] = np.logaddexp.reduce(terms, axis=1)
+            log_f = nxt
+        rows = order[bounds[d] : bounds[d + 1]]
+        if rows.size:
+            out[rows] = _gloss_lookup(log_f, strength[rows, None] - values)
+    return out
+
+
+# Relative size below which a directly convolved probability is recomputed in
+# log space: far above the ~1e-308 at which the scaled inputs underflow.
+_GLOSS_TINY = 1e-250
+
+
+def _gloss_lookup(log_f, idx):
+    """``log_f[idx]``, with ``-inf`` where *idx* is outside the array."""
+    import numpy as np
+
+    ok = (idx >= 0) & (idx < len(log_f))
+    return np.where(ok, log_f[np.clip(idx, 0, len(log_f) - 1)], -np.inf)
+
+
 def disparity(G, weight="weight", signed=False, missing_as_zero=False):
     """Alias for :func:`disparity_filter`."""
     return disparity_filter(
@@ -1977,6 +2240,14 @@ _COMPLEXITY = {
         "space": "O(n + m + s_max)",
         "notes": "S=sum of distinct node strengths (exact tails); "
         "a=None adds O(m) per likelihood evaluation.",
+    },
+    "gloss_filter": {
+        "time": "O(k_max^2 * L^2 + m * u)",
+        "space": "O(k_max * L + n * u + m)",
+        "notes": (
+            "k_max=max degree, L=lattice steps spanned by the weights, "
+            "u=distinct weights."
+        ),
     },
     "disparity": {
         "time": "O(n + m)",

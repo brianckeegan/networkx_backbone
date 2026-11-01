@@ -110,6 +110,18 @@ def _method_specs():
             ),
         ),
         MethodSpec(
+            "gloss_filter",
+            "statistical",
+            "les_miserables",
+            lambda c: nb.threshold_filter(
+                nb.gloss_filter(c["les_weighted"]),
+                "gloss_pvalue",
+                0.05,
+                mode="below",
+                include_all_nodes=False,
+            ),
+        ),
+        MethodSpec(
             "polya_filter",
             "statistical",
             "les_miserables",

@@ -122,6 +122,8 @@ REGISTRY = [
          bad_weights=STATISTICAL_BAD),
     Spec(nb.polya_filter, W, {"polya_pvalue": P}, directed=True,
          bad_weights=STATISTICAL_BAD),
+    Spec(nb.gloss_filter, W, {"gloss_pvalue": P}, directed=True,
+         bad_weights=STATISTICAL_BAD),
     # --- structural --------------------------------------------------------
     Spec(nb.global_threshold_filter, W, keep=("global_threshold_keep",),
          kwargs={"threshold": 2.0}, directed=True),

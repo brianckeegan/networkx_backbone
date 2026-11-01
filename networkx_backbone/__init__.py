@@ -43,6 +43,7 @@ __all__ = [
     "lans_filter",
     "multiple_linkage_analysis",
     "polya_filter",
+    "gloss_filter",
     # Statistical aliases
     "disparity",
     "mlf",

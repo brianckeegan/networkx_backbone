@@ -126,6 +126,7 @@ WEIGHTED_CASES = [
         label="multiple_linkage_analysis(method='lans', alpha=0.05)",
     ),
     _pvalue("polya_filter", "polya_pvalue"),
+    _pvalue("gloss_filter", "gloss_pvalue"),
     # Structural
     _keep(
         "global_threshold_filter",

@@ -155,9 +155,10 @@ Methods
   missing per the #29 survey, as :func:`~networkx_backbone.polya_filter`.
   Its null model is unlike any method here, and Yassin et al. (2025) found
   it best preserves the weight distribution.
-- **idea**: The GloSS filter (Radicchi et al., 2011), missing per the #29
-  survey. It is a global null with weights shuffled over the fixed topology;
-  lower priority.
+- **done** (`#43 <https://github.com/brianckeegan/networkx_backbone/issues/43>`_): The GloSS filter (Radicchi et al., 2011), missing per the #29
+  survey: :func:`~networkx_backbone.gloss_filter`, a global null with
+  weights drawn from the observed weight distribution over the fixed
+  topology.
 - **done** (`#44 <https://github.com/brianckeegan/networkx_backbone/issues/44>`_): The connectivity stage of Slater's (2009) doubly stochastic
   backbone (add edges by ``ds_weight`` until the backbone is connected), the
   variant Yassin et al. (2025) evaluate. ``doubly_stochastic_filter`` now
