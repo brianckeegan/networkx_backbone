@@ -15,5 +15,6 @@ extraction methods.
    comparing_methods
    validating_backbones
    unweighted_sparsification
+   temporal_backbones
    les_miserables_benchmark
    graph_gallery

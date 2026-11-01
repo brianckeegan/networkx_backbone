@@ -19,7 +19,8 @@ networks, organized into the following submodules:
 - **describe**: Methods-section text and citations for a backbone
 - **convert**: NumPy/SciPy adjacency matrices and pandas edge lists to graphs
 - **temporal**: Temporal networks as snapshots, events or spans, conversions
-  between the three forms, and pandas event tables
+  between the three forms, pandas event tables, and temporal backbone scores
+  (observation fraction, persistence, backbone stability, weight trend)
 """
 
 from networkx_backbone.bipartite import *
@@ -156,6 +157,7 @@ __all__ = [
     # Temporal networks
     "temporal_form",
     "convert_temporal",
+    "flatten_temporal",
     "snapshots_from_events",
     "snapshots_from_spans",
     "events_from_snapshots",
@@ -164,4 +166,8 @@ __all__ = [
     "spans_from_events",
     "from_event_table",
     "to_event_table",
+    "observation_fraction",
+    "persistence",
+    "backbone_stability",
+    "weight_trend",
 ]

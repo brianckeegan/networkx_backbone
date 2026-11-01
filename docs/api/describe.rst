@@ -29,6 +29,9 @@ building reference lists; it is not part of the top-level namespace.
 .. autodata:: EXCLUDED
    :no-value:
 
+.. autodata:: SCORE_KEYS
+   :no-value:
+
 .. autodata:: REFERENCES
    :no-value:
 

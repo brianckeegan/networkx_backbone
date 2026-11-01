@@ -415,6 +415,110 @@ def test_conversion_errors():
             func(*args, **kw)
 
 
+def test_flatten_temporal_snapshots_and_events_agree():
+    for directed in (False, True):
+        S = _rich_snapshots(directed)
+        H = nb.flatten_temporal(S)
+        assert H.is_directed() is directed
+        # Isolated nodes are kept, with each node's latest attributes.
+        assert "iso" in H and H.nodes["iso"] == {"role": "lurker"}
+        # "a" is last seen at time 50, without attributes.
+        assert H.nodes["a"] == {}
+        assert nb.flatten_temporal(S, window=(None, 40)).nodes["a"] == {"age": 2}
+        assert H.graph["day"] == 50
+        assert H.graph["temporal"] == {
+            "flattened_from": "snapshots",
+            "aggregate": "sum",
+            "window": None,
+            "first": 20,
+            "last": 50,
+        }
+        ab = H["b"]["a"] if directed else H["a"]["b"]
+        if directed:
+            assert H["a"]["b"] == {
+                "weight": 4,
+                "n_obs": 2,
+                "first": 20,
+                "last": 30,
+                "kind": "call",
+            }
+            assert ab == {"weight": 7, "n_obs": 1, "first": 50, "last": 50}
+        else:
+            # The pair's observations disagree on "kind", so it is dropped.
+            assert ab == {"weight": 11, "n_obs": 3, "first": 20, "last": 50}
+        assert H["a"]["a"]["weight"] == 1  # a missing weight counts as 1
+        # Events made from the snapshots flatten to the same edges.
+        E = nb.flatten_temporal(nb.events_from_snapshots(S))
+        assert _edges(E) == _edges(H)
+        # Every aggregate matches multigraph_to_weighted on the events.
+        for agg in ("sum", "count", "max", "min", "mean"):
+            W = nb.multigraph_to_weighted(nb.events_from_snapshots(S), aggregate=agg)
+            F = nb.flatten_temporal(S, aggregate=agg)
+            assert {k: d["weight"] for k, d in _edges(F).items()} == {
+                k: d["weight"] for k, d in _edges(W).items()
+            }
+
+
+def test_flatten_temporal_spans_window_and_errors():
+    M = nx.MultiDiGraph()
+    M.add_node("iso")
+    M.add_edges_from(
+        [
+            ("a", "b", {"start": 0, "end": 4}),
+            ("a", "b", {"start": 2, "end": 6, "weight": 3}),  # overlaps the first
+            ("a", "b", {"start": 9, "end": 9}),  # instantaneous
+            ("b", "a", {"start": 1, "end": 2}),
+        ]
+    )
+    H = nb.flatten_temporal(M, aggregate="duration")
+    # Union of [0, 4) and [2, 6) is 6 long, not 8; the instant adds 0.
+    assert H["a"]["b"] == {
+        "weight": 6,
+        "n_obs": 3,
+        "first": 0,
+        "last": 9,
+        "active_time": 6,
+    }
+    assert H["b"]["a"]["weight"] == 1 and "iso" in H
+    S = nb.flatten_temporal(M)  # default sum of weights
+    assert S["a"]["b"]["weight"] == 5 and S["a"]["b"]["active_time"] == 6
+    # A window clips spans, keeps an instant whose start is inside, and keeps
+    # only the nodes present in it.
+    W = nb.flatten_temporal(M, aggregate="duration", window=(3, 10))
+    assert W["a"]["b"] == {
+        "weight": 3,
+        "n_obs": 3,
+        "first": 3,
+        "last": 9,
+        "active_time": 3,
+    }
+    assert set(W) == {"a", "b"} and not W.has_edge("b", "a")
+    assert W.graph["temporal"]["window"] == (3, 10)
+    # Open-ended windows, on events and snapshots.
+    snaps = {t: nx.Graph([(0, 1)]) for t in range(5)}
+    assert nb.flatten_temporal(snaps, window=(2, None))[0][1]["n_obs"] == 3
+    E = nb.events_from_snapshots(snaps)
+    assert nb.flatten_temporal(E, window=(None, 2))[0][1]["n_obs"] == 2
+    assert nb.flatten_temporal(snaps, window=(7, 9)).number_of_nodes() == 0
+    # Datetime spans give timedelta durations.
+    D = nx.MultiGraph(
+        [("x", "y", {"start": datetime(2024, 1, 1), "end": datetime(2024, 1, 3)})]
+    )
+    assert nb.flatten_temporal(D, aggregate="duration")["x"]["y"]["weight"] == (
+        timedelta(days=2)
+    )
+    with pytest.raises(ValueError, match="aggregate must be one of"):
+        nb.flatten_temporal(M, aggregate="median")
+    with pytest.raises(ValueError, match="needs spans"):
+        nb.flatten_temporal(snaps, aggregate="duration")
+    with pytest.raises(ValueError, match="empty"):
+        nb.flatten_temporal(snaps, window=(3, 3))
+    with pytest.raises(TypeError, match="pair"):
+        nb.flatten_temporal(snaps, window=3)
+    with pytest.raises(nx.NetworkXError):
+        nb.flatten_temporal(nx.Graph([(0, 1)]))
+
+
 def test_numeric_and_datetime_paths_need_no_pandas():
     _run(
         """

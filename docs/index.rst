@@ -3,9 +3,11 @@ networkx-backbone
 
 **Backbone extraction algorithms for complex networks, built on NetworkX.**
 
-``networkx-backbone`` provides about 90 functions across 11 modules for
-extracting backbone structures from weighted, unweighted, bipartite, and
-higher-order (hypergraph) networks.
+``networkx-backbone`` provides about 110 functions across 14 modules for
+extracting backbone structures from weighted, unweighted, bipartite,
+temporal, and higher-order (hypergraph) networks. The public API is
+type-annotated, and the graph-in, graph-out functions dispatch to NetworkX
+backends (see :doc:`user_guide/backends`).
 Core usage follows a score-then-filter pattern: methods score edges on a full
 graph first, then filtering utilities extract the final sparse backbone.
 
@@ -46,6 +48,15 @@ graph first, then filtering utilities extract the final sparse backbone.
    * - :doc:`api/visualization`
      - Comparison plotting
      - :func:`~networkx_backbone.compare_graphs`, :func:`~networkx_backbone.graph_difference`
+   * - :doc:`api/describe`
+     - Methods text and citations
+     - :func:`~networkx_backbone.describe_backbone`
+   * - :doc:`api/convert`
+     - Array and data-frame input
+     - :func:`~networkx_backbone.to_graph`
+   * - :doc:`api/temporal`
+     - Temporal networks: snapshots, events, and spans
+     - :func:`~networkx_backbone.convert_temporal`, :func:`~networkx_backbone.flatten_temporal`, :func:`~networkx_backbone.from_event_table`
 
 .. toctree::
    :maxdepth: 2

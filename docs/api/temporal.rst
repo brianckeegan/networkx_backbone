@@ -1,22 +1,45 @@
 Temporal
 ========
 
-Temporal networks as snapshots, timestamped events, or spans, and
-conversions between the three forms. The :doc:`../user_guide/temporal` guide
-walks through every conversion with examples and a table of what each one
-keeps. The temporal backbone methods themselves are planned (see the
-:doc:`../roadmap`).
+Temporal networks as snapshots, timestamped events, or spans, conversions
+between the three forms, and temporal backbone scores. The
+:doc:`../user_guide/temporal` guide walks through every conversion with
+examples and a table of what each one keeps; the
+:doc:`../tutorials/temporal_backbones` tutorial compares the scores on
+synthetic snapshots, and :ref:`temporal-eligibility` explains how absent
+edges are counted.
 
 .. automodule:: networkx_backbone.temporal
    :no-members:
 
 .. currentmodule:: networkx_backbone
 
+.. rubric:: Temporal backbone scores
+
+Each takes any of the three forms (``freq=`` and ``origin=`` bin events and
+spans into steps) and returns one scored static graph, filtered with
+:func:`~networkx_backbone.threshold_filter` and the other filters. The scores
+are descriptive: they come without p-values. They are not dispatchable to
+NetworkX backends, because they take several graphs or a multigraph of events
+rather than one graph.
+
+.. autofunction:: observation_fraction
+
+.. autofunction:: persistence
+
+.. autofunction:: backbone_stability
+
+.. autofunction:: weight_trend
+
 .. rubric:: Forms
 
 .. autofunction:: temporal_form
 
 .. autofunction:: convert_temporal
+
+.. rubric:: Collapsing to a static graph
+
+.. autofunction:: flatten_temporal
 
 .. rubric:: Binning events and spans into snapshots
 

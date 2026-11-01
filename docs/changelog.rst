@@ -4,11 +4,17 @@ Changelog
 Unreleased (0.3.0)
 ------------------
 
-This release adds hypergraph backbones and the remaining Backbone 3.0
-features. It also fixes many correctness problems found in a full code review
-that checked every method against its paper. **Several methods now return
-different results**; see *Changes in results* below. Open work is tracked in
-the :doc:`roadmap` and in GitHub issues.
+This release adds hypergraph backbones, the remaining Backbone 3.0 features,
+the Pólya and GloSS filters, generalized null models and weight transforms,
+and a new ``temporal`` module for networks observed over time (conversions
+between snapshots, events, and spans, and collapsing them to a static
+weighted graph). The public API is now type-annotated and dispatches to
+NetworkX backends. It also fixes many correctness problems found in a full
+code review that checked every method against its paper, and checks p-values
+and backbones against R ``backbone`` 3.0.4 and netbone, which they now match
+(signed backbones included) except where the documented conventions differ.
+**Several methods now return different results**; see *Changes in results*
+below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
 
 **Supported versions (breaking)**
 
@@ -188,9 +194,45 @@ the :doc:`roadmap` and in GitHub issues.
   ``datetime`` times with ``timedelta`` steps need only NetworkX; frequency
   strings such as ``"1D"`` import pandas lazily. See
   :doc:`user_guide/temporal`.
+- :func:`~networkx_backbone.flatten_temporal` collapses snapshots, events or
+  spans into one static weighted graph for the static backbone methods: one
+  edge per node pair with the combined ``weight`` (``aggregate=`` sum, count,
+  mean, max or min, or ``"duration"`` for spans, the length of the union of a
+  pair's spans), ``n_obs``, ``first`` and ``last`` (and ``active_time`` for
+  spans), optionally restricted to a half-open ``window=(t0, t1)``.
 - :func:`~networkx_backbone.from_event_table` and
   :func:`~networkx_backbone.to_event_table` read and write pandas event (or
   span) tables, keeping duplicate rows as separate events (#70, pandas part).
+- Temporal backbone scores, descriptive (no p-values), for any of the three
+  forms (events and spans are binned with ``freq=``). Each returns one static
+  graph, the union of the observed edges with score attributes and
+  ``H.graph["temporal"]`` (method, input form, step times, ``n_steps``,
+  ``freq``, ``origin``, parameters), so ``threshold_filter`` and the other
+  filters apply. They count only an edge's *eligible* steps, those in which
+  both endpoints are present: an absent edge is an observed zero there and
+  unknown elsewhere, so a node that joins late is not penalized (#67).
+
+  - :func:`~networkx_backbone.observation_fraction`: ``obs_fraction``,
+    ``n_obs``, ``n_eligible``, ``first_obs``, ``last_obs``; ``weight=`` and
+    ``min_weight=`` count only heavier observations (#68).
+  - :func:`~networkx_backbone.persistence`: ``max_run``, ``mean_run``,
+    ``n_runs`` and ``persistence``, the share of observed steps whose next
+    eligible step is also observed; ``ineligible="break"`` lets unknown steps
+    end a run (#68).
+  - :func:`~networkx_backbone.backbone_stability`: runs any static method
+    (``disparity_filter``, ``lans_filter``, ...) on every step with the same
+    cut and adds ``stability`` (``n_kept / n_eligible``), ``n_kept``,
+    ``n_eligible``, ``first_kept``, ``last_kept``. The cut's attribute comes
+    from the new ``describe.SCORE_KEYS`` registry (#69).
+  - :func:`~networkx_backbone.weight_trend` (needs numpy): ``weight_mean``,
+    ``weight_std``, ``weight_cv``, ``weight_slope`` per step (and
+    ``weight_slope_time`` per unit of numeric time), with an optional,
+    descriptive slope p-value (SciPy) (#69).
+
+  All but ``weight_trend`` work with NetworkX alone. ``describe_backbone``
+  describes them, including the number of steps and the binning. New tutorial:
+  :doc:`tutorials/temporal_backbones`; :ref:`temporal-eligibility` explains
+  the eligible steps.
 
 *Reporting and documentation*
 
