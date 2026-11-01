@@ -47,6 +47,15 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - Bipartite functions accept NumPy, SciPy sparse, or pandas incidence
   matrices with ``agent_labels``/``artifact_labels``, and ``agent_nodes`` is
   optional (#20, bipartite part).
+- New :func:`~networkx_backbone.to_graph` converts a NumPy or SciPy sparse
+  adjacency matrix (with ``nodelist`` and ``directed``) or a pandas edge-list
+  ``DataFrame`` (``source``/``target``/``weight`` columns) to a graph with
+  NetworkX's own converters, refusing an asymmetric matrix for an undirected
+  graph and duplicate edge-list rows. ``backbone``, ``backbone_from_weighted``
+  and ``backbone_from_unweighted`` accept these inputs directly and give the
+  same backbone as the graph path; ``nx.to_pandas_edgelist`` returns the
+  scored edges as a ``DataFrame``. The individual scorers keep graph-only
+  signatures (#20).
 - ``hyper_projection(newman=True)`` / ``projection="newman"`` gives Newman's
   :math:`1/(d(z)-1)` weighting, equal to
   ``nx.bipartite.collaboration_weighted_projected_graph``. The default

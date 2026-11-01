@@ -115,9 +115,11 @@ API and ecosystem compatibility
 - **planned** (`#19 <https://github.com/brianckeegan/networkx_backbone/issues/19>`_): NetworkX backend dispatching (``@nx._dispatchable``) so
   backends such as ``nx-cugraph`` and ``nx-parallel`` can accelerate the
   shortest-path-heavy methods (salience, metric backbone, GLAB).
-- **planned** (`#20 <https://github.com/brianckeegan/networkx_backbone/issues/20>`_): Accept SciPy sparse arrays and pandas edge lists as input to the
-  statistical scorers, with ``to_*`` helpers back to NetworkX, matching how
-  NetworkX interoperates with the NumPy/SciPy/pandas stack.
+- **done** (`#20 <https://github.com/brianckeegan/networkx_backbone/issues/20>`_): Accept SciPy sparse arrays and pandas edge lists as input:
+  bipartite functions take incidence matrices, and ``backbone``,
+  ``backbone_from_weighted`` and ``backbone_from_unweighted`` take adjacency
+  matrices and edge lists via :func:`~networkx_backbone.to_graph`, matching
+  how NetworkX interoperates with the NumPy/SciPy/pandas stack.
 - **done** (`#30 <https://github.com/brianckeegan/networkx_backbone/issues/30>`_): Make the bipartite and projection code fully sparse
   (no dense agent-by-artifact matrices). The per-pair loops are already
   vectorized.
