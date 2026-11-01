@@ -46,6 +46,7 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
+from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
 from networkx_backbone._typing import not_implemented_for
 
@@ -123,19 +124,19 @@ def _check_weights(G, weight, func_name, sign=None):
 def _caller_stacklevel():
     """``warnings.warn`` stacklevel pointing at the user's call site.
 
-    Skips the NetworkX decorator (argmap) frames that wrap the public
-    function; their number differs between the first and later calls.
+    Skips the NetworkX decorator (argmap) and backend-dispatch frames that
+    wrap the public function; their number differs between the first and
+    later calls.
     """
     import sys
 
-    decorators_file = nx.utils.decorators.__file__
+    nx_files = {nx.utils.decorators.__file__, nx.utils.backends.__file__}
     # Frame 0 is this helper and frame 1 the public function, which is
     # stacklevel 1 for its ``warnings.warn`` call; frame 2 is stacklevel 2.
     frame = sys._getframe(2)
     level = 2
     while frame is not None and (
-        frame.f_code.co_filename == decorators_file
-        or "argmap" in frame.f_code.co_filename
+        frame.f_code.co_filename in nx_files or "argmap" in frame.f_code.co_filename
     ):
         frame = frame.f_back
         level += 1
@@ -170,6 +171,7 @@ def _mark_kept_edges(H, keep_edges, attr):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def global_threshold_filter(
     G: nx.Graph, threshold: float, weight: str = "weight"
 ) -> nx.Graph:
@@ -228,6 +230,7 @@ def global_threshold_filter(
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def strongest_n_ties(G: nx.Graph, n: int = 1, weight: str = "weight") -> nx.Graph:
     """Score edges by strongest-*n* membership per node.
 
@@ -298,6 +301,7 @@ def strongest_n_ties(G: nx.Graph, n: int = 1, weight: str = "weight") -> nx.Grap
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def global_sparsification(
     G: nx.Graph, s: float = 0.5, weight: str = "weight"
 ) -> nx.Graph:
@@ -380,6 +384,7 @@ def global_sparsification(
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def primary_linkage_analysis(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Score edges by primary-linkage membership.
 
@@ -457,6 +462,7 @@ def primary_linkage_analysis(G: nx.Graph, weight: str = "weight") -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def edge_betweenness_filter(
     G: nx.Graph, s: float = 0.5, weight: str = "weight"
 ) -> nx.Graph:
@@ -542,6 +548,7 @@ def edge_betweenness_filter(
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def node_degree_filter(G: nx.Graph, min_degree: int = 1) -> nx.Graph:
     """Score nodes and edges by a minimum node-degree criterion.
 
@@ -600,6 +607,7 @@ def node_degree_filter(G: nx.Graph, min_degree: int = 1) -> nx.Graph:
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def high_salience_skeleton(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Compute edge salience from shortest-path tree participation.
 
@@ -693,6 +701,7 @@ def high_salience_skeleton(G: nx.Graph, weight: str = "weight") -> nx.Graph:
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def metric_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Extract the metric backbone using sum-of-distances shortest paths.
 
@@ -747,6 +756,7 @@ def metric_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def ultrametric_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Extract the ultrametric backbone using max-distance (minimax) paths.
 
@@ -848,6 +858,7 @@ def _distance_backbone(G, weight="weight", ultrametric=False):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def doubly_stochastic_filter(
     G: nx.Graph,
     weight: str = "weight",
@@ -1185,6 +1196,7 @@ def _mark_ds_connectivity_stage(H, tol):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def h_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     r"""Extract the h-backbone of a weighted graph.
 
@@ -1283,6 +1295,7 @@ def h_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def modularity_backbone(
     G: nx.Graph, weight: str = "weight", seed: PySeed = None
 ) -> nx.Graph:
@@ -1370,6 +1383,7 @@ def modularity_backbone(
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def planar_maximally_filtered_graph(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Construct the Planar Maximally Filtered Graph (PMFG).
 
@@ -1444,6 +1458,7 @@ def planar_maximally_filtered_graph(G: nx.Graph, weight: str = "weight") -> nx.G
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def maximum_spanning_tree_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Extract the maximum spanning tree as a backbone.
 

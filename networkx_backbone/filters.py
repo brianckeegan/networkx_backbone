@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
+from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
 
 if TYPE_CHECKING:
@@ -131,6 +132,7 @@ def _adjust(p, method_l):
     return out
 
 
+@_dispatchable(edge_attrs="weight")
 def multigraph_to_weighted(
     G: nx.Graph,
     weight: str = "weight",
@@ -279,6 +281,7 @@ def _is_score(val):
     return val is not None and not (isinstance(val, float) and math.isnan(val))
 
 
+@_dispatchable
 def threshold_filter(
     G: nx.Graph,
     score: str,
@@ -395,6 +398,7 @@ def threshold_filter(
         raise ValueError(f"filter_on must be 'edges' or 'nodes', got {filter_on!r}")
 
 
+@_dispatchable
 def fraction_filter(
     G: nx.Graph,
     score: str,
@@ -471,6 +475,7 @@ def fraction_filter(
         raise ValueError(f"filter_on must be 'edges' or 'nodes', got {filter_on!r}")
 
 
+@_dispatchable
 def boolean_filter(G: nx.Graph, score: str) -> nx.Graph:
     """Retain edges whose boolean score attribute is truthy.
 

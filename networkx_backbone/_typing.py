@@ -17,7 +17,7 @@ casts its ``argmap`` instance to :class:`IdentityDecorator` the same way.)
 from __future__ import annotations
 
 from collections.abc import Callable, Hashable, Iterable
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, overload
 
 if TYPE_CHECKING:
     import random
@@ -32,6 +32,8 @@ __all__ = [
     "GraphInput",
     "Hyperedge",
     "Hyperedges",
+    "Dispatchable",
+    "DispatchDecorator",
     "IdentityDecorator",
     "PySeed",
     "Seed",
@@ -63,6 +65,25 @@ class IdentityDecorator(Protocol):
     """A decorator that returns a function of the same type."""
 
     def __call__[F: Callable[..., Any]](self, func: F, /) -> F: ...
+
+
+class Dispatchable[**P, R](Protocol):
+    """A function made dispatchable to NetworkX backends.
+
+    Called with its own arguments, or with ``backend="..."`` (plus any
+    backend-specific keyword arguments), as ``nx._dispatchable`` allows.
+    """
+
+    @overload
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R: ...
+    @overload
+    def __call__(self, *args: Any, backend: str, **backend_kwargs: Any) -> R: ...
+
+
+class DispatchDecorator(Protocol):
+    """The decorator ``_dispatchable(edge_attrs=...)`` returns."""
+
+    def __call__[**P, R](self, func: Callable[P, R], /) -> Dispatchable[P, R]: ...
 
 
 if TYPE_CHECKING:

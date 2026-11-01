@@ -11,3 +11,4 @@ These guides explain how to use ``networkx-backbone`` effectively.
    directed_graphs
    evaluation
    complexity
+   backends

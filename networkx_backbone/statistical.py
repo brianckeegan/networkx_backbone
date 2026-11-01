@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
+from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
 from networkx_backbone._typing import not_implemented_for
 
@@ -99,22 +100,23 @@ def _external_stacklevel():
     """``warnings.warn`` stacklevel of the first frame outside this package.
 
     Frame 1 (the caller of this helper) is stacklevel 1.  Frames in
-    networkx-backbone and in NetworkX's decorator machinery are skipped, so
-    the warning points at the user's call whether they called a scorer
-    directly or through a wrapper such as ``backbone_from_weighted``.
+    networkx-backbone and in NetworkX's decorator and backend-dispatch
+    machinery are skipped, so the warning points at the user's call whether
+    they called a scorer directly or through a wrapper such as
+    ``backbone_from_weighted``.
     """
     import os
     import sys
 
     package_dir = os.path.dirname(os.path.abspath(__file__))
-    decorators_file = nx.utils.decorators.__file__
+    nx_files = {nx.utils.decorators.__file__, nx.utils.backends.__file__}
     frame = sys._getframe(1)
     level = 1
     while frame is not None:
         filename = frame.f_code.co_filename
         if not (
             filename.startswith(package_dir)
-            or filename == decorators_file
+            or filename in nx_files
             or "argmap" in filename
         ):
             break
@@ -179,6 +181,7 @@ def _add_zero_edges(H, dyads, weight, tails, pvalue_attr, signed):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def disparity_filter(
     G: nx.Graph,
     weight: str = "weight",
@@ -344,6 +347,7 @@ def _disparity_node_tails(w, s, k):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def noise_corrected_filter(
     G: nx.Graph,
     weight: str = "weight",
@@ -665,6 +669,7 @@ def _noise_corrected_zscore(G, H, weight, signed, dyads):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def marginal_likelihood_filter(
     G: nx.Graph,
     weight: str = "weight",
@@ -814,6 +819,7 @@ def marginal_likelihood_filter(
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def ecm_filter(
     G: nx.Graph,
     weight: str = "weight",
@@ -984,7 +990,7 @@ def ecm_filter(
             f"ecm_filter: the ECM solver did not converge (largest relative "
             f"error {err:.2e} > tol={tol:g}); p-values may be inaccurate.",
             RuntimeWarning,
-            stacklevel=2,
+            stacklevel=_external_stacklevel(),
         )
 
     def tails(i, j, w):
@@ -1457,6 +1463,7 @@ def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def lans_filter(
     G: nx.Graph,
     weight: str = "weight",
@@ -1600,6 +1607,7 @@ def lans_filter(
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def multiple_linkage_analysis(
     G: nx.Graph,
     alpha: float = 0.05,
@@ -1634,7 +1642,7 @@ def multiple_linkage_analysis(
         The squared deviation summed over the whole profile,
         :math:`D_k = \sum_{r=1}^{n} (p_r - t^{(k)}_r)^2`, so links outside
         the dominant set count against a fit.  The smallest value wins.
-        This was the default in the development versions of 0.2.0.
+        This was the default in the development versions of 0.3.0.
     ``"weaver"``
         The mean squared deviation over the *k* links of the candidate set
         only, :math:`V_k = \frac{1}{k} \sum_{r=1}^{k} (p_r - 1/k)^2`, the
@@ -1895,6 +1903,7 @@ def _empirical_cdf(w, sorted_weights):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def polya_filter(
     G: nx.Graph,
     weight: str = "weight",
@@ -2218,7 +2227,7 @@ def _polya_ml_estimate(rows):
             "polya_filter: the likelihood of a is still increasing at "
             f"a = {grid[-1]:g}; using that value.",
             RuntimeWarning,
-            stacklevel=3,
+            stacklevel=_external_stacklevel(),
         )
         return float(grid[-1])
     if i == 0:
@@ -2249,6 +2258,7 @@ def _polya_ml_estimate(rows):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def gloss_filter(
     G: nx.Graph, weight: str = "weight", resolution: float | None = None
 ) -> nx.Graph:

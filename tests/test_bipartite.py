@@ -928,12 +928,24 @@ def test_ycn_disconnected_components_scaled_by_agent_share():
     assert P["c"]["d"]["weight"] == pytest.approx((3 / 5) * (1 / 3) / 3)
 
 
+def _bare(B):
+    """*B* without node or graph attributes.
+
+    NetworkX's projections copy them into the result but do not declare that
+    to the dispatcher, which fails the ``NETWORKX_TEST_BACKEND`` harness's
+    result comparison.  Only the edge weights are compared here.
+    """
+    return nx.Graph(B.edges())
+
+
 def test_simple_equals_networkx_weighted_projection(
     davis_southern_women_graph, davis_women_nodes
 ):
     B = davis_southern_women_graph
     ours = _weights(simple_projection(B, davis_women_nodes))
-    theirs = _weights(nx.bipartite.weighted_projected_graph(B, davis_women_nodes))
+    theirs = _weights(
+        nx.bipartite.weighted_projected_graph(_bare(B), davis_women_nodes)
+    )
     assert ours == theirs
 
 
@@ -943,7 +955,7 @@ def test_newman_equals_networkx_collaboration_projection(
     B = davis_southern_women_graph
     ours = _weights(hyper_projection(B, davis_women_nodes, newman=True))
     theirs = _weights(
-        nx.bipartite.collaboration_weighted_projected_graph(B, davis_women_nodes)
+        nx.bipartite.collaboration_weighted_projected_graph(_bare(B), davis_women_nodes)
     )
     assert ours == pytest.approx(theirs, rel=1e-12)
     for alias in ("newman", "collaboration"):

@@ -59,6 +59,7 @@ import math
 
 import networkx as nx
 
+from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
 from networkx_backbone._typing import not_implemented_for
 
@@ -103,6 +104,7 @@ def _degrees(nbrs):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def neighborhood_overlap(G: nx.Graph) -> nx.Graph:
     """Score each edge by the raw neighborhood overlap of its endpoints.
 
@@ -144,6 +146,7 @@ def neighborhood_overlap(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def jaccard_backbone(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Jaccard similarity of its endpoint neighborhoods.
 
@@ -198,6 +201,7 @@ def jaccard_backbone(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def dice_backbone(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Dice similarity of its endpoint neighborhoods.
 
@@ -250,6 +254,7 @@ def dice_backbone(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def cosine_backbone(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the cosine similarity of its endpoint neighborhoods.
 
@@ -302,6 +307,7 @@ def cosine_backbone(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def hub_promoted_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Hub Promoted Index of its endpoint neighborhoods.
 
@@ -355,6 +361,7 @@ def hub_promoted_index(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def hub_depressed_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Hub Depressed Index of its endpoint neighborhoods.
 
@@ -408,6 +415,7 @@ def hub_depressed_index(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def lhn_local_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Leicht-Holme-Newman local similarity index.
 
@@ -460,6 +468,7 @@ def lhn_local_index(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def preferential_attachment_score(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the preferential attachment index.
 
@@ -509,6 +518,7 @@ def preferential_attachment_score(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def adamic_adar_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Adamic-Adar index.
 
@@ -562,6 +572,7 @@ def adamic_adar_index(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def resource_allocation_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the resource-allocation index.
 
@@ -622,6 +633,7 @@ def resource_allocation_index(G: nx.Graph) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def graph_distance_proximity(G: nx.Graph, all_pairs: bool = False) -> nx.Graph:
     r"""Score node pairs by reciprocal shortest-path distance.
 
@@ -714,6 +726,7 @@ def graph_distance_proximity(G: nx.Graph, all_pairs: bool = False) -> nx.Graph:
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def local_path_index(
     G: nx.Graph, epsilon: float = 0.01, weight: str | None = None
 ) -> nx.Graph:
