@@ -473,6 +473,65 @@ class TestLANS:
         # Edge a-c: at a [1, 5] -> F(1) = 1/2; at c F(1) = 1/3 -> 1 - 1/2.
         assert H["a"]["c"]["lans_pvalue"] == pytest.approx(0.5)
 
+    def test_signed_lower_tail_excludes_the_link(self, count_graph):
+        # Upper tail #{weights > w} / k, lower tail #{weights < w} / k, each
+        # the minimum over the two endpoints (#58).  Weights: a [1, 5],
+        # b [1, 2, 5], c [1, 2, 3], d [1, 3].
+        H = nb.lans_filter(count_graph, signed=True)
+        got = {
+            tuple(sorted((u, v))): (d["lans_pvalue"], d["sign"])
+            for u, v, d in H.edges(data=True)
+        }
+        assert got == {
+            # The weakest link of both endpoints: lower tail 0.
+            ("a", "c"): (0.0, -1),
+            ("b", "d"): (0.0, -1),
+            # 1/3 above and 1/3 below at both b and c: an exact tie, signed
+            # +1 here (R: -1).
+            ("b", "c"): (pytest.approx(2 / 3), 1),
+            ("a", "b"): (0.0, 1),
+            ("c", "d"): (0.0, 1),
+        }
+        # Absent pairs (weight 0) do not change these and get lower tail 0.
+        count_graph.add_node("z")  # no links: not testable, not added
+        full = nb.lans_filter(count_graph, signed=True, missing_as_zero=True)
+        assert {e: full.edges[e] for e in H.edges} == dict(H.edges.items())
+        assert full["a"]["d"] == {"weight": 0, "lans_pvalue": 0.0, "sign": -1}
+        assert set(full["z"]) == set()
+
+    def test_signed_tails_are_mirror_images(self, les_miserables_weighted):
+        # Reversing the order of the weights swaps the two tails exactly, so
+        # every p-value is unchanged and every sign flips, except at ties.
+        G = les_miserables_weighted
+        R = G.copy()
+        for _, _, d in R.edges(data=True):
+            d["weight"] = 1 / d["weight"]
+        H = nb.lans_filter(G, signed=True)
+        H_rev = nb.lans_filter(R, signed=True)
+        signs = set()
+        for e, d in H.edges.items():
+            assert H_rev.edges[e]["lans_pvalue"] == d["lans_pvalue"]
+            signs.add((d["sign"], H_rev.edges[e]["sign"]))
+        # (1, 1) is a tie: upper == lower, signed +1 both ways.
+        assert signs == {(1, -1), (-1, 1), (1, 1)}
+
+    @pytest.mark.parametrize("edge", [("u", "t"), ("s", "r")])
+    def test_directed_signed_weak_from_either_side(self, edge):
+        # u -> t is mid-ranked among u's out-links [1, 5, 9] but the weakest
+        # in-link of t [5, 7, 8]; s -> r is the weakest out-link of s
+        # [2, 4, 6] but mid-ranked among r's in-links [1, 2, 3] (#11).
+        D = nx.DiGraph()
+        D.add_weighted_edges_from([("u", "t", 5), ("u", "p", 1), ("u", "q", 9)])
+        D.add_weighted_edges_from([("a", "t", 7), ("b", "t", 8)])
+        D.add_weighted_edges_from([("s", "r", 2), ("s", "m", 4), ("s", "n", 6)])
+        D.add_weighted_edges_from([("c", "r", 1), ("d", "r", 3)])
+        H = nb.lans_filter(D, signed=True)
+        assert (H.edges[edge]["lans_pvalue"], H.edges[edge]["sign"]) == (0.0, -1)
+        # Reversing every edge swaps out- and in-links: same result.
+        Hr = nb.lans_filter(D.reverse(), signed=True)
+        for (u, v), d in H.edges.items():
+            assert Hr[v][u] == d
+
     def test_strongest_link_of_each_node_is_kept(self, les_miserables_weighted):
         H = nb.lans_filter(les_miserables_weighted)
         for node in H:

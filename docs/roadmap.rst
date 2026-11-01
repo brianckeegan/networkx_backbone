@@ -135,9 +135,10 @@ Correctness gaps found in review
 - **done** (`#13 <https://github.com/brianckeegan/networkx_backbone/issues/13>`_): Check ``hyper_projection``'s weighting (:math:`1/d(z)` versus
   Newman's :math:`1/(d(z)-1)`) and the arXiv identifier cited for the
   projection methods against Coscia & Neffke (2017).
-- **next** (`#58 <https://github.com/brianckeegan/networkx_backbone/issues/58>`_): Signed ``lans_filter`` counts the edge itself
-  in its lower tail, so almost no edge is significantly weak (Les Misérables:
-  0 negative links, against 126 in R). Mirror the upper tail, as R does.
+- **done** (`#58 <https://github.com/brianckeegan/networkx_backbone/issues/58>`_): The signed ``lans_filter`` lower tail is now
+  ``#{weights < w} / k``, the mirror image of the upper tail, as in R. Its
+  two-sided p-values equal R's; only the sign of an exact tie differs (#59).
+  Les Misérables: 0 -> 86 negative links (R: 126, 40 of them ties).
 - **next** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` breaks weight ties by
   adjacency order, so ``G`` and ``G.copy()`` can give different backbones.
   Make the result independent of node order.
@@ -151,8 +152,7 @@ Validation
 - **done** (`#14 <https://github.com/brianckeegan/networkx_backbone/issues/14>`_): Cross-implementation reference tests. P-values and backbones
   on Les Misérables, Davis Southern Women, and karate are pinned against R
   ``backbone`` 3.0.4 and ``netbone`` 0.2.3 in JSON fixtures, so the test suite
-  needs neither R nor netbone. Open follow-up: whether the signed LANS lower tail
-  should exclude the link itself, as R's does.
+  needs neither R nor netbone.
 - **done** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional "Interop" CI workflow that installs xgi, HyperNetX,
   HypergraphX, and HAT (the ``[interop]`` extra) and runs the adapter and HIF
   round-trip tests against the real libraries on pull requests and weekly.
@@ -236,6 +236,14 @@ Methods
   invariance table, a generalized ``disparity_filter(a=...)`` share null with
   a calibration test harness, and an explicit count ``unit=`` for MLF, ECM,
   and the noise-corrected filter.
+- **done** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` keeps edges tied at each node's
+  cutoff together, so ``G``, ``G.copy()``, and any reordering of the same
+  graph give the same backbone. ``global_sparsification`` and
+  ``edge_betweenness_filter`` no longer depend on edge orientation.
+  ``planar_maximally_filtered_graph`` and ``maximum_spanning_tree_backbone``
+  (ties in weight), ``fraction_filter`` (ties in score, documented), and
+  ``modularity_backbone`` (Louvain visiting order, even with a fixed seed)
+  still depend on input order.
 
 Documentation
 ~~~~~~~~~~~~~

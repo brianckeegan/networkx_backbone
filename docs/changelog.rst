@@ -147,6 +147,20 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   the symmetric scaling :math:`\sqrt{D_{uv} D_{vu}}`, which equals the doubly
   stochastic limit whenever the iteration converges. On Les Misérables (no
   convergence) ``ds_keep`` now keeps 187 of 254 edges instead of 220 (#54).
+- ``strongest_n_ties`` keeps ties together: each node selects every edge
+  whose weight is at least its *n*-th largest weight, so a node can select
+  more than *n* edges. Before, ties at the cutoff were broken by adjacency
+  order, so ``G`` and ``G.copy()`` could give different backbones (on Les
+  Misérables at ``n=2`` they differed in 23 edges). The result now depends only
+  on the weights, as for ``lspar``/``local_degree``; on an unweighted graph
+  every edge is kept. Les Misérables: 69 -> 108 edges (``n=1``), 113 -> 146
+  (``n=2``), 146 -> 165 (``n=3``) (#60).
+- ``global_sparsification`` and ``edge_betweenness_filter`` break ties by the
+  sorted string form of an undirected edge's endpoints, so the result no
+  longer depends on how each edge is stored (which follows node insertion
+  order). Edge counts are unchanged; on Les Misérables at ``s=0.5``, 5
+  (global sparsification) and 6 (edge betweenness) of the 127 kept edges
+  swap for other edges tied with them (#60).
 - ``noise_corrected_filter`` now implements the published Bayesian
   noise-corrected backbone (Coscia & Neffke, 2017). Its scores and standard
   deviations match the authors' reference code exactly. ``nc_score`` is the
@@ -184,6 +198,16 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   links.
 - ``lans_filter`` on directed graphs also tests the target's incoming links
   (#11, contributed by @bfs2021 in #34).
+- ``lans_filter(signed=True)``: the lower tail is now ``#{weights < w} / k``,
+  the mirror image of the upper tail ``#{weights > w} / k``, as in R
+  ``backbone`` 3.0.4. It was the empirical CDF ``#{weights <= w} / k``, which
+  counts the link itself and is never below ``1 / k``, so a link could be
+  significantly weak only at a node of degree above 40 (at alpha = 0.05). The
+  two-sided p-values now equal R's; R signs an exact tie upper == lower
+  ``-1`` and ``lans_filter`` ``+1``. The one-tailed ``lans_pvalue`` is
+  unchanged. Les Misérables signed backbone at alpha = 0.05: 108 positive / 0
+  negative -> 108 positive / 86 negative (R: 68 / 126, the difference being
+  40 ties); karate: 45 / 0 -> 45 / 25 (#58).
 - ``bicm``/``sdsm``: the BiCM is now actually fitted rather than
   approximated with Chung-Lu, and p-values use exact Poisson-binomial tails
   (or RNA). SDSM-EC refits on the free cells. Davis: 3 -> 0 pairs.
