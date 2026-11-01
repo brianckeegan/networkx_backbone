@@ -43,12 +43,36 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - Added ``CITATION.cff``.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
+- ``ecm_filter`` and ``noise_corrected_filter`` accept ``signed=True`` (#25).
+- Bipartite functions accept NumPy, SciPy sparse, or pandas incidence
+  matrices with ``agent_labels``/``artifact_labels``, and ``agent_nodes`` is
+  optional (#20, bipartite part).
+- ``hyper_projection(newman=True)`` / ``projection="newman"`` gives Newman's
+  :math:`1/(d(z)-1)` weighting, equal to
+  ``nx.bipartite.collaboration_weighted_projected_graph``. The default
+  hyperbolic weight, :math:`1/d(z)`, is unchanged and follows Coscia & Rossi
+  (2019). Projection citations are corrected to Coscia & Rossi (2019,
+  arXiv:1906.09081) (#13).
 - ``glab_filter`` now supports directed graphs using the out- and
   in-involvement of Zhang et al. (2014), Section 2.3 (#12). On a symmetric
   ``DiGraph`` it gives the undirected p-values.
 
 **Changes in results (bug fixes)**
 
+- ``noise_corrected_filter`` now implements the published Bayesian
+  noise-corrected backbone (Coscia & Neffke, 2017). Its scores and standard
+  deviations match the authors' reference code exactly. ``nc_score`` is the
+  transformed lift, in (-1, 1), with new ``nc_sdev`` and ``nc_pvalue``
+  attributes. Keep edges with ``nc_score > 1.64 * nc_sdev`` or
+  ``nc_pvalue < 0.05``; thresholding ``nc_score`` at 2.0 now keeps nothing.
+  The old z-score is available as ``method="zscore"``. Les Misérables: 98 ->
+  195 edges (#9).
+- ``multiple_linkage_analysis`` now fits each node's sorted weights to ideal
+  dominance distributions by default (``method="dominance"``; Van Nuffel,
+  2007, after Weaver, 1954) and adds ``mla_rank``. The previous LANS
+  threshold, which netbone uses, is ``method="lans"``. Les Misérables: 109 ->
+  223 edges (#10; the exact deviation measure is still to be checked against
+  the 2007 paper).
 - ``sparsify(umst=True)`` now adds the union of all minimum spanning trees
   (Hamann et al., 2016) instead of one arbitrary spanning forest, so tied
   scores no longer make the result depend on node order (#32). The union is
@@ -116,6 +140,12 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Performance**
 
+- Bipartite projections and null models use sparse incidence matrices and
+  score agent pairs in row blocks, and ``backbone_from_projection`` builds
+  edges only for significant pairs. On a 3000x800 projection this cuts run
+  time from 40-76 s to under 2 s and peak memory from 2.2 GB to 0.23 GB;
+  results are unchanged (#30).
+
 - Vectorized ``sdsm``/``fixed*``/``fdsm`` (``sdsm`` on 400x300: 6.4 s ->
   0.36 s); MDL ``"node"`` optimizer with a lazy heap (m = 2000: 8.3 s ->
   0.47 s); vectorized SVC p-values.
@@ -127,7 +157,7 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   versions, and a NetworkX-only job that checks the optional dependencies
   stay optional. Test coverage is 97%.
 - New :doc:`roadmap`; full numpydoc sections for the bipartite, hypergraph,
-  and structural APIs; corrected citations (Van Nuffel et al., 2010; Lü et
+  and structural APIs; corrected citations (Van Nuffel, 2007; Lü et
   al., 2009; Lindner et al., 2015); the docs version is taken from the package
   metadata.
 

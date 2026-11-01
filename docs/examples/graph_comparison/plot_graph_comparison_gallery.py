@@ -89,9 +89,9 @@ def _method_specs() -> list[MethodSpec]:
             "statistical",
             lambda c: nb.threshold_filter(
                 nb.noise_corrected_filter(c["les_weighted"]),
-                "nc_score",
-                2.0,
-                mode="above",
+                "nc_pvalue",
+                0.05,
+                mode="below",
                 include_all_nodes=False,
             ),
         ),
@@ -136,7 +136,7 @@ def _method_specs() -> list[MethodSpec]:
             "les_miserables",
             "statistical",
             lambda c: nb.boolean_filter(
-                nb.multiple_linkage_analysis(c["les_weighted"], alpha=0.05),
+                nb.multiple_linkage_analysis(c["les_weighted"]),
                 "mla_keep",
             ),
         ),

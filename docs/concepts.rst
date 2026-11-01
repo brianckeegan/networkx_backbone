@@ -25,22 +25,31 @@ Statistical methods
 
 The :mod:`~networkx_backbone.statistical` module provides six methods that test
 whether each edge's weight is statistically significant under a null model.
-These methods produce a p-value or z-score for each edge.
+These methods produce a p-value or score for each edge, or a keep flag.
 
 - :func:`~networkx_backbone.disparity_filter` -- uniform null model (Serrano et al., 2009)
-- :func:`~networkx_backbone.noise_corrected_filter` -- binomial null model (Coscia & Neffke, 2017)
+- :func:`~networkx_backbone.noise_corrected_filter` -- Bayesian noise-corrected lift score with a standard deviation (Coscia & Neffke, 2017)
 - :func:`~networkx_backbone.marginal_likelihood_filter` -- binomial null considering both endpoints (Dianati, 2016)
 - :func:`~networkx_backbone.ecm_filter` -- maximum-entropy null model (Gemmetto et al., 2017)
 - :func:`~networkx_backbone.lans_filter` -- nonparametric empirical CDF (Foti et al., 2011)
-- :func:`~networkx_backbone.multiple_linkage_analysis` -- local linkage significance (Van Nuffel et al., 2010; Yassin et al., 2023)
+- :func:`~networkx_backbone.multiple_linkage_analysis` -- dominant links per node by fitting ideal distributions (Van Nuffel, 2007); ``method="lans"`` gives the netbone variant (Yassin et al., 2023)
+
+The noise-corrected backbone keeps an edge when its score exceeds ``delta``
+standard deviations (``nc_score > delta * nc_sdev``, with ``delta = 1.64`` in
+the paper); ``nc_pvalue`` expresses the same rule as a p-value.  Multiple
+linkage analysis is not a significance test: for each node it chooses how many
+links are dominant by comparing the node's sorted weight shares with ideal
+"one dominant link", "two equal links", ... distributions, whereas LANS gives
+every link a p-value from its node's empirical weight distribution.
 
 P-values can be corrected for multiple comparisons with
 :func:`~networkx_backbone.adjust_pvalues` or the ``mtc`` argument of
 :func:`~networkx_backbone.threshold_filter` (Bonferroni, Holm, Hochberg,
 Benjamini-Hochberg, Benjamini-Yekutieli).  The ``disparity_filter``,
-``marginal_likelihood_filter``, and ``lans_filter`` methods also accept
-``signed=True`` for a two-tailed test that keeps significantly strong (``+1``)
-and significantly weak (``-1``) edges, each tagged with a ``"sign"`` attribute.
+``noise_corrected_filter``, ``marginal_likelihood_filter``, ``ecm_filter``, and
+``lans_filter`` methods also accept ``signed=True`` for a two-tailed test that
+keeps significantly strong (``+1``) and significantly weak (``-1``) edges, each
+tagged with a ``"sign"`` attribute.
 
 Structural methods
 ^^^^^^^^^^^^^^^^^^

@@ -4,16 +4,25 @@ Bipartite projection backbone methods.
 These methods operate on bipartite networks and extract significant edges
 in the one-mode projection among "agent" nodes.
 
+Every function accepts either an undirected bipartite NetworkX graph ``B``
+with its agent nodes, or an agents x artifacts incidence matrix (a NumPy
+array, a SciPy sparse array or matrix, or a pandas ``DataFrame``) with
+optional ``agent_labels`` / ``artifact_labels``, as R ``backbone`` does.
+Internally the incidence is kept as a SciPy CSR sparse array and agent
+co-occurrences are computed with sparse products, one block of agent rows at
+a time, so no dense agents x agents matrix is ever formed.
+
 Methods
 -------
 simple_projection
-    Shared-neighbor weighted projection.
+    Shared-neighbor (co-occurrence count) projection.
 hyper_projection
-    Hyperbolic weighted projection.
+    Hyperbolic projection, ``1 / d(z)`` per shared artifact (or Newman's
+    ``1 / (d(z) - 1)`` with ``newman=True``).
 probs_projection
-    ProbS random-walk weighted projection.
+    ProbS (mass-diffusion) random-walk projection.
 ycn_projection
-    YCN stationary-flow weighted projection.
+    YCN stationary random-walk flow projection.
 sdsm
     Stochastic Degree Sequence Model (Neal 2014).
 fdsm
@@ -23,9 +32,9 @@ fixedfill, fixedrow, fixedcol
 """
 
 import warnings
+from typing import NamedTuple
 
 import networkx as nx
-from networkx.utils import not_implemented_for
 
 from networkx_backbone._docstrings import append_complexity_docstrings
 
@@ -52,10 +61,38 @@ __all__ = [
     "backbone",
 ]
 
+# Agent-pair cells evaluated per block of agent rows (8 MB per float64 array);
+# bounds the memory used for co-occurrence counts, weights and p-values.
+_MAX_BLOCK_CELLS = 1 << 20
+
+_PROJECTIONS = ("simple", "hyper", "newman", "probs", "ycn")
+_PROJECTION_ALIASES = {"hyperbolic": "hyper", "collaboration": "newman"}
+_PROJECTION_ERROR = (
+    "Unknown projection method. Choose one of: "
+    "'simple', 'hyper', 'newman', 'probs', 'ycn'."
+)
+
 
 # =====================================================================
-# Validation and shared helpers
+# Input handling: graphs and incidence matrices
 # =====================================================================
+
+
+def _reject_directed_or_multigraph(B):
+    """Raise for directed or multigraph *graph* input; matrices pass through.
+
+    Plays the role of :func:`networkx.utils.not_implemented_for`, which
+    cannot be used here because ``B`` may also be an incidence matrix.
+    """
+    if isinstance(B, nx.Graph):
+        if B.is_directed():
+            raise nx.NetworkXNotImplemented("not implemented for directed type")
+        if B.is_multigraph():
+            raise nx.NetworkXNotImplemented("not implemented for multigraph type")
+    return B
+
+
+_graph_or_matrix = nx.utils.argmap(_reject_directed_or_multigraph, 0)
 
 
 def _validate_bipartite(B, agent_nodes):
@@ -84,98 +121,6 @@ def _validate_bipartite(B, agent_nodes):
     return agent_nodes
 
 
-def _as_generator(seed):
-    """Return a :class:`numpy.random.Generator` for int/Generator/RandomState/None."""
-    import numpy as np
-
-    if isinstance(seed, np.random.RandomState):
-        return np.random.Generator(seed._bit_generator)
-    return np.random.default_rng(seed)
-
-
-def _signed_pvalues(p_hi, p_lo):
-    """Vectorized two-sided p-value and sign from upper/lower tails.
-
-    ``sign`` is ``+1`` for a significantly strong (over-represented)
-    co-occurrence and ``-1`` for a significantly weak (under-represented) one.
-    """
-    import numpy as np
-
-    p_hi = np.clip(np.asarray(p_hi, dtype=float), 0.0, 1.0)
-    p_lo = np.clip(np.asarray(p_lo, dtype=float), 0.0, 1.0)
-    pval = np.minimum(1.0, 2.0 * np.minimum(p_hi, p_lo))
-    sign = np.where(p_hi <= p_lo, 1, -1)
-    return pval, sign
-
-
-def _pair_graph(agents, p_hi, p_lo, attr, signed, alpha=None):
-    """Build a projection graph from upper-triangle tail probabilities.
-
-    ``p_hi`` / ``p_lo`` are flat arrays aligned with ``np.triu_indices(n, 1)``.
-    If ``alpha`` is given only pairs with p-value ``< alpha`` are added.
-    """
-    import numpy as np
-
-    G = nx.Graph()
-    G.add_nodes_from(agents)
-    n = len(agents)
-    if n < 2:
-        return G
-    iu, ju = np.triu_indices(n, 1)
-    if signed:
-        pval, sign = _signed_pvalues(p_hi, p_lo)
-    else:
-        pval = np.clip(np.asarray(p_hi, dtype=float), 0.0, 1.0)
-        sign = None
-    keep = np.ones(len(iu), dtype=bool) if alpha is None else pval < alpha
-    for idx in np.flatnonzero(keep):
-        data = {attr: float(pval[idx])}
-        if signed:
-            data["sign"] = int(sign[idx])
-        G.add_edge(agents[iu[idx]], agents[ju[idx]], **data)
-    return G
-
-
-def _bipartite_projection_matrix(B, agent_nodes):
-    """Build the co-occurrence matrix for agent nodes.
-
-    Returns
-    -------
-    agents : list
-        Ordered list of agent nodes.
-    artifacts : list
-        Ordered list of artifact nodes.
-    R : np.ndarray of shape (n_agents, n_artifacts)
-        Binary incidence matrix (agents x artifacts).
-    observed : np.ndarray of shape (n_agents, n_agents)
-        Observed co-occurrence counts (symmetric).
-    """
-    import numpy as np
-
-    agent_set = set(agent_nodes)
-    agents = sorted(agent_set, key=str)
-    artifacts = sorted(set(B.nodes()) - agent_set, key=str)
-
-    a_idx = {v: i for i, v in enumerate(agents)}
-    f_idx = {v: i for i, v in enumerate(artifacts)}
-
-    na = len(agents)
-    nf = len(artifacts)
-    R = np.zeros((na, nf), dtype=int)
-
-    for u, v in B.edges():
-        if u in a_idx and v in f_idx:
-            R[a_idx[u], f_idx[v]] = 1
-        elif v in a_idx and u in f_idx:
-            R[a_idx[v], f_idx[u]] = 1
-
-    # Observed co-occurrence matrix
-    observed = R @ R.T
-    np.fill_diagonal(observed, 0)
-
-    return agents, artifacts, R, observed
-
-
 def _infer_agent_nodes(B):
     """Infer the agent partition of ``B``.
 
@@ -199,6 +144,223 @@ def _infer_agent_nodes(B):
     colors = nx.algorithms.bipartite.color(B)
     color0 = [n for n, c in colors.items() if c == 0]
     return sorted(color0, key=str)
+
+
+class _Incidence(NamedTuple):
+    """Agents, artifacts and their binary incidence as a sorted CSR array."""
+
+    agents: list
+    artifacts: list
+    R: object  # scipy.sparse.csr_array of int64 0/1 values, sorted indices
+
+
+def _check_labels(labels, n, name):
+    if labels is None:
+        return list(range(n))
+    labels = list(labels)
+    if len(labels) != n:
+        raise ValueError(
+            f"{name} has {len(labels)} entries but the incidence matrix has {n}."
+        )
+    try:
+        unique = len(set(labels)) == n
+    except TypeError as err:
+        raise ValueError(f"{name} must be hashable.") from err
+    if not unique:
+        raise ValueError(f"{name} must not contain duplicates.")
+    return labels
+
+
+def _binary_csr(M):
+    """Convert an array-like or sparse incidence matrix to a binary CSR array."""
+    import numpy as np
+    import scipy.sparse as sp
+
+    if sp.issparse(M):
+        if M.ndim != 2:
+            raise ValueError("The incidence matrix B must be two-dimensional.")
+        A = sp.csr_array(M, copy=True)
+        A.sum_duplicates()
+        A.eliminate_zeros()
+        values = A.data
+    else:
+        A = np.asarray(M)
+        if A.ndim != 2:
+            raise ValueError("The incidence matrix B must be two-dimensional.")
+        values = A
+    try:
+        values = np.asarray(values, dtype=float)
+    except (TypeError, ValueError) as err:
+        raise ValueError("The incidence matrix B must be numeric.") from err
+    if not np.isin(values, (0.0, 1.0)).all():
+        raise ValueError("The incidence matrix B must be binary (0/1).")
+    if sp.issparse(A):
+        ones = np.ones(A.nnz, dtype=np.int64)
+        return sp.csr_array((ones, A.indices, A.indptr), shape=A.shape)
+    return sp.csr_array(values.astype(np.int64))
+
+
+def _incidence(B, agent_nodes=None, agent_labels=None, artifact_labels=None):
+    """Return the :class:`_Incidence` of a bipartite graph or incidence matrix.
+
+    Agents and artifacts are ordered by ``str`` of their label (as the
+    graph path always has been), so a graph and the incidence matrix of the
+    same graph give bit-identical results.
+    """
+    import numpy as np
+    import scipy.sparse as sp
+
+    if isinstance(B, nx.Graph):
+        if agent_labels is not None or artifact_labels is not None:
+            raise ValueError(
+                "agent_labels and artifact_labels are only used when B is an "
+                "incidence matrix; for a graph, pass agent_nodes."
+            )
+        if agent_nodes is None:
+            agent_nodes = _infer_agent_nodes(B)
+        agent_set = set(_validate_bipartite(B, agent_nodes))
+        agents = sorted(agent_set, key=str)
+        artifacts = sorted(set(B) - agent_set, key=str)
+        a_idx = {v: i for i, v in enumerate(agents)}
+        f_idx = {v: i for i, v in enumerate(artifacts)}
+        rows, cols = [], []
+        for u, v in B.edges():
+            if u in a_idx:
+                rows.append(a_idx[u])
+                cols.append(f_idx[v])
+            else:
+                rows.append(a_idx[v])
+                cols.append(f_idx[u])
+        R = sp.csr_array(
+            (
+                np.ones(len(rows), dtype=np.int64),
+                (np.asarray(rows, dtype=np.intp), np.asarray(cols, dtype=np.intp)),
+            ),
+            shape=(len(agents), len(artifacts)),
+        )
+    else:
+        if agent_nodes is not None:
+            raise ValueError(
+                "agent_nodes selects one side of a bipartite graph; when B is "
+                "an incidence matrix its rows are the agents. Use agent_labels "
+                "to name them."
+            )
+        # pandas DataFrame: use its index and columns as default labels.
+        if hasattr(B, "index") and hasattr(B, "columns"):
+            if agent_labels is None:
+                agent_labels = list(B.index)
+            if artifact_labels is None:
+                artifact_labels = list(B.columns)
+        R = _binary_csr(B)
+        agents = _check_labels(agent_labels, R.shape[0], "agent_labels")
+        artifacts = _check_labels(artifact_labels, R.shape[1], "artifact_labels")
+        row_order = sorted(range(len(agents)), key=lambda i: str(agents[i]))
+        col_order = sorted(range(len(artifacts)), key=lambda i: str(artifacts[i]))
+        R = R[np.asarray(row_order, dtype=np.intp)][
+            :, np.asarray(col_order, dtype=np.intp)
+        ]
+        R = sp.csr_array(R)
+        agents = [agents[i] for i in row_order]
+        artifacts = [artifacts[i] for i in col_order]
+    R.sum_duplicates()
+    R.sort_indices()
+    return _Incidence(agents, artifacts, R)
+
+
+def _degrees(R):
+    """Return ``(agent_degrees, artifact_degrees)`` of a sparse incidence."""
+    import numpy as np
+
+    row_deg = np.asarray(R.sum(axis=1)).ravel().astype(np.int64)
+    col_deg = np.asarray(R.sum(axis=0)).ravel().astype(np.int64)
+    return row_deg, col_deg
+
+
+def _as_generator(seed):
+    """Return a :class:`numpy.random.Generator` for int/Generator/RandomState/None."""
+    import numpy as np
+
+    if isinstance(seed, np.random.RandomState):
+        return np.random.Generator(seed._bit_generator)
+    return np.random.default_rng(seed)
+
+
+# =====================================================================
+# Agent-pair blocks, p-values and multiple-testing correction
+# =====================================================================
+
+
+def _row_blocks(n):
+    """Yield ``(start, stop)`` agent-row ranges of at most ``_MAX_BLOCK_CELLS`` cells."""
+    step = max(1, _MAX_BLOCK_CELLS // max(n, 1))
+    for start in range(0, n, step):
+        yield start, min(start + step, n)
+
+
+def _upper_positions(start, stop, n):
+    """Row-major ``(local_row, col)`` cells of a row block with ``col > row``.
+
+    Over consecutive blocks this enumerates the pairs in the order of
+    ``np.triu_indices(n, 1)``.
+    """
+    import numpy as np
+
+    mask = np.arange(n)[None, :] > np.arange(start, stop)[:, None]
+    return np.nonzero(mask)
+
+
+def _signed_pvalues(p_hi, p_lo):
+    """Vectorized two-sided p-value and sign from upper/lower tails.
+
+    ``sign`` is ``+1`` for a significantly strong (over-represented)
+    co-occurrence and ``-1`` for a significantly weak (under-represented) one.
+    """
+    import numpy as np
+
+    p_hi = np.clip(np.asarray(p_hi, dtype=float), 0.0, 1.0)
+    p_lo = np.clip(np.asarray(p_lo, dtype=float), 0.0, 1.0)
+    pval = np.minimum(1.0, 2.0 * np.minimum(p_hi, p_lo))
+    sign = np.where(p_hi <= p_lo, 1, -1)
+    return pval, sign
+
+
+def _adjust_array(p, method):
+    """Vectorized :func:`~networkx_backbone.adjust_pvalues` for a float array.
+
+    Bit-for-bit identical to the list version (same tie order and the same
+    floating-point operations), but fast enough for millions of agent pairs.
+    """
+    import numpy as np
+
+    from networkx_backbone.filters import _MTC_METHODS
+
+    method_l = method.lower()
+    if method_l not in _MTC_METHODS:
+        raise ValueError(f"method must be one of {_MTC_METHODS}, got {method!r}")
+    p = np.asarray(p, dtype=float)
+    n = p.size
+    if n == 0 or method_l == "none":
+        out = p.copy()
+    elif method_l == "bonferroni":
+        out = n * p
+    elif method_l == "holm":
+        order = np.argsort(p, kind="stable")
+        vals = (n - np.arange(n)) * p[order]
+        out = np.empty(n)
+        out[order] = np.minimum(1.0, np.maximum.accumulate(np.maximum(vals, 0.0)))
+    else:
+        order = np.argsort(-p, kind="stable")
+        j = np.arange(n)
+        if method_l == "hochberg":
+            vals = (j + 1) * p[order]
+        elif method_l in ("bh", "fdr"):
+            vals = (n / (n - j)) * p[order]
+        else:  # Benjamini-Yekutieli; harmonic sum in the list version's order
+            c = sum(1.0 / k for k in range(1, n + 1))
+            vals = c * (n / (n - j)) * p[order]
+        out = np.empty(n)
+        out[order] = np.minimum(1.0, np.minimum.accumulate(vals))
+    return np.clip(out, 0.0, 1.0)
 
 
 # =====================================================================
@@ -288,30 +450,41 @@ def _rna_tails(mu, s2, s3, k):
     return np.clip(upper, 0.0, 1.0), np.clip(lower, 0.0, 1.0)
 
 
-def _pairwise_pb_tails(P, k, method="auto", need_lower=False):
-    """Poisson-binomial tails for each agent pair under edge probabilities ``P``.
+def _resolve_pvalue_method(method, n_pairs, n_artifacts):
+    """Resolve ``pvalue_method="auto"`` to ``"exact"`` or ``"rna"``."""
+    if method == "auto":
+        nf = n_artifacts
+        cheap = nf <= 200 and n_pairs * (nf + 1) * (nf + 1) <= 2e8
+        return "exact" if cheap else "rna"
+    if method not in ("exact", "rna"):
+        raise ValueError("pvalue_method must be one of 'auto', 'exact', 'rna'.")
+    return method
 
-    For agents ``i < j`` (upper-triangle order) the co-occurrence count is a
-    sum of independent Bernoulli(``P[i, t] * P[j, t]``) variables.
+
+def _pairwise_pb_tails(P, k, method="auto", need_lower=False, pairs=None):
+    """Poisson-binomial tails for agent pairs under edge probabilities ``P``.
+
+    For agents ``i < j`` the co-occurrence count is a sum of independent
+    Bernoulli(``P[i, t] * P[j, t]``) variables.  ``pairs`` is an
+    ``(iu, ju)`` tuple of pair indices (default: every pair, in
+    ``np.triu_indices`` order) aligned with the observed counts ``k``.
     """
     import numpy as np
 
     na, nf = P.shape
-    iu, ju = np.triu_indices(na, 1)
+    iu, ju = np.triu_indices(na, 1) if pairs is None else pairs
     n_pairs = len(iu)
-    if method == "auto":
-        cheap = nf <= 200 and n_pairs * (nf + 1) * (nf + 1) <= 2e8
-        method = "exact" if cheap else "rna"
+    method = _resolve_pvalue_method(method, n_pairs, nf)
     if method == "rna":
-        mu = (P @ P.T)[iu, ju]
+        # Products are taken one block of distinct rows at a time.
+        rows, pos = np.unique(iu, return_inverse=True)
+        mu = (P[rows] @ P.T)[pos, ju]
         P2 = P * P
-        s2 = (P2 @ P2.T)[iu, ju]
+        s2 = (P2[rows] @ P2.T)[pos, ju]
         P3 = P2 * P
-        s3 = (P3 @ P3.T)[iu, ju]
+        s3 = (P3[rows] @ P3.T)[pos, ju]
         upper, lower = _rna_tails(mu, s2, s3, k)
         return upper, (lower if need_lower else None)
-    if method != "exact":
-        raise ValueError("pvalue_method must be one of 'auto', 'exact', 'rna'.")
 
     upper = np.empty(n_pairs, dtype=float)
     lower = np.empty(n_pairs, dtype=float) if need_lower else None
@@ -337,125 +510,149 @@ def _pairwise_pb_tails(P, k, method="auto", need_lower=False):
 # =====================================================================
 
 
-def _projection_weight_matrix(
-    R, method="simple", symmetrize=True, max_iter=1000, tol=1e-12
-):
-    """Compute projection weights from a binary incidence matrix."""
-    import numpy as np
-
+def _projection_name(method):
     method_l = method.lower()
-    if method_l == "hyperbolic":
-        method_l = "hyper"
+    method_l = _PROJECTION_ALIASES.get(method_l, method_l)
+    if method_l not in _PROJECTIONS:
+        raise ValueError(_PROJECTION_ERROR)
+    return method_l
 
-    if method_l == "simple":
-        W = (R @ R.T).astype(float)
-        np.fill_diagonal(W, 0.0)
-        return W
 
-    artifact_degree = R.sum(axis=0).astype(float)
-    inv_artifact_degree = np.zeros_like(artifact_degree, dtype=float)
-    nonzero_artifact = artifact_degree > 0
-    inv_artifact_degree[nonzero_artifact] = 1.0 / artifact_degree[nonzero_artifact]
-    H = (R * inv_artifact_degree) @ R.T
+class _ProjectionWeights:
+    """Row blocks of a projection weight matrix, from a sparse incidence ``R``.
 
-    if method_l == "hyper":
-        W = H.astype(float)
-        np.fill_diagonal(W, 0.0)
-        return W
+    With ``H = R diag(w) R^T`` (``w_z = 1 / d(z)``, or ``1 / (d(z) - 1)`` for
+    Newman's variant) the weights are ``R R^T`` (simple), ``H`` (hyper /
+    newman), ``H_uv / d(u)`` (ProbS) and ``pi_u H_uv / d(u)`` (YCN); the
+    symmetric versions average the two directions.  Only one block of agent
+    rows is densified at a time.
+    """
 
-    agent_degree = R.sum(axis=1).astype(float)
-    W_dir = np.divide(
-        H,
-        agent_degree[:, None],
-        out=np.zeros_like(H, dtype=float),
-        where=agent_degree[:, None] > 0,
-    )
+    def __init__(self, R, method="simple", directed=False, max_iter=1000, tol=1e-12):
+        import numpy as np
+        import scipy.sparse as sp
 
-    if method_l == "probs":
-        np.fill_diagonal(W_dir, 0.0)
-        if symmetrize:
-            W = 0.5 * (W_dir + W_dir.T)
-            np.fill_diagonal(W, 0.0)
-            return W
-        return W_dir
+        self.method = _projection_name(method)
+        if directed and self.method not in ("probs", "ycn"):
+            raise ValueError(f"{method} projection does not support directed=True")
+        self.directed = directed
+        self.R = R
+        self.RT = sp.csr_array(R.T)
+        row_deg, col_deg = _degrees(R)
+        self.n = R.shape[0]
+        if self.method != "simple":
+            discount = col_deg - (1.0 if self.method == "newman" else 0.0)
+            w = np.zeros(len(col_deg), dtype=float)
+            np.divide(1.0, discount, out=w, where=discount > 0)
+            self.Rw = sp.csr_array(R @ sp.diags_array(w))
+        inv_deg = np.zeros(self.n, dtype=float)
+        np.divide(1.0, row_deg, out=inv_deg, where=row_deg > 0)
+        if self.method == "probs":
+            self.scale = inv_deg
+        elif self.method == "ycn":
+            self.scale = self._stationary(row_deg, inv_deg, max_iter, tol) * inv_deg
 
-    if method_l == "ycn":
-        # Transition matrix for a random walk on the projected layer.
-        T = W_dir.copy()
-        zero_rows = np.where(agent_degree <= 0)[0]
-        if zero_rows.size:
-            T[zero_rows, :] = 0.0
-            T[zero_rows, zero_rows] = 1.0
+    def _stationary(self, row_deg, inv_deg, max_iter, tol):
+        """Stationary distribution of the two-step walk ``T = D^-1 H``.
 
-        n_agents = T.shape[0]
-        if n_agents == 0:
-            return np.zeros((0, 0), dtype=float)
+        Power iteration from the uniform vector, as in Yildirim & Coscia
+        (2014, Eq. 4).  Agents without artifacts keep their mass (``T_uu = 1``).
+        """
+        import numpy as np
 
-        pi = np.full(n_agents, 1.0 / n_agents, dtype=float)
+        n = self.n
+        if n == 0:
+            return np.zeros(0)
+        isolated = row_deg <= 0
+        pi = np.full(n, 1.0 / n)
         for _ in range(max_iter):
-            next_pi = pi @ T
-            if np.linalg.norm(next_pi - pi, ord=1) <= tol:
-                pi = next_pi
+            nxt = self.Rw @ (self.RT @ (pi * inv_deg))  # pi @ T, H symmetric
+            nxt[isolated] += pi[isolated]
+            if np.abs(nxt - pi).sum() <= tol:
+                pi = nxt
                 break
-            pi = next_pi
-
+            pi = nxt
         total = pi.sum()
         if total > 0:
             pi = pi / total
+        return pi
 
-        W_dir = pi[:, None] * T
-        np.fill_diagonal(W_dir, 0.0)
-        if symmetrize:
-            W = 0.5 * (W_dir + W_dir.T)
-            np.fill_diagonal(W, 0.0)
-            return W
-        return W_dir
+    def cooccurrence(self, start, stop):
+        """Dense block ``(R R^T)[start:stop]`` of co-occurrence counts."""
+        return (self.R[start:stop] @ self.RT).toarray()
 
-    raise ValueError(
-        "Unknown projection method. Choose one of: 'simple', 'hyper', 'probs', 'ycn'."
-    )
+    def block(self, start, stop, counts=None):
+        """Dense weight block ``W[start:stop]`` with a zero diagonal."""
+        import numpy as np
 
-
-def _projection_graph_from_matrix(agents, W, weight="weight", directed=False):
-    """Create a weighted projected graph from a dense weight matrix."""
-    projection = nx.DiGraph() if directed else nx.Graph()
-    projection.add_nodes_from(agents)
-
-    n_agents = len(agents)
-    if directed:
-        for i in range(n_agents):
-            for j in range(n_agents):
-                if i == j:
-                    continue
-                wij = float(W[i, j])
-                if wij > 0:
-                    projection.add_edge(agents[i], agents[j], **{weight: wij})
-        return projection
-
-    for i in range(n_agents):
-        for j in range(i + 1, n_agents):
-            wij = float(W[i, j])
-            if wij > 0:
-                projection.add_edge(agents[i], agents[j], **{weight: wij})
-    return projection
+        if self.method == "simple":
+            if counts is None:
+                counts = self.cooccurrence(start, stop)
+            W = counts.astype(float)
+        else:
+            W = (self.Rw[start:stop] @ self.RT).toarray()
+            if self.method in ("probs", "ycn"):
+                if self.directed:
+                    W *= self.scale[start:stop, None]
+                else:
+                    W *= 0.5 * (self.scale[start:stop, None] + self.scale[None, :])
+        rows = np.arange(stop - start)
+        W[rows, rows + start] = 0.0
+        return W
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
-def simple_projection(B, agent_nodes, weight="weight"):
-    """Project a bipartite graph using shared-neighbor counts.
+def _projection_graph(inc, method, weight="weight", directed=False, **kwargs):
+    """Weighted projection graph on the agents of ``inc``."""
+    import numpy as np
 
-    For agent nodes ``u`` and ``v``, the weight is
-    ``|Gamma(u) ∩ Gamma(v)|``, the number of artifacts they share.
+    weights = _ProjectionWeights(inc.R, method, directed=directed, **kwargs)
+    agents = inc.agents
+    n = len(agents)
+    G = nx.DiGraph() if directed else nx.Graph()
+    G.add_nodes_from(agents)
+    for start, stop in _row_blocks(n):
+        W = weights.block(start, stop)
+        keep = W > 0
+        if not directed:
+            keep &= np.arange(n)[None, :] > np.arange(start, stop)[:, None]
+        r, c = np.nonzero(keep)
+        G.add_edges_from(
+            (agents[start + i], agents[j], {weight: w})
+            for i, j, w in zip(r.tolist(), c.tolist(), W[r, c].tolist())
+        )
+    return G
+
+
+@_graph_or_matrix
+def simple_projection(
+    B, agent_nodes=None, weight="weight", *, agent_labels=None, artifact_labels=None
+):
+    r"""Project a bipartite graph using shared-neighbor counts.
+
+    The weight of agents ``u`` and ``v`` is the number of artifacts they
+    share [1]_:
+
+    .. math::
+
+        w_{uv} = |\Gamma(u) \cap \Gamma(v)|
+
+    This equals :func:`~networkx.algorithms.bipartite.projection.weighted_projected_graph`.
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B* (one full side of the
+        bipartition).  If ``None`` they are inferred as in
+        :func:`backbone_from_projection`.  Must be ``None`` for a matrix *B*.
     weight : string, optional (default="weight")
         Edge attribute name for the projection weight.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B* (default ``0, 1, ...``, or a
+        ``DataFrame``'s index and columns).  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -469,6 +666,9 @@ def simple_projection(B, agent_nodes, weight="weight"):
         If *B* is not bipartite or *agent_nodes* is not one side of it.
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
+    ValueError
+        If a matrix *B* is not two-dimensional and binary, or its labels do
+        not match its shape.
 
     See Also
     --------
@@ -476,8 +676,9 @@ def simple_projection(B, agent_nodes, weight="weight"):
 
     References
     ----------
-    .. [1] Coscia, M. & Neffke, F. (2017). Network backboning with noisy
-       data. arXiv:1906.09081.
+    .. [1] Coscia, M. & Rossi, L. (2019). The impact of projection and
+       backboning on network topologies. *Proc. IEEE/ACM ASONAM 2019*.
+       https://doi.org/10.1145/3341161.3342862 (arXiv:1906.09081).
 
     Examples
     --------
@@ -487,30 +688,70 @@ def simple_projection(B, agent_nodes, weight="weight"):
     >>> P = simple_projection(B, agent_nodes=[1, 2, 3])
     >>> sorted(P.edges(data="weight"))
     [(1, 2, 1.0), (1, 3, 1.0), (2, 3, 1.0)]
+
+    An agents x artifacts incidence matrix works directly:
+
+    >>> import numpy as np
+    >>> M = np.array([[1, 1, 0], [1, 0, 1], [0, 1, 1]])
+    >>> P = simple_projection(M, agent_labels=[1, 2, 3])
+    >>> sorted(P.edges(data="weight"))
+    [(1, 2, 1.0), (1, 3, 1.0), (2, 3, 1.0)]
     """
-    agent_nodes = _validate_bipartite(B, agent_nodes)
-    agents, _, R, _ = _bipartite_projection_matrix(B, agent_nodes)
-    W = _projection_weight_matrix(R, method="simple")
-    return _projection_graph_from_matrix(agents, W, weight=weight, directed=False)
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    return _projection_graph(inc, "simple", weight=weight)
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
-def hyper_projection(B, agent_nodes, weight="weight"):
-    """Project a bipartite graph using hyperbolic weighting.
+@_graph_or_matrix
+def hyper_projection(
+    B,
+    agent_nodes=None,
+    weight="weight",
+    *,
+    newman=False,
+    agent_labels=None,
+    artifact_labels=None,
+):
+    r"""Project a bipartite graph with hyperbolic (degree-discounted) weights.
 
-    For agent nodes ``u`` and ``v``, the weight is
-    ``sum_{z in Gamma(u) ∩ Gamma(v)} 1 / d(z)`` where ``d(z)`` is the
-    artifact degree.
+    Each shared artifact ``z`` contributes the inverse of its degree
+    ``d(z) = |\Gamma(z)|``, so sharing a small artifact counts for more than
+    sharing a large one:
+
+    .. math::
+
+        w_{uv} = \sum_{z \in \Gamma(u) \cap \Gamma(v)} \frac{1}{d(z)}
+
+    This is the "hyperbolic" projection as defined by Coscia & Rossi [1]_,
+    who attribute the idea to Newman [2]_.  Newman's own collaboration
+    weight [3]_ discounts by ``d(z) - 1`` instead, the number of *other*
+    co-authors, so that each author's ties sum to the number of their
+    multi-author papers:
+
+    .. math::
+
+        w_{uv} = \sum_{z \in \Gamma(u) \cap \Gamma(v)} \frac{1}{d(z) - 1}
+
+    Pass ``newman=True`` for that variant; it equals
+    :func:`~networkx.algorithms.bipartite.projection.collaboration_weighted_projected_graph`.  The
+    two weightings coincide only up to a constant when every artifact has the
+    same degree, so they can rank pairs differently.
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
     weight : string, optional (default="weight")
         Edge attribute name for the projection weight.
+    newman : bool, optional (default=False)
+        If ``True`` use Newman's ``1 / (d(z) - 1)`` discount.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -523,15 +764,25 @@ def hyper_projection(B, agent_nodes, weight="weight"):
         If *B* is not bipartite or *agent_nodes* is not one side of it.
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
+    ValueError
+        If a matrix *B* is not two-dimensional and binary, or its labels do
+        not match its shape.
 
     See Also
     --------
-    bipartite_projection, simple_projection
+    bipartite_projection, simple_projection, ycn_projection
 
     References
     ----------
-    .. [1] Coscia, M. & Neffke, F. (2017). Network backboning with noisy
-       data. arXiv:1906.09081.
+    .. [1] Coscia, M. & Rossi, L. (2019). The impact of projection and
+       backboning on network topologies. *Proc. IEEE/ACM ASONAM 2019*.
+       https://doi.org/10.1145/3341161.3342862 (arXiv:1906.09081).
+    .. [2] Newman, M. E. J. (2001). Scientific collaboration networks. I.
+       Network construction and fundamental results. *Physical Review E*,
+       64, 016131.
+    .. [3] Newman, M. E. J. (2001). Scientific collaboration networks. II.
+       Shortest paths, weighted networks, and centrality. *Physical Review
+       E*, 64, 016132.
 
     Examples
     --------
@@ -541,32 +792,58 @@ def hyper_projection(B, agent_nodes, weight="weight"):
     >>> P = hyper_projection(B, agent_nodes=[1, 2, 3])
     >>> sorted(P.edges(data="weight"))
     [(1, 2, 0.5), (1, 3, 0.5), (2, 3, 0.5)]
+    >>> P = hyper_projection(B, agent_nodes=[1, 2, 3], newman=True)
+    >>> sorted(P.edges(data="weight"))
+    [(1, 2, 1.0), (1, 3, 1.0), (2, 3, 1.0)]
     """
-    agent_nodes = _validate_bipartite(B, agent_nodes)
-    agents, _, R, _ = _bipartite_projection_matrix(B, agent_nodes)
-    W = _projection_weight_matrix(R, method="hyper")
-    return _projection_graph_from_matrix(agents, W, weight=weight, directed=False)
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    return _projection_graph(inc, "newman" if newman else "hyper", weight=weight)
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
-def probs_projection(B, agent_nodes, weight="weight", directed=False):
-    """Project a bipartite graph using ProbS random-walk weights.
+@_graph_or_matrix
+def probs_projection(
+    B,
+    agent_nodes=None,
+    weight="weight",
+    directed=False,
+    *,
+    agent_labels=None,
+    artifact_labels=None,
+):
+    r"""Project a bipartite graph using ProbS random-walk weights.
 
-    The directed score from ``u`` to ``v`` is
-    ``(1 / d(u)) * sum_{z in Gamma(u) ∩ Gamma(v)} 1 / d(z)``.
+    ProbS (probabilistic spreading, or mass diffusion) [1]_ [2]_ sends a unit
+    of resource from agent ``u`` evenly to its artifacts, and from each
+    artifact evenly to that artifact's agents.  The share of ``u``'s resource
+    that reaches ``v`` is the directed weight
+
+    .. math::
+
+        w_{u \to v} = \frac{1}{d(u)}
+            \sum_{z \in \Gamma(u) \cap \Gamma(v)} \frac{1}{d(z)},
+
+    the probability that a two-step random walk from ``u`` ends at ``v``.
+    Zhou et al. [2]_ write the same matrix with the indices swapped
+    (``w_{vu}``).  As in Coscia & Rossi [1]_, the undirected projection
+    averages the two directions, ``(w_{u \to v} + w_{v \to u}) / 2``.
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
     weight : string, optional (default="weight")
         Edge attribute name for the projection weight.
     directed : bool, optional (default=False)
         If ``True`` return the asymmetric scores as a :class:`~networkx.DiGraph`;
         otherwise the two directions are averaged.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -580,6 +857,9 @@ def probs_projection(B, agent_nodes, weight="weight", directed=False):
         If *B* is not bipartite or *agent_nodes* is not one side of it.
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
+    ValueError
+        If a matrix *B* is not two-dimensional and binary, or its labels do
+        not match its shape.
 
     See Also
     --------
@@ -587,8 +867,12 @@ def probs_projection(B, agent_nodes, weight="weight", directed=False):
 
     References
     ----------
-    .. [1] Coscia, M. & Neffke, F. (2017). Network backboning with noisy
-       data. arXiv:1906.09081.
+    .. [1] Coscia, M. & Rossi, L. (2019). The impact of projection and
+       backboning on network topologies. *Proc. IEEE/ACM ASONAM 2019*.
+       https://doi.org/10.1145/3341161.3342862 (arXiv:1906.09081).
+    .. [2] Zhou, T., Ren, J., Medo, M., & Zhang, Y.-C. (2007). Bipartite
+       network projection and personal recommendation. *Physical Review E*,
+       76, 046115.
 
     Examples
     --------
@@ -599,28 +883,52 @@ def probs_projection(B, agent_nodes, weight="weight", directed=False):
     >>> P["a"]["b"]["weight"], P["b"]["a"]["weight"]
     (0.25, 0.5)
     """
-    agent_nodes = _validate_bipartite(B, agent_nodes)
-    agents, _, R, _ = _bipartite_projection_matrix(B, agent_nodes)
-    W = _projection_weight_matrix(R, method="probs", symmetrize=not directed)
-    return _projection_graph_from_matrix(agents, W, weight=weight, directed=directed)
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    return _projection_graph(inc, "probs", weight=weight, directed=directed)
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
+@_graph_or_matrix
 def ycn_projection(
-    B, agent_nodes, weight="weight", directed=False, max_iter=1000, tol=1e-12
+    B,
+    agent_nodes=None,
+    weight="weight",
+    directed=False,
+    max_iter=1000,
+    tol=1e-12,
+    *,
+    agent_labels=None,
+    artifact_labels=None,
 ):
-    """Project a bipartite graph using YCN random-walk stationary flow.
+    r"""Project a bipartite graph using YCN random-walk stationary flow.
 
-    This method estimates a random-walk transition matrix on the projected
-    layer and scores pairs by stationary flow ``pi_u * T_uv``.
+    YCN (Yildirim & Coscia [1]_, who call it BPR) extends ProbS to random
+    walks of unbounded length.  With the ProbS transition matrix
+    ``T_{uv} = w_{u \to v}`` (including the walk's return to ``u``) and its
+    stationary distribution ``pi``, reached by power iteration from the
+    uniform vector, the directed weight is the stationary flow
+
+    .. math::
+
+        U_{uv} = \pi_u T_{uv}.
+
+    The undirected projection averages ``U_{uv}`` and ``U_{vu}`` [2]_.  On a
+    connected bipartite graph ``pi_u = d(u) / |E|``, so YCN equals the
+    hyperbolic weight divided by the number of bipartite edges ``|E|`` and is
+    already symmetric.  On a disconnected graph the walk keeps each
+    component's initial mass, ``pi_u = (n_c / n) d(u) / |E_c|`` for a
+    component with ``n_c`` of the ``n`` agents and ``|E_c|`` edges.  Agents
+    without artifacts get no edges.
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
     weight : string, optional (default="weight")
         Edge attribute name for the projection weight.
     directed : bool, optional (default=False)
@@ -630,6 +938,8 @@ def ycn_projection(
         Maximum power iterations for the stationary distribution.
     tol : float, optional (default=1e-12)
         L1 convergence tolerance for the stationary distribution.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -643,15 +953,21 @@ def ycn_projection(
         If *B* is not bipartite or *agent_nodes* is not one side of it.
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
+    ValueError
+        If a matrix *B* is not two-dimensional and binary, or its labels do
+        not match its shape.
 
     See Also
     --------
-    bipartite_projection, probs_projection
+    bipartite_projection, probs_projection, hyper_projection
 
     References
     ----------
-    .. [1] Coscia, M. & Neffke, F. (2017). Network backboning with noisy
-       data. arXiv:1906.09081.
+    .. [1] Yildirim, M. A., & Coscia, M. (2014). Using random walks to
+       generate associations between objects. *PLoS ONE*, 9(8), e104813.
+    .. [2] Coscia, M. & Rossi, L. (2019). The impact of projection and
+       backboning on network topologies. *Proc. IEEE/ACM ASONAM 2019*.
+       https://doi.org/10.1145/3341161.3342862 (arXiv:1906.09081).
 
     Examples
     --------
@@ -659,38 +975,46 @@ def ycn_projection(
     >>> from networkx_backbone import ycn_projection
     >>> B = nx.Graph([(1, "a"), (1, "b"), (2, "a"), (2, "c"), (3, "b"), (3, "c")])
     >>> P = ycn_projection(B, agent_nodes=[1, 2, 3])
-    >>> round(P[1][2]["weight"], 4)
+    >>> round(P[1][2]["weight"], 4)  # hyperbolic weight 0.5 / 6 edges
     0.0833
     """
-    agent_nodes = _validate_bipartite(B, agent_nodes)
-    agents, _, R, _ = _bipartite_projection_matrix(B, agent_nodes)
-    W = _projection_weight_matrix(
-        R, method="ycn", symmetrize=not directed, max_iter=max_iter, tol=tol
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    return _projection_graph(
+        inc, "ycn", weight=weight, directed=directed, max_iter=max_iter, tol=tol
     )
-    return _projection_graph_from_matrix(agents, W, weight=weight, directed=directed)
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
+@_graph_or_matrix
 def bipartite_projection(
     B,
-    agent_nodes,
+    agent_nodes=None,
     method="simple",
     weight="weight",
     directed=False,
     max_iter=1000,
     tol=1e-12,
+    *,
+    agent_labels=None,
+    artifact_labels=None,
 ):
     """Dispatch weighted bipartite projections by method name.
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
-    method : {"simple", "hyper", "hyperbolic", "probs", "ycn"}, optional
-        Projection weighting (default ``"simple"``).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
+    method : {"simple", "hyper", "newman", "probs", "ycn"}, optional
+        Projection weighting (default ``"simple"``): see
+        :func:`simple_projection`, :func:`hyper_projection` (``"hyper"``,
+        alias ``"hyperbolic"``; ``"newman"``, alias ``"collaboration"``, is
+        ``hyper_projection(..., newman=True)``), :func:`probs_projection`
+        and :func:`ycn_projection`.
     weight : string, optional (default="weight")
         Edge attribute name for the projection weight.
     directed : bool, optional (default=False)
@@ -699,6 +1023,8 @@ def bipartite_projection(
         Maximum iterations for ``method="ycn"``.
     tol : float, optional (default=1e-12)
         Convergence tolerance for ``method="ycn"``.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -708,8 +1034,8 @@ def bipartite_projection(
     Raises
     ------
     ValueError
-        If *method* is unknown or ``directed=True`` is requested for a
-        symmetric method.
+        If *method* is unknown, ``directed=True`` is requested for a
+        symmetric method, or a matrix *B* is invalid.
     NetworkXError
         If *B* is not bipartite or *agent_nodes* is not one side of it.
     NetworkXNotImplemented
@@ -729,66 +1055,126 @@ def bipartite_projection(
     >>> P.number_of_nodes()
     18
     """
-    agent_nodes = _validate_bipartite(B, agent_nodes)
-    method_l = method.lower()
-    if method_l == "simple":
-        if directed:
-            raise ValueError("simple projection does not support directed=True")
-        return simple_projection(B, agent_nodes=agent_nodes, weight=weight)
-    if method_l in ("hyper", "hyperbolic"):
-        if directed:
-            raise ValueError("hyper projection does not support directed=True")
-        return hyper_projection(B, agent_nodes=agent_nodes, weight=weight)
-    if method_l == "probs":
-        return probs_projection(
-            B, agent_nodes=agent_nodes, weight=weight, directed=directed
-        )
-    if method_l == "ycn":
-        return ycn_projection(
-            B,
-            agent_nodes=agent_nodes,
-            weight=weight,
-            directed=directed,
-            max_iter=max_iter,
-            tol=tol,
-        )
-    raise ValueError(
-        "Unknown projection method. Choose one of: 'simple', 'hyper', 'probs', 'ycn'."
+    method_l = _projection_name(method)
+    if directed and method_l not in ("probs", "ycn"):
+        raise ValueError(f"{method} projection does not support directed=True")
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    return _projection_graph(
+        inc, method_l, weight=weight, directed=directed, max_iter=max_iter, tol=tol
     )
 
 
-def _apply_projection_weights(
-    graph,
-    B,
-    agent_nodes,
+# =====================================================================
+# Scoring every agent pair
+# =====================================================================
+
+
+def _score_pairs(
+    inc,
+    tails,
+    attr,
+    *,
+    signed=False,
+    alpha=None,
+    mtc="none",
     projection="simple",
     projection_weight="weight",
     projection_directed=False,
     projection_max_iter=1000,
     projection_tol=1e-12,
 ):
-    """Annotate graph edges with weights from a selected bipartite projection."""
+    """Score every agent pair and return the (thresholded) backbone graph.
+
+    ``tails(i, j, k)`` returns the upper and lower tail probabilities of the
+    observed co-occurrence counts ``k`` for agent index arrays ``i < j`` (the
+    lower tail may be ``None`` when ``signed`` is false); ``tails=None``
+    scores no pairs.  Pairs are visited in blocks of agent rows, in the
+    order of ``np.triu_indices``.  With ``alpha`` only pairs whose p-value
+    (after the correction *mtc*, which needs every p-value) is ``< alpha``
+    become edges; each edge stores the unadjusted p-value, the ``"sign"``
+    when *signed*, and the *projection* weight (0.0 for non-co-occurring
+    pairs).
+    """
+    import numpy as np
+
     if projection_directed:
         raise ValueError(
             "projection_directed=True is not supported for undirected backbones"
         )
-
-    projected = bipartite_projection(
-        B,
-        agent_nodes=agent_nodes,
-        method=projection,
-        weight=projection_weight,
-        directed=False,
-        max_iter=projection_max_iter,
-        tol=projection_tol,
+    weights = _ProjectionWeights(
+        inc.R, projection, max_iter=projection_max_iter, tol=projection_tol
     )
-    for u, v in graph.edges():
-        if projected.has_edge(u, v):
-            graph[u][v][projection_weight] = float(projected[u][v][projection_weight])
-        else:
-            graph[u][v][projection_weight] = 0.0
+    use_mtc = mtc.lower() != "none"
+    if use_mtc:
+        _adjust_array([], mtc)  # validate the method name early
+    agents = inc.agents
+    n = len(agents)
+    G = nx.Graph()
+    G.add_nodes_from(agents)
+    if n < 2 or tails is None:
+        return G
 
-    return graph
+    def add_edges(start, stop, r, c, pval, sign, counts=None):
+        if not len(r):
+            return
+        w = weights.block(start, stop, counts)[r, c]
+        rows = (start + r).tolist()
+        cols = c.tolist()
+        if signed:
+            data = (
+                {attr: p, "sign": s, projection_weight: x}
+                for p, s, x in zip(pval.tolist(), sign.tolist(), w.tolist())
+            )
+        else:
+            data = (
+                {attr: p, projection_weight: x}
+                for p, x in zip(pval.tolist(), w.tolist())
+            )
+        G.add_edges_from((agents[i], agents[j], d) for i, j, d in zip(rows, cols, data))
+
+    def score_block(start, stop):
+        r, c = _upper_positions(start, stop, n)
+        counts = weights.cooccurrence(start, stop)
+        p_hi, p_lo = tails(start + r, c, counts[r, c])
+        if signed:
+            pval, sign = _signed_pvalues(p_hi, p_lo)
+        else:
+            pval, sign = np.clip(np.asarray(p_hi, dtype=float), 0.0, 1.0), None
+        return r, c, counts, pval, sign
+
+    if not use_mtc:
+        for start, stop in _row_blocks(n):
+            r, c, counts, pval, sign = score_block(start, stop)
+            if alpha is not None:
+                keep = pval < alpha
+                r, c, pval = r[keep], c[keep], pval[keep]
+                sign = sign[keep] if signed else None
+            add_edges(start, stop, r, c, pval, sign, counts)
+        return G
+
+    # Multiple-testing correction needs all p-values before thresholding.
+    blocks = list(_row_blocks(n))
+    pvals, signs = [], []
+    for start, stop in blocks:
+        _, _, _, pval, sign = score_block(start, stop)
+        pvals.append(pval)
+        signs.append(sign)
+    keep_all = _adjust_array(np.concatenate(pvals), mtc) < alpha
+    offset = 0
+    for (start, stop), pval, sign in zip(blocks, pvals, signs):
+        keep = keep_all[offset : offset + len(pval)]
+        offset += len(pval)
+        if keep.any():
+            r, c = _upper_positions(start, stop, n)
+            add_edges(
+                start,
+                stop,
+                r[keep],
+                c[keep],
+                pval[keep],
+                sign[keep] if signed else None,
+            )
+    return G
 
 
 # =====================================================================
@@ -920,9 +1306,123 @@ def _bicm_fit(R, required=None, prohibited=None, tol=1e-8, max_iter=10000):
     return P
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
-def bicm(B, agent_nodes, return_labels=False, *, tol=1e-8, max_iter=10000):
+def _bicm_classes(row_deg, col_deg, tol=1e-8, max_iter=10000):
+    """Unconstrained BiCM probabilities grouped by degree.
+
+    Without edge constraints ``P[i, k]`` depends only on the degrees of row
+    ``i`` and column ``k``, so the fit is returned compactly as
+    ``(Q, row_class, col_class)`` with ``P = Q[row_class][:, col_class]``,
+    where the classes index the distinct row and column degrees.  This
+    follows :func:`_bicm_fit` step by step (same peeling of empty and full
+    rows/columns, same fixed-point iteration on the distinct residual
+    degrees), so the expanded matrix is bit-identical to ``_bicm_fit(R)``,
+    but needs only the degree sequences: memory is ``O(n_rows + n_cols)``
+    instead of ``O(n_rows * n_cols)``.
+    """
+    import numpy as np
+
+    row_deg = np.asarray(row_deg, dtype=np.int64)
+    col_deg = np.asarray(col_deg, dtype=np.int64)
+    n_rows, n_cols = len(row_deg), len(col_deg)
+    _, r_rep, row_class = np.unique(row_deg, return_index=True, return_inverse=True)
+    _, c_rep, col_class = np.unique(col_deg, return_index=True, return_inverse=True)
+    Q = np.zeros((len(r_rep), len(c_rep)), dtype=float)
+    if n_rows == 0 or n_cols == 0:
+        return Q, row_class, col_class
+
+    # Peel rows/columns whose free cells are all forced to 0 or 1.  Cells are
+    # fixed a whole row or column at a time, so an unpeeled row's free cells
+    # are exactly the unpeeled columns, and its fixed mass is the number of
+    # columns peeled at 1 (and vice versa).
+    never = np.iinfo(np.int64).max
+    r_round = np.full(n_rows, never)
+    c_round = np.full(n_cols, never)
+    r_val = np.zeros(n_rows)
+    c_val = np.zeros(n_cols)
+    r_active = np.ones(n_rows, dtype=bool)
+    c_active = np.ones(n_cols, dtype=bool)
+    ones_r = ones_c = 0
+    rnd = 0
+    while True:
+        r_free = int(c_active.sum())
+        c_free = int(r_active.sum())
+        r_res = row_deg - ones_c
+        c_res = col_deg - ones_r
+        rows0 = r_active & (r_free > 0) & (r_res == 0)
+        rows1 = r_active & (r_free > 0) & (r_res == r_free)
+        cols0 = c_active & (c_free > 0) & (c_res == 0)
+        cols1 = c_active & (c_free > 0) & (c_res == c_free)
+        if not (rows0.any() or rows1.any() or cols0.any() or cols1.any()):
+            break
+        r_val[rows1] = 1.0
+        c_val[cols1] = 1.0
+        r_round[rows0 | rows1] = rnd
+        c_round[cols0 | cols1] = rnd
+        r_active &= ~(rows0 | rows1)
+        c_active &= ~(cols0 | cols1)
+        ones_r += int(rows1.sum())
+        ones_c += int(cols1.sum())
+        rnd += 1
+
+    rows = np.flatnonzero(r_active) if c_active.any() else np.zeros(0, dtype=int)
+    cols = np.flatnonzero(c_active) if r_active.any() else np.zeros(0, dtype=int)
+    Pu = None
+    if rows.size:
+        r = (row_deg - ones_c)[rows].astype(float)
+        c = (col_deg - ones_r)[cols].astype(float)
+        total = r.sum()
+        ru, rinv, rn = np.unique(r, return_inverse=True, return_counts=True)
+        cu, cinv, cn = np.unique(c, return_inverse=True, return_counts=True)
+        x = ru / np.sqrt(total)
+        y = cu / np.sqrt(total)
+        err = np.inf
+        for _ in range(max_iter):
+            xy = x[:, None] * y[None, :]
+            x = ru / ((cn * y)[None, :] / (1.0 + xy)).sum(axis=1)
+            xy = x[:, None] * y[None, :]
+            y = cu / ((rn * x)[:, None] / (1.0 + xy)).sum(axis=0)
+            xy = x[:, None] * y[None, :]
+            Pu = xy / (1.0 + xy)
+            err = max(
+                np.abs((Pu * cn).sum(axis=1) - ru).max(),
+                np.abs((Pu * rn[:, None]).sum(axis=0) - cu).max(),
+            )
+            if err < tol:
+                break
+        if not err < tol:
+            warnings.warn(
+                f"BiCM fit did not converge in {max_iter} iterations "
+                f"(max margin error {err:.3g} > tol={tol:g}).",
+                RuntimeWarning,
+                stacklevel=3,
+            )
+        r_pos = np.zeros(n_rows, dtype=np.intp)
+        c_pos = np.zeros(n_cols, dtype=np.intp)
+        r_pos[rows] = rinv.ravel()
+        c_pos[cols] = cinv.ravel()
+
+    # A cell takes the value of whichever of its row and column was peeled
+    # first (rows first within a round), else the fitted probability.
+    rr = r_round[r_rep][:, None]
+    cr = c_round[c_rep][None, :]
+    free = (rr == never) & (cr == never)
+    Q = np.where(rr <= cr, r_val[r_rep][:, None], c_val[c_rep][None, :])
+    if Pu is not None and free.any():
+        Q[free] = Pu[np.ix_(r_pos[r_rep], c_pos[c_rep])][free]
+    return Q, row_class, col_class
+
+
+@_graph_or_matrix
+def bicm(
+    B,
+    agent_nodes=None,
+    return_labels=False,
+    *,
+    tol=1e-8,
+    max_iter=10000,
+    agent_labels=None,
+    artifact_labels=None,
+):
     """Estimate Bipartite Configuration Model edge probabilities.
 
     Fits the maximum-entropy BiCM [1]_: ``P[i, k] = x_i y_k / (1 + x_i y_k)``
@@ -936,10 +1436,14 @@ def bicm(B, agent_nodes, return_labels=False, *, tol=1e-8, max_iter=10000):
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition.
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
     return_labels : bool, optional (default=False)
         If ``True``, also return ``(agents, artifacts)`` labels.
     tol : float, optional (default=1e-8)
@@ -948,13 +1452,16 @@ def bicm(B, agent_nodes, return_labels=False, *, tol=1e-8, max_iter=10000):
     max_iter : int, optional (default=10000)
         Maximum fixed-point iterations.  A :class:`RuntimeWarning` is emitted
         if the fit has not converged.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
     P : np.ndarray
         Probability matrix of shape ``(n_agents, n_artifacts)`` where
         ``P[i, k]`` is the estimated probability of an edge between
-        agent ``i`` and artifact ``k``.
+        agent ``i`` and artifact ``k``.  Rows and columns are ordered by
+        ``str`` of their labels.
     (P, agents, artifacts) : tuple
         Returned when ``return_labels=True``.
 
@@ -964,6 +1471,9 @@ def bicm(B, agent_nodes, return_labels=False, *, tol=1e-8, max_iter=10000):
         If *B* is not bipartite or *agent_nodes* is not one side of it.
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
+    ValueError
+        If a matrix *B* is not two-dimensional and binary, or its labels do
+        not match its shape.
 
     Warns
     -----
@@ -992,12 +1502,13 @@ def bicm(B, agent_nodes, return_labels=False, *, tol=1e-8, max_iter=10000):
     >>> bool(np.allclose(P.sum(axis=1), degrees, atol=1e-6))
     True
     """
-    agent_nodes = _validate_bipartite(B, agent_nodes)
-    agents, artifacts, R, _ = _bipartite_projection_matrix(B, agent_nodes)
-    P = _bicm_fit(R, tol=tol, max_iter=max_iter)
-
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    Q, row_class, col_class = _bicm_classes(
+        *_degrees(inc.R), tol=tol, max_iter=max_iter
+    )
+    P = Q[row_class][:, col_class]
     if return_labels:
-        return P, agents, artifacts
+        return P, inc.agents, inc.artifacts
     return P
 
 
@@ -1108,27 +1619,87 @@ def fastball(matrix, n_swaps=None, seed=None):
     return _rows_to_matrix(row_sets, n_cols)
 
 
-def _fdsm_samples(R, trials, rng, burn_in=None, thin=None):
-    """Yield ``trials`` matrices from the FDSM via a curveball Markov chain.
-
-    The chain starts at the observed matrix ``R``, runs ``burn_in`` trades,
-    then yields a sample every ``thin`` trades.  Every sample has exactly the
-    row and column sums of ``R``.
-    """
+def _row_sets(R):
+    """Row supports of a dense or sparse binary matrix as a list of sets."""
     import numpy as np
+    import scipy.sparse as sp
 
-    n_rows, n_cols = R.shape
+    if sp.issparse(R):
+        R = sp.csr_array(R)
+        R.sort_indices()
+        return [
+            set(R.indices[R.indptr[i] : R.indptr[i + 1]].tolist())
+            for i in range(R.shape[0])
+        ]
+    return [set(np.flatnonzero(row).tolist()) for row in np.asarray(R)]
+
+
+def _row_sets_to_csr(row_sets, n_cols):
+    import itertools
+
+    import numpy as np
+    import scipy.sparse as sp
+
+    lengths = np.fromiter(
+        (len(s) for s in row_sets), dtype=np.int64, count=len(row_sets)
+    )
+    indptr = np.concatenate(([0], np.cumsum(lengths)))
+    indices = np.fromiter(
+        itertools.chain.from_iterable(row_sets), dtype=np.int64, count=int(indptr[-1])
+    )
+    data = np.ones(len(indices), dtype=np.int64)
+    return sp.csr_array((data, indices, indptr), shape=(len(row_sets), n_cols))
+
+
+def _fdsm_row_sets(R, trials, rng, burn_in=None, thin=None):
+    """Yield ``trials`` FDSM samples (as row sets) via a curveball Markov chain.
+
+    The chain starts at the observed matrix ``R`` (dense or sparse), runs
+    ``burn_in`` trades, then yields a sample every ``thin`` trades.  Every
+    sample has exactly the row and column sums of ``R``.  The same list of
+    sets is yielded each time, updated in place.
+    """
+    n_rows = R.shape[0]
     if burn_in is None:
         burn_in = 10 * n_rows
     if thin is None:
         thin = 5 * n_rows
     if burn_in < 0 or thin < 0:
         raise ValueError("burn_in and thin must be >= 0")
-    row_sets = [set(np.flatnonzero(R[i]).tolist()) for i in range(n_rows)]
+    row_sets = _row_sets(R)
     _curveball_trades(row_sets, burn_in, rng)
     for _ in range(trials):
         _curveball_trades(row_sets, thin, rng)
-        yield _rows_to_matrix(row_sets, n_cols)
+        yield row_sets
+
+
+def _fdsm_samples(R, trials, rng, burn_in=None, thin=None):
+    """Dense-matrix version of :func:`_fdsm_row_sets`."""
+    for row_sets in _fdsm_row_sets(R, trials, rng, burn_in=burn_in, thin=thin):
+        yield _rows_to_matrix(row_sets, R.shape[1])
+
+
+def _sorted_upper_keys(C, n):
+    """``(keys, values)`` of the strict upper triangle of sparse ``C``, by key."""
+    import numpy as np
+
+    C = C.tocoo()
+    up = C.row < C.col
+    keys = C.row[up].astype(np.int64) * n + C.col[up]
+    vals = C.data[up]
+    order = np.argsort(keys, kind="stable")
+    return keys[order], vals[order]
+
+
+def _lookup(keys, query):
+    """Positions of ``query`` in sorted ``keys`` and a found mask."""
+    import numpy as np
+
+    pos = np.searchsorted(keys, query)
+    if len(keys) == 0:
+        return pos, np.zeros(len(query), dtype=bool)
+    pos = np.minimum(pos, len(keys) - 1)
+    return pos, keys[pos] == query
 
 
 # =====================================================================
@@ -1181,17 +1752,70 @@ def _fixedfill_pmf(n_agents, n_artifacts, n_filled):
     return pmf
 
 
-def _fixed_model_setup(B, agent_nodes):
-    agent_nodes = _validate_bipartite(B, agent_nodes)
-    agents, artifacts, R, observed = _bipartite_projection_matrix(B, agent_nodes)
-    return agent_nodes, agents, artifacts, R, observed
+def _per_distinct(func, k, a, b, base):
+    """Evaluate ``func(k, a, b)`` once per distinct ``(k, a, b)`` triple.
+
+    ``k``, ``a`` and ``b`` are non-negative integer arrays with ``a, b <
+    base``.  The results (a tuple of arrays or ``None``) are broadcast back to
+    every pair; element-wise functions give exactly the values they would
+    give on the full arrays.
+    """
+    import numpy as np
+
+    k = np.asarray(k, dtype=np.int64)
+    a = np.asarray(a, dtype=np.int64)
+    b = np.asarray(b, dtype=np.int64)
+    keys = (k * base + a) * base + b
+    _, first, inverse = np.unique(keys, return_index=True, return_inverse=True)
+    out = func(k[first], a[first], b[first])
+    return tuple(None if x is None else np.asarray(x)[inverse] for x in out)
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
+def _fixedfill_tails(inc, *, signed=False):
+    """Pair tails under the fixed-fill model (identical for every pair)."""
+    na, nf = inc.R.shape
+    if na < 2 or nf == 0:
+        return None
+    pmf = _fixedfill_pmf(na, nf, int(inc.R.sum()))
+    return lambda i, j, k: _pmf_tails(pmf, k)
+
+
+def _fixedrow_tails(inc, *, signed=False):
+    """Pair tails under the fixed-row model: hypergeometric in the degrees."""
+    from scipy import stats as sp_stats
+
+    na, nf = inc.R.shape
+    if na < 2 or nf == 0:
+        return None
+    deg, _ = _degrees(inc.R)
+
+    def hypergeom_tails(k, di, dj):
+        p_hi = sp_stats.hypergeom.sf(k - 1, nf, di, dj)
+        p_lo = sp_stats.hypergeom.cdf(k, nf, di, dj) if signed else None
+        return p_hi, p_lo
+
+    # The tails depend only on (k, d_i, d_j).
+    return lambda i, j, k: _per_distinct(hypergeom_tails, k, deg[i], deg[j], nf + 1)
+
+
+def _fixedcol_tails(inc, *, signed=False):
+    """Pair tails under the fixed-column model (identical for every pair)."""
+    import numpy as np
+
+    na, nf = inc.R.shape
+    if na < 2 or nf == 0:
+        return None
+    _, col_deg = _degrees(inc.R)
+    col_sums = col_deg.astype(float)
+    pair_prob = np.clip(col_sums * (col_sums - 1) / (na * (na - 1)), 0.0, 1.0)
+    pmf = _poisson_binomial_pmf(pair_prob)
+    return lambda i, j, k: _pmf_tails(pmf, k)
+
+
+@_graph_or_matrix
 def fixedfill(
     B,
-    agent_nodes,
+    agent_nodes=None,
     alpha=0.05,
     signed=False,
     projection="simple",
@@ -1199,6 +1823,9 @@ def fixedfill(
     projection_directed=False,
     projection_max_iter=1000,
     projection_tol=1e-12,
+    *,
+    agent_labels=None,
+    artifact_labels=None,
 ):
     """Backbone from the fixed-fill null model for bipartite projections.
 
@@ -1211,18 +1838,23 @@ def fixedfill(
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
     alpha : float, optional (default=0.05)
         Significance level; only pairs with p-value ``< alpha`` are kept.
     signed : bool, optional (default=False)
         If ``True``, run a two-tailed test: the p-value is two-sided and a
         ``"sign"`` attribute marks significantly strong (``+1``) or weak
         (``-1``) co-occurrence.
-    projection : {"simple", "hyper", "probs", "ycn"}, optional
-        Projection weighting assigned to each returned edge.
+    projection : {"simple", "hyper", "newman", "probs", "ycn"}, optional
+        Projection weighting assigned to each returned edge (see
+        :func:`bipartite_projection`).
     projection_weight : str, optional (default="weight")
         Edge attribute name for the projection weight.
     projection_directed : bool, optional (default=False)
@@ -1231,6 +1863,8 @@ def fixedfill(
         Maximum iterations for ``projection="ycn"``.
     projection_tol : float, optional (default=1e-12)
         Convergence tolerance for ``projection="ycn"``.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -1245,7 +1879,8 @@ def fixedfill(
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
     ValueError
-        If *projection* is unknown or ``projection_directed=True``.
+        If *projection* is unknown, ``projection_directed=True``, or a matrix
+        *B* is invalid.
 
     See Also
     --------
@@ -1267,24 +1902,13 @@ def fixedfill(
     >>> all(d["fixedfill_pvalue"] < 0.05 for _, _, d in H.edges(data=True))
     True
     """
-    import numpy as np
-
-    agent_nodes, agents, _, R, observed = _fixed_model_setup(B, agent_nodes)
-    na, nf = R.shape
-
-    if na < 2 or nf == 0:
-        backbone = nx.Graph()
-        backbone.add_nodes_from(agents)
-    else:
-        pmf = _fixedfill_pmf(na, nf, int(R.sum()))
-        k = observed[np.triu_indices(na, 1)]
-        p_hi, p_lo = _pmf_tails(pmf, k)
-        backbone = _pair_graph(agents, p_hi, p_lo, "fixedfill_pvalue", signed, alpha)
-
-    return _apply_projection_weights(
-        backbone,
-        B,
-        agent_nodes,
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    return _score_pairs(
+        inc,
+        _fixedfill_tails(inc, signed=signed),
+        "fixedfill_pvalue",
+        signed=signed,
+        alpha=alpha,
         projection=projection,
         projection_weight=projection_weight,
         projection_directed=projection_directed,
@@ -1293,11 +1917,10 @@ def fixedfill(
     )
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
+@_graph_or_matrix
 def fixedrow(
     B,
-    agent_nodes,
+    agent_nodes=None,
     alpha=0.05,
     signed=False,
     projection="simple",
@@ -1305,6 +1928,9 @@ def fixedrow(
     projection_directed=False,
     projection_max_iter=1000,
     projection_tol=1e-12,
+    *,
+    agent_labels=None,
+    artifact_labels=None,
 ):
     """Backbone from the fixed-row null model for bipartite projections.
 
@@ -1315,16 +1941,21 @@ def fixedrow(
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
     alpha : float, optional (default=0.05)
         Significance level; only pairs with p-value ``< alpha`` are kept.
     signed : bool, optional (default=False)
         If ``True``, run a two-tailed test and add a ``"sign"`` attribute.
-    projection : {"simple", "hyper", "probs", "ycn"}, optional
-        Projection weighting assigned to each returned edge.
+    projection : {"simple", "hyper", "newman", "probs", "ycn"}, optional
+        Projection weighting assigned to each returned edge (see
+        :func:`bipartite_projection`).
     projection_weight : str, optional (default="weight")
         Edge attribute name for the projection weight.
     projection_directed : bool, optional (default=False)
@@ -1333,6 +1964,8 @@ def fixedrow(
         Maximum iterations for ``projection="ycn"``.
     projection_tol : float, optional (default=1e-12)
         Convergence tolerance for ``projection="ycn"``.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -1347,7 +1980,8 @@ def fixedrow(
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
     ValueError
-        If *projection* is unknown or ``projection_directed=True``.
+        If *projection* is unknown, ``projection_directed=True``, or a matrix
+        *B* is invalid.
 
     See Also
     --------
@@ -1369,27 +2003,13 @@ def fixedrow(
     >>> all(d["fixedrow_pvalue"] < 0.05 for _, _, d in H.edges(data=True))
     True
     """
-    import numpy as np
-    from scipy import stats as sp_stats
-
-    agent_nodes, agents, _, R, observed = _fixed_model_setup(B, agent_nodes)
-    na, nf = R.shape
-
-    if na < 2 or nf == 0:
-        backbone = nx.Graph()
-        backbone.add_nodes_from(agents)
-    else:
-        iu, ju = np.triu_indices(na, 1)
-        deg = R.sum(axis=1)
-        k = observed[iu, ju]
-        p_hi = sp_stats.hypergeom.sf(k - 1, nf, deg[iu], deg[ju])
-        p_lo = sp_stats.hypergeom.cdf(k, nf, deg[iu], deg[ju])
-        backbone = _pair_graph(agents, p_hi, p_lo, "fixedrow_pvalue", signed, alpha)
-
-    return _apply_projection_weights(
-        backbone,
-        B,
-        agent_nodes,
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    return _score_pairs(
+        inc,
+        _fixedrow_tails(inc, signed=signed),
+        "fixedrow_pvalue",
+        signed=signed,
+        alpha=alpha,
         projection=projection,
         projection_weight=projection_weight,
         projection_directed=projection_directed,
@@ -1398,11 +2018,10 @@ def fixedrow(
     )
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
+@_graph_or_matrix
 def fixedcol(
     B,
-    agent_nodes,
+    agent_nodes=None,
     alpha=0.05,
     signed=False,
     projection="simple",
@@ -1410,6 +2029,9 @@ def fixedcol(
     projection_directed=False,
     projection_max_iter=1000,
     projection_tol=1e-12,
+    *,
+    agent_labels=None,
+    artifact_labels=None,
 ):
     """Backbone from the fixed-column null model for bipartite projections.
 
@@ -1423,16 +2045,21 @@ def fixedcol(
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
     alpha : float, optional (default=0.05)
         Significance level; only pairs with p-value ``< alpha`` are kept.
     signed : bool, optional (default=False)
         If ``True``, run a two-tailed test and add a ``"sign"`` attribute.
-    projection : {"simple", "hyper", "probs", "ycn"}, optional
-        Projection weighting assigned to each returned edge.
+    projection : {"simple", "hyper", "newman", "probs", "ycn"}, optional
+        Projection weighting assigned to each returned edge (see
+        :func:`bipartite_projection`).
     projection_weight : str, optional (default="weight")
         Edge attribute name for the projection weight.
     projection_directed : bool, optional (default=False)
@@ -1441,6 +2068,8 @@ def fixedcol(
         Maximum iterations for ``projection="ycn"``.
     projection_tol : float, optional (default=1e-12)
         Convergence tolerance for ``projection="ycn"``.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -1455,7 +2084,8 @@ def fixedcol(
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
     ValueError
-        If *projection* is unknown or ``projection_directed=True``.
+        If *projection* is unknown, ``projection_directed=True``, or a matrix
+        *B* is invalid.
 
     See Also
     --------
@@ -1477,26 +2107,13 @@ def fixedcol(
     >>> all(d["fixedcol_pvalue"] < 0.05 for _, _, d in H.edges(data=True))
     True
     """
-    import numpy as np
-
-    agent_nodes, agents, _, R, observed = _fixed_model_setup(B, agent_nodes)
-    na, nf = R.shape
-
-    if na < 2 or nf == 0:
-        backbone = nx.Graph()
-        backbone.add_nodes_from(agents)
-    else:
-        col_sums = R.sum(axis=0).astype(float)
-        pair_prob = np.clip(col_sums * (col_sums - 1) / (na * (na - 1)), 0.0, 1.0)
-        pmf = _poisson_binomial_pmf(pair_prob)
-        k = observed[np.triu_indices(na, 1)]
-        p_hi, p_lo = _pmf_tails(pmf, k)
-        backbone = _pair_graph(agents, p_hi, p_lo, "fixedcol_pvalue", signed, alpha)
-
-    return _apply_projection_weights(
-        backbone,
-        B,
-        agent_nodes,
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    return _score_pairs(
+        inc,
+        _fixedcol_tails(inc, signed=signed),
+        "fixedcol_pvalue",
+        signed=signed,
+        alpha=alpha,
         projection=projection,
         projection_weight=projection_weight,
         projection_directed=projection_directed,
@@ -1510,8 +2127,7 @@ def fixedcol(
 # =====================================================================
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
+@_graph_or_matrix
 def backbone_from_projection(
     B,
     agent_nodes=None,
@@ -1523,6 +2139,9 @@ def backbone_from_projection(
     projection_max_iter=1000,
     projection_tol=1e-12,
     mtc="none",
+    *,
+    agent_labels=None,
+    artifact_labels=None,
     **kwargs,
 ):
     """Extract a bipartite projection backbone using method-name dispatch.
@@ -1531,22 +2150,29 @@ def backbone_from_projection(
     model scores every agent pair, the optional multiple-testing correction
     *mtc* is applied across all pairs, and the pairs with (adjusted) p-value
     ``< alpha`` are returned.  The result is thresholded the same way for
-    every *method*.
+    every *method*.  Pairs are scored in blocks of agent rows and only the
+    significant ones become edges, so memory stays bounded for large
+    projections (with *mtc* the p-values of all pairs are kept, 8 bytes
+    each).
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``), as accepted by R ``backbone``.
     agent_nodes : iterable or None, optional (default=None)
-        Nodes in the "agent" partition.  If ``None`` they are taken from the
-        ``bipartite`` node attribute (value 0) when present, or from a
-        two-coloring of a connected *B*.
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        taken from the ``bipartite`` node attribute (value 0) when present,
+        or from a two-coloring of a connected *B*.  Must be ``None`` for a
+        matrix *B*, whose rows are the agents.
     method : {"sdsm", "fdsm", "fixedfill", "fixedrow", "fixedcol"}, optional
         Null model (default ``"sdsm"``).
     alpha : float, optional (default=0.05)
         Significance level for the returned backbone.
-    projection : {"simple", "hyper", "probs", "ycn"}, optional
-        Projection weighting assigned to each returned edge.
+    projection : {"simple", "hyper", "newman", "probs", "ycn"}, optional
+        Projection weighting assigned to each returned edge (see
+        :func:`bipartite_projection`).
     projection_weight : str, optional (default="weight")
         Edge attribute name for the projection weight.
     projection_directed : bool, optional (default=False)
@@ -1559,9 +2185,12 @@ def backbone_from_projection(
         Multiple-testing correction (see
         :func:`~networkx_backbone.adjust_pvalues`) applied to the p-values
         of all agent pairs before thresholding.
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B* (default ``0, 1, ...``, or a
+        ``DataFrame``'s index and columns).  Only valid with a matrix *B*.
     **kwargs
         Passed to the selected model (e.g. ``signed``, ``trials``, ``seed``,
-        ``prohibited``, ``required``).
+        ``prohibited``, ``required``, ``pvalue_method``).
 
     Returns
     -------
@@ -1573,7 +2202,7 @@ def backbone_from_projection(
     Raises
     ------
     ValueError
-        If *method* is unknown.
+        If *method* is unknown or a matrix *B* is invalid.
     NetworkXError
         If *B* is not bipartite or *agent_nodes* is not one side of it.
     AmbiguousSolution
@@ -1594,45 +2223,46 @@ def backbone_from_projection(
     >>> H = backbone_from_projection(B, method="sdsm", alpha=0.05)
     >>> all(d["sdsm_pvalue"] < 0.05 for _, _, d in H.edges(data=True))
     True
+
+    An incidence matrix gives the same backbone:
+
+    >>> women = sorted((n for n, d in B.nodes(data=True) if d["bipartite"] == 0), key=str)
+    >>> events = sorted((n for n, d in B.nodes(data=True) if d["bipartite"] == 1), key=str)
+    >>> M = nx.bipartite.biadjacency_matrix(B, row_order=women, column_order=events)
+    >>> H2 = backbone_from_projection(
+    ...     M, method="sdsm", alpha=0.05, agent_labels=women, artifact_labels=events
+    ... )
+    >>> sorted(H2.edges()) == sorted(H.edges())
+    True
     """
-    import numpy as np
-
-    from networkx_backbone.filters import threshold_filter
-
-    if agent_nodes is None:
-        agent_nodes = _infer_agent_nodes(B)
-    else:
-        agent_nodes = list(agent_nodes)
-
-    methods = {
-        "sdsm": sdsm,
-        "fdsm": fdsm,
-        "fixedfill": fixedfill,
-        "fixedrow": fixedrow,
-        "fixedcol": fixedcol,
+    builders = {
+        "sdsm": _sdsm_tails,
+        "fdsm": _fdsm_tails,
+        "fixedfill": _fixedfill_tails,
+        "fixedrow": _fixedrow_tails,
+        "fixedcol": _fixedcol_tails,
     }
     method_l = method.lower()
-    if method_l not in methods:
+    if method_l not in builders:
         raise ValueError(
             "Unknown projection method. Choose one of: "
             "'sdsm', 'fdsm', 'fixedfill', 'fixedrow', 'fixedcol'."
         )
-
-    # Score every pair (fixed* models only threshold internally, so ask them
-    # for all pairs), then threshold uniformly so ``mtc`` sees every test.
-    model_alpha = alpha if method_l in ("sdsm", "fdsm") else np.inf
-    scored = methods[method_l](
-        B,
-        agent_nodes=agent_nodes,
-        alpha=model_alpha,
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    # Score every pair, then threshold uniformly so ``mtc`` sees every test.
+    return _score_pairs(
+        inc,
+        builders[method_l](inc, **kwargs),
+        f"{method_l}_pvalue",
+        signed=kwargs.get("signed", False),
+        alpha=alpha,
+        mtc=mtc,
         projection=projection,
         projection_weight=projection_weight,
         projection_directed=projection_directed,
         projection_max_iter=projection_max_iter,
         projection_tol=projection_tol,
-        **kwargs,
     )
-    return threshold_filter(scored, f"{method_l}_pvalue", alpha, mode="below", mtc=mtc)
 
 
 def backbone_from_weighted(
@@ -1803,14 +2433,15 @@ def backbone(G, method=None, **kwargs):
 
     Parameters
     ----------
-    G : graph
-        A NetworkX graph.
+    G : graph or array-like
+        A NetworkX graph, or an agents x artifacts incidence matrix (passed
+        to :func:`backbone_from_projection`).
     method : string or None, optional (default=None)
         Any method name accepted by :func:`backbone_from_projection`,
         :func:`backbone_from_weighted` or :func:`backbone_from_unweighted`.
-        If ``None``, the method family is chosen from *G*: undirected simple
-        graphs with ``bipartite`` node attributes use the SDSM projection
-        backbone, graphs with ``weight`` edge attributes use the disparity
+        If ``None``, the method family is chosen from *G*: incidence
+        matrices and undirected simple graphs with ``bipartite`` node
+        attributes use the SDSM projection backbone, graphs with ``weight`` edge attributes use the disparity
         filter, and other graphs use ``sparsify``.
     **kwargs
         Passed to the selected wrapper (e.g. ``alpha``, ``agent_nodes``,
@@ -1840,6 +2471,9 @@ def backbone(G, method=None, **kwargs):
     True
     """
     method_l = method.lower() if isinstance(method, str) else None
+    if not isinstance(G, nx.Graph) and method_l is None:
+        # An incidence matrix can only mean a bipartite projection.
+        return backbone_from_projection(G, **kwargs)
 
     projection_methods = {"sdsm", "fdsm", "fixedfill", "fixedrow", "fixedcol"}
     weighted_methods = {
@@ -1919,11 +2553,156 @@ def _constraint_mask(pairs, name, a_idx, f_idx, shape):
     return mask
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
+def _sdsm_tails(
+    inc,
+    *,
+    signed=False,
+    prohibited=None,
+    required=None,
+    pvalue_method="auto",
+    weight=None,
+):
+    """Pair tails under the SDSM (``None`` when no pair can be scored).
+
+    Without edge constraints the BiCM probabilities depend only on the
+    degrees (:func:`_bicm_classes`), so the Poisson-binomial tails are
+    computed once per pair of agent-degree classes and looked up per pair.
+    With constraints the full probability matrix is fitted.
+    """
+    import numpy as np
+
+    if pvalue_method not in ("auto", "exact", "rna"):
+        raise ValueError("pvalue_method must be one of 'auto', 'exact', 'rna'.")
+    agents, artifacts, R = inc
+    na, nf = R.shape
+
+    constrained = required is not None or prohibited is not None
+    if constrained:
+        a_idx = {v: idx for idx, v in enumerate(agents)}
+        f_idx = {v: idx for idx, v in enumerate(artifacts)}
+        Rd = R.toarray()
+        req_mask = _constraint_mask(required, "required", a_idx, f_idx, Rd.shape)
+        pro_mask = _constraint_mask(prohibited, "prohibited", a_idx, f_idx, Rd.shape)
+        if (req_mask & (Rd == 0)).any():
+            raise nx.NetworkXError("required pairs must be edges of B.")
+        if (pro_mask & (Rd == 1)).any():
+            raise nx.NetworkXError("prohibited pairs must not be edges of B.")
+
+    if na < 2 or R.nnz == 0:
+        return None
+    method = _resolve_pvalue_method(pvalue_method, na * (na - 1) // 2, nf)
+
+    if constrained:
+        P = _bicm_fit(Rd, required=req_mask, prohibited=pro_mask)
+        return lambda i, j, k: _pairwise_pb_tails(
+            P, k, method=method, need_lower=signed, pairs=(i, j)
+        )
+
+    row_deg, col_deg = _degrees(R)
+    Q, row_class, col_class = _bicm_classes(row_deg, col_deg)
+    Prow = Q[:, col_class]  # the P row of each agent-degree class
+    if method == "rna":
+        mu = Prow @ Prow.T
+        P2 = Prow * Prow
+        s2 = P2 @ P2.T
+        P3 = P2 * Prow
+        s3 = P3 @ P3.T
+
+        def rna_tails(k, a, b):
+            upper, lower = _rna_tails(mu[a, b], s2[a, b], s3[a, b], k)
+            return upper, (lower if signed else None)
+
+        # The tails depend only on (k, class_i, class_j).
+        return lambda i, j, k: _per_distinct(
+            rna_tails, k, row_class[i], row_class[j], len(mu)
+        )
+
+    # Exact: one Poisson-binomial pmf per unordered pair of degree classes
+    # (P[i] * P[j] is the same product for both orders), tabulated up to the
+    # largest possible co-occurrence.
+    n_cls = Prow.shape[0]
+    ca, cb = np.triu_indices(n_cls)
+    pair_id = np.zeros((n_cls, n_cls), dtype=np.intp)
+    pair_id[ca, cb] = pair_id[cb, ca] = np.arange(len(ca))
+    k_max = min(nf, int(row_deg.max()))
+    sf_tab = np.empty((len(ca), k_max + 1))
+    cdf_tab = np.empty((len(ca), k_max + 1)) if signed else None
+    chunk = max(1, int(2_000_000 // (nf + 1)))
+    for start in range(0, len(ca), chunk):
+        stop = min(start + chunk, len(ca))
+        pmf = _poisson_binomial_pmf(Prow[ca[start:stop]] * Prow[cb[start:stop]])
+        sf_tab[start:stop] = np.cumsum(pmf[:, ::-1], axis=1)[:, ::-1][:, : k_max + 1]
+        if signed:
+            cdf_tab[start:stop] = np.cumsum(pmf, axis=1)[:, : k_max + 1]
+
+    def exact_tails(i, j, k):
+        pid = pair_id[row_class[i], row_class[j]]
+        kk = np.clip(k, 0, k_max)
+        upper = np.clip(sf_tab[pid, kk], 0.0, 1.0)
+        lower = np.clip(cdf_tab[pid, kk], 0.0, 1.0) if signed else None
+        return upper, lower
+
+    return exact_tails
+
+
+def _fdsm_tails(inc, *, trials=1000, seed=None, signed=False, burn_in=None, thin=None):
+    """Monte Carlo pair tails under the FDSM.
+
+    Only pairs that co-occur in the data need per-sample counts: a pair with
+    observed count 0 always satisfies ``random >= 0``, and for the lower tail
+    it only needs the number of samples in which it co-occurs, which is
+    accumulated sparsely.
+    """
+    import numpy as np
+    import scipy.sparse as sp
+
+    if trials < 1:
+        raise ValueError("trials must be >= 1")
+    R = inc.R
+    na, nf = R.shape
+    rng = _as_generator(seed)
+    obs_keys, obs_vals = _sorted_upper_keys(R @ R.T, na)
+    exceed = np.zeros(len(obs_keys), dtype=np.int64)
+    below = np.zeros(len(obs_keys), dtype=np.int64)
+    zero_hits = sp.csr_array((na, na), dtype=np.int64)
+    for row_sets in _fdsm_row_sets(R, trials, rng, burn_in=burn_in, thin=thin):
+        Rs = _row_sets_to_csr(row_sets, nf)
+        keys, vals = _sorted_upper_keys(Rs @ Rs.T, na)
+        pos, hit = _lookup(obs_keys, keys)
+        rand = np.zeros(len(obs_keys), dtype=np.int64)
+        rand[pos[hit]] = vals[hit]
+        exceed += rand >= obs_vals
+        if signed:
+            below += rand <= obs_vals
+            miss = keys[~hit]
+            zero_hits = zero_hits + sp.csr_array(
+                (np.ones(len(miss), dtype=np.int64), (miss // na, miss % na)),
+                shape=(na, na),
+            )
+    zero_keys, zero_counts = _sorted_upper_keys(zero_hits, na)
+
+    def tails(i, j, k):
+        keys = i.astype(np.int64) * na + j
+        exceed_ij = np.full(len(keys), trials, dtype=np.int64)
+        pos, hit = _lookup(obs_keys, keys)
+        exceed_ij[hit] = exceed[pos[hit]]
+        p_hi = (exceed_ij + 1) / (trials + 1)
+        if not signed:
+            return p_hi, None
+        below_ij = np.full(len(keys), trials, dtype=np.int64)
+        below_ij[hit] = below[pos[hit]]
+        zpos, zhit = _lookup(zero_keys, keys)
+        zhit &= ~hit
+        below_ij[zhit] -= zero_counts[zpos[zhit]]
+        return p_hi, (below_ij + 1) / (trials + 1)
+
+    return tails
+
+
+@_graph_or_matrix
 def sdsm(
     B,
-    agent_nodes,
+    agent_nodes=None,
     alpha=0.05,
     weight=None,
     signed=False,
@@ -1935,6 +2714,9 @@ def sdsm(
     projection_max_iter=1000,
     projection_tol=1e-12,
     pvalue_method="auto",
+    *,
+    agent_labels=None,
+    artifact_labels=None,
 ):
     """Score a bipartite projection using the SDSM.
 
@@ -1950,12 +2732,20 @@ def sdsm(
     distribution is cheap (at most 200 artifacts), it is computed exactly by
     convolution instead (see *pvalue_method*).
 
+    Without edge constraints the BiCM probabilities depend only on the
+    agent and artifact degrees, so the tails are computed once per pair of
+    distinct agent degrees and the incidence matrix stays sparse.
+
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
     alpha : float, optional (default=0.05)
         Retained for API compatibility. This function returns the full
         projected graph with p-values on all edges; apply
@@ -1976,9 +2766,11 @@ def sdsm(
         SDSM-EC edge constraints: cells fixed to probability 1 in the null
         model (edges that must occur).  Each pair must be an edge of *B*.
         With constraints the BiCM is refitted on the unconstrained cells only,
-        so expected degrees still match the observed ones.
-    projection : {"simple", "hyper", "probs", "ycn"}, optional
-        Projection weighting assigned to each returned edge.
+        so expected degrees still match the observed ones.  Constraints use a
+        dense ``n_agents x n_artifacts`` probability matrix.
+    projection : {"simple", "hyper", "newman", "probs", "ycn"}, optional
+        Projection weighting assigned to each returned edge (see
+        :func:`bipartite_projection`).
     projection_weight : str, optional (default="weight")
         Edge attribute name for the projection weight.
     projection_directed : bool, optional (default=False)
@@ -1990,9 +2782,12 @@ def sdsm(
         Convergence tolerance for ``projection="ycn"``.
     pvalue_method : {"auto", "exact", "rna"}, optional (default="auto")
         How to evaluate Poisson-binomial tails: ``"exact"`` (convolution,
-        ``O(n_artifacts^2)`` per pair), ``"rna"`` (refined normal
-        approximation, as in R ``backbone``) or ``"auto"`` (exact when there
-        are at most 200 artifacts and the total cost is small, else RNA).
+        ``O(n_artifacts^2)`` per pair of degree classes), ``"rna"`` (refined
+        normal approximation, as in R ``backbone``) or ``"auto"`` (exact
+        when there are at most 200 artifacts and
+        ``n_pairs * (n_artifacts + 1)^2 <= 2e8``, else RNA).
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -2008,7 +2803,8 @@ def sdsm(
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
     ValueError
-        If *pvalue_method* or *projection* is unknown.
+        If *pvalue_method* or *projection* is unknown, or a matrix *B* is
+        invalid.
 
     Warns
     -----
@@ -2043,39 +2839,21 @@ def sdsm(
     >>> all("sdsm_pvalue" in data for _, _, data in backbone.edges(data=True))
     True
     """
-    import numpy as np
-
     if pvalue_method not in ("auto", "exact", "rna"):
         raise ValueError("pvalue_method must be one of 'auto', 'exact', 'rna'.")
-
-    agent_nodes = _validate_bipartite(B, agent_nodes)
-    agents, artifacts, R, observed = _bipartite_projection_matrix(B, agent_nodes)
-    na = len(agents)
-
-    req_mask = pro_mask = None
-    if required is not None or prohibited is not None:
-        a_idx = {v: idx for idx, v in enumerate(agents)}
-        f_idx = {v: idx for idx, v in enumerate(artifacts)}
-        req_mask = _constraint_mask(required, "required", a_idx, f_idx, R.shape)
-        pro_mask = _constraint_mask(prohibited, "prohibited", a_idx, f_idx, R.shape)
-        if (req_mask & (R == 0)).any():
-            raise nx.NetworkXError("required pairs must be edges of B.")
-        if (pro_mask & (R == 1)).any():
-            raise nx.NetworkXError("prohibited pairs must not be edges of B.")
-
-    if na < 2 or R.sum() == 0:
-        backbone = nx.Graph()
-        backbone.add_nodes_from(agents)
-    else:
-        P = _bicm_fit(R, required=req_mask, prohibited=pro_mask)
-        k = observed[np.triu_indices(na, 1)]
-        p_hi, p_lo = _pairwise_pb_tails(P, k, method=pvalue_method, need_lower=signed)
-        backbone = _pair_graph(agents, p_hi, p_lo, "sdsm_pvalue", signed)
-
-    return _apply_projection_weights(
-        backbone,
-        B,
-        agent_nodes,
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    tails = _sdsm_tails(
+        inc,
+        signed=signed,
+        prohibited=prohibited,
+        required=required,
+        pvalue_method=pvalue_method,
+    )
+    return _score_pairs(
+        inc,
+        tails,
+        "sdsm_pvalue",
+        signed=signed,
         projection=projection,
         projection_weight=projection_weight,
         projection_directed=projection_directed,
@@ -2089,11 +2867,10 @@ def sdsm(
 # =====================================================================
 
 
-@not_implemented_for("directed")
-@not_implemented_for("multigraph")
+@_graph_or_matrix
 def fdsm(
     B,
-    agent_nodes,
+    agent_nodes=None,
     alpha=0.05,
     trials=1000,
     seed=None,
@@ -2105,6 +2882,9 @@ def fdsm(
     projection_tol=1e-12,
     burn_in=None,
     thin=None,
+    *,
+    agent_labels=None,
+    artifact_labels=None,
 ):
     """Score a bipartite projection using the FDSM.
 
@@ -2115,14 +2895,19 @@ def fdsm(
     graph: after ``burn_in`` trades, one sample is taken every ``thin``
     trades.  The p-value is ``(count + 1) / (trials + 1)``, where ``count``
     is the number of samples whose co-occurrence is at least (for the lower
-    tail: at most) the observed one, so it is never exactly zero.
+    tail: at most) the observed one, so it is never exactly zero.  Samples
+    are kept as sparse matrices.
 
     Parameters
     ----------
-    B : graph
-        An undirected bipartite NetworkX graph.
-    agent_nodes : iterable
-        Nodes in the "agent" partition (one full side of the bipartition).
+    B : graph or array-like
+        An undirected bipartite NetworkX graph, or an agents x artifacts
+        binary incidence matrix (NumPy array, SciPy sparse array or matrix,
+        or pandas ``DataFrame``).
+    agent_nodes : iterable or None, optional (default=None)
+        Nodes in the "agent" partition of a graph *B*.  If ``None`` they are
+        inferred as in :func:`backbone_from_projection`.  Must be ``None``
+        for a matrix *B*.
     alpha : float, optional (default=0.05)
         Retained for API compatibility. This function returns the full
         projected graph with p-values on all edges; apply
@@ -2137,8 +2922,9 @@ def fdsm(
         If ``True``, run a two-tailed test: the stored p-value becomes two-sided
         and a ``"sign"`` edge attribute marks significantly strong (``+1``)
         versus significantly weak (``-1``) co-occurrences.
-    projection : {"simple", "hyper", "probs", "ycn"}, optional
-        Projection weighting assigned to each returned edge.
+    projection : {"simple", "hyper", "newman", "probs", "ycn"}, optional
+        Projection weighting assigned to each returned edge (see
+        :func:`bipartite_projection`).
     projection_weight : str, optional (default="weight")
         Edge attribute name for the projection weight.
     projection_directed : bool, optional (default=False)
@@ -2153,6 +2939,8 @@ def fdsm(
     thin : int or None, optional (default=None)
         Curveball trades between consecutive samples (default
         ``5 * n_agents``).
+    agent_labels, artifact_labels : sequence or None, optional
+        Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
     Returns
     -------
@@ -2167,7 +2955,8 @@ def fdsm(
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
     ValueError
-        If ``trials < 1`` or *burn_in* / *thin* is negative.
+        If ``trials < 1``, *burn_in* / *thin* is negative, or a matrix *B*
+        is invalid.
 
     See Also
     --------
@@ -2194,37 +2983,17 @@ def fdsm(
     >>> all("fdsm_pvalue" in data for _, _, data in backbone.edges(data=True))
     True
     """
-    import numpy as np
-
     if trials < 1:
         raise ValueError("trials must be >= 1")
-
-    agent_nodes = _validate_bipartite(B, agent_nodes)
-    agents, _, R, observed = _bipartite_projection_matrix(B, agent_nodes)
-
-    na = len(agents)
-    rng = _as_generator(seed)
-    iu, ju = np.triu_indices(na, 1)
-    obs = observed[iu, ju]
-
-    # Count how often the random co-occurrence is >= observed (upper tail) and
-    # <= observed (lower tail, for signed backbones).
-    exceed_count = np.zeros(len(iu), dtype=np.int64)
-    below_count = np.zeros(len(iu), dtype=np.int64)
-    for R_rand in _fdsm_samples(R, trials, rng, burn_in=burn_in, thin=thin):
-        co_rand = (R_rand @ R_rand.T)[iu, ju]
-        exceed_count += co_rand >= obs
-        if signed:
-            below_count += co_rand <= obs
-
-    p_hi = (exceed_count + 1) / (trials + 1)
-    p_lo = (below_count + 1) / (trials + 1)
-    backbone = _pair_graph(agents, p_hi, p_lo, "fdsm_pvalue", signed)
-
-    return _apply_projection_weights(
-        backbone,
-        B,
-        agent_nodes,
+    inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
+    tails = _fdsm_tails(
+        inc, trials=trials, seed=seed, signed=signed, burn_in=burn_in, thin=thin
+    )
+    return _score_pairs(
+        inc,
+        tails,
+        "fdsm_pvalue",
+        signed=signed,
         projection=projection,
         projection_weight=projection_weight,
         projection_directed=projection_directed,
@@ -2235,57 +3004,61 @@ def fdsm(
 
 _COMPLEXITY = {
     "simple_projection": {
-        "time": "O(n_a^2 n_f + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
-        "notes": "n_a=agents, n_f=artifacts, e_b=bipartite edges.",
+        "time": "O(e_b + n_a^2 + sum_z d(z)^2)",
+        "space": "O(e_b + B)",
+        "notes": (
+            "n_a=agents, n_f=artifacts, e_b=bipartite edges, d(z)=artifact "
+            "degree; sparse products over blocks of B = 2^22 agent-pair cells."
+        ),
     },
     "hyper_projection": {
-        "time": "O(n_a^2 n_f + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
+        "time": "O(e_b + n_a^2 + sum_z d(z)^2)",
+        "space": "O(e_b + B)",
     },
     "probs_projection": {
-        "time": "O(n_a^2 n_f + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
+        "time": "O(e_b + n_a^2 + sum_z d(z)^2)",
+        "space": "O(e_b + B)",
     },
     "ycn_projection": {
-        "time": "O(n_a^2 n_f + I n_a^2 + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
+        "time": "O(I e_b + n_a^2 + sum_z d(z)^2)",
+        "space": "O(e_b + B)",
         "notes": "I=max_iter for stationary-flow convergence.",
     },
     "bipartite_projection": {
-        "time": "O(n_a^2 n_f + I n_a^2 + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
+        "time": "O(I e_b + n_a^2 + sum_z d(z)^2)",
+        "space": "O(e_b + B)",
         "notes": "Worst-case over supported projection methods.",
     },
     "sdsm": {
-        "time": "O(I n_a n_f + n_a^2 n_f^2 + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
+        "time": "O(I (n_a + n_f) + c^2 n_f^2 + n_a^2 + sum_z d(z)^2)",
+        "space": "O(e_b + c^2 n_f + B) plus the n_a^2 output edges",
         "notes": (
-            "I=BiCM fixed-point iterations; the n_a^2 n_f^2 term is the exact "
-            "Poisson-binomial path (RNA path: n_a^2 n_f)."
+            "c=distinct agent degrees, I=BiCM iterations; the c^2 n_f^2 term "
+            "is the exact Poisson-binomial path (RNA: c^2 n_f).  Edge "
+            "constraints use a dense n_a x n_f probability matrix."
         ),
     },
     "fdsm": {
-        "time": "O(T (S d + n_a^2 n_f) + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
+        "time": "O(T (S d + sum_z d(z)^2) + n_a^2)",
+        "space": "O(e_b + nnz(R R^T) + B) plus the n_a^2 output edges",
         "notes": "T=trials, S=curveball trades per sample, d=max agent degree.",
     },
     "fixedfill": {
-        "time": "O(n_a^2 + n_f^2 + n_a^2 n_f + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
+        "time": "O(n_f^2 + n_a^2 + sum_z d(z)^2)",
+        "space": "O(e_b + n_f + B)",
     },
     "fixedrow": {
-        "time": "O(n_a^2 n_f + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
+        "time": "O(n_a^2 + sum_z d(z)^2)",
+        "space": "O(e_b + B)",
     },
     "fixedcol": {
-        "time": "O(n_f^2 + n_a^2 n_f + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
+        "time": "O(n_f^2 + n_a^2 + sum_z d(z)^2)",
+        "space": "O(e_b + n_f + B)",
     },
     "bicm": {
-        "time": "O(I n_a n_f + e_b)",
+        "time": "O(I c_a c_f + n_a n_f + e_b)",
         "space": "O(n_a n_f)",
-        "notes": "I=fixed-point iterations.",
+        "notes": "I=fixed-point iterations, c_a/c_f=distinct degrees; output is dense.",
     },
     "fastball": {
         "time": "O(r c + S c)",
@@ -2293,9 +3066,9 @@ _COMPLEXITY = {
         "notes": "r=rows, c=cols, S=n_swaps.",
     },
     "backbone_from_projection": {
-        "time": "O(T n_a^2 n_f + e_b)",
-        "space": "O(n_a n_f + n_a^2)",
-        "notes": "Worst-case over {sdsm, fdsm, fixedfill, fixedrow, fixedcol}.",
+        "time": "Cost of the selected model",
+        "space": "O(e_b + B + kept edges); O(n_a^2) floats with mtc",
+        "notes": "Pairs are thresholded block by block; only significant ones become edges.",
     },
     "backbone_from_weighted": {
         "time": "O(m log n)",
