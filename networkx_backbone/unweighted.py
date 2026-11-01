@@ -165,7 +165,7 @@ def sparsify(
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
-def lspar(G, s=0.5):
+def lspar(G, s=0.5, *, convention="satuluri"):
     r"""Compute the Local Sparsification (L-Spar) backbone.
 
     Every node *u* ranks its incident edges by the Jaccard similarity of
@@ -179,15 +179,21 @@ def lspar(G, s=0.5):
         An undirected NetworkX graph.
     s : float, optional (default=0.5)
         Sparsification exponent (0 = sparsest, 1 = keep all).
+    convention : {"satuluri", "r"}, optional (default="satuluri")
+        ``"satuluri"`` uses the conventions described above.  ``"r"``
+        reproduces R ``backbone_from_unweighted(model = "lspar")`` (R
+        backbone 3.0.4), which keeps fewer edges; see Notes.
 
     Returns
     -------
     H : graph
         A copy of *G* with ``"sparsify_score"`` (the critical exponent,
-        see :func:`sparsify`) and boolean ``"sparsify_keep"``.
+        see :func:`sparsify` and Notes) and boolean ``"sparsify_keep"``.
 
     Raises
     ------
+    ValueError
+        If *convention* is not ``"satuluri"`` or ``"r"``.
     NetworkXNotImplemented
         If *G* is directed or a multigraph.
 
@@ -209,6 +215,18 @@ def lspar(G, s=0.5):
     ``max(1, ceil(d_u**s))`` as in Satuluri et al.  :func:`local_degree`
     matches R's ``model = "degree"`` on the karate club.
 
+    ``convention="r"`` applies R's conventions and reproduces R's backbones
+    exactly on the karate club and Les Misérables (tested at ``s`` = 0.3,
+    0.5 and 0.7).  Node *u* then ranks only its :math:`d'_u` edges with
+    positive Jaccard similarity, and an edge of dense rank *r* is kept by
+    *u* when ``r <= floor(d'_u**s)``, i.e. when ``s >= log(r) / log(d'_u)``.
+    ``"sparsify_score"`` is this critical exponent, minimized over the two
+    endpoints: ``-inf`` when the edge is the only positive edge of an
+    endpoint, ``inf`` when its Jaccard similarity is 0.  Up to
+    floating-point rounding at exact boundaries, an edge is retained exactly
+    when ``s >= sparsify_score``.  Isolated edges (whose endpoints have no
+    other neighbors) have similarity 0 under both conventions.
+
     References
     ----------
     .. [1] Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). Local
@@ -226,7 +244,21 @@ def lspar(G, s=0.5):
     >>> backbone = boolean_filter(H, "sparsify_keep")
     >>> backbone.number_of_edges() <= H.number_of_edges()
     True
+
+    R's conventions keep fewer edges:
+
+    >>> K = nx.karate_club_graph()
+    >>> U = nx.Graph(K.edges())  # drop the weights
+    >>> [boolean_filter(lspar(U, s=0.3, convention=c), "sparsify_keep").number_of_edges()
+    ...  for c in ("satuluri", "r")]
+    [54, 30]
     """
+    if convention == "r":
+        return _lspar_r(G, s)
+    if convention != "satuluri":
+        raise ValueError(
+            f"Unknown convention: {convention!r}; expected 'satuluri' or 'r'"
+        )
     return _sparsify(G, "jaccard", "rank", "degree", s, False, None, rounding="ceil")
 
 
@@ -349,6 +381,49 @@ def _sparsify(G, escore, normalize, filter, s, umst, seed, rounding):
         else:
             data["sparsify_score"] = float(scores[e])
             data["sparsify_keep"] = e in kept
+    return H
+
+
+def _lspar_r(G, s):
+    """:func:`lspar` with the conventions of R ``backbone`` 3.0.4.
+
+    The Jaccard denominator excludes the two endpoints, edges with Jaccard
+    similarity 0 are neither ranked nor counted, ranks are dense, and node
+    *u* keeps the edges of rank at most ``floor(d'_u**s)``, where ``d'_u``
+    counts *u*'s edges with positive similarity.
+    """
+    nbrs = {u: set(G[u]) - {u} for u in G}
+    views = {u: {} for u in G}
+    for u, v in G.edges():
+        if u == v:
+            continue
+        union = len(nbrs[u] | nbrs[v]) - 2
+        jac = len(nbrs[u] & nbrs[v]) / union if union > 0 else 0.0
+        if jac > 0:
+            views[u][v] = views[v][u] = jac
+
+    scores = {}
+    kept = set()
+    for u, view in views.items():
+        d = len(view)
+        if not d:
+            continue
+        cut = math.floor(d**s)
+        distinct = sorted(set(view.values()), reverse=True)
+        rank = {x: r for r, x in enumerate(distinct, start=1)}
+        for v, x in view.items():
+            r = rank[x]
+            e = frozenset((u, v))
+            e_u = -math.inf if d == 1 else math.log(r) / math.log(d)
+            scores[e] = min(scores.get(e, e_u), e_u)
+            if r <= cut:
+                kept.add(e)
+
+    H = G.copy()
+    for u, v, data in H.edges(data=True):
+        e = frozenset((u, v))
+        data["sparsify_score"] = float(scores.get(e, math.inf)) if u != v else math.inf
+        data["sparsify_keep"] = e in kept
     return H
 
 
