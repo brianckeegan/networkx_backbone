@@ -81,6 +81,24 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - ``glab_filter`` now supports directed graphs using the out- and
   in-involvement of Zhang et al. (2014), Section 2.3 (#12). On a symmetric
   ``DiGraph`` it gives the undirected p-values.
+- The hypergraph adapters carry weights: ``to_xgi``, ``to_hypernetx``,
+  ``to_hypergraphx``, and ``to_hat`` take ``weights=``, and the ``from_*``
+  functions take ``return_weights=``. New extras ``[xgi]``, ``[hypernetx]``,
+  ``[hypergraphx]``, ``[hat]``, and ``[interop]`` (all four) install the
+  libraries; supported versions are in :doc:`install` (#15). Testing against
+  the real libraries found and fixed these adapter bugs:
+
+  - ``to_xgi`` failed on tuple node labels (xgi read a two-node hyperedge
+    as a ``(members, edge_id)`` pair).
+  - ``to_hat`` silently dropped repeated hyperedges (HAT's default
+    ``compress=True``), and ``from_hat`` returned row indices instead of node
+    labels. Labels now round-trip through ``H.nodes["Names"]``.
+  - ``to_hypergraphx`` silently merged repeated hyperedges. It still merges
+    them, since HypergraphX has no multi-edges, but now sums their weights,
+    and it explains the ``TypeError`` raised for mixed-type node labels.
+  - The HAT and HypergraphX HIF readers raised ``KeyError`` on
+    ``write_hif`` output, which omitted the ``nodes`` and ``edges`` lists.
+    ``write_hif`` now always writes both.
 
 **Changes in results (bug fixes)**
 
@@ -196,6 +214,12 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   doctests on Python 3.12-3.14, a job pinned to the oldest supported
   versions, and a NetworkX-only job that checks the optional dependencies
   stay optional. Test coverage is 97%.
+- An "Interop" workflow (pull requests, weekly, and on demand) installs
+  ``.[interop,test]`` and runs ``pytest -m interop``: round trips of
+  hyperedges, weights, and node labels through the real xgi, HyperNetX,
+  HypergraphX, and HAT, and HIF exchange with each library's own reader and
+  writer. It is a separate, non-required workflow, so an upstream release
+  cannot block unrelated pull requests (#15).
 - A coverage evaluation of the 15 methods compared by Yassin et al. (2025)
   (``docs/design/yassin-2025-coverage.md``). The package covers 13 of them;
   the Pólya urn and GloSS filters are missing. The evaluation also notes where
