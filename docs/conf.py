@@ -195,7 +195,26 @@ def _les_miserables_table_rst():
     return lines
 
 
+# -- Roadmap figures -----------------------------------------------------------
+# scripts/roadmap_figures.py parses docs/roadmap.rst and renders its status
+# figures (light and dark variants) and table into _static/roadmap/ on every
+# build, so they always match the page.
+
+
+def _build_roadmap_figures(app):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "roadmap_figures", ROOT / "scripts" / "roadmap_figures.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # dataclasses look the module up here
+    spec.loader.exec_module(module)
+    module.build(Path(app.srcdir) / "_static" / "roadmap", Path(app.srcdir) / "roadmap.rst")
+
+
 def setup(app):
+    app.connect("builder-inited", _build_roadmap_figures)
     from docutils import nodes
     from docutils.statemachine import StringList
     from sphinx.util.docutils import SphinxDirective

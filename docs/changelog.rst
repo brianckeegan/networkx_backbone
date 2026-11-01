@@ -248,6 +248,12 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Infrastructure and documentation**
 
+- The roadmap page opens with a "Roadmap at a glance" section: a stacked bar
+  chart of item status per section, a network map of sections and their items
+  colored by status, and the same counts as a table. ``scripts/roadmap_figures.py``
+  generates them from ``docs/roadmap.rst`` on every docs build, in light and dark
+  variants, so they always match the page.
+
 - Docstrings are validated by the Sphinx build and by a new ``numpydoc lint``
   CI step. The checks are GL06, GL08, SS01, PR01, PR02, PR03, RT01, and EX01,
   configured in ``[tool.numpydoc_validation]``. numpydoc alone now renders
