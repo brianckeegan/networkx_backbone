@@ -198,7 +198,9 @@ likelihood and LANS filters (and the bipartite null models ``sdsm``,
 ``fdsm``, ``fixedfill``, ``fixedrow`` and ``fixedcol``) run a two-tailed
 test. An edge can then be significantly strong *or* significantly weak, and
 each scored edge gets a ``sign`` attribute: ``+1`` for stronger than
-expected, ``-1`` for weaker.
+expected, ``-1`` for weaker. An edge whose upper and lower tails are exactly
+equal (for example the only link of a degree-1 node under LANS) is signed
+``-1``, as in R ``backbone``.
 
 >>> signed = nb.marginal_likelihood_filter(G, signed=True)
 >>> signed_bb = nb.threshold_filter(signed, "ml_pvalue", 0.05)

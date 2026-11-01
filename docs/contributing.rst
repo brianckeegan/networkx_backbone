@@ -90,7 +90,7 @@ relationship and the method's docstring Notes explain the difference.
 The `reference conventions note
 <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/reference-conventions.md>`__
 lists every such difference, measures its effect on the three datasets, and
-records the options and the recommended choice (issue #59).
+records the options and the decision on each (issue #59).
 
 Regenerate the fixtures when a reference implementation releases a new
 version, or when you add a comparison.  Both generators read the same

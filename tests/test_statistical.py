@@ -208,9 +208,12 @@ class TestNoiseCorrected:
             z = score / sdev
             expected = min(1.0, 2 * stats.norm.sf(abs(z)))
             assert H[u][v]["nc_pvalue"] == pytest.approx(expected, abs=1e-9)
-            assert H[u][v]["sign"] == (1 if z >= 0 else -1)
+            assert H[u][v]["sign"] == (1 if z > 0 else -1)
         assert H[2][3]["sign"] == 1 and H[2][3]["nc_pvalue"] < 1e-10
         assert H[0][2]["sign"] == -1
+        # Score 0 (lift exactly 1): the tails tie, so the sign is -1 as in R.
+        assert H[1][2]["nc_score"] == 0.0
+        assert (H[1][2]["nc_pvalue"], H[1][2]["sign"]) == (1.0, -1)
 
     def test_legacy_zscore_formula(self, count_graph):
         H = nb.noise_corrected_filter(count_graph, method="zscore")
@@ -344,7 +347,9 @@ class TestECM:
         count_graph.add_edge("a", "a", weight=4)
         H = nb.ecm_filter(count_graph)
         assert H["a"]["a"]["ecm_pvalue"] == 1.0
-        assert nb.ecm_filter(count_graph, signed=True)["a"]["a"]["ecm_pvalue"] == 1.0
+        loop = nb.ecm_filter(count_graph, signed=True)["a"]["a"]
+        # Untested: both tails are 1, a tie, signed -1 (#59).
+        assert (loop["ecm_pvalue"], loop["sign"]) == (1.0, -1)
 
     def test_signed_tails_from_fitted_multipliers(self, count_graph):
         # Upper tail p_ij (y_i y_j)^(w-1), lower tail 1 - p_ij (y_i y_j)^w,
@@ -369,7 +374,7 @@ class TestECM:
             assert signed[u][v]["ecm_pvalue"] == pytest.approx(
                 min(1.0, 2 * min(p_hi, p_lo)), rel=1e-6
             )
-            assert signed[u][v]["sign"] == (1 if p_hi <= p_lo else -1)
+            assert signed[u][v]["sign"] == (1 if p_hi < p_lo else -1)
 
     def test_directed_classes_are_exact(self):
         # Nodes are grouped by (k_out, s_out, k_in, s_in) (#21).  Grouping by
@@ -487,8 +492,8 @@ class TestLANS:
             ("a", "c"): (0.0, -1),
             ("b", "d"): (0.0, -1),
             # 1/3 above and 1/3 below at both b and c: an exact tie, signed
-            # +1 here (R: -1).
-            ("b", "c"): (pytest.approx(2 / 3), 1),
+            # -1 as in R (#59).
+            ("b", "c"): (pytest.approx(2 / 3), -1),
             ("a", "b"): (0.0, 1),
             ("c", "d"): (0.0, 1),
         }
@@ -512,8 +517,23 @@ class TestLANS:
         for e, d in H.edges.items():
             assert H_rev.edges[e]["lans_pvalue"] == d["lans_pvalue"]
             signs.add((d["sign"], H_rev.edges[e]["sign"]))
-        # (1, 1) is a tie: upper == lower, signed +1 both ways.
-        assert signs == {(1, -1), (-1, 1), (1, 1)}
+        # (-1, -1) is a tie: upper == lower, signed -1 both ways.
+        assert signs == {(1, -1), (-1, 1), (-1, -1)}
+
+    def test_signed_degree_one_tie_is_negative(self):
+        # The only link of a degree-1 node is both its strongest and its
+        # weakest: at that node both tails are 0, so the link's upper and
+        # lower tails are both 0.  This exact tie is signed -1, as in R
+        # backbone 3.0.4 (#59), and the signed backbone keeps it as weak.
+        G = nx.Graph()
+        G.add_weighted_edges_from([("leaf", "hub", 2), ("hub", "a", 1), ("a", "b", 1)])
+        G.add_weighted_edges_from([("hub", "c", 3), ("c", "b", 5)])
+        H = nb.lans_filter(G, signed=True)
+        assert H["leaf"]["hub"] == {"weight": 2, "lans_pvalue": 0.0, "sign": -1}
+        B = nb.backbone_from_weighted(G, method="lans", alpha=0.05, signed=True)
+        assert B["leaf"]["hub"]["sign"] == -1
+        # Not a tie: the strongest link of both of its endpoints.
+        assert (H["c"]["b"]["lans_pvalue"], H["c"]["b"]["sign"]) == (0.0, 1)
 
     @pytest.mark.parametrize("edge", [("u", "t"), ("s", "r")])
     def test_directed_signed_weak_from_either_side(self, edge):
@@ -922,8 +942,8 @@ class TestMissingAsZero:
         assert got[("b", "c")] == (pytest.approx(2 * lo_ad), -1)
         assert got[("b", "d")] == (pytest.approx(2 * lo_bd), -1)
         assert got[("b", "d")][0] == pytest.approx(0.0111048103)
-        for x in "abcd":
-            assert got[(x, "e")] == (1.0, 1)
+        for x in "abcd":  # both tails are 1: a tie, signed -1
+            assert got[(x, "e")] == (1.0, -1)
         assert len(got) == 7
         unsigned = nb.marginal_likelihood_filter(two_pairs, missing_as_zero=True)
         assert {p for p, _ in _zero_edges(unsigned, "ml_pvalue").values()} == {1.0}

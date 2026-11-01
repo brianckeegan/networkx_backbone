@@ -328,13 +328,16 @@ def _signed_pvalues(p_hi, p_lo):
 
     ``sign`` is ``+1`` for a significantly strong (over-represented)
     co-occurrence and ``-1`` for a significantly weak (under-represented) one.
+    As in R ``backbone`` 3.0.4 (``.retain``), it is ``+1`` only when
+    ``upper < lower``, so an exact tie ``upper == lower`` is ``-1``; this is
+    the rule of ``_combine_tails`` in ``statistical.py``.
     """
     import numpy as np
 
     p_hi = np.clip(np.asarray(p_hi, dtype=float), 0.0, 1.0)
     p_lo = np.clip(np.asarray(p_lo, dtype=float), 0.0, 1.0)
     pval = np.minimum(1.0, 2.0 * np.minimum(p_hi, p_lo))
-    sign = np.where(p_hi <= p_lo, 1, -1)
+    sign = np.where(p_hi < p_lo, 1, -1)
     return pval, sign
 
 
@@ -1848,6 +1851,7 @@ def _fixedfill_tails(inc, *, signed=False):
 
 def _fixedrow_tails(inc, *, signed=False):
     """Pair tails under the fixed-row model: hypergeometric in the degrees."""
+    import numpy as np
     from scipy import stats as sp_stats
 
     na, nf = inc.R.shape
@@ -1856,9 +1860,19 @@ def _fixedrow_tails(inc, *, signed=False):
     deg, _ = _degrees(inc.R)
 
     def hypergeom_tails(k, di, dj):
-        p_hi = sp_stats.hypergeom.sf(k - 1, nf, di, dj)
-        p_lo = sp_stats.hypergeom.cdf(k, nf, di, dj) if signed else None
-        return p_hi, p_lo
+        # The law is symmetric in the two degrees, so evaluate it in one
+        # order: the floating-point tails then do not depend on which agent
+        # comes first.
+        d_lo, d_hi = np.minimum(di, dj), np.maximum(di, dj)
+        p_hi = sp_stats.hypergeom.sf(k - 1, nf, d_lo, d_hi)
+        if not signed:
+            return p_hi, None
+        p_lo = sp_stats.hypergeom.cdf(k, nf, d_lo, d_hi)
+        # A degree of exactly nf / 2 makes the law symmetric about its mean
+        # di * dj / nf; a count at that mean has equal tails in exact
+        # arithmetic, which make a tie (sign -1) here too.
+        tie = ((2 * di == nf) | (2 * dj == nf)) & (k * nf == di * dj)
+        return p_hi, np.where(tie, p_hi, p_lo)
 
     # The tails depend only on (k, d_i, d_j).
     return lambda i, j, k: _per_distinct(hypergeom_tails, k, deg[i], deg[j], nf + 1)
@@ -2052,6 +2066,17 @@ def fixedrow(
     See Also
     --------
     fixedfill, fixedcol, sdsm, fdsm, backbone_from_projection
+
+    Notes
+    -----
+    With ``signed=True`` a pair is signed ``+1`` when its upper tail is
+    smaller than its lower tail and ``-1`` otherwise, as in R ``backbone``,
+    so a tie is ``-1``.  When ``d_i`` or ``d_j`` is half the number of
+    artifacts the hypergeometric law is symmetric about its mean
+    ``d_i d_j / n_artifacts``, and a pair observed at that mean has two
+    equal tails.  They are made exactly equal, so the pair is signed ``-1``
+    whatever the floating-point rounding (R signs such pairs by the
+    rounding).  Its two-sided p-value is 1.
 
     References
     ----------
@@ -2314,7 +2339,7 @@ def backbone_from_projection(
     reproduces R's ``missing_as_zero = TRUE``.  Without *mtc* and with
     ``signed=False`` the two settings give the same backbone, because a pair
     that never co-occurs has upper-tail p-value 1.  When both tails are
-    exactly equal R signs the pair ``-1`` and networkx-backbone ``+1``.
+    exactly equal the pair is signed ``-1``, as in R.
 
     Examples
     --------

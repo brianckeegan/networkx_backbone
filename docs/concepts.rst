@@ -52,7 +52,10 @@ Benjamini-Hochberg, Benjamini-Yekutieli).  The ``disparity_filter``,
 ``noise_corrected_filter``, ``marginal_likelihood_filter``, ``ecm_filter``, and
 ``lans_filter`` methods also accept ``signed=True`` for a two-tailed test that
 keeps significantly strong (``+1``) and significantly weak (``-1``) edges, each
-tagged with a ``"sign"`` attribute.  With ``missing_as_zero=True`` they also
+tagged with a ``"sign"`` attribute.  The sign is ``+1`` when the upper-tail
+p-value is smaller than the lower-tail one and ``-1`` otherwise, so an edge
+whose two tails are exactly equal is signed ``-1``, as in R ``backbone``
+3.0.4; the same rule applies to the signed bipartite null models.  With ``missing_as_zero=True`` they also
 test every pair of nodes that has no edge, as an edge of weight 0, so a signed
 backbone can contain pairs that interact significantly less than expected
 (Backbone 3.0's ``missing_as_zero``).  The result then has one edge per tested

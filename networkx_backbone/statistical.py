@@ -107,17 +107,29 @@ def _warn_non_integer_counts(G, weight, unit, func_name, consequence):
         )
 
 
-def _combine_tails(p_hi, p_lo):
+def _combine_tails(p_hi, p_lo, z=None):
     """Combine upper/lower-tail p-values into a two-sided p-value and a sign.
 
     Returns ``(two_sided_pvalue, sign)`` where ``sign`` is ``+1`` for a
     significantly strong (over-represented) edge and ``-1`` for a significantly
     weak (under-represented) edge.  Used by the signed backbone variants.
+
+    The sign is ``+1`` when ``upper < lower`` and ``-1`` otherwise, so an
+    exact tie ``upper == lower`` is signed ``-1``, as in R ``backbone``
+    3.0.4 (``.retain``: ``upper_tail <- (p$upper < p$lower)``).  Callers
+    compute their tails so that a tie is equal by construction.  *z*, when
+    given, is the standardized statistic that a normal model's tails were
+    computed from (``upper = P(Z >= z)``): its sign orders the tails, because
+    for ``0 < |z| < 1e-16`` both tails round to 0.5 although only ``z == 0``
+    is a tie.
     """
     p_hi = min(max(p_hi, 0.0), 1.0)
     p_lo = min(max(p_lo, 0.0), 1.0)
     pval = min(1.0, 2.0 * min(p_hi, p_lo))
-    sign = 1 if p_hi <= p_lo else -1
+    if z is None:
+        sign = 1 if p_hi < p_lo else -1
+    else:
+        sign = 1 if z > 0 else -1
     return pval, sign
 
 
@@ -194,16 +206,17 @@ def _add_zero_edges(H, dyads, weight, tails, pvalue_attr, signed):
 
     ``tails(u, v)`` returns ``(p_hi, p_lo, extra_attrs)`` for a dyad of
     weight 0, or ``None`` when the null model cannot test that dyad, in which
-    case the pair is not added.
+    case the pair is not added.  A normal model may append the statistic *z*
+    of :func:`_combine_tails`: ``(p_hi, p_lo, extra_attrs, z)``.
     """
     for u, v in dyads:
         scored = tails(u, v)
         if scored is None:
             continue
-        p_hi, p_lo, extra = scored
+        p_hi, p_lo, extra, *z = scored
         attrs = {weight: 0, **extra}
         if signed:
-            attrs[pvalue_attr], attrs["sign"] = _combine_tails(p_hi, p_lo)
+            attrs[pvalue_attr], attrs["sign"] = _combine_tails(p_hi, p_lo, *z)
         else:
             attrs[pvalue_attr] = min(max(p_hi, 0.0), 1.0)
         H.add_edge(u, v, **attrs)
@@ -307,7 +320,10 @@ def disparity_filter(
     Notes
     -----
     An endpoint of degree 1 cannot reject the null model, so it contributes a
-    p-value of 1 and the edge's p-value comes from the other endpoint.
+    p-value of 1 and the edge's p-value comes from the other endpoint.  With
+    ``signed=True`` it contributes 1 to both tails, so an edge between two
+    degree-1 nodes has equal tails; as in R, an edge whose upper and lower
+    tails are equal is signed ``-1``.
 
     **Generalized null** (``a != 1``).  The uniform null of [1]_ places the
     :math:`k - 1` cut points of a node's strength uniformly at random, so a
@@ -642,6 +658,9 @@ def noise_corrected_filter(
         If ``True``, run a two-tailed test on ``nc_score / nc_sdev``:
         ``nc_pvalue`` becomes two-sided and a ``"sign"`` edge attribute marks
         significantly strong (``+1``) versus significantly weak (``-1``) edges.
+        The sign is ``+1`` when ``nc_score / nc_sdev`` is positive and ``-1``
+        otherwise: a statistic of exactly 0, or an untestable edge, has
+        equal tails, and ties are signed ``-1`` as in R backbone.
     missing_as_zero : bool, optional (default=False)
         If ``True``, also score every pair of distinct nodes that has no
         edge, as an observed edge of weight 0, and add the scored pairs to
@@ -828,18 +847,19 @@ def noise_corrected_filter(
     def tails(n_ij, n_i, n_j):
         score, sdev = _nc_score_sdev(n_ij, n_i, n_j, total)
         if math.isinf(sdev):
-            p_hi, p_lo = 1.0, 1.0  # degenerate prior: nothing to test
-        elif sdev == 0.0:
-            p_hi, p_lo = _normal_tails(math.copysign(math.inf, score) if score else 0.0)
+            # Degenerate prior: nothing to test, so the tails tie.
+            return 1.0, 1.0, {"nc_score": score, "nc_sdev": sdev}, 0.0
+        if sdev == 0.0:
+            z = math.copysign(math.inf, score) if score else 0.0
         else:
-            p_hi, p_lo = _normal_tails(score / sdev)
-        return p_hi, p_lo, {"nc_score": score, "nc_sdev": sdev}
+            z = score / sdev
+        return (*_normal_tails(z), {"nc_score": score, "nc_sdev": sdev}, z)
 
     for u, v, data in H.edges(data=True):
-        p_hi, p_lo, extra = tails(_as_count(data[weight], unit), s_out[u], s_in[v])
+        p_hi, p_lo, extra, z = tails(_as_count(data[weight], unit), s_out[u], s_in[v])
         data.update(extra)
         if signed:
-            data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
+            data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo, z)
         else:
             data["nc_pvalue"] = p_hi
 
@@ -911,14 +931,13 @@ def _noise_corrected_zscore(G, H, weight, signed, dyads, unit=1):
             z = (w - W * p_ij) / math.sqrt(variance)
         else:
             z = 0.0
-        p_hi, p_lo = _normal_tails(z)
-        return p_hi, p_lo, {"nc_score": z}
+        return (*_normal_tails(z), {"nc_score": z}, z)
 
     for u, v, data in H.edges(data=True):
-        p_hi, p_lo, extra = tails(_as_count(data[weight], unit), s_out[u], s_in[v])
+        p_hi, p_lo, extra, z = tails(_as_count(data[weight], unit), s_out[u], s_in[v])
         data.update(extra)
         if signed:
-            data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
+            data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo, z)
         else:
             data["nc_pvalue"] = p_hi
 
@@ -1209,7 +1228,8 @@ def ecm_filter(
     Notes
     -----
     Self-loops are ignored when fitting the null model and get a p-value
-    of 1.
+    of 1; with ``signed=True`` both of their tails are 1, a tie, so their
+    ``sign`` is -1 (see :func:`lans_filter` for the tie rule).
 
     **Count unit.**  [1]_ assumes integer weights.  The counts are
     ``max(round(weight / unit), 1)``, so p-values change with the unit the
@@ -1273,9 +1293,10 @@ def ecm_filter(
     n = len(nodes)
     if n == 0 or G.number_of_edges() == 0:
         for _, _, data in H.edges(data=True):
-            data["ecm_pvalue"] = 1.0
             if signed:
-                data["sign"] = 1
+                data["ecm_pvalue"], data["sign"] = _combine_tails(1.0, 1.0)
+            else:
+                data["ecm_pvalue"] = 1.0
         return H
 
     _warn_non_integer_counts(
@@ -1340,10 +1361,11 @@ def ecm_filter(
         return p_hi, p_lo
 
     for u, v, data in H.edges(data=True):
-        if u == v:
-            data["ecm_pvalue"] = 1.0
+        if u == v:  # self-loops are not tested: equal tails of 1
             if signed:
-                data["sign"] = 1
+                data["ecm_pvalue"], data["sign"] = _combine_tails(1.0, 1.0)
+            else:
+                data["ecm_pvalue"] = 1.0
             continue
         count = max(round(_as_count(data[weight], unit)), 1)
         p_hi, p_lo = tails(idx[u], idx[v], count)
@@ -1857,16 +1879,18 @@ def lans_filter(
     minimum over the two sides of the link, and the two-sided p-value is
     ``min(1, 2 min(upper, lower))``.  The weakest link of a node therefore
     gets a lower tail of 0, just as its strongest link gets an upper tail of
-    0.  When the two tails are equal (for example the only link of a
-    degree-1 node, where both are 0) the link is signed ``+1``.
+    0.  The sign is ``+1`` when upper < lower and ``-1`` otherwise, so a link
+    whose tails are equal is signed ``-1``, as in R.  Ties are common: the
+    only link of a degree-1 node (both tails 0), the links of a node whose
+    links all have the same weight, and a link that is the strongest of one
+    endpoint and the weakest of the other.  The tails are counts over the
+    same *k*, so equal counts give exactly equal tails.
 
     **Comparison with R backbone.**  The one-tailed p-values equal R
     ``backbone::lans`` and netbone ``lans``.  With ``signed=True`` the
-    two-sided p-values equal R's, and so do the signs except at an exact tie
-    upper == lower, which R signs ``-1`` and this function ``+1``.  On Les
-    Misérables at alpha = 0.05 R's signed backbone has 68 positive and 126
-    negative links, 40 of the negative ones such ties; this one has the same
-    194 links, 108 positive and 86 negative.  (Earlier versions used the
+    two-sided p-values and the signs equal R's.  On Les Misérables at
+    alpha = 0.05 the signed backbone has 68 positive and 126 negative links,
+    40 of the negative ones exact ties, as in R.  (Earlier versions used the
     empirical CDF ``#{weights <= w} / k`` as the lower tail, which counts the
     link itself, and this backbone had no negative links.)
 
@@ -1917,7 +1941,7 @@ def lans_filter(
         # The lower tail #{weights < w} / k mirrors the upper tail
         # #{weights > w} / k = 1 - F(w); neither counts the link itself.
         # Both are written as 1 - (fraction) so that equal counts give
-        # bitwise-equal tails, and an exact tie is always signed +1.
+        # bitwise-equal tails, and an exact tie is always signed -1 (#59).
         geq_u = _fraction_at_least(w, out_weights[u])
         geq_v = _fraction_at_least(w, in_weights[v])
         # OR rule: strong/weak if significant from either side of the edge.

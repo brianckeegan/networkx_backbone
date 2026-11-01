@@ -1,9 +1,11 @@
 # Convention differences from R `backbone` and `netbone`
 
-- **Status:** Decision note. The maintainer decides the defaults. Two
-  opt-in options are implemented with defaults unchanged
-  (`backbone_from_projection(missing_as_zero=False)`,
-  `lspar(convention="r")`). Nothing else changes any result.
+- **Status:** Decided. The maintainer kept every difference as
+  recommended below, except item 2 (sign at exact ties), which now matches
+  R: a tie is signed −1. Two opt-in options are implemented with defaults
+  unchanged (`backbone_from_projection(missing_as_zero=False)`,
+  `lspar(convention="r")`). Item 2 is the only decision that changes a
+  result.
 - **Tracking:** GitHub issue #59; roadmap entry in `docs/roadmap.rst`.
   The signed LANS lower tail (#58, now merged) mirrors R's, which is why
   item 2 now matters.
@@ -34,7 +36,7 @@
 | # | Difference | Measured impact on the fixtures | Recommendation |
 |---|------------|---------------------------------|----------------|
 | 1 | Signed disparity lower tail | p-values differ on 23/78 (karate) and 102/254 (Les Mis) edges. Without `mtc`, the backbones are identical for every alpha up to 0.27. | **Keep**, documented |
-| 2 | Sign at exact ties | Since #58, 40 Les Mis and 15 karate signed LANS links are +1 here and −1 in R. With R's rule every signed weighted backbone equals R's. | **Match R** (needs a pin change) |
+| 2 | Sign at exact ties | Since #58, 40 Les Mis and 15 karate signed LANS links were +1 here and −1 in R. With R's rule every signed weighted backbone equals R's. | **Match R**. Decided and done: ties are now −1. |
 | 3 | `mtc` counts non-co-occurring pairs | Davis: 14 of 153 pairs never co-occur, which scales adjusted p-values by up to 1.10. No backbone changes at 0.05. | **Keep the default**. Option added: `missing_as_zero=False`. |
 | 4 | `lspar` conventions | Karate: R keeps 30/38/50 and we keep 54/61/70. Les Mis: R keeps 101/148/194 and we keep 154/174/217. | **Keep the default**. Option added: `convention="r"`. |
 | 5 | `global` keeps `w >= t` (R: `w > t`) | Les Mis: 157 vs 107 edges at t = 2. Every integer threshold matters. | **Keep**, documented |
@@ -120,10 +122,39 @@ would add API for no visible gain.
 
 ### 2. Sign at exact ties
 
-**Difference.** R's `.retain()` sets `upper_tail <- (p$upper < p$lower)`, so
-an exact tie is signed −1. Our `_combine_tails` (weighted models) and
-`_signed_pvalues` (projections) use `p_hi <= p_lo`, so a tie is +1. The
-two-sided p-value is the same either way.
+**Decision: matched R** (#59). `_combine_tails` (weighted models) and
+`_signed_pvalues` (projections) now sign `+1` only when upper < lower, so
+an exact tie upper == lower is −1, for every signed scorer. R uses the same
+`.retain()` for its weighted and its bipartite models, so the rule is the
+same in both families. Signed LANS backbones changed from 108 / 86 to
+68 / 126 (Les Mis) and from 45 / 25 to 30 / 40 (karate), equal to R's for
+every `mtc`, and `test_r_lans_signed` and `assert_signs` now assert plain
+equality. The rest of this section is the analysis that led to the
+decision; "our" there means the code before it.
+
+In a count model (MLF, ECM, SDSM, FDSM, the fixed models) the two tails
+add up to at least 1, so a tie needs both tails to be at least 0.5, and
+its two-sided p-value is 1. There the rule only sets the `sign` attribute
+of edges that no backbone keeps, such as ECM self-loops; the same holds
+for an edge between two degree-1 nodes under the disparity filter (both
+tails 1). Ties are equal by construction, not by rounding:
+
+- Seven Davis `fixedrow` pairs involve an agent with 7 of the 14 events,
+  whose hypergeometric null is symmetric about its mean, and each is
+  observed at that mean, so its tails are equal in exact arithmetic. R
+  computes each pair's tails one ulp apart and signs it by that rounding
+  (rerun with R 4.3.3; the fixture's 15 digits show the tails as equal).
+  Before #59 our tails tied for 4 of the 7, depending on the order of the
+  two agents. `fixedrow` now evaluates the law in a fixed order of the two
+  degrees and makes these tails exactly equal, so all 7 are −1.
+- The noise-corrected filter signs by its statistic, so only a score of
+  exactly 0 is a tie, not tails that both round to 0.5.
+
+**Difference (before the decision).** R's `.retain()` sets
+`upper_tail <- (p$upper < p$lower)`, so an exact tie is signed −1. Our
+`_combine_tails` (weighted models) and `_signed_pvalues` (projections) used
+`p_hi <= p_lo`, so a tie was +1. The two-sided p-value is the same either
+way.
 
 **When R's tails tie.** In R's LANS on Les Misérables, 48 edges have
 `upper == lower`. There are three cases:
