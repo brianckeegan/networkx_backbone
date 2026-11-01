@@ -107,6 +107,10 @@ def test_pure_python_pipeline():
         bh = nb.threshold_filter(scored, "disparity_pvalue", 0.05, mtc="bh")
         assert bh.number_of_edges() <= bb.number_of_edges()
         assert 0 < nb.edge_fraction(G, bb) < 1
+        # Graph input never needs the numpy/scipy/pandas converters.
+        assert nb.to_graph(G) is G
+        assert 0 < nb.backbone_from_weighted(G).number_of_edges() < G.number_of_edges()
+        assert nb.backbone(G, method="lspar").number_of_nodes() == G.number_of_nodes()
         H = [(1, 2, 3, 4), (1, 2, 3), (2, 3, 4), (8, 9)]
         assert nb.maximal_hyperedges(H) == [frozenset({1, 2, 3, 4}), frozenset({8, 9})]
         """
