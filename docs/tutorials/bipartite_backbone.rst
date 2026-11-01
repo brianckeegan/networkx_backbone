@@ -231,9 +231,15 @@ Pass them to ``sdsm`` as iterables of ``(agent, artifact)`` pairs::
     H = nb.sdsm(
         B,
         agent_nodes=women_nodes,
-        prohibited=[(women_nodes[0], event_nodes[0])],
+        prohibited=[(women_nodes[0], event_nodes[13])],
         required=[(women_nodes[1], event_nodes[1])],
     )
+
+A constraint must agree with the data: a ``prohibited`` pair must not be an
+edge of ``B`` and a ``required`` pair must be one. Pairs that contradict the
+data are ignored with a ``RuntimeWarning`` that lists them; pairs naming nodes
+that are not an ``(agent, artifact)`` pair of ``B``, or listed as both
+required and prohibited, raise ``NetworkXError``.
 
 References
 ----------

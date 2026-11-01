@@ -90,25 +90,19 @@ def r_two_sided(upper, lower):
     """R's signed test as networkx-backbone reports it.
 
     R retains an edge when ``min(upper, lower) < alpha / 2`` and signs it
-    ``+1`` when ``upper < lower``; networkx-backbone stores the equivalent
-    two-sided p-value ``min(1, 2 min(upper, lower))``.
+    ``+1`` when ``upper < lower`` and ``-1`` otherwise, so an exact tie
+    ``upper == lower`` is ``-1``; networkx-backbone uses the same sign rule
+    (#59) and stores the equivalent two-sided p-value
+    ``min(1, 2 min(upper, lower))``.
     """
     return np.minimum(1.0, 2.0 * np.minimum(upper, lower)), np.where(
         upper < lower, 1, -1
     )
 
 
-def assert_signs(sign, upper, lower, atol=1e-12):
-    """Signs agree with R's wherever the two tails differ.
-
-    R signs a test ``+1`` only when ``upper < lower``; networkx-backbone signs
-    it ``+1`` when ``upper <= lower``.  At an exact tie R reports ``-1`` and
-    networkx-backbone ``+1``, and tails equal up to rounding can fall either
-    way, so ties are not compared; the two-sided p-value, ``2 * upper``, is
-    the same either way.
-    """
-    tie = np.abs(upper - lower) <= atol
-    np.testing.assert_array_equal(sign[~tie], np.where(upper < lower, 1, -1)[~tie])
+def assert_signs(sign, upper, lower):
+    """Every sign equals R's: ``+1`` when ``upper < lower``, else ``-1``."""
+    np.testing.assert_array_equal(sign, r_two_sided(upper, lower)[1])
 
 
 # =====================================================================
@@ -232,14 +226,14 @@ def test_r_disparity_signed(dataset):
 
 @pytest.mark.parametrize("dataset", sorted(WEIGHTED))
 def test_r_lans_signed(dataset):
-    """Signed LANS: two-sided p-values and signs equal R's, apart from ties.
+    """Signed LANS: two-sided p-values, signs and backbones equal R's.
 
     Both use the upper tail ``#{weights > w} / k`` and its mirror image, the
-    lower tail ``#{weights < w} / k`` (#58).  The only difference is the sign
-    of an exact tie upper == lower (for example the only link of a degree-1
-    node, or a node whose links all have the same weight): R signs it ``-1``
-    and networkx-backbone ``+1``.  The two-sided p-value is the same either
-    way.
+    lower tail ``#{weights < w} / k`` (#58), and both sign an exact tie
+    upper == lower ``-1`` (#59).  Ties are common here: the only link of a
+    degree-1 node, links of a node whose links all have the same weight, and
+    a link that is the strongest of one endpoint and the weakest of the
+    other (48 links on Les Misérables, 15 on karate).
     """
     G, nodes, edges = weighted_case(dataset, r_fixture())
     section = r_fixture()[dataset]["lans"]
@@ -249,15 +243,13 @@ def test_r_lans_signed(dataset):
     np.testing.assert_allclose(edge_values(H, edges, "lans_pvalue"), r_p, atol=1e-12)
     sign = edge_values(H, edges, "sign")
     assert_signs(sign, upper, lower)
-    tie = np.abs(upper - lower) <= 1e-12
-    assert tie.any()
-    assert np.all(sign[tie] == 1)
-    # The backbones agree once R's sign of each tie is replaced by +1.
-    ties = {frozenset(e) for e, t in zip(edges, tie) if t}
+    tie = upper == lower
+    assert tie.sum() == {"les_miserables": 48, "karate": 15}[dataset]
+    assert np.all(sign[tie] == -1)
     for mtc in ("none", "bonferroni", "holm", "BH"):
         B = nb.backbone_from_weighted(G, method="lans", signed=True, mtc=mtc)
-        R = r_backbone_set(section["backbones"][f"signed_{mtc}"], nodes)
-        assert our_backbone_set(B) == {(e, 1 if e in ties else s) for e, s in R}
+        expected = section["backbones"][f"signed_{mtc}"]
+        assert our_backbone_set(B) == r_backbone_set(expected, nodes)
 
 
 def test_r_p_adjust():
@@ -427,7 +419,7 @@ def test_r_sdsm_rna():
     np.testing.assert_allclose(
         pair_values(signed, pairs, "sdsm_pvalue"), r_p, atol=1e-7
     )
-    assert_signs(pair_values(signed, pairs, "sign"), upper, lower, atol=1e-7)
+    assert_signs(pair_values(signed, pairs, "sign"), upper, lower)
 
 
 def sdsm_scores(B, women, method, signed):
@@ -492,10 +484,20 @@ def test_r_fixed_models_exact(model):
     )
     S = func(B, women, alpha=KEEP_ALL, signed=True)
     r_p, _ = r_two_sided(upper, lower)
-    np.testing.assert_allclose(
-        pair_values(S, pairs, f"{model}_pvalue"), r_p, rtol=1e-10, atol=1e-15
-    )
-    assert_signs(pair_values(S, pairs, "sign"), upper, lower, atol=1e-12)
+    p = pair_values(S, pairs, f"{model}_pvalue")
+    np.testing.assert_allclose(p, r_p, rtol=1e-10, atol=1e-15)
+    sign = pair_values(S, pairs, "sign")
+    assert_signs(sign, upper, lower)
+    # Seven fixedrow pairs (an agent with 7 of the 14 events) have a
+    # symmetric hypergeometric null centered on their count, so their tails
+    # are equal in exact arithmetic, in the fixture's 15 digits, and here: a
+    # tie, signed -1.  (R 3.0.4 computes them one ulp apart and signs them by
+    # that rounding.)  A tie in a count model needs both tails >= 0.5, so
+    # their p-value is 1 and no backbone at alpha <= 1 keeps them.
+    tie = upper == lower
+    assert tie.sum() == {"fixedfill": 0, "fixedrow": 7}[model]
+    assert np.all(p[tie] == 1.0)
+    assert np.all(sign[tie] == -1)
 
 
 def test_r_fixedcol_exact_vs_rna():
@@ -508,10 +510,12 @@ def test_r_fixedcol_exact_vs_rna():
         pair_values(H, pairs, "fixedcol_pvalue"), upper, atol=0.01
     )
     S = nb.fixedcol(B, women, alpha=KEEP_ALL, signed=True)
-    r_p, r_sign = r_two_sided(upper, lower)
+    r_p, _ = r_two_sided(upper, lower)
     np.testing.assert_allclose(pair_values(S, pairs, "fixedcol_pvalue"), r_p, atol=0.02)
-    clear = np.abs(upper - lower) > 0.01
-    np.testing.assert_array_equal(pair_values(S, pairs, "sign")[clear], r_sign[clear])
+    # The tails differ by at least 0.028 for every pair, more than the
+    # approximation error, so the signs agree everywhere.
+    assert np.abs(upper - lower).min() > 0.02
+    assert_signs(pair_values(S, pairs, "sign"), upper, lower)
 
 
 @pytest.mark.parametrize("model", ["sdsm", "fixedfill", "fixedrow", "fixedcol"])

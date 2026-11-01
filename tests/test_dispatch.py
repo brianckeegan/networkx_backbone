@@ -15,6 +15,7 @@ relabeled, reordered and empty inputs) that way; the whole suite also passes
 under the harness.
 """
 
+import math
 import warnings
 
 import networkx as nx
@@ -77,6 +78,7 @@ DISPATCHABLE = {
     nb.threshold_filter: {"score": "weight", "threshold": 3, "mode": "above"},
     nb.fraction_filter: {"score": "weight", "fraction": 0.5},
     nb.boolean_filter: {"score": "flag"},
+    nb.transform_weights: {"transformer": math.sqrt},
 }
 
 

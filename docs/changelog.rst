@@ -37,6 +37,36 @@ the :doc:`roadmap` and in GitHub issues.
   stored in ``H.graph["polya_a"]``; non-integer weights use the paper's
   large-strength approximation, Eq. (6). Les Misérables: ``a`` = 0.340 and
   12 edges at ``polya_pvalue < 0.05`` (#42).
+- ``disparity_filter(a=...)`` generalizes the uniform share null to a
+  symmetric Dirichlet null with concentration ``1/a``, so a share is
+  Beta(1/a, (k-1)/a) and the p-value is a regularized incomplete beta
+  function. ``a=1`` (the default) is the original filter, bit for bit and
+  without SciPy; ``a="ml"`` fits ``a`` by maximum likelihood and stores it in
+  ``H.graph["disparity_a"]``. With the shares fixed, it is the
+  large-strength limit of ``polya_filter``'s beta-binomial null. Les
+  Misérables: ``a`` = 0.525 and 19 edges at alpha = 0.05 (9 at ``a=1``)
+  (#55).
+- New :func:`~networkx_backbone.transform_weights` returns a copy of a graph
+  with transformed weights, from a plain callable or any object with a
+  scikit-learn style ``fit_transform`` (scikit-learn is not a dependency). It
+  keeps each node's neighbor order, rejects non-finite or constant output,
+  warns when a transform reorders weights or creates ties, and records the
+  transform for ``describe_backbone``. The new user guide page
+  :doc:`user_guide/weight_transforms` has a table of which methods are
+  invariant to rescaling and to increasing transforms, each entry checked by
+  a test (#55).
+- ``unit=`` on ``marginal_likelihood_filter``, ``ecm_filter``, and
+  ``noise_corrected_filter`` sets the weight of one count; the models use
+  ``weight / unit``. The default ``unit=1`` leaves results unchanged. The
+  three scorers now warn (``UserWarning``) when ``weight / unit`` is not an
+  integer count, naming how they coerce it: MLF rounds counts below 0.5 to 0,
+  the ECM raises counts below 1.5 to 1 (#55).
+- ``describe_backbone`` reports ``a`` of the disparity filter (with the
+  fitted value for ``a="ml"``), ``unit``, and transforms recorded by
+  ``transform_weights`` (#55).
+- A calibration test harness (``tests/test_calibration.py``) simulates
+  weights from the disparity filter's null models and checks that endpoint
+  p-values are uniform (#55).
 - ``ecm_filter`` and ``noise_corrected_filter`` accept ``signed=True`` (#25).
 - ``missing_as_zero=True`` on ``disparity_filter``, ``lans_filter``,
   ``marginal_likelihood_filter``, ``ecm_filter``, ``noise_corrected_filter``
@@ -140,6 +170,27 @@ the :doc:`roadmap` and in GitHub issues.
     ``write_hif`` now always writes both.
 - ``multigraph_to_weighted(aggregate=...)``, which can sum, average, or take
   the max/min of parallel-edge weights.
+- New module ``networkx_backbone.temporal`` (first part of #67): temporal
+  networks as snapshots (a dict or list of graphs), events (a multigraph
+  with a ``time`` per edge), or spans (``start``/``end``, read as the
+  half-open interval ``[start, end)``). :func:`~networkx_backbone.temporal_form`
+  detects the form; :func:`~networkx_backbone.snapshots_from_events`,
+  :func:`~networkx_backbone.snapshots_from_spans`,
+  :func:`~networkx_backbone.events_from_snapshots`,
+  :func:`~networkx_backbone.spans_from_snapshots`,
+  :func:`~networkx_backbone.events_from_spans`,
+  :func:`~networkx_backbone.spans_from_events` and
+  :func:`~networkx_backbone.convert_temporal` convert between them, binning
+  with ``freq=``/``origin=`` and combining weights with
+  ``multigraph_to_weighted(aggregate=...)``. Snapshots to events or spans and
+  back is lossless (empty snapshots, isolated nodes, and node, edge and graph
+  attributes are kept in ``M.graph["temporal"]``). Numeric times and
+  ``datetime`` times with ``timedelta`` steps need only NetworkX; frequency
+  strings such as ``"1D"`` import pandas lazily. See
+  :doc:`user_guide/temporal`.
+- :func:`~networkx_backbone.from_event_table` and
+  :func:`~networkx_backbone.to_event_table` read and write pandas event (or
+  span) tables, keeping duplicate rows as separate events (#70, pandas part).
 
 *Reporting and documentation*
 
@@ -218,11 +269,32 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   ``backbone`` 3.0.4. It was the empirical CDF ``#{weights <= w} / k``, which
   counts the link itself and is never below ``1 / k``, so a link could be
   significantly weak only at a node of degree above 40 (at alpha = 0.05). The
-  two-sided p-values now equal R's; R signs an exact tie upper == lower
-  ``-1`` and ``lans_filter`` ``+1``. The one-tailed ``lans_pvalue`` is
+  two-sided p-values now equal R's. The one-tailed ``lans_pvalue`` is
   unchanged. Les Misérables signed backbone at alpha = 0.05: 108 positive / 0
   negative -> 108 positive / 86 negative (R: 68 / 126, the difference being
-  40 ties); karate: 45 / 0 -> 45 / 25 (#58).
+  40 ties, whose sign the next entry matches); karate: 45 / 0 -> 45 / 25
+  (#58).
+- Signed backbones sign an edge whose upper and lower tail p-values are
+  exactly equal ``-1``, as R ``backbone`` 3.0.4 does (its ``.retain`` takes
+  ``upper < lower`` as positive, in both its weighted and bipartite models);
+  it was ``+1``. The rule is the same for every signed scorer
+  (``disparity_filter``, ``marginal_likelihood_filter``, ``lans_filter``,
+  ``ecm_filter``, ``noise_corrected_filter``, ``sdsm``, ``fdsm``,
+  ``fixedfill``, ``fixedrow``, ``fixedcol`` and the ``backbone_from_*``
+  wrappers). Two-sided p-values do not change. Only LANS ties are
+  significant on the reference data, so only LANS backbones change, and its
+  signed backbones now equal R's for every ``mtc``: Les Misérables at
+  alpha = 0.05, 108 positive / 86 negative -> 68 / 126; karate, 45 / 25 ->
+  30 / 40. In every other model a tie needs both tails of at least 0.5
+  (two-sided p-value 1), so only the ``sign`` attribute of untestable or
+  non-significant edges changes, for example ECM self-loops and, under the
+  disparity filter, edges between two degree-1 nodes. Ties are now equal by
+  construction rather than by floating-point rounding:
+  ``noise_corrected_filter`` signs by the statistic, so only a score of
+  exactly 0 is a tie, and ``fixedrow`` makes the two tails of a symmetric
+  hypergeometric null observed at its mean exactly equal and no longer
+  depends on the order of the two agents. Davis ``fixedrow``: all 7 such
+  pairs are now ``-1`` (6 were ``+1``) (#59).
 - ``bicm``/``sdsm``: the BiCM is now actually fitted rather than
   approximated with Chung-Lu, and p-values use exact Poisson-binomial tails
   (or RNA). SDSM-EC refits on the free cells. Davis: 3 -> 0 pairs.
@@ -277,6 +349,16 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   measure, and conversion functions are not dispatchable, since they take
   matrices or hyperedge lists or return numbers. The ``RuntimeWarning`` of
   ``ecm_filter`` and ``polya_filter`` now points at the caller's line (#19).
+- SDSM-EC constraints that contradict the data (a ``required`` pair that is
+  not an edge of ``B``, a ``prohibited`` pair that is) are now ignored with one
+  ``RuntimeWarning`` per call, pointing at the caller's line, that counts and
+  lists them, instead of raising ``NetworkXError``. This applies to ``sdsm``,
+  ``backbone_from_projection`` and ``backbone``. Pairs naming nodes that are
+  not an ``(agent, artifact)`` pair of ``B`` still raise, and so does a pair
+  listed as both required and prohibited. When no constraint remains (all
+  ignored, or empty lists), the p-values equal those of the unconstrained
+  SDSM exactly. R ``backbone`` 3.0.4 codes constraints as cell values of the
+  incidence matrix, so a constraint there replaces the observed value instead.
 
 **Performance**
 

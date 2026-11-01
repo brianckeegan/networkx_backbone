@@ -52,11 +52,24 @@ Benjamini-Hochberg, Benjamini-Yekutieli).  The ``disparity_filter``,
 ``noise_corrected_filter``, ``marginal_likelihood_filter``, ``ecm_filter``, and
 ``lans_filter`` methods also accept ``signed=True`` for a two-tailed test that
 keeps significantly strong (``+1``) and significantly weak (``-1``) edges, each
-tagged with a ``"sign"`` attribute.  With ``missing_as_zero=True`` they also
+tagged with a ``"sign"`` attribute.  The sign is ``+1`` when the upper-tail
+p-value is smaller than the lower-tail one and ``-1`` otherwise, so an edge
+whose two tails are exactly equal is signed ``-1``, as in R ``backbone``
+3.0.4; the same rule applies to the signed bipartite null models.  With ``missing_as_zero=True`` they also
 test every pair of nodes that has no edge, as an edge of weight 0, so a signed
 backbone can contain pairs that interact significantly less than expected
 (Backbone 3.0's ``missing_as_zero``).  The result then has one edge per tested
 node pair, which takes :math:`O(n^2)` memory.
+
+Each null model assumes something about the weights.  The disparity filter
+assumes that a node's weight shares are uniform spacings, which holds for
+independent exponential weights; ``disparity_filter(a=...)`` relaxes this to
+a one-parameter family whose ``a`` can be fitted (``a="ml"``).  The marginal
+likelihood, ECM, and noise-corrected filters treat weights as counts of
+events, so their results depend on the unit, which ``unit=`` sets.
+:func:`~networkx_backbone.transform_weights` applies a log, power, or other
+transform before scoring.  :doc:`user_guide/weight_transforms` lists which
+methods a rescaling or an increasing transform leaves unchanged.
 
 Structural methods
 ^^^^^^^^^^^^^^^^^^
@@ -169,6 +182,20 @@ filtering, and optional connectivity restoration:
 - :func:`~networkx_backbone.sparsify` -- generic framework
 - :func:`~networkx_backbone.lspar` -- Local Sparsification (Satuluri et al., 2011)
 - :func:`~networkx_backbone.local_degree` -- Degree-based (Hamann et al., 2016)
+
+Temporal networks
+^^^^^^^^^^^^^^^^^
+
+The :mod:`~networkx_backbone.temporal` module takes a network observed over
+time in any of three forms: **snapshots** (a dict or list of graphs),
+**events** (a multigraph with one timed edge per event), or **spans** (a
+multigraph whose edges last from ``start`` to ``end``, read as the half-open
+interval ``[start, end)``). :func:`~networkx_backbone.temporal_form` tells them
+apart and :func:`~networkx_backbone.convert_temporal` converts between them.
+Events and spans become snapshots by binning time into steps of width
+``freq``. Converting snapshots to events or spans and back is lossless. See
+:doc:`user_guide/temporal` for worked examples. Temporal backbone methods
+will build on these forms (see the :doc:`roadmap`).
 
 The score-then-filter pattern
 -----------------------------

@@ -220,6 +220,48 @@ def test_parameters_are_listed():
     assert "`n=2`" in md
 
 
+def test_disparity_concentration_is_described():
+    G = nx.les_miserables_graph()
+    scored = nb.disparity_filter(G, a="ml")
+    bb = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
+    text = nb.describe_backbone(
+        "disparity", alpha=0.05, a="ml", original=G, backbone=bb
+    )
+    assert (
+        "symmetric Dirichlet distribution of each node's weight shares with "
+        "concentration 1/a, estimated by maximum likelihood (a = 0.525)"
+    ) in text
+    assert "Marcaccioli & Livan, 2019" in text
+    assert "Marcaccioli, R., & Livan, G. (2019)" in text  # reference list
+    assert "Other parameters" not in text
+    bib = nb.describe_backbone("disparity_filter", a=2, style="bibtex")
+    assert "@article{marcaccioli2019" in bib
+    md = nb.describe_backbone("disparity_filter", a=2, style="markdown")
+    assert "concentration 1/a, `a = 2`" in md
+    # Without a backbone the estimate is unknown; a = 1 is the original filter.
+    assert "estimated by maximum likelihood;" in nb.describe_backbone(
+        "disparity_filter", a="ml"
+    )
+    assert nb.describe_backbone("disparity_filter", a=1) == nb.describe_backbone(
+        "disparity_filter"
+    )
+
+
+@pytest.mark.parametrize(
+    "name", ["marginal_likelihood_filter", "ecm_filter", "noise_corrected_filter"]
+)
+def test_count_unit_is_described(name):
+    text = nb.describe_backbone(name, alpha=0.05, unit=0.25)
+    assert (
+        "Edge weights were converted to counts in units of unit = 0.25 "
+        "(count = weight / unit) before testing."
+    ) in text
+    assert "Other parameters" not in text
+    assert nb.describe_backbone(name, unit=1) == nb.describe_backbone(name)
+    # Other methods list unit like any other parameter.
+    assert "Other parameters: unit=2." in nb.describe_backbone("lans_filter", unit=2)
+
+
 def test_bibtex_entries():
     bib = nb.describe_backbone("fdsm", alpha=0.05, mtc="bh", style="bibtex")
     keys = re.findall(r"@\w+\{(\w+),", bib)

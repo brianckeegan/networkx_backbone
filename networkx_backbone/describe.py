@@ -21,7 +21,9 @@ own *References* sections).  The coverage policy is:
 - **Not described** (:data:`EXCLUDED`, with the reason for each): the
   dispatch wrappers (describe the method they dispatch to), null-model
   building blocks (``bicm``, ``fastball``), hypergraph helpers that are not
-  backbones, and result classes.
+  backbones, result classes, and the temporal-network format conversions
+  of ``temporal`` (that module will also hold temporal backbone methods,
+  so it is not a helper module).
 - The helper modules ``filters``, ``measures``, ``hypergraph_io``,
   ``visualization``, ``describe`` and ``convert`` are not methods and are
   skipped.
@@ -875,6 +877,21 @@ EXCLUDED = {
     "hypergraph_compression_ratio": "a measure of the MDL backbone",
     "HypergraphBackbone": "a result class",
     "ValidatedHypergraph": "a result class",
+    **dict.fromkeys(
+        (
+            "temporal_form",
+            "convert_temporal",
+            "snapshots_from_events",
+            "snapshots_from_spans",
+            "events_from_snapshots",
+            "spans_from_snapshots",
+            "events_from_spans",
+            "spans_from_events",
+            "from_event_table",
+            "to_event_table",
+        ),
+        "a temporal-network format conversion, not a backbone",
+    ),
 }
 
 # Wording and references for each multiple-testing correction.
@@ -1020,6 +1037,79 @@ def _size_sentence(entry, original, backbone, weight):
     return _graph_share(original, backbone, weight)
 
 
+def _num(x):
+    return f"{x:g}" if isinstance(x, int | float) else repr(x)
+
+
+#: Scorers whose ``unit=`` converts weights to counts.
+_UNIT_METHODS = frozenset(
+    {"marginal_likelihood_filter", "ecm_filter", "noise_corrected_filter"}
+)
+
+
+def _model_sentences(name, params, backbone, md):
+    """Sentences for model choices that change the null (``a``, ``unit``).
+
+    Returns ``(sentences, reference_keys, remaining_params)``; the parameters
+    described here are removed from the generic "Other parameters" list.
+    """
+    params = dict(params)
+    sentences, keys = [], []
+
+    def code(text):
+        return f"`{text}`" if md else text
+
+    if name == "disparity_filter" and "a" in params:
+        a = params.pop("a")
+        if a == "ml":
+            fitted = getattr(backbone, "graph", {}).get("disparity_a")
+            value = (
+                f"estimated by maximum likelihood ({code(f'a = {fitted:.3g}')})"
+                if isinstance(fitted, float)
+                else "estimated by maximum likelihood"
+            )
+        else:
+            value = code(f"a = {_num(a)}")
+        if a != 1:
+            keys.append("marcaccioli2019")
+            sentences.append(
+                "The uniform null model was generalized to a symmetric "
+                "Dirichlet distribution of each node's weight shares with "
+                f"concentration 1/a, {value}; this is the large-strength limit "
+                "of the Pólya urn null model "
+                f"({REFERENCES['marcaccioli2019'].cite()})."
+            )
+    if name in _UNIT_METHODS and "unit" in params:
+        unit = params.pop("unit")
+        if unit != 1:
+            sentences.append(
+                "Edge weights were converted to counts in units of "
+                f"{code(f'unit = {_num(unit)}')} (count = weight / unit) before "
+                "testing."
+            )
+    return sentences, keys, params
+
+
+def _transform_sentences(original, backbone, md):
+    """Sentences for weight transforms recorded by ``transform_weights``."""
+    records = []
+    for graph in (backbone, original):
+        if isinstance(graph, nx.Graph) and graph.graph.get("weight_transforms"):
+            records = graph.graph["weight_transforms"]
+            break
+    sentences = []
+    for rec in records:
+        how = f"`{rec['transform']}`" if md else rec["transform"]
+        src, dst = repr(rec["weight"]), repr(rec["out"])
+        into = "" if src == dst else f" into the attribute {dst}"
+        sentences.append(
+            f"Before scoring, the edge weights ({src}) were transformed with "
+            f"{how}{into}, so the null model applies to the transformed "
+            "weights."
+        )
+    return sentences
+
+
 def _sign_sentence(backbone):
     if not isinstance(backbone, nx.Graph):
         return ""
@@ -1086,7 +1176,13 @@ def describe_backbone(
     **params
         Other parameters used (for example ``s=0.5`` or ``weight="weight"``);
         they are listed in the paragraph.  A ``weight`` entry also names the
-        edge attribute used for the weight share.
+        edge attribute used for the weight share.  Parameters that change the
+        null model get a sentence of their own: ``a`` of
+        :func:`~networkx_backbone.disparity_filter` (with ``a="ml"`` the
+        estimate is read from ``backbone.graph["disparity_a"]``) and ``unit``
+        of the count-based scorers.  Weight transforms recorded by
+        :func:`~networkx_backbone.transform_weights` in the graph attributes
+        of *backbone* (or else *original*) are reported too.
 
     Returns
     -------
@@ -1192,6 +1288,10 @@ def describe_backbone(
     if name == "sdsm" and ({"prohibited", "required"} & params.keys()):
         keys.append("neal2023")
     method_cites = "; ".join(REFERENCES[k].cite() for k in keys)
+    model_sentences, model_keys, params = _model_sentences(
+        name, params, backbone, style == "markdown"
+    )
+    keys += [k for k in model_keys if k not in keys]
 
     if mtc_l != "none":
         mtc_phrase, mtc_keys = _MTC_TEXT[mtc_l]
@@ -1215,6 +1315,8 @@ def describe_backbone(
         else "We extracted the backbone with"
     )
     sentences = [f"{verb} {entry.label}{cite}, {entry.summary}."]
+    sentences += model_sentences
+    sentences += _transform_sentences(original, backbone, md)
 
     if signed:
         sentences.append(
