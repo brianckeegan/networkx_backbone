@@ -144,7 +144,13 @@ Correctness gaps found in review
   Make the result independent of node order.
 - **planned** (`#59 <https://github.com/brianckeegan/networkx_backbone/issues/59>`_): Decide, for each convention difference from
   R ``backbone`` and ``netbone`` that the reference tests document, whether
-  to keep it, match the reference, or add an option.
+  to keep it, match the reference, or add an option. The
+  `decision note
+  <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/reference-conventions.md>`__
+  measures each difference on the reference datasets and recommends a
+  choice. R-compatible options are available without changing any default:
+  ``backbone_from_projection(missing_as_zero=False)`` and
+  ``lspar(convention="r")``.
 
 Validation
 ~~~~~~~~~~

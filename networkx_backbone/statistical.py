@@ -1752,8 +1752,10 @@ def multiple_linkage_analysis(
     netbone [2]_ (version 0.2.3, ``mlam``) fits the same ideal distributions
     by the squared correlation (rounded to two decimals) and stops at the
     first fit that does not improve; neither method here reproduces it.  It
-    keeps fewer links than ``method="dominance"``: 134 versus 223 on Les
-    Misérables, all of them also kept here (``method="lans"`` keeps 109).
+    keeps fewer links than ``method="dominance"``: 134 on Les Misérables
+    versus 205 with the default ``deviation="cod"`` (223 with ``"profile"``,
+    253 with ``"weaver"``), all of them also kept here (``method="lans"``
+    keeps 109).
 
     References
     ----------

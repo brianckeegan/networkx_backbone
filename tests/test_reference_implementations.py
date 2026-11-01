@@ -339,6 +339,41 @@ def test_r_lspar_documented_difference(s):
     assert ours != expected  # the conventions matter on this graph
 
 
+def _unweighted(dataset):
+    G, nodes, _ = weighted_case(dataset, r_fixture())
+    U = nx.Graph()
+    U.add_nodes_from(G)
+    U.add_edges_from(G.edges())
+    return U, nodes
+
+
+@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@pytest.mark.parametrize("s", [0.3, 0.5, 0.7])
+def test_r_lspar_convention_r(dataset, s):
+    """``lspar(convention="r")`` reproduces R's ``lspar`` exactly."""
+    G, nodes = _unweighted(dataset)
+    expected = {
+        e
+        for e, _ in r_backbone_set(
+            r_fixture()[dataset]["unweighted"][f"lspar_{s}"], nodes
+        )
+    }
+    H = nb.lspar(G, s=s, convention="r")
+    assert {frozenset(e) for e in nb.boolean_filter(H, "sparsify_keep").edges} == (
+        expected
+    )
+    assert _r_lspar_rule(G, s) == expected
+    # The critical exponent reproduces the same backbone.
+    assert {
+        frozenset(e)
+        for e, x in nx.get_edge_attributes(H, "sparsify_score").items()
+        if x <= s
+    } == expected
+    # Through the dispatcher too.
+    B = nb.backbone_from_unweighted(G, method="lspar", s=s, convention="r")
+    assert {frozenset(e) for e in B.edges} == expected
+
+
 # =====================================================================
 # R backbone: bipartite projections (Davis Southern Women)
 # =====================================================================
@@ -490,6 +525,48 @@ def test_r_projection_backbones(model, signed, mtc):
     key = f"signed_{mtc}" if signed else mtc
     expected = r_fixture()["davis"][model]["backbones"][key]
     assert our_backbone_set(H) == r_backbone_set(expected, women)
+
+
+@pytest.mark.parametrize("model", ["fixedfill", "fixedrow"])
+@pytest.mark.parametrize("missing_as_zero", [False, True])
+def test_r_projection_missing_as_zero(model, missing_as_zero):
+    """``missing_as_zero`` reproduces R's choice of tested pairs exactly.
+
+    With ``False`` (R's default) the 14 Davis pairs that never co-occur are
+    neither counted by ``mtc`` nor retained; with ``True`` (the default here)
+    every pair is a test.  The fixture uses alphas at which this matters.
+    """
+    B, women, _, _ = davis()
+    section = r_fixture()["davis"]["missing_as_zero"]
+    for alpha in section["alphas"]:
+        expected = section[model][str(missing_as_zero).lower()][str(alpha)]
+        for key, edges in expected.items():
+            signed = key.startswith("signed_")
+            H = nb.backbone_from_projection(
+                B,
+                agent_nodes=women,
+                method=model,
+                alpha=alpha,
+                signed=signed,
+                mtc=key.removeprefix("signed_"),
+                missing_as_zero=missing_as_zero,
+            )
+            assert our_backbone_set(H) == r_backbone_set(edges, women), (alpha, key)
+
+
+def test_r_projection_missing_as_zero_matters():
+    """The ``missing_as_zero`` fixture discriminates between the two scopes."""
+    section = r_fixture()["davis"]["missing_as_zero"]
+    differ = [
+        (model, alpha, key)
+        for model in ("fixedfill", "fixedrow")
+        for alpha in section["alphas"]
+        for key, edges in section[model]["false"][str(alpha)].items()
+        if edges != section[model]["true"][str(alpha)][key]
+    ]
+    assert len(differ) >= 10
+    # Without mtc an unsigned backbone does not depend on it.
+    assert not [d for d in differ if d[2] == "none"]
 
 
 def _mc_tolerance(q, *trials):
