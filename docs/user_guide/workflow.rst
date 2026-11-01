@@ -46,8 +46,9 @@ attribute name when calling a filter function.
      - ``disparity_pvalue``
      - p-value (lower = more significant)
    * - :func:`~networkx_backbone.noise_corrected_filter`
-     - ``nc_score``
-     - z-score (higher = more significant)
+     - ``nc_score``, ``nc_sdev``, ``nc_pvalue``
+     - Lift score in (-1, 1) and its standard deviation (keep
+       ``nc_score > 1.64 * nc_sdev``); p-value (lower = more significant)
    * - :func:`~networkx_backbone.marginal_likelihood_filter`
      - ``ml_pvalue``
      - p-value (lower = more significant)
@@ -58,8 +59,8 @@ attribute name when calling a filter function.
      - ``lans_pvalue``
      - p-value (lower = more significant)
    * - :func:`~networkx_backbone.multiple_linkage_analysis`
-     - ``mla_pvalue`` + ``mla_keep``
-     - p-value + boolean keep flag
+     - ``mla_keep`` (node attribute ``mla_rank``)
+     - Boolean keep flag; ``method="lans"`` gives ``mla_pvalue`` + ``mla_keep``
    * - :func:`~networkx_backbone.global_threshold_filter`
      - ``global_threshold_keep``
      - Boolean keep flag
