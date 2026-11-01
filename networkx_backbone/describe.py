@@ -568,7 +568,7 @@ METHODS = {
     ),
     "strongest_n_ties": Method(
         "the strongest-n-ties rule",
-        "which keeps, for every node, its n heaviest edges",
+        "which keeps, for every node, its n heaviest edges including all cutoff ties",
     ),
     "global_sparsification": Method(
         "global sparsification",

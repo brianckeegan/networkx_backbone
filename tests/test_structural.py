@@ -97,6 +97,37 @@ class TestStrongestNTiesAndPrimaryLinkage:
         kept = {(u, v) for u, v, k in H.edges(data="strongest_n_ties_keep") if k}
         assert kept == {("a", "b"), ("a", "c"), ("b", "c"), ("b", "a"), ("c", "a")}
 
+    @pytest.mark.parametrize("n", [1, 2, 100])
+    def test_strongest_n_ties_is_independent_of_order(self, n):
+        G = nx.les_miserables_graph()
+        reversed_graph = nx.Graph()
+        reversed_graph.add_nodes_from(reversed(list(G)))
+        reversed_graph.add_edges_from(reversed(list(G.edges(data=True))))
+        expected = _kept(strongest_n_ties(G, n=n), "strongest_n_ties_keep")
+        for graph in (G.copy(), reversed_graph):
+            assert (
+                _kept(strongest_n_ties(graph, n=n), "strongest_n_ties_keep") == expected
+            )
+
+    def test_strongest_n_ties_keeps_cutoff_ties_with_mixed_labels(self):
+        G = nx.DiGraph()
+        G.add_weighted_edges_from(
+            [
+                ("source", 1, 5),
+                ("source", "two", 3),
+                ("source", (3,), 3),
+                ("source", 4, 1),
+            ],
+            weight="strength",
+        )
+        G.add_node("isolated")
+        H = strongest_n_ties(G, n=2, weight="strength")
+        assert {v for u, v, keep in H.edges(data="strongest_n_ties_keep") if keep} == {
+            1,
+            "two",
+            (3,),
+        }
+
     def test_primary_linkage_directed(self, digraph):
         H = primary_linkage_analysis(digraph)
         kept = {(u, v) for u, v, k in H.edges(data="primary_linkage_keep") if k}

@@ -138,6 +138,11 @@ the :doc:`roadmap` and in GitHub issues.
 
 **Changes in results (bug fixes)**
 
+- ``strongest_n_ties`` keeps all edges tied at each node's n-th largest
+  weight instead of breaking ties by adjacency order. Copying or reordering
+  a graph no longer changes the selected edges; nodes may select more than
+  ``n`` edges (#60).
+
 The Les Misérables counts below are edges kept at the documented threshold.
 Davis counts are significant woman-woman pairs at alpha = 0.05.
 

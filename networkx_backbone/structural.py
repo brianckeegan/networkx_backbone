@@ -233,7 +233,8 @@ def strongest_n_ties(G, n=1, weight="weight"):
     G : graph
         A NetworkX graph.
     n : int, optional (default=1)
-        Number of strongest edges to keep per node.  Must be at least 1.
+        Number of strongest edges to keep per node, including all ties at
+        the cutoff.  Must be at least 1.
     weight : string, optional (default="weight")
         Edge attribute key used as the weight.
 
@@ -253,8 +254,10 @@ def strongest_n_ties(G, n=1, weight="weight"):
 
     Notes
     -----
-    Ties in weight are broken by neighbor iteration order, so exactly
-    *n* edges are selected per node (fewer if the node has fewer edges).
+    All edges tied at the n-th largest weight are selected, so a node
+    may select more than *n* edges.  The result is independent of node
+    and neighbor iteration order.  Nodes with fewer than *n* edges
+    select all their edges.
     Edges without a *weight* attribute count as weight 0.
 
     Examples
@@ -276,8 +279,12 @@ def strongest_n_ties(G, n=1, weight="weight"):
     # are never compared.
     for u in G.nodes():
         nbrs = [(data.get(weight, 0), v) for v, data in G[u].items()]
-        for _, v in heapq.nlargest(n, nbrs, key=lambda x: x[0]):
-            kept_edges.add(_edge_key(G, u, v))
+        if not nbrs:
+            continue
+        cutoff = heapq.nlargest(n, (w for w, _ in nbrs))[-1]
+        for w, v in nbrs:
+            if w >= cutoff:
+                kept_edges.add(_edge_key(G, u, v))
 
     H = G.copy()
     _mark_kept_edges(H, kept_edges, "strongest_n_ties_keep")
