@@ -56,6 +56,12 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - ``glab_filter`` now supports directed graphs using the out- and
   in-involvement of Zhang et al. (2014), Section 2.3 (#12). On a symmetric
   ``DiGraph`` it gives the undirected p-values.
+- ``doubly_stochastic_filter`` now also runs the second stage of Slater's
+  two-stage algorithm: a boolean ``ds_keep`` edge attribute flags the edges
+  added, in descending ``ds_weight`` order, until each connected component is
+  connected (tie levels added together, so the result does not depend on
+  insertion order). Extract it with ``boolean_filter(H, "ds_keep")``.
+  ``ds_weight`` is unchanged (#44).
 
 **Changes in results (bug fixes)**
 

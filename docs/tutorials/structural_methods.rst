@@ -95,11 +95,17 @@ Normalization
 
 **Doubly stochastic filter** (Slater, 2009): Normalizes the weight matrix
 so that each row and column sums to 1 using Sinkhorn-Knopp iteration. Edges
-with high normalized weight are important::
+with high normalized weight are important. Slater's second stage adds edges in
+descending ``ds_weight`` order until the backbone is connected and flags them
+as ``ds_keep``::
 
     H = nb.doubly_stochastic_filter(G)
 
-    # Filter: keep edges with high doubly-stochastic weight
+    # Filter: Slater's connectivity stage
+    backbone = nb.boolean_filter(H, "ds_keep")
+    print(f"Doubly stochastic (connected): {backbone.number_of_edges()} edges")
+
+    # Or cut the doubly-stochastic weight yourself
     backbone = nb.threshold_filter(H, "ds_weight", 0.1, mode="above")
     print(f"Doubly stochastic (>0.1): {backbone.number_of_edges()} edges")
 

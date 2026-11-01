@@ -574,7 +574,8 @@ METHODS = {
     "doubly_stochastic_filter": Method(
         "the doubly stochastic filter",
         "which rescales the weight matrix to be doubly stochastic with the "
-        "Sinkhorn-Knopp algorithm and scores edges by their rescaled weight",
+        "Sinkhorn-Knopp algorithm, scores edges by their rescaled weight, "
+        "and flags the strongest edges needed to connect each component",
         ("slater2009",),
     ),
     "h_backbone": Method(
