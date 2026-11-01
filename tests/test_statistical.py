@@ -371,6 +371,76 @@ class TestECM:
             )
             assert signed[u][v]["sign"] == (1 if p_hi <= p_lo else -1)
 
+    def test_directed_classes_are_exact(self):
+        # Nodes are grouped by (k_out, s_out, k_in, s_in) (#21).  Grouping by
+        # out- and in-pairs separately is not exact, because each node's own
+        # pair is excluded; this graph has many nodes that share an out-pair
+        # but not an in-pair, so the fitted margins catch the difference.
+        import numpy as np
+
+        from networkx_backbone.statistical import _fit_ecm
+
+        G = nx.gnp_random_graph(120, 0.05, seed=1, directed=True)
+        rng = np.random.default_rng(1)
+        for u, v in G.edges():
+            G[u][v]["weight"] = int(rng.integers(1, 4))
+        G.add_node("isolated")
+        G.add_edge("source", 0, weight=2)  # out-degree only
+        nodes = list(G)
+        k_out = np.array([G.out_degree(v) for v in nodes], float)
+        s_out = np.array([G.out_degree(v, weight="weight") for v in nodes], float)
+        k_in = np.array([G.in_degree(v) for v in nodes], float)
+        s_in = np.array([G.in_degree(v, weight="weight") for v in nodes], float)
+        fit = _fit_ecm(k_out, s_out, k_in, s_in, True, 1000, 1e-9)
+        assert fit[-1] < 1e-9
+        p, w = _ecm_expectations(fit, True)
+        np.testing.assert_allclose(p.sum(1), k_out, rtol=1e-8, atol=1e-12)
+        np.testing.assert_allclose(w.sum(1), s_out, rtol=1e-8, atol=1e-12)
+        np.testing.assert_allclose(p.sum(0), k_in, rtol=1e-8, atol=1e-12)
+        np.testing.assert_allclose(w.sum(0), s_in, rtol=1e-8, atol=1e-12)
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_newton_cg_matches_dense_newton(
+        self, les_miserables_weighted, directed, monkeypatch
+    ):
+        # Large problems use Newton-CG with chunked Hessian-vector products;
+        # force it (and tiny chunks) on Les Miserables and compare.
+        import networkx_backbone.statistical as st
+
+        G = nx.DiGraph(les_miserables_weighted) if directed else les_miserables_weighted
+        dense = st.ecm_filter(G, tol=1e-10, signed=True)
+        monkeypatch.setattr(st, "_ECM_NEWTON_MAX_PARAMS", 0)
+        monkeypatch.setattr(st, "_ECM_CHUNK", 64)
+        for cache in (0, 1 << 22):
+            monkeypatch.setattr(st, "_ECM_CACHE_PAIRS", cache)
+            sparse = st.ecm_filter(G, tol=1e-10, signed=True)
+            for u, v, d in dense.edges(data=True):
+                assert sparse[u][v]["ecm_pvalue"] == pytest.approx(
+                    d["ecm_pvalue"], rel=1e-8, abs=1e-14
+                )
+                assert sparse[u][v]["sign"] == d["sign"]
+
+    def test_scales_to_thousands_of_nodes(self):
+        # 5,000 nodes: the class-reduced fit converges without warnings.
+        import random
+
+        from networkx_backbone.statistical import _fit_ecm
+
+        G = nx.barabasi_albert_graph(5000, 3, seed=0)
+        rng = random.Random(0)
+        for u, v in G.edges():
+            G[u][v]["weight"] = rng.randint(1, 20)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            H = nb.ecm_filter(G)
+        assert all(0 < p <= 1 for *_, p in H.edges(data="ecm_pvalue"))
+
+        import numpy as np
+
+        k = np.array([d for _, d in G.degree()], float)
+        s = np.array([d for _, d in G.degree(weight="weight")], float)
+        assert _fit_ecm(k, s, k, s, False, 1000, 1e-6)[-1] <= 1e-6
+
 
 # ---------------------------------------------------------------------------
 # LANS -- Foti, Hughes & Rockmore (2011); multiple linkage analysis

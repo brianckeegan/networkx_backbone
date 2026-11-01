@@ -139,10 +139,11 @@ Correctness gaps found in review and not yet fixed
 Validation
 ~~~~~~~~~~
 
-- **next** (`#14 <https://github.com/brianckeegan/networkx_backbone/issues/14>`_): Cross-implementation reference tests. Pin p-values on shared
-  datasets (Les Misérables, Davis Southern Women, karate) against R
-  ``backbone`` 3.0 and ``netbone``, stored as small JSON fixtures so the test
-  suite needs neither R nor netbone.
+- **done** (`#14 <https://github.com/brianckeegan/networkx_backbone/issues/14>`_): Cross-implementation reference tests. P-values and backbones
+  on Les Misérables, Davis Southern Women, and karate are pinned against R
+  ``backbone`` 3.0.4 and ``netbone`` 0.2.3 in JSON fixtures, so the test suite
+  needs neither R nor netbone. Open follow-up: whether the signed LANS lower tail
+  should exclude the link itself, as R's does.
 - **done** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional "Interop" CI workflow that installs xgi, HyperNetX,
   HypergraphX, and HAT (the ``[interop]`` extra) and runs the adapter and HIF
   round-trip tests against the real libraries on pull requests and weekly.
@@ -176,8 +177,9 @@ API and ecosystem compatibility
 - **done** (`#30 <https://github.com/brianckeegan/networkx_backbone/issues/30>`_): Make the bipartite and projection code fully sparse
   (no dense agent-by-artifact matrices). The per-pair loops are already
   vectorized.
-- **planned** (`#21 <https://github.com/brianckeegan/networkx_backbone/issues/21>`_): A sparse or blockwise ECM solver for graphs with more than
-  about 2,000 nodes, where the dense Newton polish is skipped.
+- **done** (`#21 <https://github.com/brianckeegan/networkx_backbone/issues/21>`_): A sparse or blockwise ECM solver for graphs with more than
+  about 2,000 nodes. The fit now runs over degree-strength classes with
+  chunked pair sums and Newton or Newton-CG steps.
 - **done** (`#22 <https://github.com/brianckeegan/networkx_backbone/issues/22>`_): An ``asv`` benchmark suite, so performance regressions show up in
   review.
 
@@ -199,12 +201,14 @@ Methods
   statistical and structural comparisons. The package covers 13 of the 15
   methods; see the `coverage table
   <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/yassin-2025-coverage.md>`__.
-- **idea**: The Pólya urn filter (Marcaccioli & Livan, 2019), missing per
-  the #29 survey. Its null model is unlike any method here, and Yassin et
-  al. (2025) found it best preserves the weight distribution.
-- **idea**: The GloSS filter (Radicchi et al., 2011), missing per the #29
-  survey. It is a global null with weights shuffled over the fixed topology;
-  lower priority.
+- **done** (`#42 <https://github.com/brianckeegan/networkx_backbone/issues/42>`_): The Pólya urn filter (Marcaccioli & Livan, 2019),
+  missing per the #29 survey, as :func:`~networkx_backbone.polya_filter`.
+  Its null model is unlike any method here, and Yassin et al. (2025) found
+  it best preserves the weight distribution.
+- **done** (`#43 <https://github.com/brianckeegan/networkx_backbone/issues/43>`_): The GloSS filter (Radicchi et al., 2011), missing per the #29
+  survey: :func:`~networkx_backbone.gloss_filter`, a global null with
+  weights drawn from the observed weight distribution over the fixed
+  topology.
 - **done** (`#44 <https://github.com/brianckeegan/networkx_backbone/issues/44>`_): The connectivity stage of Slater's (2009) doubly stochastic
   backbone (add edges by ``ds_weight`` until the backbone is connected), the
   variant Yassin et al. (2025) evaluate. ``doubly_stochastic_filter`` now

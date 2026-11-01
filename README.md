@@ -31,7 +31,7 @@ pip install -e ".[full]"
 
 | Module | Description | Key Functions |
 |--------|-------------|---------------|
-| **statistical** | Hypothesis-testing methods | `disparity_filter`, `noise_corrected_filter`, `marginal_likelihood_filter`, `ecm_filter`, `lans_filter`, `multiple_linkage_analysis` |
+| **statistical** | Hypothesis-testing methods | `disparity_filter`, `noise_corrected_filter`, `marginal_likelihood_filter`, `ecm_filter`, `lans_filter`, `multiple_linkage_analysis`, `polya_filter`, `gloss_filter` |
 | **structural** | Topology-based methods | `global_threshold_filter`, `strongest_n_ties`, `global_sparsification`, `primary_linkage_analysis`, `edge_betweenness_filter`, `node_degree_filter`, `high_salience_skeleton`, `metric_backbone`, `ultrametric_backbone`, `doubly_stochastic_filter`, `h_backbone`, `modularity_backbone`, `planar_maximally_filtered_graph`, `maximum_spanning_tree_backbone` |
 | **proximity** | Neighborhood-similarity scoring | `jaccard_backbone`, `dice_backbone`, `cosine_backbone`, `hub_promoted_index`, `hub_depressed_index`, `adamic_adar_index`, `resource_allocation_index`, `local_path_index`, and more |
 | **hybrid** | Combined approaches | `glab_filter` |
@@ -248,6 +248,7 @@ Key papers behind the implemented methods:
 - Gemmetto, V., Cardillo, A., & Garlaschelli, D. (2017). [Irreducible network backbones: unbiased graph filtering via maximum entropy](https://arxiv.org/abs/1706.00230). arXiv:1706.00230.
 - Grady, D., Thiemann, C., & Brockmann, D. (2012). [Robust classification of salient links in complex networks](https://doi.org/10.1038/ncomms1847). *Nature Communications*, 3, 864.
 - Hamann, M., Lindner, G., Meyerhenke, H., Staudt, C. L., and Wagner, D. (2016). [Structure-Preserving Sparsification Methods for Social Networks](https://doi.org/10.1007/s13278-016-0332-2). Social Network Analysis and Mining, 6, 22.
+- Marcaccioli, R., & Livan, G. (2019). [A Pólya urn approach to information filtering in complex networks](https://doi.org/10.1038/s41467-019-08667-3). *Nature Communications*, 10, 745.
 - Simas, T., Correia, R. B., & Rocha, L. M. (2021). [The distance backbone of complex networks](https://doi.org/10.1093/comnet/cnab021). *J. Complex Networks*, 9(6), cnab021.
 - Newman, M. E. J. (2001). [Scientific collaboration networks. II. Shortest paths, weighted networks, and centrality](https://doi.org/10.1103/PhysRevE.64.016132). *Physical Review E*, 64, 016132.
 - Neal, Z. P. (2014). [The backbone of bipartite projections](https://doi.org/10.1016/j.socnet.2014.06.001). *Social Networks*, 39, 84-97.
@@ -255,6 +256,7 @@ Key papers behind the implemented methods:
 - Neal, Z. P. (2022). [backbone: An R package to extract network backbones](https://doi.org/10.1371/journal.pone.0269137). *PLoS One*, 17(5), e0269137.
 - Neal, Z. P. (2026). [Backbone 3.0: An R package for extracting network backbones](https://doi.org/10.1371/journal.pone.0349258). *PLoS One*, 21, e0349258.
 - Neal, Z. P., & Neal, J. W. (2023). [Stochastic Degree Sequence Model with Edge Constraints (SDSM-EC) for Backbone Extraction](https://doi.org/10.1007/978-3-031-53468-3_11). *Complex Networks 12*, 127-136.
+- Radicchi, F., Ramasco, J. J., & Fortunato, S. (2011). [Information filtering in complex weighted networks](https://doi.org/10.1103/PhysRevE.83.046101). *Physical Review E*, 83(4), 046101.
 - Saracco, F., Di Clemente, R., Gabrielli, A., & Squartini, T. (2015). [Randomizing bipartite networks: the case of the World Trade Web](https://doi.org/10.1038/srep10595). *Scientific Reports*, 5, 10595.
 - Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). [Local graph sparsification for scalable clustering](https://doi.org/10.1145/1989323.1989399). *SIGMOD*, 721-732.
 - Serrano, M. A., Boguna, M., & Vespignani, A. (2009). [Extracting the multiscale backbone of complex weighted networks](https://doi.org/10.1073/pnas.0808904106). *PNAS*, 106(16), 6483-6488.

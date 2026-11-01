@@ -198,6 +198,17 @@ def lspar(G, s=0.5):
     order.  ``threshold_filter(H, "sparsify_score", s2, mode="below")``
     reproduces ``lspar(G, s=s2)`` for any exponent ``s2``.
 
+    **Comparison with R backbone.**  R ``backbone_from_unweighted(model =
+    "lspar")`` uses different conventions and keeps fewer edges (30 versus 54
+    on the karate club at ``s = 0.3``).  It divides the common neighbours by
+    :math:`|N(u) \cup N(v)| - 2`, excluding the endpoints, ranks with dense
+    ranks, ignores edges in no triangle (Jaccard 0) both when ranking and when
+    counting :math:`d_u`, and keeps ranks up to ``floor(d_u**s)`` with no
+    minimum of one.  Here the denominator is :math:`|N(u) \cup N(v)|`, ranks
+    are competition ranks over all edges, and each node keeps
+    ``max(1, ceil(d_u**s))`` as in Satuluri et al.  :func:`local_degree`
+    matches R's ``model = "degree"`` on the karate club.
+
     References
     ----------
     .. [1] Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). Local
