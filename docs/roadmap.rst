@@ -144,7 +144,7 @@ Methods
   (Kirkley et al., 2026, Appendix E): ``local_mdl_hypergraph_backbone``.
 - **done** (`#25 <https://github.com/brianckeegan/networkx_backbone/issues/25>`_): Signed variants of ``ecm_filter`` and the noise-corrected
   filter, for parity with the other scorers' ``signed=True``.
-- **idea** (`#26 <https://github.com/brianckeegan/networkx_backbone/issues/26>`_): A ``missing_as_zero`` toggle for weighted inputs (Backbone 3.0),
+- **done** (`#26 <https://github.com/brianckeegan/networkx_backbone/issues/26>`_): A ``missing_as_zero`` toggle for weighted inputs (Backbone 3.0),
   for testing absent dyads.
 - **done** (`#29 <https://github.com/brianckeegan/networkx_backbone/issues/29>`_): Survey the methods in the Yassin et al. (2025)
   statistical and structural comparisons. The package covers 13 of the 15

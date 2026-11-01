@@ -671,3 +671,226 @@ class TestMultipleLinkageAnalysis:
     def test_invalid_deviation_raises(self, weighted_triangle):
         with pytest.raises(ValueError, match="deviation"):
             nb.multiple_linkage_analysis(weighted_triangle, deviation="bogus")
+
+
+# ---------------------------------------------------------------------------
+# missing_as_zero: absent dyads tested as weight-0 edges (Backbone 3.0, #26)
+# ---------------------------------------------------------------------------
+
+_MISSING_SCORERS = [
+    (nb.disparity_filter, "disparity_pvalue"),
+    (nb.lans_filter, "lans_pvalue"),
+    (nb.marginal_likelihood_filter, "ml_pvalue"),
+    (nb.ecm_filter, "ecm_pvalue"),
+    (nb.noise_corrected_filter, "nc_pvalue"),
+]
+
+
+def _zero_edges(H, attr):
+    """``{sorted pair: (pvalue, sign)}`` for the weight-0 edges of *H*."""
+    return {
+        tuple(sorted((u, v))): (d[attr], d.get("sign"))
+        for u, v, d in H.edges(data=True)
+        if d["weight"] == 0
+    }
+
+
+@pytest.fixture
+def small_graph():
+    """Strengths a=5, b=5, c=4, d=2, e=0; degrees 2, 2, 3, 1, 0."""
+    G = nx.Graph()
+    G.add_weighted_edges_from(
+        [("a", "b", 4), ("a", "c", 1), ("b", "c", 1), ("c", "d", 2)]
+    )
+    G.add_node("e")
+    return G
+
+
+@pytest.fixture
+def two_pairs():
+    """Two strong pairs a-b and c-d joined by one weak edge, plus isolate e.
+
+    T = 41; strengths a=21, b=20, c=21, d=20.
+    """
+    G = nx.Graph()
+    G.add_weighted_edges_from([("a", "b", 20), ("c", "d", 20), ("a", "c", 1)])
+    G.add_node("e")
+    return G
+
+
+class TestMissingAsZero:
+    @pytest.mark.parametrize(("scorer", "attr"), _MISSING_SCORERS)
+    @pytest.mark.parametrize("signed", [False, True])
+    def test_default_unchanged_and_existing_edges_unaffected(
+        self, scorer, attr, signed, count_graph
+    ):
+        count_graph.add_node("z")
+        default = scorer(count_graph, signed=signed)
+        assert set(map(frozenset, default.edges())) == set(
+            map(frozenset, count_graph.edges())
+        )
+        assert nx.utils.graphs_equal(
+            default, scorer(count_graph, signed=signed, missing_as_zero=False)
+        )
+        full = scorer(count_graph, signed=signed, missing_as_zero=True)
+        # Weight-0 pairs do not change the null model of existing edges.
+        for u, v, d in default.edges(data=True):
+            assert full[u][v] == d
+        added = set(map(frozenset, full.edges())) - set(
+            map(frozenset, count_graph.edges())
+        )
+        assert added
+        assert all(full.edges[tuple(e)]["weight"] == 0 for e in added)
+
+    @pytest.mark.parametrize(
+        ("scorer", "attr"),
+        [(nb.disparity_filter, "disparity_pvalue"), (nb.lans_filter, "lans_pvalue")],
+    )
+    def test_disparity_and_lans_hand_values(self, scorer, attr, small_graph):
+        # A weight of 0 is below every link: upper tail 1, lower tail 0 from
+        # any endpoint with links (degree >= 2 for the disparity filter).
+        # Pairs with the isolate "e" have a 0/0 normalized weight and are not
+        # added (R: NA).  The degree of d stays 1; (a, d) is tested from a.
+        signed = scorer(small_graph, signed=True, missing_as_zero=True)
+        assert _zero_edges(signed, attr) == {
+            ("a", "d"): (0.0, -1),
+            ("b", "d"): (0.0, -1),
+        }
+        unsigned = scorer(small_graph, missing_as_zero=True)
+        assert _zero_edges(unsigned, attr) == {
+            ("a", "d"): (1.0, None),
+            ("b", "d"): (1.0, None),
+        }
+
+    def test_directed_disparity_and_lans(self):
+        # Out-degrees a=2, b=1, c=1; in-degrees a=1, b=1, c=2; e isolated.
+        D = nx.DiGraph()
+        D.add_weighted_edges_from(
+            [("a", "b", 3), ("b", "c", 1), ("c", "a", 2), ("a", "c", 1)]
+        )
+        D.add_node("e")
+        disp = nb.disparity_filter(D, signed=True, missing_as_zero=True)
+        lans = nb.lans_filter(D, signed=True, missing_as_zero=True)
+        # Only b->a and c->b are testable (e has no out- or in-links).  Both
+        # sides of each have one link, which cannot reject the disparity null.
+        zeros = {(u, v) for u, v, w in disp.edges(data="weight") if w == 0}
+        assert zeros == {("b", "a"), ("c", "b")}
+        assert all(disp[u][v]["disparity_pvalue"] == 1.0 for u, v in zeros)
+        assert {(u, v) for u, v, w in lans.edges(data="weight") if w == 0} == zeros
+        assert all(lans[u][v]["lans_pvalue"] == 0.0 for u, v in zeros)
+        assert all(lans[u][v]["sign"] == -1 for u, v in zeros)
+
+    def test_mlf_hand_values(self, two_pairs):
+        # Absent pair (u, v) is X = 0 under B(T, s_u s_v / (2 T^2)): upper
+        # tail 1, lower tail (1 - p)^T.  Pairs with the isolate are tested
+        # (as in R) and get p-value 1.
+        T = 41
+        H = nb.marginal_likelihood_filter(two_pairs, signed=True, missing_as_zero=True)
+        got = _zero_edges(H, "ml_pvalue")
+        lo_ad = (1 - 21 * 20 / (2 * T * T)) ** T
+        lo_bd = (1 - 20 * 20 / (2 * T * T)) ** T
+        assert got[("a", "d")] == (pytest.approx(2 * lo_ad), -1)
+        assert got[("b", "c")] == (pytest.approx(2 * lo_ad), -1)
+        assert got[("b", "d")] == (pytest.approx(2 * lo_bd), -1)
+        assert got[("b", "d")][0] == pytest.approx(0.0111048103)
+        for x in "abcd":
+            assert got[(x, "e")] == (1.0, 1)
+        assert len(got) == 7
+        unsigned = nb.marginal_likelihood_filter(two_pairs, missing_as_zero=True)
+        assert {p for p, _ in _zero_edges(unsigned, "ml_pvalue").values()} == {1.0}
+
+    def test_noise_corrected_hand_values(self, two_pairs):
+        # Pair (b, d): n_i = n_j = 20, n = 82 (undirected weights counted
+        # twice).  n_ij = 0 gives lift 0, score -1 and derivative 2 * kappa.
+        n, ni, nj = 82.0, 20.0, 20.0
+        E = ni * nj / n**2
+        V = ni * nj * (n - ni) * (n - nj) / (n**4 * (n - 1))
+        a = E**2 * (1 - E) / V - E
+        b = E * (1 - E**2) / V - (1 - E)
+        p_post = a / (a + b + n)
+        sdev = 2 * (n / (ni * nj)) * math.sqrt(n * p_post * (1 - p_post))
+        H = nb.noise_corrected_filter(two_pairs, signed=True, missing_as_zero=True)
+        d = H["b"]["d"]
+        assert d["weight"] == 0
+        assert d["nc_score"] == -1.0
+        assert d["nc_sdev"] == pytest.approx(sdev)
+        assert d["nc_sdev"] == pytest.approx(0.6746729794)
+        assert d["nc_pvalue"] == pytest.approx(math.erfc(1 / (sdev * math.sqrt(2))))
+        assert d["sign"] == -1
+        # The isolate has a zero margin: undefined lift, not added.
+        assert not any(H.has_edge(x, "e") for x in "abcd")
+        assert len(_zero_edges(H, "nc_pvalue")) == 3
+
+    def test_noise_corrected_zscore_hand_values(self, two_pairs):
+        # Legacy z = (0 - W p) / sqrt(W p (1 - p)), p = s_b s_d / W^2, W = 41.
+        W, p = 41, 20 * 20 / 41**2
+        z = -math.sqrt(W * p / (1 - p))
+        H = nb.noise_corrected_filter(
+            two_pairs, method="zscore", signed=True, missing_as_zero=True
+        )
+        assert H["b"]["d"]["nc_score"] == pytest.approx(z)
+        assert H["b"]["d"]["nc_pvalue"] == pytest.approx(math.erfc(-z / math.sqrt(2)))
+        assert not H.has_edge("b", "e")
+
+    def test_ecm_lower_tail_is_one_minus_link_probability(self):
+        import numpy as np
+
+        from networkx_backbone.statistical import _fit_ecm
+
+        G = nx.Graph()
+        G.add_weighted_edges_from(
+            [
+                ("a", "b", 20),
+                ("c", "d", 20),
+                ("a", "c", 1),
+                ("b", "d", 1),
+                ("a", "e", 1),
+                ("b", "f", 1),
+            ]
+        )
+        G.add_node("g")
+        nodes = list(G)
+        k = np.array([G.degree(v) for v in nodes], float)
+        s = np.array([G.degree(v, weight="weight") for v in nodes], float)
+        fit = _fit_ecm(k, s, k, s, False, 1000, 1e-6)
+        p, _ = _ecm_expectations(fit, False)
+        H = nb.ecm_filter(G, signed=True, missing_as_zero=True)
+        i, j = nodes.index("a"), nodes.index("d")
+        # P(w_ad <= 0) = 1 - p_ad and P(w_ad >= 0) = 1.
+        assert H["a"]["d"]["ecm_pvalue"] == pytest.approx(2 * (1 - p[i, j]), rel=1e-6)
+        assert H["a"]["d"]["ecm_pvalue"] < 1.0
+        assert H["a"]["d"]["sign"] == -1
+        # The isolate g has x = 0, so p_gj = 0 and both tails are 1.
+        assert H["a"]["g"]["ecm_pvalue"] == 1.0
+        unsigned = nb.ecm_filter(G, missing_as_zero=True)
+        assert {pv for pv, _ in _zero_edges(unsigned, "ecm_pvalue").values()} == {1.0}
+
+    @pytest.mark.parametrize(("scorer", "attr"), _MISSING_SCORERS)
+    def test_edgeless_graph_adds_nothing(self, scorer, attr):
+        H = scorer(nx.empty_graph(4), signed=True, missing_as_zero=True)
+        assert H.number_of_edges() == 0
+
+    @pytest.mark.parametrize(("scorer", "attr"), _MISSING_SCORERS)
+    def test_warns_when_output_is_dense(self, scorer, attr, two_pairs, monkeypatch):
+        import networkx_backbone.statistical as st
+
+        monkeypatch.setattr(st, "_MISSING_AS_ZERO_WARN_DYADS", 6)
+        # 5 nodes: 10 pairs - 3 edges = 7 absent pairs > 6.
+        with pytest.warns(RuntimeWarning, match="missing_as_zero=True adds 7") as rec:
+            scorer(two_pairs, signed=True, missing_as_zero=True)
+        # The warning points at the caller, not at library internals.
+        assert any(r.filename == __file__ for r in rec)
+        monkeypatch.setattr(st, "_MISSING_AS_ZERO_WARN_DYADS", 7)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            scorer(two_pairs, signed=True, missing_as_zero=True)
+
+    def test_aliases_forward_missing_as_zero(self, two_pairs):
+        for alias, full in [
+            (nb.disparity, nb.disparity_filter),
+            (nb.mlf, nb.marginal_likelihood_filter),
+            (nb.lans, nb.lans_filter),
+        ]:
+            got = alias(two_pairs, signed=True, missing_as_zero=True)
+            want = full(two_pairs, signed=True, missing_as_zero=True)
+            assert nx.utils.graphs_equal(got, want)

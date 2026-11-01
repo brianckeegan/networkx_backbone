@@ -50,7 +50,11 @@ Benjamini-Hochberg, Benjamini-Yekutieli).  The ``disparity_filter``,
 ``noise_corrected_filter``, ``marginal_likelihood_filter``, ``ecm_filter``, and
 ``lans_filter`` methods also accept ``signed=True`` for a two-tailed test that
 keeps significantly strong (``+1``) and significantly weak (``-1``) edges, each
-tagged with a ``"sign"`` attribute.
+tagged with a ``"sign"`` attribute.  With ``missing_as_zero=True`` they also
+test every pair of nodes that has no edge, as an edge of weight 0, so a signed
+backbone can contain pairs that interact significantly less than expected
+(Backbone 3.0's ``missing_as_zero``).  The result then has one edge per tested
+node pair, which takes :math:`O(n^2)` memory.
 
 Structural methods
 ^^^^^^^^^^^^^^^^^^

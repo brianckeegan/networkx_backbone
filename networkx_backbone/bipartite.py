@@ -2274,6 +2274,7 @@ def backbone_from_weighted(
     mtc="none",
     collapse_multiedges=True,
     edge_type_attr=None,
+    missing_as_zero=False,
     *,
     nodelist=None,
     directed=False,
@@ -2314,6 +2315,21 @@ def backbone_from_weighted(
         Edge attribute used when collapsing multi-edges. If provided, edge
         weights count distinct edge types per node pair; otherwise they count
         parallel edges.
+    missing_as_zero : bool, optional (default=False)
+        If ``True``, every pair of distinct nodes without an edge is tested as
+        an edge of weight 0, as with ``missing_as_zero=TRUE`` in the R
+        backbone package (version 3.0), and the significant ones are returned
+        as edges with weight 0.  With ``signed=True`` this keeps pairs that
+        interact significantly less than expected (``sign`` -1).  The tested
+        pairs also count toward the ``mtc`` correction.  As in R, the
+        ``"disparity"`` and ``"lans"`` nulls give a weight of 0 a lower-tail
+        p-value of 0, so they keep every absent pair they can test (for
+        ``"disparity"``, except pairs of two degree-1 nodes); ``"mlf"`` gives
+        a graded binomial test.  See the Notes of
+        :func:`~networkx_backbone.disparity_filter`,
+        :func:`~networkx_backbone.marginal_likelihood_filter` and
+        :func:`~networkx_backbone.lans_filter` for how each model scores
+        them.  Not supported for ``method="global"``.
     nodelist : sequence or None, optional (default=None)
         Node labels for the rows and columns of an adjacency matrix *G*.
     directed : bool, optional (default=False)
@@ -2332,8 +2348,15 @@ def backbone_from_weighted(
     Raises
     ------
     ValueError
-        If *method* is unknown, ``method="global"`` lacks ``threshold``, or
+        If *method* is unknown, ``method="global"`` lacks ``threshold``,
+        ``missing_as_zero=True`` is combined with ``method="global"``, or
         a non-graph *G* is invalid (see :func:`~networkx_backbone.to_graph`).
+
+    Warns
+    -----
+    RuntimeWarning
+        If ``missing_as_zero=True`` would test more than one million absent
+        node pairs.
 
     See Also
     --------
@@ -2360,6 +2383,15 @@ def backbone_from_weighted(
     >>> H2 = backbone_from_weighted(A, method="disparity", nodelist=nodes)
     >>> dict(H2.edges) == dict(H.edges)
     True
+
+    With ``missing_as_zero=True`` and ``signed=True``, pairs of strong nodes
+    that never interact are kept as significantly weak, with weight 0:
+
+    >>> G = nx.Graph()
+    >>> G.add_weighted_edges_from([("a", "b", 20), ("c", "d", 20), ("a", "c", 1)])
+    >>> S = backbone_from_weighted(G, method="mlf", signed=True, missing_as_zero=True)
+    >>> sorted((u, v, d["sign"]) for u, v, d in S.edges(data=True) if d["weight"] == 0)
+    [('a', 'd', -1), ('b', 'c', -1), ('b', 'd', -1)]
     """
     from networkx_backbone.convert import to_graph
     from networkx_backbone.filters import (
@@ -2387,18 +2419,29 @@ def backbone_from_weighted(
 
     method_l = method.lower()
 
+    if missing_as_zero and method_l in (
+        "global",
+        "global_threshold",
+        "global_threshold_filter",
+    ):
+        raise ValueError(
+            "missing_as_zero=True is only supported for the statistical "
+            "methods 'disparity', 'mlf' and 'lans'."
+        )
+    score_kw = {"weight": weight, "signed": signed, "missing_as_zero": missing_as_zero}
+
     if method_l in ("disparity", "disparity_filter"):
-        scored = disparity_filter(G, weight=weight, signed=signed)
+        scored = disparity_filter(G, **score_kw)
         return threshold_filter(
             scored, "disparity_pvalue", alpha, mode="below", mtc=mtc
         )
 
     if method_l in ("mlf", "marginal_likelihood", "marginal_likelihood_filter"):
-        scored = marginal_likelihood_filter(G, weight=weight, signed=signed)
+        scored = marginal_likelihood_filter(G, **score_kw)
         return threshold_filter(scored, "ml_pvalue", alpha, mode="below", mtc=mtc)
 
     if method_l in ("lans", "lans_filter"):
-        scored = lans_filter(G, weight=weight, signed=signed)
+        scored = lans_filter(G, **score_kw)
         return threshold_filter(scored, "lans_pvalue", alpha, mode="below", mtc=mtc)
 
     if method_l in ("global", "global_threshold", "global_threshold_filter"):
