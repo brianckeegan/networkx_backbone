@@ -44,6 +44,15 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
 - ``ecm_filter`` and ``noise_corrected_filter`` accept ``signed=True`` (#25).
+- ``missing_as_zero=True`` on ``disparity_filter``, ``lans_filter``,
+  ``marginal_likelihood_filter``, ``ecm_filter``, ``noise_corrected_filter``
+  and ``backbone_from_weighted`` (Backbone 3.0). Node pairs without an edge
+  are tested as weight-0 edges and returned with ``weight`` 0, so a signed
+  backbone can keep pairs that interact significantly less than expected.
+  Degrees, strengths, and fitted multipliers still come from the existing
+  edges only, as in the R package; each scorer's Notes say how it scores a
+  weight of 0. A ``RuntimeWarning`` is raised above one million added pairs
+  (#26).
 - Bipartite functions accept NumPy, SciPy sparse, or pandas incidence
   matrices with ``agent_labels``/``artifact_labels``, and ``agent_nodes`` is
   optional (#20, bipartite part).
