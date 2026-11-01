@@ -23,12 +23,20 @@ intersection_graph
     Graph linking hyperedges that share at least one node.
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import networkx as nx
 
 from networkx_backbone._docstrings import append_complexity_docstrings
+
+if TYPE_CHECKING:
+    from collections.abc import Hashable, Iterable, Iterator
+
+    from networkx_backbone._typing import Hyperedge, Hyperedges
 
 __all__ = [
     "intersection_graph",
@@ -267,8 +275,8 @@ class HypergraphBackbone:
         neighborhood optimum ``L(G_i, B_i*)`` in bits.  Empty otherwise.
     """
 
-    backbone: list = field(default_factory=list)
-    assignment: dict = field(default_factory=dict)
+    backbone: list[Hyperedge] = field(default_factory=list)
+    assignment: dict[Hyperedge, list[Hyperedge]] = field(default_factory=dict)
     n_nodes: int = 0
     n_orders: int = 0
     weighted: bool = False
@@ -279,21 +287,21 @@ class HypergraphBackbone:
     compression_ratio: float = 1.0
     n_hyperedges: int | None = None
     aggregation: str | None = None
-    local_backbones: dict = field(default_factory=dict)
-    local_description_lengths: dict = field(default_factory=dict)
+    local_backbones: dict[Hashable, list[Hyperedge]] = field(default_factory=dict)
+    local_description_lengths: dict[Hashable, float] = field(default_factory=dict)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.backbone)
 
     @property
-    def n_input_hyperedges(self):
+    def n_input_hyperedges(self) -> int:
         """Total distinct input hyperedges (backbone parents + all children)."""
         if self.n_hyperedges is not None:
             return self.n_hyperedges
         return len(self.backbone) + sum(len(v) for v in self.assignment.values())
 
     @property
-    def fraction_kept(self):
+    def fraction_kept(self) -> float:
         """Fraction of (unique) input hyperedges retained in the backbone."""
         total = self.n_input_hyperedges
         return len(self.backbone) / total if total else 1.0
@@ -323,18 +331,18 @@ class ValidatedHypergraph:
         Total number of hyperedge instances (sum of multiplicities).
     """
 
-    validated: list = field(default_factory=list)
-    pvalues: dict = field(default_factory=dict)
-    counts: dict = field(default_factory=dict)
+    validated: list[Hyperedge] = field(default_factory=list)
+    pvalues: dict[Hyperedge, float] = field(default_factory=dict)
+    counts: dict[Hyperedge, int] = field(default_factory=dict)
     alpha: float = 0.01
     method: str = "svh"
     n_nodes: int = 0
     n_instances: int = 0
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.validated)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Hyperedge]:
         return iter(self.validated)
 
 
@@ -343,7 +351,9 @@ class ValidatedHypergraph:
 # ---------------------------------------------------------------------------
 
 
-def intersection_graph(hyperedges, s=1, weight="overlap"):
+def intersection_graph(
+    hyperedges: Hyperedges, s: int = 1, weight: str = "overlap"
+) -> nx.Graph:
     """Build the intersection graph (or s-line graph) of a hypergraph.
 
     Each hyperedge becomes a node (labeled by its integer index after
@@ -395,16 +405,16 @@ def intersection_graph(hyperedges, s=1, weight="overlap"):
         raise ValueError(f"s must be >= 1, got {s}")
 
     edges, _ = _normalize_hyperedges(hyperedges, None)
-    graph = nx.Graph()
+    graph: nx.Graph = nx.Graph()
     for i, e in enumerate(edges):
         graph.add_node(i, members=e)
 
-    node_to_edges = {}
+    node_to_edges: dict[Hashable, list[int]] = {}
     for i, e in enumerate(edges):
         for v in e:
             node_to_edges.setdefault(v, []).append(i)
 
-    overlaps = {}
+    overlaps: dict[tuple[int, int], int] = {}
     for incident in node_to_edges.values():
         m = len(incident)
         if m < 2:
@@ -645,12 +655,12 @@ class _MDLFit:
 
 
 def mdl_hypergraph_backbone(
-    hyperedges,
-    weights=None,
-    gamma=1.0,
-    prior="poisson",
-    method="auto",
-):
+    hyperedges: Hyperedges,
+    weights: Iterable[float] | None = None,
+    gamma: float = 1.0,
+    prior: str = "poisson",
+    method: str = "auto",
+) -> HypergraphBackbone:
     """Extract a hypergraph backbone via minimum description length (MDL).
 
     Implements the parameter-free information-theoretic backboning method of
@@ -753,7 +763,7 @@ def mdl_hypergraph_backbone(
     result.weighted = fit.weighted
     result.n_hyperedges = n_edges
     result.backbone = [edges[i] for i in range(n_edges) if i not in parent_of]
-    assignment = {}
+    assignment: dict[Hyperedge, list[Hyperedge]] = {}
     for c, p in parent_of.items():
         assignment.setdefault(edges[p], []).append(edges[c])
     result.assignment = assignment
@@ -763,7 +773,12 @@ def mdl_hypergraph_backbone(
     return result
 
 
-def hypergraph_compression_ratio(hyperedges, weights=None, gamma=1.0, prior="poisson"):
+def hypergraph_compression_ratio(
+    hyperedges: Hyperedges,
+    weights: Iterable[float] | None = None,
+    gamma: float = 1.0,
+    prior: str = "poisson",
+) -> float:
     """Inverse compression ratio ``eta`` of the MDL backbone (Eq. (8)).
 
     A convenience wrapper returning only
@@ -814,13 +829,13 @@ _AGGREGATIONS = ("union", "majority", "all")
 
 
 def local_mdl_hypergraph_backbone(
-    hyperedges,
-    weights=None,
-    gamma=1.0,
-    prior="poisson",
-    aggregation="majority",
-    method="auto",
-):
+    hyperedges: Hyperedges,
+    weights: Iterable[float] | None = None,
+    gamma: float = 1.0,
+    prior: str = "poisson",
+    aggregation: str = "majority",
+    method: str = "auto",
+) -> HypergraphBackbone:
     """Extract the local (per-node neighborhood) MDL hypergraph backbone.
 
     The local variant of :func:`mdl_hypergraph_backbone` from Appendix E of
@@ -973,7 +988,7 @@ def local_mdl_hypergraph_backbone(
     if n_edges == 0:
         return result
 
-    node_to_edges = {}
+    node_to_edges: dict[Hashable, list[int]] = {}
     sizes = set()
     for k, e in enumerate(edges):
         sizes.add(len(e))
@@ -1029,7 +1044,7 @@ def local_mdl_hypergraph_backbone(
     return result
 
 
-def maximal_hyperedges(hyperedges):
+def maximal_hyperedges(hyperedges: Hyperedges) -> list[Hyperedge]:
     """Inclusion (toplex) reduction: keep only the maximal hyperedges.
 
     Removes every hyperedge that is a strict subset of another hyperedge,
@@ -1067,7 +1082,7 @@ def maximal_hyperedges(hyperedges):
     order = _sorted_by(
         range(len(edges)), lambda i, srt: (-len(edges[i]), srt(edges[i]))
     )
-    kept = []
+    kept: list[Hyperedge] = []
     for i in order:
         e = edges[i]
         if not any(e < bigger for bigger in kept):
@@ -1075,7 +1090,12 @@ def maximal_hyperedges(hyperedges):
     return kept
 
 
-def order_filter(hyperedges, min_order=None, max_order=None, orders=None):
+def order_filter(
+    hyperedges: Hyperedges,
+    min_order: int | None = None,
+    max_order: int | None = None,
+    orders: Iterable[int] | None = None,
+) -> list[Hyperedge]:
     """Keep hyperedges whose order (size) falls in a range or set.
 
     Order-resolved filtering has no analog in dyadic graphs, where every edge
@@ -1132,7 +1152,7 @@ def order_filter(hyperedges, min_order=None, max_order=None, orders=None):
     return selected
 
 
-def s_components(hyperedges, s=1):
+def s_components(hyperedges: Hyperedges, s: int = 1) -> list[list[Hyperedge]]:
     """Group hyperedges into s-connected components.
 
     Two hyperedges are *s-adjacent* when they share at least *s* nodes; an
@@ -1288,8 +1308,11 @@ def _count_subgroups(sizes, min_order, top, limit):
 
 
 def statistically_validated_hypergraph(
-    hyperedges, weights=None, max_order=None, alpha=0.01
-):
+    hyperedges: Hyperedges,
+    weights: Iterable[int] | None = None,
+    max_order: int | None = None,
+    alpha: float = 0.01,
+) -> ValidatedHypergraph:
     """Extract the Statistically Validated Hypergraph (SVH).
 
     Keeps the observed hyperedges that recur (co-occur) significantly more often
@@ -1364,7 +1387,7 @@ def statistically_validated_hypergraph(
     result.n_nodes = len(all_nodes)
     result.n_instances = sum(mult)
 
-    by_order = {}
+    by_order: dict[int, list[tuple[Hyperedge, int]]] = {}
     for e, w in zip(edges, mult):
         by_order.setdefault(len(e), []).append((e, w))
 
@@ -1372,8 +1395,8 @@ def statistically_validated_hypergraph(
         if order < 2 or (max_order is not None and order > max_order):
             continue
         n_instances = sum(w for _, w in members)
-        degree = {}
-        order_nodes = set()
+        degree: dict[Hashable, int] = {}
+        order_nodes: set[Hashable] = set()
         for e, w in members:
             order_nodes.update(e)
             for node in e:
@@ -1401,13 +1424,13 @@ _SVC_MAX_GROUPS = 1_000_000
 
 
 def statistically_validated_cores(
-    hyperedges,
-    weights=None,
-    min_order=2,
-    max_order=None,
-    alpha=0.01,
-    max_groups=_SVC_MAX_GROUPS,
-):
+    hyperedges: Hyperedges,
+    weights: Iterable[int] | None = None,
+    min_order: int = 2,
+    max_order: int | None = None,
+    alpha: float = 0.01,
+    max_groups: int | None = _SVC_MAX_GROUPS,
+) -> ValidatedHypergraph:
     """Extract the Statistically Validated Cores (SVC).
 
     A complement to :func:`statistically_validated_hypergraph` that validates
@@ -1490,7 +1513,7 @@ def statistically_validated_cores(
         return result
 
     n_instances = sum(mult)
-    degree = {}
+    degree: dict[Hashable, int] = {}
     all_nodes = set()
     for e, w in zip(edges, mult):
         all_nodes.update(e)
@@ -1512,14 +1535,14 @@ def statistically_validated_cores(
                 "guard)"
             )
 
-    validated_groups = []
+    validated_groups: list[Hyperedge] = []
     for order in range(top, min_order - 1, -1):
-        drop = set()
+        drop: set[Hyperedge] = set()
         for g in validated_groups:
             if len(g) > order:
                 drop.update(frozenset(c) for c in combinations(tuple(g), order))
 
-        counts = {}
+        counts: dict[Hyperedge, int] = {}
         for e, w in zip(edges, mult):
             if len(e) >= order:
                 for c in combinations(tuple(e), order):

@@ -18,13 +18,22 @@ HIF is the recommended interchange path because all four libraries read and
 write it, so it needs only the standard library.
 """
 
+from __future__ import annotations
+
 import importlib
 import json
 import os
+from typing import TYPE_CHECKING, Literal, overload
 
 import networkx as nx
 
 from networkx_backbone.hypergraph import _sorted_labels
+
+if TYPE_CHECKING:
+    from collections.abc import Hashable, Iterable, Mapping
+    from typing import IO, Any
+
+    from networkx_backbone._typing import Hyperedge, Hyperedges
 
 __all__ = [
     "hypergraph_to_bipartite",
@@ -70,7 +79,9 @@ def _require(module, pip_name=None):
 # ---------------------------------------------------------------------------
 
 
-def hypergraph_to_bipartite(hyperedges, edge_prefix="he"):
+def hypergraph_to_bipartite(
+    hyperedges: Hyperedges, edge_prefix: Hashable = "he"
+) -> tuple[nx.Graph, list[Hashable]]:
     """Convert a hypergraph to its incidence bipartite graph.
 
     Nodes of the hypergraph form one partition (``bipartite=0``); hyperedges form
@@ -134,7 +145,7 @@ def hypergraph_to_bipartite(hyperedges, edge_prefix="he"):
             "labels; pass a different edge_prefix"
         )
 
-    B = nx.Graph()
+    B: nx.Graph = nx.Graph()
     B.add_nodes_from(nodes, bipartite=0)
     for label, e in zip(edge_labels, edges):
         B.add_node(label, bipartite=1, members=e)
@@ -178,7 +189,12 @@ def _check_network_type(network_type):
     )
 
 
-def write_hif(hyperedges, target=None, weights=None, network_type="undirected"):
+def write_hif(
+    hyperedges: Hyperedges,
+    target: str | os.PathLike[str] | IO[str] | None = None,
+    weights: Iterable[float] | None = None,
+    network_type: str = "undirected",
+) -> dict[str, Any] | str | os.PathLike[str] | IO[str]:
     """Serialise a hypergraph to the HIF (Hypergraph Interchange Format) standard.
 
     HIF is a JSON format shared by xgi, HyperNetX, HypergraphX, and HAT, making it
@@ -244,7 +260,7 @@ def write_hif(hyperedges, target=None, weights=None, network_type="undirected"):
             raise ValueError("weights must have the same length as hyperedges")
 
     incidences = []
-    node_records = {}
+    node_records: dict[Hashable, dict[str, Any]] = {}
     edge_records = []
     edge_id = 0
     for i, e in enumerate(raw):
@@ -273,14 +289,32 @@ def write_hif(hyperedges, target=None, weights=None, network_type="undirected"):
     if target is None:
         return hif
     if hasattr(target, "write"):
-        json.dump(hif, target)
+        json.dump(hif, target)  # type: ignore[arg-type]
         return target
     with open(target, "w") as handle:
         json.dump(hif, handle)
     return target
 
 
-def read_hif(source, return_weights=False):
+@overload
+def read_hif(
+    source: Mapping[str, Any] | str | os.PathLike[str] | IO[str],
+    return_weights: Literal[False] = ...,
+) -> list[Hyperedge]: ...  # numpydoc ignore=GL08
+@overload
+def read_hif(
+    source: Mapping[str, Any] | str | os.PathLike[str] | IO[str],
+    return_weights: Literal[True],
+) -> tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+@overload
+def read_hif(
+    source: Mapping[str, Any] | str | os.PathLike[str] | IO[str],
+    return_weights: bool = ...,
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+def read_hif(
+    source: Mapping[str, Any] | str | os.PathLike[str] | IO[str],
+    return_weights: bool = False,
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]:
     """Read a hypergraph from the HIF (Hypergraph Interchange Format) standard.
 
     JSON arrays used as node or edge identifiers are converted to tuples so they
@@ -335,7 +369,7 @@ def read_hif(source, return_weights=False):
 
     _check_network_type(hif.get("network-type", "undirected"))
 
-    groups = {}
+    groups: dict[Hashable, set[Hashable]] = {}
     for incidence in hif.get("incidences", []):
         edge = _from_json(incidence["edge"])
         groups.setdefault(edge, set()).add(_from_json(incidence["node"]))
@@ -388,7 +422,21 @@ def _result(edges, weights, return_weights):
 # ---------------------------------------------------------------------------
 
 
-def from_xgi(H, return_weights=False):
+@overload
+def from_xgi(
+    H: Any, return_weights: Literal[False] = ...
+) -> list[Hyperedge]: ...  # numpydoc ignore=GL08
+@overload
+def from_xgi(
+    H: Any, return_weights: Literal[True]
+) -> tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+@overload
+def from_xgi(
+    H: Any, return_weights: bool = ...
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+def from_xgi(
+    H: Any, return_weights: bool = False
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]:
     """Convert an :class:`xgi.Hypergraph` to a list of :class:`frozenset` hyperedges.
 
     Parameters
@@ -426,7 +474,7 @@ def from_xgi(H, return_weights=False):
     return _result(edges, [H.edges[e].get("weight", 1) for e in members], True)
 
 
-def to_xgi(hyperedges, weights=None):
+def to_xgi(hyperedges: Hyperedges, weights: Iterable[float] | None = None) -> Any:
     """Convert hyperedges to an :class:`xgi.Hypergraph`.
 
     Parameters
@@ -478,7 +526,21 @@ def to_xgi(hyperedges, weights=None):
 # ---------------------------------------------------------------------------
 
 
-def from_hypernetx(H, return_weights=False):
+@overload
+def from_hypernetx(
+    H: Any, return_weights: Literal[False] = ...
+) -> list[Hyperedge]: ...  # numpydoc ignore=GL08
+@overload
+def from_hypernetx(
+    H: Any, return_weights: Literal[True]
+) -> tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+@overload
+def from_hypernetx(
+    H: Any, return_weights: bool = ...
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+def from_hypernetx(
+    H: Any, return_weights: bool = False
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]:
     """Convert a :class:`hypernetx.Hypergraph` to a list of :class:`frozenset` hyperedges.
 
     Parameters
@@ -516,7 +578,7 @@ def from_hypernetx(H, return_weights=False):
     return _result(edges, [H.edges[e].weight for e in incidence], True)
 
 
-def to_hypernetx(hyperedges, weights=None):
+def to_hypernetx(hyperedges: Hyperedges, weights: Iterable[float] | None = None) -> Any:
     """Convert hyperedges to a :class:`hypernetx.Hypergraph`.
 
     Parameters
@@ -566,7 +628,21 @@ def to_hypernetx(hyperedges, weights=None):
 # ---------------------------------------------------------------------------
 
 
-def from_hypergraphx(H, return_weights=False):
+@overload
+def from_hypergraphx(
+    H: Any, return_weights: Literal[False] = ...
+) -> list[Hyperedge]: ...  # numpydoc ignore=GL08
+@overload
+def from_hypergraphx(
+    H: Any, return_weights: Literal[True]
+) -> tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+@overload
+def from_hypergraphx(
+    H: Any, return_weights: bool = ...
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+def from_hypergraphx(
+    H: Any, return_weights: bool = False
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]:
     """Convert a ``hypergraphx.Hypergraph`` to a list of :class:`frozenset` hyperedges.
 
     Parameters
@@ -603,7 +679,9 @@ def from_hypergraphx(H, return_weights=False):
     return _result(edges, [H.get_weight(e) for e in raw], True)
 
 
-def to_hypergraphx(hyperedges, weights=None):
+def to_hypergraphx(
+    hyperedges: Hyperedges, weights: Iterable[float] | None = None
+) -> Any:
     """Convert hyperedges to a ``hypergraphx.Hypergraph``.
 
     HypergraphX has no multi-edges, so repeated hyperedges are merged into one
@@ -649,7 +727,7 @@ def to_hypergraphx(hyperedges, weights=None):
     """
     hgx = _require("hypergraphx")
     edges, weights = _edges_and_weights(hyperedges, weights)
-    merged = {}
+    merged: dict[Hyperedge, float] = {}
     for e, w in zip(edges, weights if weights is not None else [1] * len(edges)):
         merged[e] = merged.get(e, 0) + w
     edge_list = [tuple(e) for e in merged]
@@ -692,7 +770,21 @@ def _hat_column(H, table, column):
     return list(frame[column])
 
 
-def from_hat(H, return_weights=False):
+@overload
+def from_hat(
+    H: Any, return_weights: Literal[False] = ...
+) -> list[Hyperedge]: ...  # numpydoc ignore=GL08
+@overload
+def from_hat(
+    H: Any, return_weights: Literal[True]
+) -> tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+@overload
+def from_hat(
+    H: Any, return_weights: bool = ...
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]: ...  # numpydoc ignore=GL08
+def from_hat(
+    H: Any, return_weights: bool = False
+) -> list[Hyperedge] | tuple[list[Hyperedge], list[float]]:
     """Convert a HAT ``Hypergraph`` to a list of :class:`frozenset` hyperedges.
 
     HAT stores nodes by position (row of the incidence matrix).  Node labels
@@ -754,7 +846,7 @@ def from_hat(H, return_weights=False):
     return _result(hyperedges, weights, return_weights)
 
 
-def to_hat(hyperedges, weights=None):
+def to_hat(hyperedges: Hyperedges, weights: Iterable[float] | None = None) -> Any:
     """Convert hyperedges to a HAT ``Hypergraph`` via an incidence matrix.
 
     HAT is positional: node ``i`` is row ``i`` of the incidence matrix.  Rows

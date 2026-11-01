@@ -59,8 +59,16 @@ test = [
     "scipy>=1.15",
     "pandas>=2.3",
 ]
+# Static type checking (`mypy networkx_backbone`, configured in [tool.mypy]).
+# Pinned so a new mypy or stubs release cannot break CI unannounced; bump both
+# deliberately.  types-networkx provides the NetworkX stubs (NetworkX ships no
+# inline types).
+typing = [
+    "mypy==2.4.0",
+    "types-networkx==3.6.1.20261018",
+]
 dev = [
-    "networkx-backbone[full,test,viz]",
+    "networkx-backbone[full,test,viz,typing]",
     "pytest-cov>=4.0",
     "ruff>=0.6",
 ]
@@ -88,6 +96,10 @@ Issues = "https://github.com/brianckeegan/networkx_backbone/issues"
 [tool.setuptools.packages.find]
 include = ["networkx_backbone*"]
 
+[tool.setuptools.package-data]
+# PEP 561 marker: the package ships inline type annotations.
+networkx_backbone = ["py.typed"]
+
 [tool.setuptools_scm]
 version_scheme = "no-guess-dev"
 local_scheme = "no-local-version"
@@ -107,6 +119,26 @@ filterwarnings = [
 
 [tool.coverage.run]
 source = ["networkx_backbone"]
+
+[tool.mypy]
+# Non-strict to start (#18): mypy checks the bodies of annotated functions
+# (the public API) and leaves unannotated private helpers alone.  NetworkX
+# ships no inline types; the CI job installs the typeshed stubs
+# (types-networkx, pinned in the typing extra) instead of setting
+# ignore_missing_imports for networkx, which would make nx.Graph Any (so the
+# graph annotations would check nothing) and hide whether NetworkX's
+# decorators keep our signatures (see networkx_backbone/_typing.py).
+python_version = "3.12"
+files = ["networkx_backbone"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+# Optional dependencies without inline types (scipy-stubs and pandas-stubs
+# exist but are not required yet).
+module = ["scipy", "scipy.*", "pandas"]
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 88

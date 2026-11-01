@@ -302,6 +302,21 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Infrastructure and documentation**
 
+- The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
+  result classes have type annotations, and the package ships a ``py.typed``
+  marker (PEP 561), so mypy and pyright check calls into it. Functions whose
+  return type depends on a flag (``bicm(return_labels=...)``,
+  ``read_hif``/``from_*`` with ``return_weights=...``,
+  ``compare_graphs(return_diff=...)``) have overloads. The decorators
+  (``not_implemented_for``, ``py_random_state``, the backend dispatcher) are
+  typed so they keep each signature, and dispatchable functions also accept
+  ``backend=...``. NumPy, SciPy, pandas,
+  and Matplotlib types are imported only for type checking, so the core
+  package still needs only NetworkX at runtime. A new CI job runs
+  non-strict mypy with the ``types-networkx`` stubs; the new ``typing`` extra
+  pins both. The API pages keep plain signatures
+  (``autodoc_typehints = "none"``); the docstrings still give the types. No
+  behavior changes (#18).
 - The roadmap page opens with a "Roadmap at a glance" section: a stacked bar
   chart of item status per section, a network map of sections and their items
   colored by status, and the same counts as a table. ``scripts/roadmap_figures.py``
