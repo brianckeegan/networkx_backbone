@@ -128,7 +128,7 @@ API and ecosystem compatibility
 Methods
 ~~~~~~~
 
-- **planned** (`#23 <https://github.com/brianckeegan/networkx_backbone/issues/23>`_): ``describe_backbone`` (Backbone 3.0's ``narrative``): methods
+- **done** (`#23 <https://github.com/brianckeegan/networkx_backbone/issues/23>`_): ``describe_backbone`` (Backbone 3.0's ``narrative``): methods
   text and citations for a chosen backbone and its parameters.
 - **planned** (`#32 <https://github.com/brianckeegan/networkx_backbone/issues/32>`_): ``sparsify(umst=True)`` should add the union of
   all minimum spanning trees (Hamann et al., 2016), not a single spanning
@@ -145,7 +145,7 @@ Methods
 Documentation
 ~~~~~~~~~~~~~
 
-- **planned** (`#27 <https://github.com/brianckeegan/networkx_backbone/issues/27>`_): A "validating a backbone" tutorial showing the
+- **done** (`#27 <https://github.com/brianckeegan/networkx_backbone/issues/27>`_): A "validating a backbone" tutorial showing the
   ``compare_backbones``, ``consensus_backbone``, and ``mtc`` workflow end to
   end.
 - **planned** (`#28 <https://github.com/brianckeegan/networkx_backbone/issues/28>`_): Turn the Les Misérables benchmark table into an executed
