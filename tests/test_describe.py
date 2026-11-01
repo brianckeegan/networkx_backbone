@@ -311,7 +311,7 @@ def test_errors(les_mis):
     with pytest.raises(ValueError, match="does not produce p-values"):
         nb.describe_backbone("metric_backbone", mtc="bh")
     with pytest.raises(ValueError, match="no signed"):
-        nb.describe_backbone("ecm_filter", alpha=0.05, signed=True)
+        nb.describe_backbone("glab_filter", alpha=0.05, signed=True)
     with pytest.raises(TypeError, match="backbone must be"):
         nb.describe_backbone("disparity", alpha=0.05, original=G, backbone=[1])
     with pytest.raises(TypeError, match="original must be"):

@@ -151,7 +151,36 @@ REFERENCES = _refs(
         "Network backboning with noisy data",
         "Proceedings of the IEEE International Conference on Data Engineering "
         "(ICDE)", pages="425--436", doi="10.1109/ICDE.2017.100",
-        eprint="1906.09081",
+        eprint="1701.07336",
+    ),
+    Reference(
+        "coscia2019", "inproceedings", ("Coscia, M.", "Rossi, L."), 2019,
+        "The impact of projection and backboning on network topologies",
+        "Proceedings of the IEEE/ACM International Conference on Advances in "
+        "Social Networks Analysis and Mining (ASONAM)",
+        doi="10.1145/3341161.3342862", eprint="1906.09081",
+    ),
+    Reference(
+        "newman2001a", "article", ("Newman, M. E. J.",), 2001,
+        "Scientific collaboration networks. I. Network construction and "
+        "fundamental results", "Physical Review E", "64", pages="016131",
+    ),
+    Reference(
+        "newman2001b", "article", ("Newman, M. E. J.",), 2001,
+        "Scientific collaboration networks. II. Shortest paths, weighted "
+        "networks, and centrality", "Physical Review E", "64", pages="016132",
+    ),
+    Reference(
+        "zhou2007", "article",
+        ("Zhou, T.", "Ren, J.", "Medo, M.", "Zhang, Y.-C."), 2007,
+        "Bipartite network projection and personal recommendation",
+        "Physical Review E", "76", pages="046115",
+        doi="10.1103/PhysRevE.76.046115",
+    ),
+    Reference(
+        "yildirim2014", "article", ("Yildirim, M. A.", "Coscia, M."), 2014,
+        "Using random walks to generate associations between objects",
+        "PLoS ONE", "9", "8", "e104813", doi="10.1371/journal.pone.0104813",
     ),
     Reference(
         "dianati2016", "article", ("Dianati, N.",), 2016,
@@ -172,13 +201,16 @@ REFERENCES = _refs(
         "PLoS ONE", "6", "2", "e16431", doi="10.1371/journal.pone.0016431",
     ),
     Reference(
-        "vannuffel2010", "article",
-        ("Van Nuffel, N.", "Saey, P.", "Derudder, B.", "Devriendt, L.",
-         "Witlox, F."), 2010,
-        "Measuring hierarchical differentiation: connectivity and dominance "
-        "in the European urban network", "Transportation Planning and "
-        "Technology", "33", "4", "343--366",
-        doi="10.1080/03081060.2010.494028",
+        "vannuffel2007", "article", ("Van Nuffel, N.",), 2007,
+        "Determination of the number of significant flows in "
+        "origin-destination specific analysis: the case of commuting in "
+        "Flanders", "Regional Studies", "41", "4", "509--524",
+        doi="10.1080/00343400701281808",
+    ),
+    Reference(
+        "weaver1954", "article", ("Weaver, J. C.",), 1954,
+        "Crop-combination regions in the Middle West", "Geographical Review",
+        "44", "2", "175--200", doi="10.2307/212355",
     ),
     Reference(
         "yassin2023", "article",
@@ -458,10 +490,10 @@ METHODS = {
     ),
     "noise_corrected_filter": Method(
         "the noise-corrected filter",
-        "which scores each edge by how many standard deviations its weight "
-        "lies above the value expected under a binomial null model that "
-        "distributes the total weight according to the endpoint strengths",
-        ("coscia2017",),
+        "which compares each edge's weight with the value expected from its "
+        "endpoints' strengths and tests the resulting lift against its "
+        "posterior standard deviation under a Bayesian binomial null model",
+        ("coscia2017",), test=True,
     ),
     "marginal_likelihood_filter": Method(
         "the marginal likelihood filter",
@@ -485,10 +517,10 @@ METHODS = {
     ),
     "multiple_linkage_analysis": Method(
         "multiple linkage analysis (MLA)",
-        "which keeps the edges whose weight is unusually high among the edges "
-        "of an endpoint, using the empirical-CDF p-values of the netbone "
-        "implementation",
-        ("vannuffel2010", "yassin2023"), test=True,
+        "which decides how many of each node's links are dominant by fitting "
+        "the node's sorted link weights to ideal distributions of one, two, "
+        "three, ... equally strong links, and keeps those links",
+        ("vannuffel2007", "weaver1954", "yassin2023"),
     ),
     # --- structural --------------------------------------------------------
     "global_threshold_filter": Method(
@@ -647,25 +679,25 @@ METHODS = {
         "the simple bipartite projection",
         "which weights each pair of agents by the number of artifacts they "
         "share",
-        ("coscia2017",), B,
+        ("coscia2019",), B,
     ),
     "hyper_projection": Method(
         "the hyperbolic bipartite projection",
         "which weights each pair of agents by their shared artifacts, each "
         "divided by its degree",
-        ("coscia2017",), B,
+        ("coscia2019", "newman2001a", "newman2001b"), B,
     ),
     "probs_projection": Method(
         "the ProbS bipartite projection",
         "which weights each pair of agents by the probability that a "
         "two-step random walk on the bipartite graph moves between them",
-        ("coscia2017",), B,
+        ("coscia2019", "zhou2007"), B,
     ),
     "ycn_projection": Method(
         "the YCN bipartite projection",
         "which weights each pair of agents by the stationary flow of a random "
         "walk on the projection",
-        ("coscia2017",), B,
+        ("yildirim2014", "coscia2019"), B,
     ),
     "sdsm": Method(
         "the stochastic degree sequence model (SDSM)",
