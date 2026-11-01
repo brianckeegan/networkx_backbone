@@ -308,3 +308,6 @@ Documentation
   Sphinx-Gallery example, so its edge counts cannot go stale.
 - **done** (`#56 <https://github.com/brianckeegan/networkx_backbone/pull/56>`_): Generate the "Roadmap at a glance" figures and
   table on this page from the roadmap itself on every docs build.
+- **next** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
+  images and stop them going stale. Done so far: a shared figure style
+  (``docs/_figures/style.py``) for the gallery, examples, and tutorials.
