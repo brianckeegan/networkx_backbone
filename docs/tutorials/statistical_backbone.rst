@@ -1,7 +1,7 @@
 Statistical Backbone Extraction
 ================================
 
-This tutorial demonstrates six statistical backbone extraction methods.
+This tutorial demonstrates eight statistical backbone extraction methods.
 Each method tests whether an edge's weight is statistically significant under
 a null model.
 
@@ -103,6 +103,39 @@ assumptions::
     backbone = nb.threshold_filter(H, "lans_pvalue", 0.05)
     print(f"LANS backbone: {backbone.number_of_edges()} edges")
 
+Pólya filter
+------------
+
+The Pólya filter (Marcaccioli & Livan, 2019) lets each node hand out its
+strength over its links through a Pólya urn: every unit of weight placed on a
+link makes the next unit more likely to land there too.  The reinforcement
+parameter ``a`` sets how much heterogeneity the null model tolerates.  With
+the default ``a=None`` it is fitted by maximum likelihood and stored in
+``H.graph["polya_a"]``::
+
+    H = nb.polya_filter(G)
+    backbone = nb.threshold_filter(H, "polya_pvalue", 0.05)
+    print(f"Pólya backbone: {backbone.number_of_edges()} edges")
+    print(f"Fitted a = {H.graph['polya_a']:.3f}")
+
+On Les Misérables the fit gives :math:`a \approx 0.34` and the backbone keeps
+12 edges.  ``a=1`` is close to the disparity filter, and larger values give
+sparser backbones.
+
+GloSS filter
+------------
+
+The GloSS filter (Radicchi, Ramasco & Fortunato, 2011) uses a *global* null
+model.  It keeps the topology as it is and draws every edge weight from the
+observed weight distribution, conditioned on the degrees and strengths of the
+edge's endpoints::
+
+    H = nb.gloss_filter(G)
+    backbone = nb.threshold_filter(H, "gloss_pvalue", 0.05)
+    print(f"GloSS backbone: {backbone.number_of_edges()} edges")
+
+It is the most conservative method here: on Les Misérables it keeps 3 edges.
+
 Multiple linkage analysis
 -------------------------
 
@@ -159,6 +192,12 @@ Use :func:`~networkx_backbone.compare_backbones` to compare the results::
         ),
         "lans": nb.threshold_filter(
             nb.lans_filter(G), "lans_pvalue", 0.05
+        ),
+        "polya": nb.threshold_filter(
+            nb.polya_filter(G), "polya_pvalue", 0.05
+        ),
+        "gloss": nb.threshold_filter(
+            nb.gloss_filter(G), "gloss_pvalue", 0.05
         ),
         "mla": nb.boolean_filter(
             nb.multiple_linkage_analysis(G), "mla_keep"
@@ -223,6 +262,10 @@ References
   backbones: unbiased graph filtering via maximum entropy*. arXiv:1706.00230.
 - Foti, N. J., Hughes, J. M., & Rockmore, D. N. (2011). *Nonparametric
   sparsification of complex multiscale networks*. PLOS ONE, 6(2), e16431.
+- Marcaccioli, R., & Livan, G. (2019). *A Pólya urn approach to information
+  filtering in complex networks*. Nature Communications, 10, 745.
+- Radicchi, F., Ramasco, J. J., & Fortunato, S. (2011). *Information filtering
+  in complex weighted networks*. Physical Review E, 83, 046101.
 - Van Nuffel, N. (2007). *Determination of the number of significant flows in
   origin-destination specific analysis: the case of commuting in Flanders*.
   Regional Studies, 41(4), 509-524.

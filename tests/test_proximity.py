@@ -1,6 +1,6 @@
 """Known-answer and convention tests for networkx_backbone.proximity.
 
-Shared behaviour (attributes, multigraph rejection, empty graphs, mixed labels,
+Shared behavior (attributes, multigraph rejection, empty graphs, mixed labels,
 no input mutation) is covered by ``test_api_contract.py``.
 """
 
@@ -24,7 +24,7 @@ from networkx_backbone import (
     resource_allocation_index,
 )
 
-NEIGHBOURHOOD_SCORES = [
+NEIGHBORHOOD_SCORES = [
     (neighborhood_overlap, "overlap"),
     (jaccard_backbone, "jaccard"),
     (dice_backbone, "dice"),
@@ -39,7 +39,7 @@ NEIGHBOURHOOD_SCORES = [
 
 
 def test_complete_graph_known_values(complete4):
-    # In K4 every pair has degree 3 and shares 2 common neighbours (degree 3).
+    # In K4 every pair has degree 3 and shares 2 common neighbors (degree 3).
     # Local path: (A^2)_{01} = 2 and (A^3)_{01} = 7, so 2 + 0.01 * 7.
     expected = {
         "overlap": 2,
@@ -54,14 +54,14 @@ def test_complete_graph_known_values(complete4):
         "resource_allocation": 2 / 3,
         "lp": 2.07,
     }
-    for func, attr in [*NEIGHBOURHOOD_SCORES, (local_path_index, "lp")]:
+    for func, attr in [*NEIGHBORHOOD_SCORES, (local_path_index, "lp")]:
         H = func(complete4)
         for u, v, score in H.edges(data=attr):
             assert score == pytest.approx(expected[attr]), (attr, u, v)
 
 
 def test_neighborhood_overlap_path_graph():
-    # Nodes 1 and 2 share no common neighbours.
+    # Nodes 1 and 2 share no common neighbors.
     assert neighborhood_overlap(nx.path_graph(4))[1][2]["overlap"] == 0
 
 
@@ -95,7 +95,7 @@ class TestSelfLoops:
         G.add_edge(0, 0)
         return G
 
-    def test_self_loop_is_not_a_common_neighbour(self):
+    def test_self_loop_is_not_a_common_neighbor(self):
         G = nx.Graph([(0, 1)])
         G.add_edge(0, 0)
         assert neighborhood_overlap(G)[0][1]["overlap"] == 0
@@ -106,7 +106,7 @@ class TestSelfLoops:
         # Same scores as without the self-loop.
         plain = looped.copy()
         plain.remove_edge(0, 0)
-        for func, attr in NEIGHBOURHOOD_SCORES:
+        for func, attr in NEIGHBORHOOD_SCORES:
             H, P = func(looped), func(plain)
             for u, v in plain.edges():
                 assert H[u][v][attr] == P[u][v][attr], attr

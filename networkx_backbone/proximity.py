@@ -7,10 +7,10 @@ structurally embedded edges (high proximity) versus bridge edges
 (low proximity) and can feed into any of the filtering utilities
 in :mod:`networkx_backbone.filters`.
 
-All local methods use the same conventions: the neighbourhood
+All local methods use the same conventions: the neighborhood
 :math:`N(u)` of a node excludes the node itself (self-loops are ignored,
-so an endpoint is never counted as a common neighbour of an edge), and
-:math:`k_u = |N(u)|`.  For directed graphs neighbourhoods are successor
+so an endpoint is never counted as a common neighbor of an edge), and
+:math:`k_u = |N(u)|`.  For directed graphs neighborhoods are successor
 sets and :math:`k_u` is the out-degree.  Multigraphs are not supported;
 collapse them first with :func:`~networkx_backbone.multigraph_to_weighted`.
 
@@ -25,9 +25,9 @@ dice_backbone
 cosine_backbone
     Cosine / Salton index of endpoint neighborhoods.
 hub_promoted_index
-    Common neighbors normalised by the smaller degree.
+    Common neighbors normalized by the smaller degree.
 hub_depressed_index
-    Common neighbors normalised by the larger degree.
+    Common neighbors normalized by the larger degree.
 lhn_local_index
     Leicht-Holme-Newman local similarity index.
 preferential_attachment_score
@@ -82,10 +82,10 @@ __all__ = [
 
 
 def _neighbor_sets(G):
-    """Return ``{node: neighbours}``, excluding the node itself.
+    """Return ``{node: neighbors}``, excluding the node itself.
 
-    For directed graphs the neighbours are the successors.  Excluding the
-    node itself means self-loops never create a common neighbour.
+    For directed graphs the neighbors are the successors.  Excluding the
+    node itself means self-loops never create a common neighbor.
     """
     return {v: set(G[v]) - {v} for v in G}
 

@@ -98,7 +98,7 @@ _graph_or_matrix = nx.utils.argmap(_reject_directed_or_multigraph, 0)
 def _validate_bipartite(B, agent_nodes):
     """Validate that ``agent_nodes`` is one side of the bipartite graph ``B``.
 
-    Returns ``agent_nodes`` materialised as a list, so that generators are
+    Returns ``agent_nodes`` materialized as a list, so that generators are
     consumed exactly once.
     """
     agent_nodes = list(agent_nodes)
@@ -2603,7 +2603,7 @@ def backbone(G, method=None, **kwargs):
     Raises
     ------
     ValueError
-        If *method* is not recognised, or non-graph *G* is invalid.
+        If *method* is not recognized, or non-graph *G* is invalid.
 
     See Also
     --------

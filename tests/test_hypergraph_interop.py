@@ -169,7 +169,7 @@ def test_hypergraphx_native_roundtrip():
 
 def test_hat_native_roundtrip():
     HAT = _import("HAT")
-    # Built from labelled edges, HAT keeps the labels in nodes["Names"].
+    # Built from labeled edges, HAT keeps the labels in nodes["Names"].
     H = HAT.Hypergraph(edge_list=[["a", "b"], ["b", "c", "d"]])
     edges = nb.from_hat(H)
     assert edges == [frozenset("ab"), frozenset("bcd")]
@@ -177,7 +177,7 @@ def test_hat_native_roundtrip():
     assert H2.incidence_matrix.shape == (4, 2)
     assert list(H2.edge_weights) == [2.0, 0.5]
     assert nb.from_hat(H2, return_weights=True) == (edges, [2.0, 0.5])
-    # An unlabelled HAT hypergraph reads back with positional labels.
+    # An unlabeled HAT hypergraph reads back with positional labels.
     H3 = HAT.Hypergraph(edge_list=[[0, 1], [1, 2, 3]])
     assert nb.from_hat(H3) == [frozenset({0, 1}), frozenset({1, 2, 3})]
 

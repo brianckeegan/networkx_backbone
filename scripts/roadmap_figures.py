@@ -9,7 +9,7 @@ matching the reader's mode):
 * ``status_by_section-{light,dark}.svg``: a horizontal stacked bar per section,
   segments ordered idea -> planned -> next -> done;
 * ``roadmap_map-{light,dark}.svg``: a network of sections (gray hubs) and
-  items (dots, labelled with their issue number when they have one) colored by
+  items (dots, labeled with their issue number when they have one) colored by
   status;
 * ``status_table.inc``: the same counts as a reStructuredText table, so the figures are never the
   only way to read them.

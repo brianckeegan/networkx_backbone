@@ -2,7 +2,7 @@ Validating a Backbone
 =====================
 
 The other tutorials show how to score edges and filter them. This one covers
-the steps that come after: checking that a backbone is not an artefact of
+the steps that come after: checking that a backbone is not an artifact of
 running hundreds of tests at once, comparing it with other backbones,
 finding the edges that every method agrees on, reading a signed backbone,
 and reporting what you did.
@@ -215,7 +215,7 @@ relationship that did not happen, which is why signed backbones are
 popular for bipartite projections (for example, legislators who co-sponsor
 less often than chance).
 
-Keep the sign when analysing the backbone, for example by splitting it into
+Keep the sign when analyzing the backbone, for example by splitting it into
 its positive and negative parts:
 
 >>> positive = nb.boolean_filter(
@@ -302,7 +302,7 @@ Before reporting a backbone:
    the fraction, reachability and KS measures.
 #. Report which edges are robust across methods (consensus or vote
    counts).
-#. For a signed backbone, analyse the positive and negative edges
+#. For a signed backbone, analyze the positive and negative edges
    separately.
 #. Generate the methods text and citations with
    :func:`~networkx_backbone.describe_backbone`.

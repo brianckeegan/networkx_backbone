@@ -1,6 +1,6 @@
 """Known-answer and regression tests for networkx_backbone.structural.
 
-Shared behaviour (attributes, weight validation, directed/multigraph
+Shared behavior (attributes, weight validation, directed/multigraph
 rejection, empty graphs, mixed labels, no input mutation) is covered by
 ``test_api_contract.py``.
 """

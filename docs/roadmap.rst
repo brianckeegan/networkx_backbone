@@ -113,8 +113,8 @@ breaking changes:
 Next release (0.2.0)
 --------------------
 
-Correctness gaps found in review and not yet fixed
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Correctness gaps found in review
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - **done** (`#9 <https://github.com/brianckeegan/networkx_backbone/issues/9>`_): ``noise_corrected_filter`` is a binomial z-score. Implement the
   full Bayesian noise-corrected backbone of Coscia & Neffke (2017): the
@@ -198,8 +198,8 @@ Methods
 - **done** (`#26 <https://github.com/brianckeegan/networkx_backbone/issues/26>`_): A ``missing_as_zero`` toggle for weighted inputs (Backbone 3.0),
   for testing absent dyads.
 - **done** (`#29 <https://github.com/brianckeegan/networkx_backbone/issues/29>`_): Survey the methods in the Yassin et al. (2025)
-  statistical and structural comparisons. The package covers 13 of the 15
-  methods; see the `coverage table
+  statistical and structural comparisons. With #42-#44 the package covers
+  all 15 methods; see the `coverage table
   <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/yassin-2025-coverage.md>`__.
 - **done** (`#42 <https://github.com/brianckeegan/networkx_backbone/issues/42>`_): The Pólya urn filter (Marcaccioli & Livan, 2019),
   missing per the #29 survey, as :func:`~networkx_backbone.polya_filter`.
@@ -213,6 +213,15 @@ Methods
   backbone (add edges by ``ds_weight`` until the backbone is connected), the
   variant Yassin et al. (2025) evaluate. ``doubly_stochastic_filter`` now
   flags it as ``ds_keep``.
+- **done** (`#54 <https://github.com/brianckeegan/networkx_backbone/pull/54>`_): ``doubly_stochastic_filter(smoothing=...)`` adds
+  a pseudocount so Sinkhorn-Knopp converges on sparse graphs, and
+  ``ds_weight`` no longer depends on node insertion order when it does not
+  converge.
+- **planned** (`#55 <https://github.com/brianckeegan/networkx_backbone/issues/55>`_): Relax the distributional assumptions of the
+  statistical nulls: a ``transform_weights`` preprocessing helper with an
+  invariance table, a generalized ``disparity_filter(a=...)`` share null with
+  a calibration test harness, and an explicit count ``unit=`` for MLF, ECM,
+  and the noise-corrected filter.
 
 Documentation
 ~~~~~~~~~~~~~
@@ -222,3 +231,5 @@ Documentation
   end.
 - **done** (`#28 <https://github.com/brianckeegan/networkx_backbone/issues/28>`_): Turn the Les Misérables benchmark table into an executed
   Sphinx-Gallery example, so its edge counts cannot go stale.
+- **done** (`#56 <https://github.com/brianckeegan/networkx_backbone/pull/56>`_): Generate the "Roadmap at a glance" figures and
+  table on this page from the roadmap itself on every docs build.

@@ -1,6 +1,6 @@
 """Known-answer tests for networkx_backbone.hybrid (GLAB).
 
-Shared behaviour (attributes, weight validation, directed support,
+Shared behavior (attributes, weight validation, directed support,
 multigraph rejection, empty graphs, no input mutation) is covered by
 ``test_api_contract.py``.
 """

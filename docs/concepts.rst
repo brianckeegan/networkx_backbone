@@ -23,7 +23,7 @@ extended with a hypergraph module for higher-order networks.
 Statistical methods
 ^^^^^^^^^^^^^^^^^^^
 
-The :mod:`~networkx_backbone.statistical` module provides six methods that test
+The :mod:`~networkx_backbone.statistical` module provides eight methods that test
 whether each edge's weight is statistically significant under a null model.
 These methods produce a p-value or score for each edge, or a keep flag.
 
@@ -32,6 +32,8 @@ These methods produce a p-value or score for each edge, or a keep flag.
 - :func:`~networkx_backbone.marginal_likelihood_filter` -- binomial null considering both endpoints (Dianati, 2016)
 - :func:`~networkx_backbone.ecm_filter` -- maximum-entropy null model (Gemmetto et al., 2017)
 - :func:`~networkx_backbone.lans_filter` -- nonparametric empirical CDF (Foti et al., 2011)
+- :func:`~networkx_backbone.polya_filter` -- Pólya urn null with a reinforcement parameter that tolerates heterogeneous weights (Marcaccioli & Livan, 2019)
+- :func:`~networkx_backbone.gloss_filter` -- global null that keeps the topology and draws weights from the observed weight distribution (Radicchi et al., 2011)
 - :func:`~networkx_backbone.multiple_linkage_analysis` -- dominant links per node by fitting ideal distributions (Van Nuffel, 2007); ``method="lans"`` thresholds LANS p-values instead, as version 0.2 did
 
 The noise-corrected backbone keeps an edge when its score exceeds ``delta``
