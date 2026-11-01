@@ -8,9 +8,28 @@ the differences using consistent defaults:
 - retained edges in thicker black
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal, overload
+
 import networkx as nx
 
 from networkx_backbone._docstrings import append_complexity_docstrings
+
+if TYPE_CHECKING:
+    import os
+    from collections.abc import Hashable, Mapping
+    from typing import Any
+
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure, SubFigure
+    from matplotlib.typing import ColorType
+
+    from networkx_backbone._typing import Seed
+
+    # ``ax.figure`` is a SubFigure when *ax* belongs to one.
+    type _Fig = Figure | SubFigure
+    type _Diff = dict[str, set[Any]]
 
 __all__ = [
     "graph_difference",
@@ -35,7 +54,7 @@ def _edge_key(u, v, directed):
     return (v, u) if swap else (u, v)
 
 
-def graph_difference(original, backbone):
+def graph_difference(original: nx.Graph, backbone: nx.Graph) -> _Diff:
     """Compute node/edge overlap and removals between two graphs.
 
     Parameters
@@ -91,23 +110,78 @@ def graph_difference(original, backbone):
     }
 
 
+@overload
 def compare_graphs(
-    original,
-    backbone,
-    pos=None,
-    ax=None,
-    with_labels=False,
-    node_size=220,
-    kept_node_color="#f2f2f2",
-    removed_node_color="red",
-    base_edge_color="#c9c9c9",
-    kept_edge_color="black",
-    base_edge_width=0.8,
-    kept_edge_width=2.6,
-    title=None,
-    return_diff=False,
-    seed=None,
-):
+    original: nx.Graph,
+    backbone: nx.Graph,
+    pos: Mapping[Hashable, Any] | None = ...,
+    ax: Axes | None = ...,
+    with_labels: bool = ...,
+    node_size: float = ...,
+    kept_node_color: ColorType = ...,
+    removed_node_color: ColorType = ...,
+    base_edge_color: ColorType = ...,
+    kept_edge_color: ColorType = ...,
+    base_edge_width: float = ...,
+    kept_edge_width: float = ...,
+    title: str | None = ...,
+    return_diff: Literal[False] = ...,
+    seed: Seed = ...,
+) -> tuple[_Fig, Axes]: ...  # numpydoc ignore=GL08
+@overload
+def compare_graphs(
+    original: nx.Graph,
+    backbone: nx.Graph,
+    pos: Mapping[Hashable, Any] | None = ...,
+    ax: Axes | None = ...,
+    with_labels: bool = ...,
+    node_size: float = ...,
+    kept_node_color: ColorType = ...,
+    removed_node_color: ColorType = ...,
+    base_edge_color: ColorType = ...,
+    kept_edge_color: ColorType = ...,
+    base_edge_width: float = ...,
+    kept_edge_width: float = ...,
+    title: str | None = ...,
+    *,
+    return_diff: Literal[True],
+    seed: Seed = ...,
+) -> tuple[_Fig, Axes, _Diff]: ...  # numpydoc ignore=GL08
+@overload
+def compare_graphs(
+    original: nx.Graph,
+    backbone: nx.Graph,
+    pos: Mapping[Hashable, Any] | None = ...,
+    ax: Axes | None = ...,
+    with_labels: bool = ...,
+    node_size: float = ...,
+    kept_node_color: ColorType = ...,
+    removed_node_color: ColorType = ...,
+    base_edge_color: ColorType = ...,
+    kept_edge_color: ColorType = ...,
+    base_edge_width: float = ...,
+    kept_edge_width: float = ...,
+    title: str | None = ...,
+    return_diff: bool = ...,
+    seed: Seed = ...,
+) -> tuple[_Fig, Axes] | tuple[_Fig, Axes, _Diff]: ...  # numpydoc ignore=GL08
+def compare_graphs(
+    original: nx.Graph,
+    backbone: nx.Graph,
+    pos: Mapping[Hashable, Any] | None = None,
+    ax: Axes | None = None,
+    with_labels: bool = False,
+    node_size: float = 220,
+    kept_node_color: ColorType = "#f2f2f2",
+    removed_node_color: ColorType = "red",
+    base_edge_color: ColorType = "#c9c9c9",
+    kept_edge_color: ColorType = "black",
+    base_edge_width: float = 0.8,
+    kept_edge_width: float = 2.6,
+    title: str | None = None,
+    return_diff: bool = False,
+    seed: Seed = None,
+) -> tuple[_Fig, Axes] | tuple[_Fig, Axes, _Diff]:
     """Visualize differences between an original graph and a backbone graph.
 
     Original edges are drawn as a thin gray layer, edges retained in the
@@ -181,6 +255,7 @@ def compare_graphs(
     if pos is None:
         pos = nx.spring_layout(original, seed=seed)
 
+    fig: _Fig
     if ax is None:
         fig, ax = plt.subplots(figsize=(8, 6))
     else:
@@ -199,7 +274,7 @@ def compare_graphs(
     kept_nodes = [n for n in original.nodes() if n in diff["kept_nodes"]]
     removed_nodes = [n for n in original.nodes() if n in diff["removed_nodes"]]
 
-    nx.draw_networkx_edges(
+    nx.draw_networkx_edges(  # type: ignore[call-overload]
         original,
         pos,
         ax=ax,
@@ -209,7 +284,7 @@ def compare_graphs(
         alpha=0.9,
         arrows=directed,
     )
-    nx.draw_networkx_edges(
+    nx.draw_networkx_edges(  # type: ignore[call-overload]
         original,
         pos,
         ax=ax,
@@ -254,14 +329,14 @@ def compare_graphs(
 
 
 def save_graph_comparison(
-    original,
-    backbone,
-    output_path,
-    pos=None,
-    dpi=180,
-    bbox_inches="tight",
-    **kwargs,
-):
+    original: nx.Graph,
+    backbone: nx.Graph,
+    output_path: str | os.PathLike[str],
+    pos: Mapping[Hashable, Any] | None = None,
+    dpi: float = 180,
+    bbox_inches: str | None = "tight",
+    **kwargs: Any,
+) -> str | os.PathLike[str] | tuple[str | os.PathLike[str], _Diff]:
     """Save a comparison visualization to disk.
 
     Draws the comparison with :func:`compare_graphs` and writes it with

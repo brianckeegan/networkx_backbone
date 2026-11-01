@@ -1409,3 +1409,52 @@ def test_sparse_duplicates_and_explicit_zeros():
 def test_labels_rejected_for_graph_input(bipartite_graph):
     with pytest.raises(ValueError, match="incidence matrix"):
         simple_projection(bipartite_graph, AGENTS, agent_labels=AGENTS)
+
+
+# ---------------------------------------------------------------------------
+# missing_as_zero: which agent pairs are tests (exactness against R is
+# tested in test_reference_implementations.py)
+# ---------------------------------------------------------------------------
+
+
+def _cooccur(B, u, v):
+    return len(set(B[u]) & set(B[v]))
+
+
+def test_missing_as_zero_signed_drops_non_cooccurring_pairs(
+    davis_southern_women_graph, davis_women_nodes
+):
+    B, women = davis_southern_women_graph, davis_women_nodes
+    kw = {"agent_nodes": women, "method": "fixedrow", "alpha": 0.6, "signed": True}
+    every = backbone_from_projection(B, **kw)
+    tested = backbone_from_projection(B, missing_as_zero=False, **kw)
+    never = {frozenset(e) for e in every.edges if _cooccur(B, *e) == 0}
+    assert never  # some pairs that never meet are significantly weak
+    assert all(every.edges[tuple(e)]["sign"] == -1 for e in never)
+    kept = {frozenset(e) for e in tested.edges}
+    assert kept == {frozenset(e) for e in every.edges} - never
+    for u, v, d in tested.edges(data=True):
+        assert d == every.edges[u, v]  # same p-values, signs and weights
+
+
+def test_missing_as_zero_counts_only_tested_pairs(
+    davis_southern_women_graph, davis_women_nodes
+):
+    B, women = davis_southern_women_graph, davis_women_nodes
+    H = nb.fixedfill(B, women, alpha=1.01)
+    p = {frozenset(e): d["fixedfill_pvalue"] for *e, d in H.edges(data=True)}
+    n_all = len(p)
+    n_tested = sum(1 for e in p if _cooccur(B, *e) > 0)
+    assert n_tested < n_all
+    best = min(p.values())
+    # Bonferroni keeps the best pair only if n * best < alpha.
+    alpha = (n_tested + n_all) / 2 * best
+    kw = {"agent_nodes": women, "method": "fixedfill", "alpha": alpha}
+    every = backbone_from_projection(B, mtc="bonferroni", **kw)
+    tested = backbone_from_projection(B, mtc="bonferroni", missing_as_zero=False, **kw)
+    assert every.number_of_edges() == 0
+    assert tested.number_of_edges() == 1
+    # Without mtc an unsigned backbone does not depend on it.
+    assert set(backbone_from_projection(B, **kw).edges) == set(
+        backbone_from_projection(B, missing_as_zero=False, **kw).edges
+    )
