@@ -79,9 +79,13 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - ``multiple_linkage_analysis`` now fits each node's sorted weights to ideal
   dominance distributions by default (``method="dominance"``; Van Nuffel,
   2007, after Weaver, 1954) and adds ``mla_rank``. The previous LANS
-  threshold, which netbone uses, is ``method="lans"``. Les Misérables: 109 ->
-  223 edges (#10; the exact deviation measure is still to be checked against
-  the 2007 paper).
+  threshold, which netbone uses, is ``method="lans"``. The fit is the
+  coefficient of determination over the zero-padded profile, as restated by
+  Van Nuffel, Derudder & Witlox (2010), whose Table 1 the tests reproduce; a
+  new ``deviation=`` keyword also offers ``"profile"`` (whole-profile squared
+  deviation, the measure used earlier in this development cycle) and
+  ``"weaver"`` (Weaver's variance over the candidate links). Les Misérables:
+  109 -> 205 edges (``"profile"``: 223, ``"weaver"``: 253) (#10).
 - ``sparsify(umst=True)`` now adds the union of all minimum spanning trees
   (Hamann et al., 2016) instead of one arbitrary spanning forest, so tied
   scores no longer make the result depend on node order (#32). The union is
@@ -176,6 +180,10 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   doctests on Python 3.12-3.14, a job pinned to the oldest supported
   versions, and a NetworkX-only job that checks the optional dependencies
   stay optional. Test coverage is 97%.
+- A coverage evaluation of the 15 methods compared by Yassin et al. (2025)
+  (``docs/design/yassin-2025-coverage.md``). The package covers 13 of them;
+  the Pólya urn and GloSS filters are missing. The evaluation also notes where
+  the covered methods behave differently from ``netbone`` (#29).
 - New :doc:`roadmap`; full numpydoc sections for the bipartite, hypergraph,
   and structural APIs; corrected citations (Van Nuffel, 2007; Lü et
   al., 2009; Lindner et al., 2015); the docs version is taken from the package

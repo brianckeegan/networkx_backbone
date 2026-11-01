@@ -53,6 +53,11 @@ Core method families used in [netbone](https://gitlab.liris.cnrs.fr/coregraphie/
 - Structural: `global_threshold_filter`, `global_sparsification`, `primary_linkage_analysis`, `edge_betweenness_filter`, `high_salience_skeleton`, `doubly_stochastic_filter`, `maximum_spanning_tree_backbone`
 - Hybrid: `glab_filter`
 
+[docs/design/yassin-2025-coverage.md](docs/design/yassin-2025-coverage.md)
+checks the package method by method against the two comparative studies by
+Yassin et al. (2025). It covers 13 of the 15 methods; the Pólya urn and GloSS
+filters are missing.
+
 Every backbone *model* in Neal's
 [Backbone 3.0](https://doi.org/10.1371/journal.pone.0349258) R package is also
 covered (`disparity`, `mlf`, `lans`, `sdsm`, `fdsm`, `fixedfill`/`fixedrow`/`fixedcol`,
@@ -254,6 +259,7 @@ Key papers behind the implemented methods:
 - Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). [Local graph sparsification for scalable clustering](https://doi.org/10.1145/1989323.1989399). *SIGMOD*, 721-732.
 - Serrano, M. A., Boguna, M., & Vespignani, A. (2009). [Extracting the multiscale backbone of complex weighted networks](https://doi.org/10.1073/pnas.0808904106). *PNAS*, 106(16), 6483-6488.
 - Van Nuffel, N. (2007). [Determination of the number of significant flows in origin-destination specific analysis: the case of commuting in Flanders](https://doi.org/10.1080/00343400701281808). *Regional Studies*, 41(4), 509-524.
+- Van Nuffel, N., Derudder, B., & Witlox, F. (2010). [Even important connections are not always meaningful: on the use of a polarisation measure in a typology of European cities in air transport networks](https://doi.org/10.1111/j.1467-9663.2009.00547.x). *Tijdschrift voor Economische en Sociale Geografie*, 101(3), 333-348.
 - Weaver, J. C. (1954). [Crop-combination regions in the Middle West](https://doi.org/10.2307/212355). *Geographical Review*, 44(2), 175-200.
 - Yildirim, M. A., & Coscia, M. (2014). [Using random walks to generate associations between objects](https://doi.org/10.1371/journal.pone.0104813). *PLoS One*, 9(8), e104813.
 - Zhang, X., Zhang, Z., Zhao, H., Wang, Q., & Zhu, J. (2014). [Extracting the globally and locally adaptive backbone of complex networks](https://doi.org/10.1371/journal.pone.0100428). *PLoS One*, 9(6), e100428.

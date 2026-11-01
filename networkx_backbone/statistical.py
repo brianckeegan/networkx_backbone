@@ -1293,26 +1293,42 @@ def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
 
 
 @not_implemented_for("multigraph")
-def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"):
+def multiple_linkage_analysis(
+    G, alpha=0.05, weight="weight", method="dominance", deviation="cod"
+):
     r"""Extract a backbone using Multiple Linkage Analysis (MLA).
 
     With ``method="dominance"`` (the default) this is the multiple linkage
-    analysis of Van Nuffel [1]_, which decides how many of a node's
+    analysis of Van Nuffel [1]_, [2]_, which decides how many of a node's
     links are *dominant*.  For each node:
 
     1. Sort its link weights in decreasing order and divide by their sum,
-       giving the profile :math:`p_1 \geq p_2 \geq \dots \geq p_n`.
+       giving the profile :math:`p_1 \geq p_2 \geq \dots \geq p_n`.  With
+       the default ``deviation="cod"`` the profile also holds a zero for
+       every other node the node has no link to, so :math:`n` is the number
+       of other nodes in *G*.
     2. Compare the profile with the ideal distributions in which *k* links
        share the weight equally and the others have none,
-       :math:`t^{(k)} = (1/k, \dots, 1/k, 0, \dots, 0)`, for
-       :math:`k = 1, \dots, n`, using the squared deviation
+       :math:`t^{(k)} = (1/k, \dots, 1/k, 0, \dots, 0)`, for *k* from 1 to
+       the number of links.
+    3. Keep the *k* strongest links of the best-fitting ideal distribution.
 
-       .. math::
+    The goodness of fit is set by *deviation*:
 
-           D_k = \sum_{r=1}^{n} \left(p_r - t^{(k)}_r\right)^2
-               = \sum_{r=1}^{n} p_r^2 + \frac{1 - 2 \sum_{r \leq k} p_r}{k}.
-
-    3. Keep the *k* strongest links of the best fit (smallest :math:`D_k`).
+    ``"cod"`` (default)
+        The coefficient of determination of [2]_, the squared Pearson
+        correlation between :math:`p` and :math:`t^{(k)}` over all :math:`n`
+        entries.  The largest value wins.
+    ``"profile"``
+        The squared deviation summed over the whole profile,
+        :math:`D_k = \sum_{r=1}^{n} (p_r - t^{(k)}_r)^2`, so links outside
+        the dominant set count against a fit.  The smallest value wins.
+        This was the default in the development versions of 0.2.0.
+    ``"weaver"``
+        The mean squared deviation over the *k* links of the candidate set
+        only, :math:`V_k = \frac{1}{k} \sum_{r=1}^{k} (p_r - 1/k)^2`, the
+        variance of Weaver's crop-combination method [3]_.  The smallest
+        value wins.
 
     Each node keeps at least one link.  For a directed graph the profile is
     built from each node's out-links (the setting of [1]_) and an edge is kept
@@ -1320,7 +1336,7 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     uses all of its links, and an edge is kept when it is dominant for
     *either* endpoint (OR rule).
 
-    With ``method="lans"`` this reproduces the netbone [2]_ implementation,
+    With ``method="lans"`` this reproduces the netbone [4]_ implementation,
     which thresholds the edge p-values of :func:`lans_filter` at ``alpha``.
 
     Parameters
@@ -1335,6 +1351,9 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
         ``"dominance"`` fits ideal dominance distributions as in [1]_;
         ``"lans"`` keeps edges with LANS p-value <= ``alpha``, as netbone
         does and as networkx-backbone 0.2 and earlier did.
+    deviation : {"cod", "profile", "weaver"}, optional (default="cod")
+        How ``method="dominance"`` measures the fit between a node's profile
+        and an ideal distribution; see above.  Ignored by ``method="lans"``.
 
     Returns
     -------
@@ -1349,7 +1368,8 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     Raises
     ------
     ValueError
-        If ``alpha`` is outside [0, 1] or *method* is unknown.
+        If ``alpha`` is outside [0, 1], or *method* or *deviation* is
+        unknown.
     NetworkXError
         If any edge has a non-positive, non-finite, or missing weight.
     NetworkXNotImplemented
@@ -1363,18 +1383,33 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
 
     Notes
     -----
-    The procedure is the least-squares comparison with ideal distributions
-    used in multiple linkage analysis, after Weaver's crop-combination
-    method [3]_.  Here the deviation is summed over the node's whole profile,
-    so links outside the dominant set count against a fit.  Weaver's original
-    measure instead averages the squared deviation over the *k* links of the
-    candidate combination only.  The exact variant used by Van Nuffel (2007)
-    has not yet been checked against the paper (see issue #10), so results
-    may differ from that paper's in borderline cases.  Ideal distributions
-    that would split a group of tied weights are not considered (such a split
-    never fits strictly better), so tied links are kept or dropped together and ``mla_rank`` is always the number
-    of links the node keeps.  If two fits are equally good, the smaller *k*
-    wins.
+    The 2007 paper [1]_ was not available to us.  The default follows its
+    restatement by the same first author in [2]_ (Section "Determination of
+    the number of significant connections", and Table 1): the flows of a
+    spatial unit, including zero flows to the units it is not linked to, are
+    compared with each ideal distribution by the coefficient of
+    determination, and "the number of significant flows corresponds to the
+    jth cycle with the highest COD value".  The tests reproduce every COD
+    value of Table 1 of [2]_.  A footnote of [2]_ describes MLA as an
+    extension of Weaver's method [3]_, which "uses the sum of the squared
+    differences (instead of the coefficient of determination) between the
+    fictive and the real percentages".  ``deviation="weaver"`` implements
+    Weaver's measure in its usual form, averaged over the *k* candidate
+    links; this form has not been checked against [3]_ itself.
+
+    Because the coefficient of determination depends on the number of zero
+    entries, ``deviation="cod"`` results depend on the number of nodes in
+    *G*, as in [2]_.  The other two measures do not.  If a node is linked to
+    every other node, the ideal distribution with all :math:`n` links equal
+    is constant, so its correlation is undefined and it is used only when
+    all of the node's weights are tied.
+
+    Ideal distributions that would split a group of tied weights are not
+    considered, so tied links are kept or dropped together and ``mla_rank``
+    is always the number of links the node keeps.  For ``"cod"`` and
+    ``"profile"`` such a split never fits strictly better; for ``"weaver"``
+    it sometimes does, so there this rule can change the result.  If two
+    fits are equally good, the smaller *k* wins.
 
     Unlike LANS, which tests each link against the empirical distribution of
     its node's weights, the dominance fit chooses *how many* links each node
@@ -1387,9 +1422,14 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
        flows in origin-destination specific analysis: the case of commuting in
        Flanders. *Regional Studies*, 41(4), 509-524.
        https://doi.org/10.1080/00343400701281808
+    .. [2] Van Nuffel, N., Derudder, B., & Witlox, F. (2010). Even important
+       connections are not always meaningful: on the use of a polarisation
+       measure in a typology of European cities in air transport networks.
+       *Tijdschrift voor Economische en Sociale Geografie*, 101(3), 333-348.
+       https://doi.org/10.1111/j.1467-9663.2009.00547.x
     .. [3] Weaver, J. C. (1954). Crop-combination regions in the Middle West.
        *Geographical Review*, 44(2), 175-200. https://doi.org/10.2307/212355
-    .. [2] Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023).
+    .. [4] Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023).
        An evaluation tool for backbone extraction techniques in weighted
        complex networks. *Scientific Reports*, 13, 17000.
 
@@ -1409,6 +1449,21 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     >>> sorted(boolean_filter(H, "mla_keep").edges())
     [('a', 'x'), ('b', 'x'), ('b', 'y')]
 
+    The deviation measures can disagree.  For flows (50, 43, 42, 21, 12, 7)
+    to six of eight other units (Table 1 of [2]_), the coefficient of
+    determination picks three links, the whole-profile deviation four:
+
+    >>> G = nx.DiGraph()
+    >>> G.add_nodes_from("abcdefgh")
+    >>> G.add_weighted_edges_from(
+    ...     [("X", "h", 50), ("X", "a", 43), ("X", "d", 42),
+    ...      ("X", "g", 21), ("X", "c", 12), ("X", "e", 7)]
+    ... )
+    >>> multiple_linkage_analysis(G).nodes["X"]["mla_rank"]
+    3
+    >>> multiple_linkage_analysis(G, deviation="profile").nodes["X"]["mla_rank"]
+    4
+
     The netbone variant thresholds LANS p-values:
 
     >>> G = nx.les_miserables_graph()
@@ -1419,6 +1474,10 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     """
     if method not in ("dominance", "lans"):
         raise ValueError(f"method must be 'dominance' or 'lans', got {method!r}")
+    if deviation not in ("cod", "profile", "weaver"):
+        raise ValueError(
+            f"deviation must be 'cod', 'profile' or 'weaver', got {deviation!r}"
+        )
     if not 0.0 <= alpha <= 1.0:
         raise ValueError("alpha must be in [0, 1]")
 
@@ -1434,10 +1493,11 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     _validate_weights(H, weight)
 
     neighbors = G.succ if G.is_directed() else G.adj
+    others = G.number_of_nodes() - 1
     cutoff = {}
     for node in G:
         weights = sorted((d[weight] for d in neighbors[node].values()), reverse=True)
-        k = _dominance_rank(weights)
+        k = _dominance_rank(weights, deviation, max(others, len(weights)))
         H.nodes[node]["mla_rank"] = k
         cutoff[node] = weights[k - 1] if k else math.inf
 
@@ -1450,27 +1510,49 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     return H
 
 
-def _dominance_rank(weights):
+def _dominance_rank(weights, deviation="cod", n=None):
     """Number of dominant links for a node's weights sorted in decreasing order.
 
     Returns the *k* whose ideal distribution (*k* equal links, the rest zero)
-    is closest in squared deviation to the normalized profile; *k* never
-    splits a run of tied weights, and ties in the deviation go to the
-    smaller *k*.  The constant ``sum(p_r**2)`` is left out of the deviation.
+    fits the normalized profile best under *deviation*; *k* never splits a
+    run of tied weights, and ties in the fit go to the smaller *k*.  *n* is
+    the length of the profile once padded with zero flows (``"cod"`` only;
+    defaults to ``len(weights)``).
+
+    Each measure is reduced to a loss that is minimized:
+
+    - ``"profile"``: ``sum_r (p_r - t_r)**2`` minus the constant
+      ``sum_r p_r**2``, i.e. ``(1 - 2 S_k) / k``.
+    - ``"weaver"``: ``sum_{r<=k} (p_r - 1/k)**2 / k``.
+    - ``"cod"``: minus ``(S_k / k - 1/n)**2 / (1/k - 1/n)``, which is the
+      squared correlation times the constant ``n * var(p)``.
+
+    Here ``S_k`` is the sum of the *k* largest shares.
     """
-    n = len(weights)
-    if n == 0:
+    m = len(weights)
+    if m == 0:
         return 0
+    if n is None:
+        n = m
     total = math.fsum(weights)
-    best_k, best_dev = n, math.inf
-    cum = 0.0
-    for k in range(1, n + 1):
-        cum += weights[k - 1]
-        if k < n and weights[k] == weights[k - 1]:
+    best_k, best_loss = m, math.inf
+    cum = sq = 0.0
+    for k in range(1, m + 1):
+        share = weights[k - 1] / total
+        cum += share
+        sq += share * share
+        if k < m and weights[k] == weights[k - 1]:
             continue  # would split a group of tied weights
-        dev = (1.0 - 2.0 * cum / total) / k
-        if dev < best_dev - 1e-12:
-            best_k, best_dev = k, dev
+        if deviation == "profile":
+            loss = (1.0 - 2.0 * cum) / k
+        elif deviation == "weaver":
+            loss = (sq - 2.0 * cum / k + 1.0 / k) / k
+        else:
+            if k >= n:
+                continue  # constant ideal: correlation undefined
+            loss = -((cum / k - 1.0 / n) ** 2) / (1.0 / k - 1.0 / n)
+        if loss < best_loss - 1e-12:
+            best_k, best_loss = k, loss
     return best_k
 
 

@@ -208,6 +208,15 @@ REFERENCES = _refs(
         doi="10.1080/00343400701281808",
     ),
     Reference(
+        "vannuffel2010", "article",
+        ("Van Nuffel, N.", "Derudder, B.", "Witlox, F."), 2010,
+        "Even important connections are not always meaningful: on the use "
+        "of a polarisation measure in a typology of European cities in air "
+        "transport networks", "Tijdschrift voor Economische en Sociale "
+        "Geografie", "101", "3", "333--348",
+        doi="10.1111/j.1467-9663.2009.00547.x",
+    ),
+    Reference(
         "weaver1954", "article", ("Weaver, J. C.",), 1954,
         "Crop-combination regions in the Middle West", "Geographical Review",
         "44", "2", "175--200", doi="10.2307/212355",
@@ -520,7 +529,7 @@ METHODS = {
         "which decides how many of each node's links are dominant by fitting "
         "the node's sorted link weights to ideal distributions of one, two, "
         "three, ... equally strong links, and keeps those links",
-        ("vannuffel2007", "weaver1954", "yassin2023"),
+        ("vannuffel2007", "vannuffel2010", "weaver1954", "yassin2023"),
     ),
     # --- structural --------------------------------------------------------
     "global_threshold_filter": Method(

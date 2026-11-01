@@ -421,67 +421,212 @@ class TestLANS:
 # ---------------------------------------------------------------------------
 
 
+def _shares(weights, n=None):
+    """Normalized profile, padded with zero flows to length n."""
+    total = sum(weights)
+    p = [w / total for w in weights]
+    return p + [0.0] * ((n or len(p)) - len(p))
+
+
+def _ideal(k, n):
+    return [1 / k] * k + [0.0] * (n - k)
+
+
 def _dominance_deviation(weights, k):
     """Squared deviation of a sorted profile from k equal dominant links."""
-    total = sum(weights)
-    return sum(
-        (w / total - (1 / k if r < k else 0.0)) ** 2 for r, w in enumerate(weights)
-    )
+    p = _shares(weights)
+    return sum((a - b) ** 2 for a, b in zip(p, _ideal(k, len(p))))
+
+
+def _weaver_variance(weights, k):
+    """Weaver's variance: mean squared deviation over the k candidate links."""
+    p = _shares(weights)
+    return sum((p[r] - 1 / k) ** 2 for r in range(k)) / k
+
+
+def _cod(weights, k, n):
+    """Squared Pearson correlation of the zero-padded profile and the ideal."""
+    p, t = _shares(weights, n), _ideal(k, n)
+    mp, mt = sum(p) / n, sum(t) / n
+    cov = sum((a - mp) * (b - mt) for a, b in zip(p, t))
+    vp = sum((a - mp) ** 2 for a in p)
+    vt = sum((b - mt) ** 2 for b in t)
+    return cov**2 / (vp * vt)
+
+
+def _star(weights, n=None, source="hub"):
+    """DiGraph with out-links of the given weights from *source* to 0, 1, ...
+
+    Isolated extra nodes pad the graph to n other nodes (zero flows).
+    """
+    G = nx.DiGraph()
+    G.add_weighted_edges_from((source, i, w) for i, w in enumerate(weights))
+    G.add_nodes_from(range(len(weights), n or len(weights)))
+    return G
+
+
+# Table 1 of Van Nuffel, Derudder & Witlox (2010): the flows of spatial units
+# X and Y to eight other units a-h (zeros included), ranked largest first, and
+# the published coefficient of determination for 1-5 equal links.
+VAN_NUFFEL_TABLE_1 = {
+    "X": ([50, 43, 42, 21, 12, 7], [0.31, 0.55, 0.88, 0.80, 0.63], 3),
+    "Y": ([85, 32, 20, 19, 12, 5, 2], [0.85, 0.67, 0.51, 0.44, 0.34], 1),
+}
 
 
 class TestMultipleLinkageAnalysis:
+    @pytest.mark.parametrize("unit", ["X", "Y"])
+    def test_reproduces_van_nuffel_2010_table_1(self, unit):
+        weights, published, significant = VAN_NUFFEL_TABLE_1[unit]
+        cods = [_cod(weights, k, 8) for k in range(1, 6)]
+        assert cods == pytest.approx(published, abs=0.005)
+
+        H = nb.multiple_linkage_analysis(_star(weights, 8, source=unit))
+        assert H.nodes[unit]["mla_rank"] == significant
+        kept = sorted(v for _, v, keep in H.edges(data="mla_keep") if keep)
+        assert kept == list(range(significant))
+
     @pytest.mark.parametrize(
-        ("weights", "deviations", "dominant"),
+        ("unit", "profile_k", "weaver_k"),
         [
-            # One dominant link: profile (10, 1, 1, 1) / 13.
-            # D_1 = (3/13)^2 + 3 (1/13)^2 = 12/169.
-            ([10, 1, 1, 1], [12 / 169, 0.263314, 0.327416, 0.359467], 1),
+            # X: (50, 43, 42, 21, 12, 7) / 175.  D_3 = 3616/91875 > D_4 =
+            # 3013/122500 < D_5 = 1112/30625; V_3 = 1714/275625 > V_4 =
+            # 2241/490000 < V_5 = 1063/153125.  COD picks 3.
+            ("X", 4, 4),
+            # Y: (85, 32, 20, 19, 12, 5, 2) / 175.  D_k is smallest at k = 4
+            # (12757/122500); V_k decreases all the way to V_7 = 4808/214375.
+            # COD picks 1.
+            ("Y", 4, 7),
+        ],
+    )
+    def test_deviation_measures_disagree(self, unit, profile_k, weaver_k):
+        weights = VAN_NUFFEL_TABLE_1[unit][0]
+        ks = range(1, len(weights) + 1)
+        devs = [_dominance_deviation(weights, k) for k in ks]
+        variances = [_weaver_variance(weights, k) for k in ks]
+        assert 1 + devs.index(min(devs)) == profile_k
+        assert 1 + variances.index(min(variances)) == weaver_k
+        if unit == "X":
+            assert devs[2:5] == pytest.approx(
+                [3616 / 91875, 3013 / 122500, 1112 / 30625]
+            )
+            assert variances[2:5] == pytest.approx(
+                [1714 / 275625, 2241 / 490000, 1063 / 153125]
+            )
+        else:
+            assert devs[3] == pytest.approx(12757 / 122500)
+            assert variances[6] == pytest.approx(4808 / 214375)
+
+        G = _star(weights, 8, source=unit)
+        ranks = {
+            d: nb.multiple_linkage_analysis(G, deviation=d).nodes[unit]["mla_rank"]
+            for d in ("cod", "profile", "weaver")
+        }
+        assert ranks == {
+            "cod": VAN_NUFFEL_TABLE_1[unit][2],
+            "profile": profile_k,
+            "weaver": weaver_k,
+        }
+
+    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
+    @pytest.mark.parametrize(
+        ("weights", "deviations", "cods", "dominant"),
+        [
+            # One dominant link: profile (10, 1, 1, 1) / 13, n = 4.
+            # D_1 = (3/13)^2 + 3 (1/13)^2 = 12/169; COD_1 = 1.
+            (
+                [10, 1, 1, 1],
+                [12 / 169, 0.263314, 0.327416, 0.359467],
+                [1, 1 / 3, 1 / 9],
+                1,
+            ),
             # Two: profile (10, 10, 1, 1) / 22.
-            # D_2 = 2 (10/22 - 1/2)^2 + 2 (1/22)^2 = 4/484.
-            ([10, 10, 1, 1], [246 / 484, 4 / 484, 0.114325, 0.167355], 2),
+            # D_2 = 2 (10/22 - 1/2)^2 + 2 (1/22)^2 = 4/484; COD_2 = 1.
+            (
+                [10, 10, 1, 1],
+                [246 / 484, 4 / 484, 0.114325, 0.167355],
+                [1 / 3, 1, 1 / 3],
+                2,
+            ),
             # Three: profile (10, 10, 10, 1, 1) / 32.
             # D_3 = 3 (10/32 - 1/3)^2 + 2 (1/32)^2 = 3/2304 + 2/1024.
             (
                 [10, 10, 10, 1, 1],
                 [0.669922, 0.169922, 3 / 2304 + 2 / 1024, 0.060547, 0.094922],
+                [1 / 6, 4 / 9, 1, 3 / 8],
                 3,
             ),
-            # Evenly spread: keep all of them.
-            ([4, 4, 4, 4], [0.75, 0.25, 0.083333, 0.0], 4),
         ],
     )
-    def test_hand_computed_dominant_links(self, weights, deviations, dominant):
-        devs = [_dominance_deviation(weights, k) for k in range(1, len(weights) + 1)]
+    def test_hand_computed_dominant_links(
+        self, weights, deviations, cods, dominant, deviation
+    ):
+        n = len(weights)
+        devs = [_dominance_deviation(weights, k) for k in range(1, n + 1)]
         assert devs == pytest.approx(deviations, abs=1e-6)
+        # With n = number of links, the all-equal ideal has no variance.
+        assert [_cod(weights, k, n) for k in range(1, n)] == pytest.approx(cods)
 
-        G = nx.DiGraph()
-        G.add_weighted_edges_from(("hub", i, w) for i, w in enumerate(weights))
-        H = nb.multiple_linkage_analysis(G)
+        H = nb.multiple_linkage_analysis(_star(weights), deviation=deviation)
         assert H.nodes["hub"]["mla_rank"] == dominant
         kept = sorted(v for _, v, keep in H.edges(data="mla_keep") if keep)
         assert kept == list(range(dominant))
         # Targets have no out-links in a directed graph.
-        assert all(H.nodes[i]["mla_rank"] == 0 for i in range(len(weights)))
+        assert all(H.nodes[i]["mla_rank"] == 0 for i in range(n))
 
-    def test_tied_links_kept_together(self):
+    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
+    @pytest.mark.parametrize("n", [4, 6])
+    def test_evenly_spread_keeps_all(self, deviation, n):
+        H = nb.multiple_linkage_analysis(_star([4, 4, 4, 4], n), deviation=deviation)
+        assert H.nodes["hub"]["mla_rank"] == 4
+
+    def test_cod_counts_zero_flows(self):
+        # Profile (6, 3, 1) / 10.  Linked to all n = 3 other nodes:
+        # COD_1 = 16/19 > COD_2 = 49/76.  With two more nodes (n = 5):
+        # COD_1 = 10/13 < COD_2 = 125/156.  D_k and V_k ignore the padding.
+        assert _cod([6, 3, 1], 1, 3) == pytest.approx(16 / 19)
+        assert _cod([6, 3, 1], 2, 3) == pytest.approx(49 / 76)
+        assert _cod([6, 3, 1], 1, 5) == pytest.approx(10 / 13)
+        assert _cod([6, 3, 1], 2, 5) == pytest.approx(125 / 156)
+        for n, cod_k in [(3, 1), (5, 2)]:
+            G = _star([6, 3, 1], n)
+            assert nb.multiple_linkage_analysis(G).nodes["hub"]["mla_rank"] == cod_k
+            for d in ("profile", "weaver"):
+                H = nb.multiple_linkage_analysis(G, deviation=d)
+                assert H.nodes["hub"]["mla_rank"] == 2
+
+    @pytest.mark.parametrize("deviation", ["profile", "weaver"])
+    def test_tied_links_kept_together(self, deviation):
         # (6, 3, 3) / 12 = (1/2, 1/4, 1/4): D_1 = 3/8, D_2 = 1/8 (splits the
-        # tie, not considered), D_3 = 1/24 -> keep all three.
-        G = nx.DiGraph()
-        G.add_weighted_edges_from([("u", "a", 6), ("u", "b", 3), ("u", "c", 3)])
+        # tie, not considered), D_3 = 1/24 -> keep all three.  Weaver:
+        # V_1 = 1/4, V_2 = 1/32, V_3 = 1/72.
         devs = [_dominance_deviation([6, 3, 3], k) for k in (1, 2, 3)]
         assert devs == pytest.approx([3 / 8, 1 / 8, 1 / 24])
-        H = nb.multiple_linkage_analysis(G)
-        assert H.nodes["u"]["mla_rank"] == 3
+        variances = [_weaver_variance([6, 3, 3], k) for k in (1, 2, 3)]
+        assert variances == pytest.approx([1 / 4, 1 / 32, 1 / 72])
+        H = nb.multiple_linkage_analysis(_star([6, 3, 3]), deviation=deviation)
+        assert H.nodes["hub"]["mla_rank"] == 3
 
-    def test_equal_fits_go_to_smaller_rank(self):
-        # (3, 3, 1, 1) / 8: D_2 = D_3 = D_4 = 1/16; k = 3 would also split a
-        # tie.  The most parsimonious fit, k = 2, wins.
+    def test_weaver_tied_split_not_considered(self):
+        # (8, 8, 5, 5, 3, 3) / 32 with V_5 < V_6: k = 5 would split the tied
+        # 3s, so Weaver keeps all six (k = 4 fits worse than k = 6).
+        weights = [8, 8, 5, 5, 3, 3]
+        v = [_weaver_variance(weights, k) for k in range(1, 7)]
+        assert v[4] < v[5] < v[3]
+        H = nb.multiple_linkage_analysis(_star(weights), deviation="weaver")
+        assert H.nodes["hub"]["mla_rank"] == 6
+
+    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
+    def test_equal_fits_go_to_smaller_rank(self, deviation):
+        # (3, 3, 1, 1) / 8: D_2 = D_3 = D_4 = 1/16 and V_2 = V_3 = V_4 = 1/64;
+        # k = 3 would also split a tie.  The most parsimonious fit, k = 2,
+        # wins.  (COD_2 = 1 is the unique best.)
         devs = [_dominance_deviation([3, 3, 1, 1], k) for k in (2, 3, 4)]
         assert devs == pytest.approx([1 / 16] * 3)
-        G = nx.DiGraph()
-        G.add_weighted_edges_from([("u", i, w) for i, w in enumerate([3, 3, 1, 1])])
-        H = nb.multiple_linkage_analysis(G)
-        assert H.nodes["u"]["mla_rank"] == 2
+        variances = [_weaver_variance([3, 3, 1, 1], k) for k in (2, 3, 4)]
+        assert variances == pytest.approx([1 / 64] * 3)
+        H = nb.multiple_linkage_analysis(_star([3, 3, 1, 1]), deviation=deviation)
+        assert H.nodes["hub"]["mla_rank"] == 2
         assert sorted(v for _, v, keep in H.edges(data="mla_keep") if keep) == [0, 1]
 
     def test_undirected_or_rule(self):
@@ -492,12 +637,13 @@ class TestMultipleLinkageAnalysis:
             [("h", "a", 10), ("h", "b", 1), ("h", "c", 1), ("h", "d", 1)]
         )
         G.add_weighted_edges_from([("b", "x", 0.1), ("c", "y", 5), ("d", "z", 5)])
-        H = nb.multiple_linkage_analysis(G)
-        assert H.nodes["h"]["mla_rank"] == 1
-        assert H.nodes["b"]["mla_rank"] == 1
-        assert H["h"]["a"]["mla_keep"]
-        assert H["h"]["b"]["mla_keep"]  # dominant for b only
-        assert not H["h"]["c"]["mla_keep"]  # dominant for neither endpoint
+        for deviation in ("cod", "profile", "weaver"):
+            H = nb.multiple_linkage_analysis(G, deviation=deviation)
+            assert H.nodes["h"]["mla_rank"] == 1
+            assert H.nodes["b"]["mla_rank"] == 1
+            assert H["h"]["a"]["mla_keep"]
+            assert H["h"]["b"]["mla_keep"]  # dominant for b only
+            assert not H["h"]["c"]["mla_keep"]  # dominant for neither endpoint
 
     def test_lans_method_matches_netbone_convention(self, les_miserables_weighted):
         H = nb.multiple_linkage_analysis(
@@ -508,8 +654,11 @@ class TestMultipleLinkageAnalysis:
             assert d["mla_pvalue"] == L[u][v]["lans_pvalue"]
             assert d["mla_keep"] == (d["mla_pvalue"] <= 0.05)
 
-    def test_every_node_keeps_its_strongest_link(self, les_miserables_weighted):
-        H = nb.multiple_linkage_analysis(les_miserables_weighted)
+    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
+    def test_every_node_keeps_its_strongest_link(
+        self, les_miserables_weighted, deviation
+    ):
+        H = nb.multiple_linkage_analysis(les_miserables_weighted, deviation=deviation)
         for node in H:
             best = max(H[node], key=lambda v: H[node][v]["weight"])
             assert H[node][best]["mla_keep"]
@@ -518,6 +667,10 @@ class TestMultipleLinkageAnalysis:
     def test_invalid_method_raises(self, weighted_triangle):
         with pytest.raises(ValueError, match="method"):
             nb.multiple_linkage_analysis(weighted_triangle, method="bogus")
+
+    def test_invalid_deviation_raises(self, weighted_triangle):
+        with pytest.raises(ValueError, match="deviation"):
+            nb.multiple_linkage_analysis(weighted_triangle, deviation="bogus")
 
 
 # ---------------------------------------------------------------------------
