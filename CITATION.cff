@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below, together with the papers of the backbone methods you used (networkx_backbone.describe_backbone lists them)."
+title: "networkx-backbone: Backbone extraction algorithms for complex networks"
+type: software
+authors:
+  - family-names: Keegan
+    given-names: Brian C.
+    email: brian.keegan@colorado.edu
+license: BSD-3-Clause
+repository-code: "https://github.com/brianckeegan/networkx_backbone"
+url: "https://www.brianckeegan.com/networkx_backbone/"
+abstract: >-
+  Backbone extraction algorithms for complex networks, built on NetworkX:
+  statistical, structural, proximity, hybrid, bipartite-projection,
+  unweighted and hypergraph backbones, with filters, multiple-testing
+  correction and evaluation measures.
+keywords:
+  - network backbone
+  - network science
+  - NetworkX
+  - graph sparsification
+  - hypergraphs

@@ -1,7 +1,7 @@
 API Reference
 =============
 
-Complete API documentation for backbone functions across 11 modules
+Complete API documentation for backbone functions across 12 modules
 (the hypergraph page covers both ``hypergraph`` and ``hypergraph_io``).
 API examples are standardized on ``nx.les_miserables_graph()`` for
 non-bipartite methods and ``nx.davis_southern_women_graph()`` for
@@ -48,6 +48,9 @@ an aggregate summary in :doc:`../user_guide/complexity`.
    * - :doc:`visualization`
      - 3
      - Graph comparison and plotting helpers for backbone differences
+   * - :doc:`describe`
+     - 1
+     - Methods-section text and citations for a backbone (``describe_backbone``)
 
 .. toctree::
    :maxdepth: 1
@@ -63,3 +66,4 @@ an aggregate summary in :doc:`../user_guide/complexity`.
    filters
    measures
    visualization
+   describe
