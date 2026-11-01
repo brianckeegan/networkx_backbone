@@ -36,7 +36,7 @@ pip install -e ".[full]"
 | **proximity** | Neighborhood-similarity scoring | `jaccard_backbone`, `dice_backbone`, `cosine_backbone`, `hub_promoted_index`, `hub_depressed_index`, `adamic_adar_index`, `resource_allocation_index`, `local_path_index`, and more |
 | **hybrid** | Combined approaches | `glab_filter` |
 | **bipartite** | Bipartite projection backbones | `simple_projection`, `hyper_projection`, `probs_projection`, `ycn_projection`, `sdsm`, `fdsm`, `fixedfill`, `fixedrow`, `fixedcol`, `backbone` |
-| **hypergraph** | Higher-order (hypergraph) backbones | `mdl_hypergraph_backbone`, `hypergraph_compression_ratio`, `intersection_graph`, `maximal_hyperedges`, `order_filter`, `s_components`, `statistically_validated_hypergraph`, `statistically_validated_cores` |
+| **hypergraph** | Higher-order (hypergraph) backbones | `mdl_hypergraph_backbone`, `local_mdl_hypergraph_backbone`, `hypergraph_compression_ratio`, `intersection_graph`, `maximal_hyperedges`, `order_filter`, `s_components`, `statistically_validated_hypergraph`, `statistically_validated_cores` |
 | **hypergraph_io** | Hypergraph ingestion and interoperability | `hypergraph_to_bipartite`, `read_hif`, `write_hif`, `from_xgi`/`to_xgi`, `from_hypernetx`/`to_hypernetx`, `from_hypergraphx`/`to_hypergraphx`, `from_hat`/`to_hat` |
 | **unweighted** | Sparsification for unweighted graphs | `sparsify`, `lspar`, `local_degree` |
 | **filters** | Post-hoc filtering utilities | `multigraph_to_weighted`, `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone` |

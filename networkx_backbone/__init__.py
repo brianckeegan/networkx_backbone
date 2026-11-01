@@ -95,6 +95,7 @@ __all__ = [
     # Hypergraph
     "intersection_graph",
     "mdl_hypergraph_backbone",
+    "local_mdl_hypergraph_backbone",
     "hypergraph_compression_ratio",
     "HypergraphBackbone",
     "maximal_hyperedges",

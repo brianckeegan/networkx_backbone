@@ -124,6 +124,9 @@ hyperedges).
   information-theoretic (minimum description length) backbone that prunes nested
   and redundant hyperedges, with an optional weighted extension (Kirkley,
   Felippe, Malizia & Battiston, 2026)
+- :func:`~networkx_backbone.local_mdl_hypergraph_backbone` -- the local variant
+  of the MDL backbone, which backbones each node's neighborhood separately and
+  aggregates the results, like the disparity filter does for graphs
 - :func:`~networkx_backbone.hypergraph_compression_ratio` -- inverse compression
   ratio achieved by the MDL backbone
 - :func:`~networkx_backbone.intersection_graph` -- graph (or s-line graph)
