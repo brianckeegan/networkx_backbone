@@ -39,7 +39,8 @@ standard deviations (``nc_score > delta * nc_sdev``, with ``delta = 1.64`` in
 the paper); ``nc_pvalue`` expresses the same rule as a p-value.  Multiple
 linkage analysis is not a significance test: for each node it chooses how many
 links are dominant by comparing the node's sorted weight shares with ideal
-"one dominant link", "two equal links", ... distributions, whereas LANS gives
+"one dominant link", "two equal links", ... distributions (by the coefficient
+of determination, as restated by Van Nuffel et al., 2010), whereas LANS gives
 every link a p-value from its node's empirical weight distribution.
 
 P-values can be corrected for multiple comparisons with
@@ -49,7 +50,11 @@ Benjamini-Hochberg, Benjamini-Yekutieli).  The ``disparity_filter``,
 ``noise_corrected_filter``, ``marginal_likelihood_filter``, ``ecm_filter``, and
 ``lans_filter`` methods also accept ``signed=True`` for a two-tailed test that
 keeps significantly strong (``+1``) and significantly weak (``-1``) edges, each
-tagged with a ``"sign"`` attribute.
+tagged with a ``"sign"`` attribute.  With ``missing_as_zero=True`` they also
+test every pair of nodes that has no edge, as an edge of weight 0, so a signed
+backbone can contain pairs that interact significantly less than expected
+(Backbone 3.0's ``missing_as_zero``).  The result then has one edge per tested
+node pair, which takes :math:`O(n^2)` memory.
 
 Structural methods
 ^^^^^^^^^^^^^^^^^^
@@ -124,6 +129,9 @@ hyperedges).
   information-theoretic (minimum description length) backbone that prunes nested
   and redundant hyperedges, with an optional weighted extension (Kirkley,
   Felippe, Malizia & Battiston, 2026)
+- :func:`~networkx_backbone.local_mdl_hypergraph_backbone` -- the local variant
+  of the MDL backbone, which backbones each node's neighborhood separately and
+  aggregates the results, like the disparity filter does for graphs
 - :func:`~networkx_backbone.hypergraph_compression_ratio` -- inverse compression
   ratio achieved by the MDL backbone
 - :func:`~networkx_backbone.intersection_graph` -- graph (or s-line graph)

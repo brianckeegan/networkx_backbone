@@ -149,8 +149,8 @@ Method comparison table
    * - :func:`~networkx_backbone.doubly_stochastic_filter`
      - Yes
      - No
-     - Score
-     - No guarantee
+     - Score + keep flag
+     - Spans each component (``ds_keep``)
      - Structural
    * - :func:`~networkx_backbone.h_backbone`
      - Yes

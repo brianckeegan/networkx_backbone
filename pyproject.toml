@@ -35,10 +35,29 @@ full = [
 viz = [
     "matplotlib>=3.10",
 ]
+# Hypergraph libraries for the hypergraph_io adapters.  Floors are the oldest
+# releases that pass tests/test_hypergraph_interop.py (see docs/install.rst).
+xgi = [
+    "xgi>=0.9.1",
+]
+hypernetx = [
+    "hypernetx>=2.3.10",
+]
+hypergraphx = [
+    "hypergraphx>=1.7.7",
+]
+hat = [
+    "numpy>=2.2",
+    "HypergraphAnalysisToolbox>=1.1.18",
+]
+interop = [
+    "networkx-backbone[xgi,hypernetx,hypergraphx,hat]",
+]
 test = [
     "pytest>=7.0",
     "numpy>=2.2",
     "scipy>=1.15",
+    "pandas>=2.3",
 ]
 dev = [
     "networkx-backbone[full,test,viz]",
@@ -78,6 +97,9 @@ fallback_version = "0.0.0"
 testpaths = ["tests"]
 # Run docstring examples too: `pytest --doctest-modules networkx_backbone tests`.
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]
+markers = [
+    "interop: round trips against the real xgi/HyperNetX/HypergraphX/HAT (pip install -e '.[interop]'; select with -m interop)",
+]
 filterwarnings = [
     # Methods warn when a filter keeps every edge; tests check for it explicitly.
     "ignore:.*filtered graph has the same number of edges:UserWarning",

@@ -108,12 +108,14 @@ Multiple linkage analysis
 
 Multiple linkage analysis (Van Nuffel, 2007) decides how many of each
 node's links are *dominant*.  It sorts the node's link weights in decreasing
-order, normalizes them to shares, and compares that profile by least squares
-with ideal distributions: one link with all the weight, two equal links, three
-equal links, and so on.  The node keeps the links of the best-fitting ideal
-distribution, and ``mla_rank`` records how many that is.  A node with one
-overwhelming link keeps one; a node whose weight is spread evenly keeps all of
-them::
+order, normalizes them to shares, and compares that profile with ideal
+distributions: one link with all the weight, two equal links, three equal
+links, and so on.  The fit is the coefficient of determination (the squared
+correlation), with zero shares for the nodes it has no link to, as in Van
+Nuffel, Derudder & Witlox (2010).  The node keeps the links of the
+best-fitting ideal distribution, and ``mla_rank`` records how many that is.  A
+node with one overwhelming link keeps one; a node whose weight is spread
+evenly keeps all of them::
 
     H = nb.multiple_linkage_analysis(G)
     backbone = nb.boolean_filter(H, "mla_keep")
@@ -122,7 +124,12 @@ them::
 
 Directed graphs use each node's out-links.  In an undirected graph an edge is
 kept when it is dominant for *either* endpoint, so every node keeps at least
-its strongest link.
+its strongest link.  ``deviation="profile"`` (squared deviation over the whole
+profile) and ``deviation="weaver"`` (Weaver's variance over the candidate
+links) are alternative fit measures; on this graph Weaver's keeps the most
+links::
+
+    H = nb.multiple_linkage_analysis(G, deviation="weaver")
 
 This differs from LANS: LANS gives each link a p-value from the empirical
 distribution of its node's weights, while the dominance fit chooses a number
@@ -219,6 +226,10 @@ References
 - Van Nuffel, N. (2007). *Determination of the number of significant flows in
   origin-destination specific analysis: the case of commuting in Flanders*.
   Regional Studies, 41(4), 509-524.
+- Van Nuffel, N., Derudder, B., & Witlox, F. (2010). *Even important
+  connections are not always meaningful: on the use of a polarisation measure
+  in a typology of European cities in air transport networks*. Tijdschrift
+  voor Economische en Sociale Geografie, 101(3), 333-348.
 - Weaver, J. C. (1954). *Crop-combination regions in the Middle West*.
   Geographical Review, 44(2), 175-200.
 - Benjamini, Y., & Hochberg, Y. (1995). *Controlling the false discovery rate*.

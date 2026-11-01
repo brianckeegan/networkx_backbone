@@ -26,7 +26,7 @@ metric_backbone
 ultrametric_backbone
     Shortest paths using max distance.
 doubly_stochastic_filter
-    Slater (2009) -- Sinkhorn-Knopp normalization.
+    Slater (2009) -- Sinkhorn-Knopp normalization plus connectivity stage.
 h_backbone
     Zhang et al. (2018) -- h-index inspired.
 modularity_backbone
@@ -839,9 +839,13 @@ def _distance_backbone(G, weight="weight", ultrametric=False):
 def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
     """Compute the doubly-stochastic backbone via Sinkhorn-Knopp normalization.
 
-    Transforms the adjacency matrix into a doubly stochastic matrix via
-    iterative Sinkhorn-Knopp normalization, then stores the normalised
-    weight as the ``"ds_weight"`` edge attribute on the returned graph.
+    Implements both stages of Slater's two-stage algorithm [1]_ [2]_.  The
+    first stage transforms the adjacency matrix into a doubly stochastic
+    matrix via iterative Sinkhorn-Knopp normalization and stores the
+    normalised weight as the ``"ds_weight"`` edge attribute.  The second
+    stage adds edges in descending ``ds_weight`` order to an initially
+    edgeless graph until it is connected, and flags the edges it added with
+    the boolean ``"ds_keep"`` edge attribute.
 
     Parameters
     ----------
@@ -853,13 +857,19 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
     max_iter : int, optional (default=1000)
         Maximum number of Sinkhorn-Knopp iterations.
     tol : float, optional (default=1e-8)
-        Convergence tolerance on the row and column sums.
+        Convergence tolerance on the row and column sums.  The second stage
+        also treats ``ds_weight`` values that differ by at most *tol* as
+        tied.
 
     Returns
     -------
     H : graph
-        A copy of *G* with an additional ``"ds_weight"`` edge attribute
-        (doubly-stochastic normalised weight).
+        A copy of *G* with two additional edge attributes:
+        ``"ds_weight"`` (doubly-stochastic normalised weight) and
+        ``"ds_keep"`` (``True`` for the edges of the backbone found by the
+        second stage).  Use ``boolean_filter(H, "ds_keep")`` to extract
+        that backbone, or ``threshold_filter`` / ``fraction_filter`` on
+        ``"ds_weight"`` for a different cut.
 
     Raises
     ------
@@ -878,28 +888,93 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
         for trees such as a path on three nodes or any graph in which two
         leaves hang off the same node, or when convergence is too slow
         (common for sparse real networks with low-degree nodes).  ``"ds_weight"`` then
-        holds the last iterate, which is not doubly stochastic.
+        holds the last iterate, which is not doubly stochastic, and
+        ``"ds_keep"`` is computed from it (see Notes).
+
+    See Also
+    --------
+    boolean_filter : Keep the edges flagged ``ds_keep``.
+    threshold_filter : Cut ``ds_weight`` at a chosen value instead.
 
     Notes
     -----
     Isolated nodes (all-zero rows) are ignored when checking convergence.
 
-    This function computes only the scaled weights.  Slater's second stage,
-    which netbone's ``doubly_stochastic`` implements, adds edges in decreasing
-    order of scaled weight until the backbone is connected; it is not
-    implemented here.  netbone also scales a one-directional pivot of the edge
-    list with ``1e-4`` added to every cell, so its scores are not comparable.
+    **Second stage.**  Slater [2]_ (Sec. III.B) thresholds the doubly
+    stochastic matrix at progressively lower values; as the threshold falls,
+    larger and larger strong components of the resulting (0,1) graphs
+    appear, a variant of single-linkage clustering.  The backbone is the
+    graph at the threshold where all nodes first form a single strong
+    component ([1]_; [2]_, Sec. V).  For the symmetric matrix of an
+    undirected graph a strong component is a connected component, so
+    ``ds_keep`` marks the edges with ``ds_weight`` at or above the largest
+    threshold at which the graph is connected.  Details:
+
+    * **Ties.**  Neither paper discusses ties.  Because the rule is a
+      threshold, edges with equal ``ds_weight`` are added together, so
+      ``ds_keep`` does not depend on node or edge insertion order and may
+      include more edges than a spanning tree needs.  ``ds_weight`` is only
+      accurate to about *tol*, so each step adds every remaining edge whose
+      ``ds_weight`` is within *tol* of the largest remaining value.  For
+      example, the doubly stochastic constraint forces disjoint edges of a
+      4-clique to have equal values, which Sinkhorn-Knopp reproduces only
+      to within *tol*.
+    * **Disconnected input.**  Slater recommends analyzing the components
+      of a network that is not strongly connected independently ([2]_,
+      Sec. III.C), so the stopping rule is applied to each connected
+      component separately: each gets its own threshold and its own
+      spanning connection.  Edges with ``ds_weight`` exactly 0 are not
+      links: they never get ``ds_keep=True`` and do not join components.
+      Isolated nodes and single-node components have no ``ds_keep`` edges
+      (a self-loop is kept only if its ``ds_weight`` reaches its
+      component's threshold).
+    * **Non-convergence.**  When the matrix cannot be scaled, unsupported
+      entries of the last iterate shrink toward 0, possibly underflowing to
+      exactly 0, which can split a component.  Joining a component then
+      often needs these near-zero entries, so ``ds_keep`` may contain most
+      of the edges.  On Les Misérables (no convergence) it keeps 220 of 254
+      edges.
+    * **Directed graphs** are not supported.  Slater's rule for them is
+      strong, not weak, connectivity.
+
+    **Differences from netbone.**  The ``doubly_stochastic`` function of
+    the ``netbone`` package (v0.2.3), which Yassin et al. (2025) use,
+    stops when the whole graph is one connected component.  It differs from
+    this function as follows:
+
+    * It adds ``1e-4`` to every cell of the matrix, including non-edges,
+      before Sinkhorn-Knopp, so it converges where this function warns, and
+      its scores differ.
+    * It builds the matrix from the edge list in one direction (rows are
+      sources, columns are targets) rather than from the symmetric
+      adjacency matrix, and then drops edges whose listed source sorts
+      after their target.  On Les Misérables this drops 153 of 254 edges.
+    * It adds one edge at a time, breaking ties by the order of a pandas
+      sort, rather than whole tie levels.
+    * It has no per-component stopping rule.  If the graph never becomes
+      connected (a disconnected input, or edges it dropped), it marks every
+      edge as part of the backbone.
+
+    Given netbone's own scores on Zachary's karate club, this second stage
+    selects the same 55 edges as netbone.
 
     References
     ----------
     .. [1] Slater, P. B. (2009). A two-stage algorithm for extracting
        the multiscale backbone of complex weighted networks. *PNAS*,
        106(26), E66.
+    .. [2] Slater, P. B. (2010). Multiscale network reduction methodologies:
+       Bistochastic and disparity filtering of human migration flows
+       between 3,000+ U. S. counties. arXiv:0907.2393v6.
 
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import doubly_stochastic_filter, threshold_filter
+    >>> from networkx_backbone import (
+    ...     boolean_filter,
+    ...     doubly_stochastic_filter,
+    ...     threshold_filter,
+    ... )
     >>> G = nx.complete_graph(4)
     >>> weights = dict(zip(G.edges(), [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
     >>> nx.set_edge_attributes(G, weights, "weight")
@@ -910,6 +985,25 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
     >>> backbone = threshold_filter(H, "ds_weight", 0.36, mode="above")
     >>> sorted(backbone.edges())
     [(0, 3), (1, 2)]
+
+    The second stage adds edges until the backbone is connected.  Here every
+    node already has strength 100, so ``ds_weight`` is ``weight / 100``.
+    A cut at 0.3 misses the bridge ``("c", "d")``, while ``ds_keep``
+    includes it and leaves out the weaker link ``("a", "e")``:
+
+    >>> G = nx.Graph()
+    >>> G.add_weighted_edges_from(
+    ...     [("a", "b", 60), ("e", "f", 60), ("b", "c", 40), ("d", "f", 40),
+    ...      ("a", "c", 35), ("d", "e", 35), ("c", "d", 25), ("a", "e", 5)]
+    ... )
+    >>> H = doubly_stochastic_filter(G)
+    >>> nx.is_connected(threshold_filter(H, "ds_weight", 0.3, mode="above"))
+    False
+    >>> backbone = boolean_filter(H, "ds_keep")
+    >>> backbone.number_of_edges(), nx.is_connected(backbone)
+    (7, True)
+    >>> backbone.has_edge("a", "e")
+    False
     """
     import numpy as np
 
@@ -957,7 +1051,8 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
             f"converge within max_iter={max_iter} iterations; the weighted "
             "adjacency matrix probably cannot be scaled to a doubly stochastic "
             "matrix (e.g. trees, or several leaves attached to one node). "
-            "'ds_weight' holds the last, non-doubly-stochastic iterate.",
+            "'ds_weight' holds the last, non-doubly-stochastic iterate, and "
+            "'ds_keep' is computed from it.",
             RuntimeWarning,
             stacklevel=_caller_stacklevel(),
         )
@@ -966,7 +1061,55 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
     for u, v, data in H.edges(data=True):
         data["ds_weight"] = float(D[idx[u], idx[v]])
 
+    _mark_ds_connectivity_stage(H, tol)
     return H
+
+
+def _mark_ds_connectivity_stage(H, tol):
+    """Set ``ds_keep`` by Slater's second stage, one component at a time.
+
+    Within each connected component of the positive-``ds_weight`` edges,
+    edges are added in descending ``ds_weight`` order until the component is
+    connected.  Each step adds a whole level: every remaining edge whose
+    ``ds_weight`` is within *tol* of the largest remaining value.  All other
+    edges, and every edge whose ``ds_weight`` is not positive, get
+    ``ds_keep=False``.
+    """
+    links = [(u, v, d) for u, v, d in H.edges(data=True) if d["ds_weight"] > 0]
+
+    # Components of the nonzero pattern; each one is analyzed on its own.
+    components = nx.utils.UnionFind()
+    for u, v, _ in links:
+        components.union(u, v)
+    comp_of = {v: components[v] for v in H}
+    merges_left = {}  # joins still needed: component size - 1
+    for root in comp_of.values():
+        merges_left[root] = merges_left.get(root, -1) + 1
+    unfinished = {root for root, k in merges_left.items() if k > 0}
+
+    for _, _, d in H.edges(data=True):
+        d["ds_keep"] = False
+
+    backbone = nx.utils.UnionFind()
+    links.sort(key=lambda e: e[2]["ds_weight"], reverse=True)
+    start = 0
+    while unfinished and start < len(links):
+        # A level is added as a block, so the result does not depend on the
+        # order of (near-)tied edges.
+        floor = links[start][2]["ds_weight"] - tol
+        stop = start
+        while stop < len(links) and links[stop][2]["ds_weight"] >= floor:
+            stop += 1
+        for u, v, d in links[start:stop]:
+            root = comp_of[u]
+            if root not in unfinished:
+                continue
+            d["ds_keep"] = True
+            if backbone[u] != backbone[v]:
+                backbone.union(u, v)
+                merges_left[root] -= 1
+        unfinished = {root for root in unfinished if merges_left[root] > 0}
+        start = stop
 
 
 # =====================================================================
@@ -1315,9 +1458,10 @@ _COMPLEXITY = {
         "notes": "MST plus per-edge minimax path checks.",
     },
     "doubly_stochastic_filter": {
-        "time": "O(I * n^2 + m)",
+        "time": "O(I * n^2 + m log m)",
         "space": "O(n^2 + m)",
-        "notes": "I=max_iter for Sinkhorn-Knopp normalization.",
+        "notes": "I=max_iter for Sinkhorn-Knopp normalization; the "
+        "connectivity stage sorts the edges once.",
     },
     "h_backbone": {
         "time": "O(nm + m log m)",

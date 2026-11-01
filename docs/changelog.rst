@@ -40,22 +40,87 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
   citations for a backbone, in text, Markdown, or BibTeX; the counterpart of
   Backbone 3.0's ``narrative`` (#23). It is backed by one method-to-BibTeX
   registry that covers every public scorer, and a test enforces that coverage.
+- New :func:`~networkx_backbone.gloss_filter`, the GloSS filter of Radicchi,
+  Ramasco & Fortunato (2011). It tests each edge weight against a global null
+  model that keeps the topology and draws weights from the network's own
+  weight distribution, conditioning on both endpoints' degrees and strengths,
+  and adds ``gloss_pvalue``. The p-values of the paper's Eq. (4) are computed
+  exactly (integer weights) by direct convolution, stable at any degree;
+  directed graphs use out- and in-degrees and strengths. Les Misérables: 3
+  edges at alpha = 0.05 (#43).
 - Added ``CITATION.cff``.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
 - ``ecm_filter`` and ``noise_corrected_filter`` accept ``signed=True`` (#25).
+- ``missing_as_zero=True`` on ``disparity_filter``, ``lans_filter``,
+  ``marginal_likelihood_filter``, ``ecm_filter``, ``noise_corrected_filter``
+  and ``backbone_from_weighted`` (Backbone 3.0). Node pairs without an edge
+  are tested as weight-0 edges and returned with ``weight`` 0, so a signed
+  backbone can keep pairs that interact significantly less than expected.
+  Degrees, strengths, and fitted multipliers still come from the existing
+  edges only, as in the R package; each scorer's Notes say how it scores a
+  weight of 0. A ``RuntimeWarning`` is raised above one million added pairs
+  (#26).
+- New :func:`~networkx_backbone.local_mdl_hypergraph_backbone`: the local
+  MDL hypergraph backbone of Kirkley et al. (2026, Appendix E). It finds the
+  MDL backbone of each node's neighborhood separately and combines them with
+  the ``"union"``, ``"majority"`` (default), or ``"all"`` rule.
+  :class:`~networkx_backbone.HypergraphBackbone` gains ``n_hyperedges``,
+  ``aggregation``, ``local_backbones``, and ``local_description_lengths``
+  (#24).
 - Bipartite functions accept NumPy, SciPy sparse, or pandas incidence
   matrices with ``agent_labels``/``artifact_labels``, and ``agent_nodes`` is
   optional (#20, bipartite part).
+- New :func:`~networkx_backbone.to_graph` converts a NumPy or SciPy sparse
+  adjacency matrix (with ``nodelist`` and ``directed``) or a pandas edge-list
+  ``DataFrame`` (``source``/``target``/``weight`` columns) to a graph with
+  NetworkX's own converters, refusing an asymmetric matrix for an undirected
+  graph and duplicate edge-list rows. ``backbone``, ``backbone_from_weighted``
+  and ``backbone_from_unweighted`` accept these inputs directly and give the
+  same backbone as the graph path; ``nx.to_pandas_edgelist`` returns the
+  scored edges as a ``DataFrame``. The individual scorers keep graph-only
+  signatures (#20).
 - ``hyper_projection(newman=True)`` / ``projection="newman"`` gives Newman's
   :math:`1/(d(z)-1)` weighting, equal to
   ``nx.bipartite.collaboration_weighted_projected_graph``. The default
   hyperbolic weight, :math:`1/d(z)`, is unchanged and follows Coscia & Rossi
   (2019). Projection citations are corrected to Coscia & Rossi (2019,
   arXiv:1906.09081) (#13).
+- New :func:`~networkx_backbone.polya_filter`: the Pólya urn filter of
+  Marcaccioli & Livan (2019), adding ``polya_pvalue``. The null model is the
+  beta-binomial urn of Eqs. (1)-(2), tested from both endpoints (out- and
+  in-links for directed graphs). By default the reinforcement parameter ``a``
+  is the maximum-likelihood estimate of the paper's Supplementary Note 5,
+  stored in ``H.graph["polya_a"]``; non-integer weights use the paper's
+  large-strength approximation, Eq. (6). Les Misérables: ``a`` = 0.340 and
+  12 edges at ``polya_pvalue < 0.05`` (#42).
 - ``glab_filter`` now supports directed graphs using the out- and
   in-involvement of Zhang et al. (2014), Section 2.3 (#12). On a symmetric
   ``DiGraph`` it gives the undirected p-values.
+- ``doubly_stochastic_filter`` now also runs the second stage of Slater's
+  two-stage algorithm: a boolean ``ds_keep`` edge attribute flags the edges
+  added, in descending ``ds_weight`` order, until each connected component is
+  connected (tie levels added together, so the result does not depend on
+  insertion order). Extract it with ``boolean_filter(H, "ds_keep")``.
+  ``ds_weight`` is unchanged (#44).
+- The hypergraph adapters carry weights: ``to_xgi``, ``to_hypernetx``,
+  ``to_hypergraphx``, and ``to_hat`` take ``weights=``, and the ``from_*``
+  functions take ``return_weights=``. New extras ``[xgi]``, ``[hypernetx]``,
+  ``[hypergraphx]``, ``[hat]``, and ``[interop]`` (all four) install the
+  libraries; supported versions are in :doc:`install` (#15). Testing against
+  the real libraries found and fixed these adapter bugs:
+
+  - ``to_xgi`` failed on tuple node labels (xgi read a two-node hyperedge
+    as a ``(members, edge_id)`` pair).
+  - ``to_hat`` silently dropped repeated hyperedges (HAT's default
+    ``compress=True``), and ``from_hat`` returned row indices instead of node
+    labels. Labels now round-trip through ``H.nodes["Names"]``.
+  - ``to_hypergraphx`` silently merged repeated hyperedges. It still merges
+    them, since HypergraphX has no multi-edges, but now sums their weights,
+    and it explains the ``TypeError`` raised for mixed-type node labels.
+  - The HAT and HypergraphX HIF readers raised ``KeyError`` on
+    ``write_hif`` output, which omitted the ``nodes`` and ``edges`` lists.
+    ``write_hif`` now always writes both.
 
 **Changes in results (bug fixes)**
 
@@ -73,6 +138,13 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
   threshold is ``method="lans"``. Les Misérables: 109 ->
   223 edges (#10; the exact deviation measure is still to be checked against
   the 2007 paper).
+  threshold, which netbone uses, is ``method="lans"``. The fit is the
+  coefficient of determination over the zero-padded profile, as restated by
+  Van Nuffel, Derudder & Witlox (2010), whose Table 1 the tests reproduce; a
+  new ``deviation=`` keyword also offers ``"profile"`` (whole-profile squared
+  deviation, the measure used earlier in this development cycle) and
+  ``"weaver"`` (Weaver's variance over the candidate links). Les Misérables:
+  109 -> 205 edges (``"profile"``: 223, ``"weaver"``: 253) (#10).
 - ``sparsify(umst=True)`` now adds the union of all minimum spanning trees
   (Hamann et al., 2016) instead of one arbitrary spanning forest, so tied
   scores no longer make the result depend on node order (#32). The union is
@@ -150,6 +222,18 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   0.36 s); MDL ``"node"`` optimizer with a lazy heap (m = 2000: 8.3 s ->
   0.47 s); vectorized SVC p-values.
 
+- ``ecm_filter`` fits the ECM over classes of nodes with the same degree and
+  strength (out- and in-degree and strength for directed graphs), which is
+  exact. Pair sums are computed in chunks, and the dense Newton polish is
+  replaced by damped Newton steps (Newton-CG for large problems). On a
+  2,000-node Barabási-Albert graph the fit drops from about 90 s and 600 MB
+  to under 2 s and 50 MB; 20,000 nodes take about 16 s and 300 MB (about
+  90 s for a directed version, which has 10,660 classes). The fit
+  now also converges on directed graphs where the old solver stopped short,
+  and nodes whose links all have weight 1 get the exact :math:`y_i = 0`.
+  P-values on Les Misérables agree with the old solver to about 1e-8
+  (#21).
+
 **Infrastructure and documentation**
 
 - Docstrings are validated by the Sphinx build and by a new ``numpydoc lint``
@@ -186,6 +270,16 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   doctests on Python 3.12-3.14, a job pinned to the oldest supported
   versions, and a NetworkX-only job that checks the optional dependencies
   stay optional. Test coverage is 97%.
+- An "Interop" workflow (pull requests, weekly, and on demand) installs
+  ``.[interop,test]`` and runs ``pytest -m interop``: round trips of
+  hyperedges, weights, and node labels through the real xgi, HyperNetX,
+  HypergraphX, and HAT, and HIF exchange with each library's own reader and
+  writer. It is a separate, non-required workflow, so an upstream release
+  cannot block unrelated pull requests (#15).
+- A coverage evaluation of the 15 methods compared by Yassin et al. (2025)
+  (``docs/design/yassin-2025-coverage.md``). The package covers 13 of them;
+  the Pólya urn and GloSS filters are missing. The evaluation also notes where
+  the covered methods behave differently from ``netbone`` (#29).
 - New :doc:`roadmap`; full numpydoc sections for the bipartite, hypergraph,
   and structural APIs; corrected citations (Van Nuffel, 2007; Lü et
   al., 2009; Lindner et al., 2015); the docs version is taken from the package
