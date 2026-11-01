@@ -4,6 +4,7 @@ Shared behaviour (attributes, directed/multigraph rejection, empty graphs,
 mixed labels, no input mutation) is covered by ``test_api_contract.py``.
 """
 
+import itertools
 import math
 import random
 
@@ -235,7 +236,111 @@ class TestSparsifyOptions:
         )
         backbone = boolean_filter(H, "sparsify_keep")
         assert nx.is_connected(backbone)
-        assert backbone.number_of_edges() == G.number_of_nodes() - 1
+        # The s=10 threshold keeps nothing.  Every clique edge has 2 triangles
+        # and both bridges 0, so every edge is in some maximum spanning tree:
+        # the UMST is the whole graph, not one 8-edge tree.
+        assert _kept(H) == {frozenset(e) for e in G.edges()}
+
+    def test_umst_equal_score_cycle_keeps_every_edge(self):
+        # All Jaccard scores on C6 are 0, so the s=1 threshold keeps nothing
+        # and every spanning path of the cycle is a minimum spanning tree.
+        G = nx.cycle_graph(6)
+        kw = {"escore": "jaccard", "normalize": None, "filter": "threshold", "s": 1}
+        assert not _kept(sparsify(G, **kw))
+        assert _kept(sparsify(G, umst=True, **kw)) == {frozenset(e) for e in G.edges()}
+
+    def test_umst_unique_tree_hand_built(self):
+        # Raw neighbour-degree scores (max over endpoints):
+        #   (0,1): 2, (1,2): 3, (0,2): 3, (2,3): 3, (3,4): 2.
+        # The three 3-edges form a tree; (3,4) attaches 4 and (0,1) closes a
+        # cycle of more important edges, so the maximum spanning tree is
+        # unique and equals the UMST.
+        G = nx.Graph([(0, 1), (1, 2), (2, 0), (2, 3), (3, 4)])
+        H = sparsify(
+            G, escore="degree", normalize=None, filter="threshold", s=10, umst=True
+        )
+        expected = {frozenset(e) for e in [(1, 2), (0, 2), (2, 3), (3, 4)]}
+        assert _kept(H) == expected
+        for u, v in G.edges():
+            G[u][v]["w"] = H[u][v]["sparsify_score"]
+        single = nx.maximum_spanning_edges(G, weight="w", data=False)
+        assert {frozenset(e) for e in single} == expected
+
+    @pytest.mark.parametrize(
+        "kw",
+        [
+            {"escore": "degree", "normalize": None, "filter": "threshold", "s": 99},
+            {"escore": "jaccard", "s": 0.0},
+            {"escore": "triangles", "s": 0.2},
+        ],
+    )
+    def test_umst_independent_of_insertion_order(self, karate, kw):
+        reference = _kept(sparsify(karate, umst=True, **kw))
+        rng = random.Random(42)
+        for _ in range(5):
+            nodes = list(karate)
+            edges = list(karate.edges())
+            rng.shuffle(nodes)
+            rng.shuffle(edges)
+            edges = [(v, u) if rng.random() < 0.5 else (u, v) for u, v in edges]
+            G = nx.Graph()
+            G.add_nodes_from(nodes)
+            G.add_edges_from(edges)
+            assert _kept(sparsify(G, umst=True, **kw)) == reference
+
+    @pytest.mark.parametrize("seed", range(12))
+    def test_umst_matches_brute_force(self, seed):
+        # Enumerate every spanning tree of a small connected graph and take
+        # the union of those of maximum total triangle score.  The s=inf
+        # threshold keeps nothing, so the backbone is exactly the UMST.
+        rng = random.Random(seed)
+        while True:
+            G = nx.gnp_random_graph(7, 0.5, seed=rng.randrange(10**6))
+            if nx.is_connected(G):
+                break
+        H = sparsify(
+            G,
+            escore="triangles",
+            normalize=None,
+            filter="threshold",
+            s=math.inf,
+            umst=True,
+        )
+        score = {frozenset(e): H.edges[e]["sparsify_score"] for e in G.edges()}
+        n = G.number_of_nodes()
+        best, union = -math.inf, set()
+        for tree in itertools.combinations(score, n - 1):
+            T = nx.Graph(tuple(e) for e in tree)
+            if T.number_of_nodes() != n or not nx.is_tree(T):
+                continue
+            total = sum(score[e] for e in tree)
+            if total > best:
+                best, union = total, set(tree)
+            elif total == best:
+                union |= set(tree)
+        assert _kept(H) == union
+
+    @pytest.mark.parametrize("seed", range(8))
+    def test_umst_helper_matches_spanning_tree_iterator(self, seed):
+        from networkx_backbone.unweighted import _umst_edges
+
+        rng = random.Random(seed)
+        while True:
+            G = nx.gnp_random_graph(6, 0.6, seed=rng.randrange(10**6))
+            if nx.is_connected(G):
+                break
+        for u, v in G.edges():
+            G[u][v]["w"] = rng.randint(0, 2)
+        badness = {frozenset(e): w for *e, w in G.edges(data="w")}
+        trees = nx.SpanningTreeIterator(G, weight="w", minimum=True)
+        first = next(trees)
+        best = first.size(weight="w")
+        union = {frozenset(e) for e in first.edges()}
+        for T in trees:
+            if T.size(weight="w") != best:
+                break
+            union |= {frozenset(e) for e in T.edges()}
+        assert _umst_edges(G, badness) == union
 
     def test_umst_noop_when_connected(self, karate):
         H1 = sparsify(karate, s=1.0)
