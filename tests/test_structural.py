@@ -283,6 +283,95 @@ class TestDoublyStochastic:
             assert rec[0].filename == __file__
 
 
+class TestDoublyStochasticSymmetryAndSmoothing:
+    def _reorder(self, G):
+        R = nx.Graph()
+        R.add_nodes_from(reversed(list(G)))
+        R.add_edges_from((v, u, d) for u, v, d in G.edges(data=True))
+        return R
+
+    def _weights(self, H):
+        return {
+            frozenset(e): w for e, w in nx.get_edge_attributes(H, "ds_weight").items()
+        }
+
+    def test_non_converged_scores_do_not_depend_on_node_order(
+        self, les_miserables_weighted
+    ):
+        # Regression: without convergence the Sinkhorn iterate diag(r) A
+        # diag(c) is not symmetric, and ds_weight used to depend on which
+        # orientation an edge was stored in (differences up to 0.86).
+        G = les_miserables_weighted
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            a = self._weights(doubly_stochastic_filter(G))
+            b = self._weights(doubly_stochastic_filter(self._reorder(G)))
+        assert a.keys() == b.keys()
+        for e, w in a.items():
+            assert b[e] == pytest.approx(w, rel=1e-12, abs=1e-15)
+
+    def test_converged_scores_unchanged_by_symmetrization(self):
+        # When Sinkhorn-Knopp converges, the geometric mean of D and D.T
+        # equals the doubly stochastic limit: rows still sum to one and the
+        # matrix is symmetric.
+        G = nx.complete_graph(6)
+        rng = random.Random(3)
+        for u, v in G.edges():
+            G[u][v]["weight"] = rng.uniform(0.5, 5.0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            H = doubly_stochastic_filter(G, tol=1e-12, max_iter=10000)
+        for node in G:
+            total = sum(d["ds_weight"] for *_, d in H.edges(node, data=True))
+            assert total == pytest.approx(1.0, abs=1e-10)
+
+    def test_smoothing_zero_is_default(self, les_miserables_weighted):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            a = self._weights(doubly_stochastic_filter(les_miserables_weighted))
+            b = self._weights(
+                doubly_stochastic_filter(les_miserables_weighted, smoothing=0.0)
+            )
+        assert a == b
+
+    @pytest.mark.parametrize("G", [nx.path_graph(3), nx.star_graph(4)])
+    def test_smoothing_makes_unscalable_graphs_converge(self, G):
+        nx.set_edge_attributes(G, 1.0, "weight")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            H = doubly_stochastic_filter(G, smoothing=1e-3)
+        assert all(0 < d["ds_weight"] < 1 for *_, d in H.edges(data=True))
+        assert nx.is_connected(
+            nx.Graph((u, v) for u, v, d in H.edges(data=True) if d["ds_keep"])
+        )
+
+    def test_smoothing_hand_computed_path(self):
+        # P3 a-b-c with unit weights plus eps on every off-diagonal cell is
+        # [[0, 1+e, e], [1+e, 0, 1+e], [e, 1+e, 0]].  By symmetry its doubly
+        # stochastic scaling is diag(x, y, x) A diag(x, y, x) with
+        # x(1+e)y + x e x = 1 and 2 y (1+e) x = 1.
+        e = 0.01
+        G = nx.Graph()
+        G.add_weighted_edges_from([("a", "b", 1.0), ("b", "c", 1.0)])
+        H = doubly_stochastic_filter(G, smoothing=e, tol=1e-13, max_iter=100000)
+        # Solve: y = 1 / (2 (1+e) x)  ->  1/2 + e x^2 = 1  ->  x^2 = 1 / (2e).
+        x = (1 / (2 * e)) ** 0.5
+        y = 1 / (2 * (1 + e) * x)
+        assert H["a"]["b"]["ds_weight"] == pytest.approx(x * (1 + e) * y, rel=1e-8)
+        assert H["a"]["b"]["ds_weight"] == pytest.approx(0.5, rel=1e-8)
+
+    def test_smoothing_converges_on_les_miserables(self, les_miserables_weighted):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            H = doubly_stochastic_filter(les_miserables_weighted, smoothing=1e-4)
+        assert all(d["ds_weight"] > 0 for *_, d in H.edges(data=True))
+
+    @pytest.mark.parametrize("bad", [-1e-3, float("nan"), float("inf")])
+    def test_invalid_smoothing_raises(self, bad, weighted_triangle):
+        with pytest.raises(ValueError, match="smoothing"):
+            doubly_stochastic_filter(weighted_triangle, smoothing=bad)
+
+
 # Every node has strength 100, so the matrix is already doubly stochastic after
 # dividing by 100: ds_weight == weight / 100 (hand-computable).
 DS_TWO_TRIANGLES = [
