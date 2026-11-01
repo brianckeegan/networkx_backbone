@@ -25,7 +25,9 @@ Simple filters
     backbone = nb.boolean_filter(scored, "global_threshold_keep")
     print(f"Global threshold: {backbone.number_of_edges()} edges")
 
-**Strongest N ties**: Keep each node's N strongest edges::
+**Strongest N ties**: Keep each node's N strongest edges (edges tied with
+the N-th strongest are kept too, so the result does not depend on edge
+order)::
 
     scored = nb.strongest_n_ties(G, n=2)
     backbone = nb.boolean_filter(scored, "strongest_n_ties_keep")

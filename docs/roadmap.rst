@@ -235,6 +235,14 @@ Methods
   invariance table, a generalized ``disparity_filter(a=...)`` share null with
   a calibration test harness, and an explicit count ``unit=`` for MLF, ECM,
   and the noise-corrected filter.
+- **done** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` keeps edges tied at each node's
+  cutoff together, so ``G``, ``G.copy()``, and any reordering of the same
+  graph give the same backbone. ``global_sparsification`` and
+  ``edge_betweenness_filter`` no longer depend on edge orientation.
+  ``planar_maximally_filtered_graph`` and ``maximum_spanning_tree_backbone``
+  (ties in weight), ``fraction_filter`` (ties in score, documented), and
+  ``modularity_backbone`` (Louvain visiting order, even with a fixed seed)
+  still depend on input order.
 
 Documentation
 ~~~~~~~~~~~~~
