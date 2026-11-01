@@ -47,7 +47,7 @@ Statistical
    * - ``multiple_linkage_analysis``
      - ``O(m log n)``
      - ``O(n + m)``
-     - Dominated by lans_filter.
+     - Dominated by sorting each node's link weights (or lans_filter).
    * - ``noise_corrected_filter``
      - ``O(n + m)``
      - ``O(n + m)``

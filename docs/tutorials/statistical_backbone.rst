@@ -38,19 +38,38 @@ Edges with unexpectedly large weight receive low p-values::
 Noise-corrected filter
 ----------------------
 
-The noise-corrected filter (Coscia & Neffke, 2017) uses a binomial framework
-to model edge weights. It produces z-scores rather than p-values -- higher
-z-scores indicate more significant edges::
+The noise-corrected backbone (Coscia & Neffke, 2017) compares each edge's
+weight with the weight expected from its endpoints' strengths.  The score
+``nc_score`` is the *lift* (observed over expected weight) mapped to
+``(-1, 1)``: 0 means exactly as expected, positive means stronger.  Because
+weights are noisy counts, the method also estimates the score's standard
+deviation ``nc_sdev`` from a Bayesian (beta-binomial) model, and keeps an edge
+when ``nc_score > delta * nc_sdev``.  The paper uses ``delta = 1.64``, roughly
+a one-tailed test at the 5% level; ``nc_pvalue`` is the matching
+normal-approximation p-value, so it works with
+:func:`~networkx_backbone.threshold_filter` and multiple-testing corrections::
 
     H = nb.noise_corrected_filter(G)
 
-    # Each edge now has an "nc_score" attribute (z-score)
     u, v = list(H.edges())[0]
-    print(f"Edge ({u}, {v}): z-score = {H[u][v]['nc_score']:.4f}")
+    d = H[u][v]
+    print(f"Edge ({u}, {v}): score = {d['nc_score']:.3f} +/- {d['nc_sdev']:.3f}")
 
-    # Filter: keep edges with z-score above a threshold
-    backbone = nb.threshold_filter(H, "nc_score", 2.0, mode="above")
+    # The paper's rule, delta = 1.64
+    kept = [(u, v) for u, v, d in H.edges(data=True)
+            if d["nc_score"] > 1.64 * d["nc_sdev"]]
+    print(f"Noise-corrected backbone (delta=1.64): {len(kept)} edges")
+
+    # The same rule as a p-value threshold (delta = 1.645 <=> p < 0.05)
+    backbone = nb.threshold_filter(H, "nc_pvalue", 0.05)
     print(f"Noise-corrected backbone: {backbone.number_of_edges()} edges")
+
+An undirected graph is treated as a symmetric weight matrix, so each edge is
+counted in both directions, as in the authors' reference implementation.  The
+noise-corrected backbone is permissive on small, dense graphs such as Les
+Misérables (195 of 254 edges at ``delta = 1.64``); it is designed for large,
+noisy count data.  The binomial z-score of networkx-backbone 0.2 and earlier is
+still available as ``method="zscore"``.
 
 Marginal likelihood filter
 --------------------------
@@ -87,12 +106,31 @@ assumptions::
 Multiple linkage analysis
 -------------------------
 
-Multiple linkage analysis (Van Nuffel et al., 2010; Yassin et al., 2023)
-extracts a backbone using local linkage significance::
+Multiple linkage analysis (Van Nuffel et al., 2010) decides how many of each
+node's links are *dominant*.  It sorts the node's link weights in decreasing
+order, normalizes them to shares, and compares that profile by least squares
+with ideal distributions: one link with all the weight, two equal links, three
+equal links, and so on.  The node keeps the links of the best-fitting ideal
+distribution, and ``mla_rank`` records how many that is.  A node with one
+overwhelming link keeps one; a node whose weight is spread evenly keeps all of
+them::
 
-    H = nb.multiple_linkage_analysis(G, alpha=0.05)
+    H = nb.multiple_linkage_analysis(G)
     backbone = nb.boolean_filter(H, "mla_keep")
     print(f"MLA backbone: {backbone.number_of_edges()} edges")
+    print("Dominant links of Valjean:", H.nodes["Valjean"]["mla_rank"])
+
+Directed graphs use each node's out-links.  In an undirected graph an edge is
+kept when it is dominant for *either* endpoint, so every node keeps at least
+its strongest link.
+
+This differs from LANS: LANS gives each link a p-value from the empirical
+distribution of its node's weights, while the dominance fit chooses a number
+of links per node and has no significance level.  ``method="lans"`` gives the
+netbone variant, which keeps links whose LANS p-value is at most ``alpha``
+(this was the behavior of networkx-backbone 0.2 and earlier)::
+
+    H = nb.multiple_linkage_analysis(G, alpha=0.05, method="lans")
 
 Comparing all statistical methods
 ----------------------------------
@@ -104,7 +142,7 @@ Use :func:`~networkx_backbone.compare_backbones` to compare the results::
             nb.disparity_filter(G), "disparity_pvalue", 0.05
         ),
         "noise_corrected": nb.threshold_filter(
-            nb.noise_corrected_filter(G), "nc_score", 2.0, mode="above"
+            nb.noise_corrected_filter(G), "nc_pvalue", 0.05
         ),
         "marginal_likelihood": nb.threshold_filter(
             nb.marginal_likelihood_filter(G), "ml_pvalue", 0.05
@@ -116,7 +154,7 @@ Use :func:`~networkx_backbone.compare_backbones` to compare the results::
             nb.lans_filter(G), "lans_pvalue", 0.05
         ),
         "mla": nb.boolean_filter(
-            nb.multiple_linkage_analysis(G, alpha=0.05), "mla_keep"
+            nb.multiple_linkage_analysis(G), "mla_keep"
         ),
     }
 
@@ -150,10 +188,13 @@ Signed backbones
 
 By default the statistical filters run a one-tailed test that keeps only
 *significantly strong* edges. With ``signed=True``, the
-``disparity_filter``, ``marginal_likelihood_filter``, and ``lans_filter`` run a
-**two-tailed** test: the stored p-value becomes two-sided, and each edge gains a
-``"sign"`` attribute that is ``+1`` for a significantly strong edge and ``-1``
-for a significantly weak one::
+``disparity_filter``, ``noise_corrected_filter``, ``marginal_likelihood_filter``,
+``ecm_filter``, and ``lans_filter`` run a **two-tailed** test: the stored
+p-value becomes two-sided, and each edge gains a ``"sign"`` attribute that is
+``+1`` for a significantly strong edge and ``-1`` for a significantly weak one.
+For the ECM the lower tail is :math:`P(w_{ij} \le w) = 1 - p_{ij} (y_i y_j)^w`
+under the fitted model; for the noise-corrected backbone both tails come from
+the normal approximation to ``nc_score / nc_sdev``::
 
     signed = nb.disparity_filter(G, signed=True)
     backbone = nb.threshold_filter(signed, "disparity_pvalue", 0.05, mtc="bh")
