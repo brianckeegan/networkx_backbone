@@ -16,8 +16,9 @@ local_degree
 
 import math
 from bisect import bisect_right
+from itertools import groupby
+from operator import itemgetter
 
-import networkx as nx
 from networkx.utils import not_implemented_for, py_random_state
 
 from networkx_backbone._docstrings import append_complexity_docstrings
@@ -49,8 +50,9 @@ def sparsify(
        node *u* (``filter="degree"``), or every edge whose score is at
        least *s* (``filter="threshold"``).  An edge is kept if *either*
        endpoint retains it.
-    4. **Connect**: optionally add the edges of a spanning forest so the
-       backbone has as many connected components as *G*.
+    4. **Connect**: optionally add the union of all minimum spanning
+       trees (UMST) of the scored graph [2]_, so the backbone has as many
+       connected components as *G*.
 
     Parameters
     ----------
@@ -76,11 +78,11 @@ def sparsify(
         (typically in [0, 1]; 0 is sparsest, 1 keeps every edge) or the
         score threshold for ``filter="threshold"``.
     umst : bool, optional (default=False)
-        If ``True`` and the retained edges split a connected component
-        of *G*, add the edges of a minimum spanning forest of *G* computed
-        on the edge scores (preferring the most important edges) so that
-        connectivity is restored.  This is a single spanning forest, not
-        the union of all minimum spanning trees.
+        If ``True``, also retain every edge that belongs to *some* minimum
+        spanning tree (forest, if *G* is disconnected) of *G* weighted by
+        the edge scores, with the most important edges cheapest (see
+        *Notes*).  The backbone then has the same connected components as
+        *G*.
     seed : integer, random_state, or None (default)
         Indicator of random number generation state, used only when
         ``escore="random"``.
@@ -127,10 +129,23 @@ def sparsify(
     two endpoints' (normalised) scores and the edge is retained when it is
     at least *s*.
 
+    With ``umst=True`` the spanning trees minimise the sum of
+    ``"sparsify_score"`` for ``filter="degree"`` and maximise it for
+    ``filter="threshold"``.  Following Hamann et al. [2]_, the *union* of
+    all such trees is added, not one arbitrary tree: an edge with score
+    *w* is added exactly when its endpoints are not already connected by
+    edges that are strictly more important than *w*.  No tie is broken
+    arbitrarily (on a cycle whose edges all score the same, every edge is
+    added), so the result does not depend on node or edge order.  The union is computed with a union-find structure in
+    :math:`O(m \log m)` time.
+
     References
     ----------
     .. [1] Neal, Z. P. (2022). backbone: An R package to extract network
        backbones. *PLOS ONE*, 17(5), e0269137.
+    .. [2] Hamann, M., Lindner, G., Meyerhenke, H., Staudt, C. L., &
+       Wagner, D. (2016). Structure-preserving sparsification methods for
+       social networks. *Social Network Analysis and Mining*, 6(1), 22.
 
     Examples
     --------
@@ -311,18 +326,7 @@ def _sparsify(G, escore, normalize, filter, s, umst, seed, rounding):
         badness = {e: -sc for e, sc in scores.items()}
 
     if umst:
-        selected = nx.Graph()
-        selected.add_nodes_from(G)
-        selected.add_edges_from(tuple(e) for e in kept)
-        n_components = nx.number_connected_components(G)
-        if nx.number_connected_components(selected) > n_components:
-            scored = nx.Graph()
-            scored.add_nodes_from(G)
-            for e, b in badness.items():
-                u, v = tuple(e)
-                scored.add_edge(u, v, b=b)
-            for u, v in nx.minimum_spanning_edges(scored, weight="b", data=False):
-                kept.add(frozenset((u, v)))
+        kept |= _umst_edges(G, badness)
 
     self_loop_score = math.inf if filter == "degree" else -math.inf
     H = G.copy()
@@ -335,6 +339,42 @@ def _sparsify(G, escore, normalize, filter, s, umst, seed, rounding):
             data["sparsify_score"] = float(scores[e])
             data["sparsify_keep"] = e in kept
     return H
+
+
+def _umst_edges(G, badness):
+    """Union of all minimum spanning forests of *G* weighted by ``badness``.
+
+    ``badness`` maps every non-loop edge ``frozenset((u, v))`` to its
+    weight.  An edge of weight *w* lies in some minimum spanning forest iff
+    its endpoints are not connected by edges of weight strictly less than
+    *w*.  Edges are processed in groups of equal weight (Kruskal by weight
+    class): every edge of a group whose endpoints are in different
+    union-find components is marked *before* the group is merged.  The
+    result is independent of node and edge order.
+    """
+    parent = {u: u for u in G}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    union = set()
+    ordered = sorted(badness.items(), key=itemgetter(1))
+    for _, group in groupby(ordered, key=itemgetter(1)):
+        crossing = []
+        for e, _ in group:
+            u, v = tuple(e)
+            ru, rv = find(u), find(v)
+            if ru != rv:
+                union.add(e)
+                crossing.append((ru, rv))
+        for ru, rv in crossing:
+            ru, rv = find(ru), find(rv)
+            if ru != rv:
+                parent[ru] = rv
+    return union
 
 
 def _score_views(G, nbrs, method, seed):
