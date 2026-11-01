@@ -63,6 +63,13 @@ the :doc:`roadmap` and in GitHub issues.
 - ``local_path_index(weight=...)``; a ``h_bridge`` attribute from
   ``h_backbone``; ``statistically_validated_cores(max_groups=...)``.
 - ``seed=`` on ``modularity_backbone``, ``sparsify``, and ``compare_graphs``.
+- ``lspar(convention="r")`` reproduces R ``backbone``'s ``lspar``. R
+  excludes the endpoints from the Jaccard denominator, uses dense ranks,
+  ignores edges with Jaccard 0, and keeps ``floor(d**s)`` edges per node
+  with no minimum of one. The reference tests show that it matches R exactly
+  on the karate club and Les Misérables at s = 0.3, 0.5 and 0.7 (karate at
+  s = 0.3: 30 edges, against 54 with the default). The default,
+  ``convention="satuluri"``, is unchanged (#59).
 
 *Bipartite and hypergraph methods*
 
@@ -82,6 +89,14 @@ the :doc:`roadmap` and in GitHub issues.
   signed backbones (``signed=True``), and SDSM-EC edge constraints.
 - ``backbone_from_projection(mtc=...)``; ``sdsm(pvalue_method=...)``;
   ``fdsm(burn_in=..., thin=...)``; ``bicm(tol=..., max_iter=...)``.
+- ``backbone_from_projection(missing_as_zero=False)`` tests only the agent
+  pairs that co-occur, as R ``backbone`` does by default. Pairs that never
+  co-occur are not counted by ``mtc`` and are never retained, even as
+  significantly weak with ``signed=True``. The default, ``True``, is unchanged
+  and tests every pair, like R's ``missing_as_zero = TRUE``. The reference
+  tests check both settings against R on Davis Southern Women, where they
+  give different backbones in 13 of 48 settings at alpha = 0.06, 0.6 and
+  0.8; at 0.05 none differs (#59).
 - ``hyper_projection(newman=True)`` / ``projection="newman"`` gives Newman's
   :math:`1/(d(z)-1)` weighting, equal to
   ``nx.bipartite.collaboration_weighted_projected_graph``. The default
@@ -304,6 +319,21 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Infrastructure and documentation**
 
+- The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
+  result classes have type annotations, and the package ships a ``py.typed``
+  marker (PEP 561), so mypy and pyright check calls into it. Functions whose
+  return type depends on a flag (``bicm(return_labels=...)``,
+  ``read_hif``/``from_*`` with ``return_weights=...``,
+  ``compare_graphs(return_diff=...)``) have overloads. The decorators
+  (``not_implemented_for``, ``py_random_state``, the backend dispatcher) are
+  typed so they keep each signature, and dispatchable functions also accept
+  ``backend=...``. NumPy, SciPy, pandas,
+  and Matplotlib types are imported only for type checking, so the core
+  package still needs only NetworkX at runtime. A new CI job runs
+  non-strict mypy with the ``types-networkx`` stubs; the new ``typing`` extra
+  pins both. The API pages keep plain signatures
+  (``autodoc_typehints = "none"``); the docstrings still give the types. No
+  behavior changes (#18).
 - The roadmap page opens with a "Roadmap at a glance" section: a stacked bar
   chart of item status per section, a network map of sections and their items
   colored by status, and the same counts as a table. ``scripts/roadmap_figures.py``
@@ -338,6 +368,16 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 - The ``multiple_linkage_analysis`` documentation no longer says
   ``method="lans"`` reproduces netbone: netbone 0.2.3's ``mlam`` is a
   correlation-based fit that neither method reproduces (#14).
+- A decision note (``docs/design/reference-conventions.md``) covers the 14
+  documented convention differences from R ``backbone`` and netbone. It
+  measures each on Les Misérables, the karate club, and Davis Southern Women
+  and recommends whether to keep ours, match the reference, or add an option.
+  The R fixture gains ``lspar`` backbones for Les Misérables and Davis
+  backbones at alphas where the ``mtc`` scope matters; every existing fixture
+  value is unchanged. The ``multiple_linkage_analysis`` Notes now compare
+  netbone's 134 Les Misérables links with the default's 205 (223 was the
+  ``deviation="profile"`` count), and the ``global_threshold_filter`` Notes
+  show how to reproduce R's strict threshold (#59).
 - CI on every push and pull request: ruff lint and format checks, tests and
   doctests on Python 3.12-3.14, a job pinned to the oldest supported
   versions, and a NetworkX-only job that checks the optional dependencies

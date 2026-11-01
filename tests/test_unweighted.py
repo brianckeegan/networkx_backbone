@@ -389,3 +389,49 @@ class TestSparsifyOptions:
         G.add_edge(0, 1)
         H = local_degree(G)
         assert H[0][1]["sparsify_keep"] and set(H) == {0, 1, 2}
+
+
+# ---------------------------------------------------------------------
+# convention="r" (R backbone's lspar; exactness is tested against R's
+# output in test_reference_implementations.py)
+# ---------------------------------------------------------------------
+
+
+def test_lspar_invalid_convention():
+    with pytest.raises(ValueError, match="convention"):
+        lspar(nx.karate_club_graph(), convention="netbone")
+
+
+def test_lspar_default_convention_unchanged():
+    G = nx.karate_club_graph()
+    for s in EXPONENTS:
+        assert _kept(lspar(G, s=s, convention="satuluri")) == _kept(lspar(G, s=s))
+
+
+def test_lspar_r_convention_edge_cases():
+    G = nx.Graph()
+    G.add_edges_from([(0, 1), (1, 2), (2, 0), (2, 3)])  # triangle with a tail
+    G.add_edge(5, 6)  # isolated edge: Jaccard 0
+    G.add_edge(0, 0)  # self-loop: ignored
+    # R's Jaccard drops the endpoints from the union: (0, 1) scores 1/1,
+    # (1, 2) and (0, 2) score 1/2, and the tail and the isolated edge 0.
+    triangle = {frozenset(e) for e in [(0, 1), (1, 2), (2, 0)]}
+    H = lspar(G, s=0.0, convention="r")
+    # Every triangle edge is top-ranked at one of its endpoints.
+    assert _kept(H) == triangle
+    assert {H.edges[tuple(e)]["sparsify_score"] for e in triangle} == {0.0}
+    assert H.edges[2, 3]["sparsify_score"] == math.inf
+    assert H.edges[5, 6]["sparsify_score"] == math.inf
+    assert H.edges[0, 0]["sparsify_keep"] is False
+    # floor(d**s) has no minimum of one: below s = 0 nothing is kept, while
+    # the default convention keeps every node's top-ranked edges.
+    assert _kept(lspar(G, s=-0.5, convention="r")) == set()
+    assert _kept(lspar(G, s=-0.5))
+    for s in EXPONENTS:
+        H = lspar(G, s=s, convention="r")
+        assert _kept(H) == triangle
+        assert _kept(H) == {
+            frozenset((u, v))
+            for u, v, x in H.edges(data="sparsify_score")
+            if x <= s and u != v
+        }

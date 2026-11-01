@@ -1,10 +1,16 @@
 """Evaluation measures for comparing backbones against their original network."""
 
+from __future__ import annotations
+
 import inspect
+from typing import TYPE_CHECKING
 
 import networkx as nx
 
 from networkx_backbone._docstrings import append_complexity_docstrings
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Hashable, Iterable, Mapping
 
 __all__ = [
     "node_fraction",
@@ -17,7 +23,7 @@ __all__ = [
 ]
 
 
-def node_fraction(original, backbone):
+def node_fraction(original: nx.Graph, backbone: nx.Graph) -> float:
     """Compute the fraction of original nodes that appear in the backbone.
 
     Only nodes that have at least one edge in the respective graph are
@@ -53,7 +59,7 @@ def node_fraction(original, backbone):
     return len(bb_nodes_with_edges) / len(orig_nodes_with_edges)
 
 
-def edge_fraction(original, backbone):
+def edge_fraction(original: nx.Graph, backbone: nx.Graph) -> float:
     """Compute the fraction of original edges preserved in the backbone.
 
     Parameters
@@ -83,7 +89,9 @@ def edge_fraction(original, backbone):
     return backbone.number_of_edges() / original.number_of_edges()
 
 
-def weight_fraction(original, backbone, weight="weight"):
+def weight_fraction(
+    original: nx.Graph, backbone: nx.Graph, weight: str = "weight"
+) -> float:
     """Compute the fraction of total edge weight preserved in the backbone.
 
     Parameters
@@ -123,7 +131,7 @@ def weight_fraction(original, backbone, weight="weight"):
     return total_bb / total_orig
 
 
-def reachability(G):
+def reachability(G: nx.Graph) -> float:
     """Compute the fraction of ordered node pairs joined by a path.
 
     For a connected undirected graph (or a strongly connected directed graph)
@@ -167,7 +175,7 @@ def reachability(G):
 
     # Every node of a strongly connected component reaches the rest of its
     # component and every node of each component downstream of it.
-    C = nx.condensation(G)
+    C = nx.condensation(G)  # type: ignore[call-overload]
     size = {c: len(C.nodes[c]["members"]) for c in C}
     reachable = 0
     for c in C:
@@ -176,7 +184,7 @@ def reachability(G):
     return reachable / total_pairs
 
 
-def ks_degree(original, backbone):
+def ks_degree(original: nx.Graph, backbone: nx.Graph) -> float:
     """Compute the Kolmogorov-Smirnov statistic between degree distributions.
 
     Parameters
@@ -212,7 +220,7 @@ def ks_degree(original, backbone):
     return float(stat)
 
 
-def ks_weight(original, backbone, weight="weight"):
+def ks_weight(original: nx.Graph, backbone: nx.Graph, weight: str = "weight") -> float:
     """Compute the Kolmogorov-Smirnov statistic between weight distributions.
 
     Parameters
@@ -250,7 +258,12 @@ def ks_weight(original, backbone, weight="weight"):
     return float(stat)
 
 
-def compare_backbones(original, backbones, measures=None, weight="weight"):
+def compare_backbones(
+    original: nx.Graph,
+    backbones: Mapping[Hashable, nx.Graph],
+    measures: Iterable[Callable[..., float]] | None = None,
+    weight: str = "weight",
+) -> dict[Hashable, dict[str, float]]:
     """Compare multiple backbones on a set of evaluation measures.
 
     Parameters
@@ -293,7 +306,7 @@ def compare_backbones(original, backbones, measures=None, weight="weight"):
         measures = [node_fraction, edge_fraction, weight_fraction]
 
     takes_weight = {m: _accepts_weight(m) for m in measures}
-    results = {}
+    results: dict[Hashable, dict[str, float]] = {}
     for name, bb in backbones.items():
         results[name] = {}
         for m in measures:

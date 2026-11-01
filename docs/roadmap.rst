@@ -142,9 +142,18 @@ Correctness gaps found in review
 - **next** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` breaks weight ties by
   adjacency order, so ``G`` and ``G.copy()`` can give different backbones.
   Make the result independent of node order.
-- **planned** (`#59 <https://github.com/brianckeegan/networkx_backbone/issues/59>`_): Decide, for each convention difference from
+- **done** (`#59 <https://github.com/brianckeegan/networkx_backbone/issues/59>`_): Decide, for each convention difference from
   R ``backbone`` and ``netbone`` that the reference tests document, whether
-  to keep it, match the reference, or add an option.
+  to keep it, match the reference, or add an option. The
+  `decision note
+  <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/reference-conventions.md>`__
+  measures each difference on the reference datasets and records the
+  decisions: every difference is kept and documented, except the sign of an
+  exact tie between the two tails, which now matches R (``-1``), so every
+  signed weighted backbone equals R's on the fixtures. R-compatible options
+  are available without changing any default:
+  ``backbone_from_projection(missing_as_zero=False)`` and
+  ``lspar(convention="r")``.
 
 Validation
 ~~~~~~~~~~
@@ -168,7 +177,8 @@ Release engineering
   release with this sprint's correctness fixes, new methods, and changes in
   results. ``v0.2.0`` (February 2026) is tagged in git, but PyPI has
   only 0.1.0 and a development build. Publish to PyPI and conda-forge from the existing workflows.
-- **planned** (`#18 <https://github.com/brianckeegan/networkx_backbone/issues/18>`_): Add ``py.typed`` and type annotations for the public API.
+- **done** (`#18 <https://github.com/brianckeegan/networkx_backbone/issues/18>`_): Add ``py.typed`` and type annotations for the public API,
+  checked by a non-strict mypy CI job.
 
 Planned features
 ----------------
