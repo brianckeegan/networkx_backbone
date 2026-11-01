@@ -646,6 +646,71 @@ def test_backbone_from_weighted_dispatch(weighted_triangle):
         backbone_from_weighted(weighted_triangle, method="global")
 
 
+class TestWeightedMissingAsZero:
+    """``backbone_from_weighted(missing_as_zero=...)`` (Backbone 3.0, #26)."""
+
+    @pytest.fixture
+    def two_pairs(self):
+        # T = 41; strengths a=21, b=20, c=21, d=20.  Absent: a-d, b-c, b-d.
+        G = nx.Graph()
+        G.add_weighted_edges_from([("a", "b", 20), ("c", "d", 20), ("a", "c", 1)])
+        return G
+
+    @staticmethod
+    def _zeros(H):
+        return {
+            tuple(sorted((u, v))): d["sign"]
+            for u, v, d in H.edges(data=True)
+            if d["weight"] == 0
+        }
+
+    def test_default_returns_no_absent_pairs(self, two_pairs):
+        for method in ("disparity", "mlf", "lans"):
+            H = backbone_from_weighted(two_pairs, method=method, signed=True)
+            assert self._zeros(H) == {}
+            assert set(map(frozenset, H.edges())) <= set(
+                map(frozenset, two_pairs.edges())
+            )
+
+    def test_mlf_keeps_significantly_weak_absent_pairs(self, two_pairs):
+        # Two-sided p-values 2 (1 - p)^41: a-d and b-c 0.00841, b-d 0.0111.
+        H = backbone_from_weighted(
+            two_pairs, method="mlf", signed=True, missing_as_zero=True
+        )
+        assert self._zeros(H) == {("a", "d"): -1, ("b", "c"): -1, ("b", "d"): -1}
+        # The absent pairs join the Bonferroni family (6 tests, not 3), and
+        # 6 * 0.00841 > 0.05.
+        H = backbone_from_weighted(
+            two_pairs, method="mlf", signed=True, missing_as_zero=True, mtc="bonferroni"
+        )
+        assert self._zeros(H) == {}
+
+    def test_disparity_and_lans_keep_every_testable_absent_pair(self, two_pairs):
+        # A weight of 0 has lower tail 0 under both nulls (as in R).
+        H = backbone_from_weighted(
+            two_pairs, method="lans", signed=True, missing_as_zero=True
+        )
+        assert self._zeros(H) == {("a", "d"): -1, ("b", "c"): -1, ("b", "d"): -1}
+        # For the disparity filter b and d both have degree 1 and cannot
+        # reject the null; a and c have degree 2.
+        H = backbone_from_weighted(
+            two_pairs, method="disparity", signed=True, missing_as_zero=True
+        )
+        assert self._zeros(H) == {("a", "d"): -1, ("b", "c"): -1}
+
+    def test_backbone_dispatch_forwards_flag(self, two_pairs):
+        from networkx_backbone import backbone
+
+        H = backbone(two_pairs, method="mlf", signed=True, missing_as_zero=True)
+        assert len(self._zeros(H)) == 3
+
+    def test_global_rejects_missing_as_zero(self, two_pairs):
+        with pytest.raises(ValueError, match="missing_as_zero"):
+            backbone_from_weighted(
+                two_pairs, method="global", threshold=1, missing_as_zero=True
+            )
+
+
 def test_backbone_from_weighted_multigraph_auto_collapse():
     G = nx.MultiGraph()
     G.add_edge(0, 1, edge_type="a")
