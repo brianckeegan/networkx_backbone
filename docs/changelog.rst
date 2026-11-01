@@ -44,6 +44,13 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
 - ``ecm_filter`` and ``noise_corrected_filter`` accept ``signed=True`` (#25).
+- New :func:`~networkx_backbone.local_mdl_hypergraph_backbone`: the local
+  MDL hypergraph backbone of Kirkley et al. (2026, Appendix E). It finds the
+  MDL backbone of each node's neighborhood separately and combines them with
+  the ``"union"``, ``"majority"`` (default), or ``"all"`` rule.
+  :class:`~networkx_backbone.HypergraphBackbone` gains ``n_hyperedges``,
+  ``aggregation``, ``local_backbones``, and ``local_description_lengths``
+  (#24).
 - Bipartite functions accept NumPy, SciPy sparse, or pandas incidence
   matrices with ``agent_labels``/``artifact_labels``, and ``agent_nodes`` is
   optional (#20, bipartite part).
