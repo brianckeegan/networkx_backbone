@@ -45,8 +45,16 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
   hyperbolic weight, :math:`1/d(z)`, is unchanged and follows Coscia & Rossi
   (2019). Projection citations are corrected to Coscia & Rossi (2019,
   arXiv:1906.09081) (#13).
+- ``glab_filter`` now supports directed graphs using the out- and
+  in-involvement of Zhang et al. (2014), Section 2.3 (#12). On a symmetric
+  ``DiGraph`` it gives the undirected p-values.
 
 **Changes in results (bug fixes)**
+
+- ``sparsify(umst=True)`` now adds the union of all minimum spanning trees
+  (Hamann et al., 2016) instead of one arbitrary spanning forest, so tied
+  scores no longer make the result depend on node order (#32). The union is
+  added whenever ``umst=True``, not only when filtering split a component.
 
 The Les Misérables counts below are edges kept at the documented threshold.
 Davis counts are significant woman-woman pairs at alpha = 0.05.

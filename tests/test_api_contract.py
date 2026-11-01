@@ -142,7 +142,7 @@ REGISTRY = [
     Spec(nb.maximum_spanning_tree_backbone, W, keep=("mst_keep",),
          order_invariant=False),
     # --- hybrid ------------------------------------------------------------
-    Spec(nb.glab_filter, W, {"glab_pvalue": P},
+    Spec(nb.glab_filter, W, {"glab_pvalue": P}, directed=True,
          bad_weights={**STATISTICAL_BAD, None: None}),
     # --- proximity ---------------------------------------------------------
     Spec(nb.neighborhood_overlap, U, {"overlap": NONNEG}, directed=True),

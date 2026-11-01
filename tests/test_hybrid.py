@@ -1,7 +1,7 @@
 """Known-answer tests for networkx_backbone.hybrid (GLAB).
 
-Shared behaviour (attributes, weight validation, directed/multigraph
-rejection, empty graphs, no input mutation) is covered by
+Shared behaviour (attributes, weight validation, directed support,
+multigraph rejection, empty graphs, no input mutation) is covered by
 ``test_api_contract.py``.
 """
 
@@ -9,6 +9,11 @@ import networkx as nx
 import pytest
 
 from networkx_backbone import glab_filter
+
+
+def _out_star(n):
+    """Directed star with edges hub -> leaf (nx.star_graph rejects DiGraph on networkx < 3.5)."""
+    return nx.DiGraph((0, i) for i in range(1, n + 1))
 
 
 class TestGLABPaperEquations:
@@ -77,3 +82,90 @@ class TestGLABPaperEquations:
         G = nx.disjoint_union(nx.cycle_graph(4), nx.path_graph(3))
         H = glab_filter(G, weight=None)
         assert all(0.0 <= d["glab_pvalue"] <= 1.0 for *_, d in H.edges(data=True))
+
+
+class TestGLABDirected:
+    """Directed variant, Zhang et al. (2014) Section 2.3, Eqs. 5 and 6."""
+
+    def test_directed_cycle_has_no_null_model(self):
+        # Every node has out-degree 1 and in-degree 1, so neither SI^(out)
+        # nor SI^(in) is defined and every link gets p = 1.
+        H = glab_filter(nx.cycle_graph(4, create_using=nx.DiGraph), weight=None)
+        assert all(p == 1.0 for *_, p in H.edges(data="glab_pvalue"))
+
+    def test_directed_cycle_with_chord_hand_computed(self):
+        # 0->1->2->3->0 plus the chord 0->2.
+        # Out of 0 (reaches 1, 2, 3): 1 via (0,1); 2 and 3 via (0,2).
+        #   I_out(0,1) = 1/3, I_out(0,2) = 2/3, k_out(0) = 2.
+        # Into 2 (reached from 0, 1, 3): 1 via (1,2); 0 and 3 (3->0->2) via (0,2).
+        #   I_in(1,2) = 1/3, I_in(0,2) = 2/3, k_in(2) = 2.
+        # All other out-/in-degrees are 1, so (2,3) and (3,0) have p = 1.
+        G = nx.cycle_graph(4, create_using=nx.DiGraph)
+        G.add_edge(0, 2)
+        H = glab_filter(G, weight=None, c=0.7)
+        expected = {
+            (0, 1): 2 / 3,
+            (0, 2): 1 / 3,
+            (1, 2): 2 / 3,
+            (2, 3): 1.0,
+            (3, 0): 1.0,
+        }
+        got = {(u, v): p for u, v, p in H.edges(data="glab_pvalue")}
+        assert got == pytest.approx(expected)
+
+    @pytest.mark.parametrize("c", [0.0, 0.5, 1.0])
+    def test_out_star_uses_out_involvement(self, c):
+        # The hub has out-degree 3 and I_out = 1/3 for each spoke; leaves
+        # have in-degree 1, so only SI^(out) = (2/3) ** (2 ** c) applies.
+        H = glab_filter(_out_star(3), weight=None, c=c)
+        assert H.number_of_edges() == 3
+        for *_, p in H.edges(data="glab_pvalue"):
+            assert p == pytest.approx((2 / 3) ** (2**c))
+
+    @pytest.mark.parametrize("c", [0.0, 0.5, 1.0])
+    def test_in_star_uses_in_involvement(self, c):
+        # Leaves -> hub: the hub has in-degree 3 and I_in = 1/3 per spoke.
+        G = _out_star(3).reverse()
+        H = glab_filter(G, weight=None, c=c)
+        assert all(v == 0 for _, v in H.edges())
+        for *_, p in H.edges(data="glab_pvalue"):
+            assert p == pytest.approx((2 / 3) ** (2**c))
+
+    def test_in_involvement_follows_reverse_paths(self):
+        # In-star into 0 plus 1 -> 2.  Node 1 reaches 0 more cheaply via 2
+        # (length 0.1 + 0.1) than directly (length 1), so (2, 0) carries the
+        # in-paths of both 1 and 2: I_in(2,0) = 2/3, I_in(1,0) = 0,
+        # I_in(3,0) = 1/3, with k_in(0) = 3.
+        G = nx.DiGraph()
+        G.add_weighted_edges_from(
+            [(1, 0, 1.0), (2, 0, 10.0), (3, 0, 1.0), (1, 2, 10.0)]
+        )
+        H = glab_filter(G, c=1.0)
+        assert H[2][0]["glab_pvalue"] == pytest.approx((1 / 3) ** 2)
+        assert H[1][0]["glab_pvalue"] == pytest.approx(1.0)
+        assert H[3][0]["glab_pvalue"] == pytest.approx((2 / 3) ** 2)
+        # Out of 1 (k_out = 2): both 0 and 2 are reached via (1, 2).
+        assert H[1][2]["glab_pvalue"] == pytest.approx(0.0)
+
+    @pytest.mark.parametrize("graph", ["les_miserables_weighted", "karate", "split"])
+    def test_symmetric_digraph_matches_undirected(self, graph, request):
+        # On a symmetric DiGraph, I_out(i,j) = I_ij, I_in(i,j) = I_ji and the
+        # out-/in-degrees equal the undirected degree, so Eq. 6 reduces to Eq. 4.
+        if graph == "split":
+            G = nx.disjoint_union(nx.star_graph(3), nx.path_graph(4))
+            G.add_edge(7, 8)
+            weight = None
+        else:
+            G = request.getfixturevalue(graph)
+            weight = "weight" if graph == "les_miserables_weighted" else None
+        undirected = glab_filter(G, weight=weight)
+        directed = glab_filter(nx.DiGraph(G), weight=weight)
+        assert directed.number_of_edges() == 2 * undirected.number_of_edges()
+        for u, v, p in directed.edges(data="glab_pvalue"):
+            assert p == pytest.approx(undirected[u][v]["glab_pvalue"], abs=1e-12)
+
+    def test_directed_result_is_directed_copy(self):
+        G = nx.DiGraph([(0, 1), (1, 2), (0, 2)])
+        H = glab_filter(G, weight=None)
+        assert H.is_directed()
+        assert all("glab_pvalue" not in d for *_, d in G.edges(data=True))
