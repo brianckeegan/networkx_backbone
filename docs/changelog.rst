@@ -188,6 +188,12 @@ the :doc:`roadmap` and in GitHub issues.
   ``datetime`` times with ``timedelta`` steps need only NetworkX; frequency
   strings such as ``"1D"`` import pandas lazily. See
   :doc:`user_guide/temporal`.
+- :func:`~networkx_backbone.flatten_temporal` collapses snapshots, events or
+  spans into one static weighted graph for the static backbone methods: one
+  edge per node pair with the combined ``weight`` (``aggregate=`` sum, count,
+  mean, max or min, or ``"duration"`` for spans, the length of the union of a
+  pair's spans), ``n_obs``, ``first`` and ``last`` (and ``active_time`` for
+  spans), optionally restricted to a half-open ``window=(t0, t1)``.
 - :func:`~networkx_backbone.from_event_table` and
   :func:`~networkx_backbone.to_event_table` read and write pandas event (or
   span) tables, keeping duplicate rows as separate events (#70, pandas part).
