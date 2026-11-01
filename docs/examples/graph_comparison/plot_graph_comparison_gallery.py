@@ -120,6 +120,18 @@ def _method_specs() -> list[MethodSpec]:
             ),
         ),
         MethodSpec(
+            "polya_filter",
+            "les_miserables",
+            "statistical",
+            lambda c: nb.threshold_filter(
+                nb.polya_filter(c["les_weighted"]),
+                "polya_pvalue",
+                0.05,
+                mode="below",
+                include_all_nodes=False,
+            ),
+        ),
+        MethodSpec(
             "lans_filter",
             "les_miserables",
             "statistical",
