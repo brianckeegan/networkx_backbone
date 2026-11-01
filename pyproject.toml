@@ -104,3 +104,31 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["networkx_backbone"]
+
+[tool.numpydoc_validation]
+# Docstring checks shared by `python -m numpydoc lint networkx_backbone/*.py`
+# and the Sphinx build (docs/conf.py reads this table), where a failure is a
+# warning and so fails the `-W` build.  The subset keeps the structural
+# guarantees that drift silently when signatures change:
+#   GL06 known section names; GL08 docstring present; SS01 summary line;
+#   PR01 every parameter documented; PR02 no unknown parameters documented;
+#   PR03 parameters in signature order; RT01 Returns section present;
+#   EX01 Examples section present (they also run as doctests).
+# SA01 ("See Also" present) is off for now: 46 public functions lack one.
+# The stylistic checks (GL02, RT02, PR06, SA04, ES01, ...) are off as well.
+checks = ["GL06", "GL08", "SS01", "PR01", "PR02", "PR03", "RT01", "EX01"]
+exclude = [
+    # Patterns match both the lint's "module.name" and Sphinx's
+    # "networkx_backbone.name".  Private modules and helpers, at any depth:
+    '(^|\.)_',
+    # Module docstrings (lint only): narrative overviews with free headings.
+    '^[a-z_]+$',
+    # Closures nested inside public functions (lint only).
+    '^(?!networkx_backbone\.)[a-z_]+\.[a-z0-9_]+\.[a-z0-9_]+$',
+    # Short aliases: thin wrappers whose docstring points at the full function.
+    '(^|\.)(disparity|mlf|lans|svh|svc)$',
+    # Result containers built by the library, not by users: their fields are
+    # documented under "Attributes" (which PR01 does not read), and the
+    # functions that return them carry the examples.
+    '(^|\.)(HypergraphBackbone|ValidatedHypergraph)(\.|$)',
+]

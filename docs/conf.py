@@ -4,6 +4,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import sys
+import tomllib
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
@@ -29,7 +30,6 @@ version = ".".join(release.split(".")[:2])
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.napoleon",
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
@@ -42,15 +42,22 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-# -- Napoleon / numpydoc settings --------------------------------------------
+# -- numpydoc settings -------------------------------------------------------
+# numpydoc alone parses the NumPy-style docstrings.  (sphinx.ext.napoleon used
+# to run first and rewrite every section into field lists, which hid the
+# sections from numpydoc's validation below.)
 
-napoleon_google_docstring = False
-napoleon_numpy_docstring = True
-napoleon_use_param = True
-napoleon_use_rtype = True
 numpydoc_show_class_members = False
-numpydoc_validation_checks = set()
 numpydoc_xref_param_type = False
+
+# Validate every docstring autodoc renders; a failure is a Sphinx warning, so
+# the ``-W`` docs build fails on it.  The checks and exclusions live in the
+# ``[tool.numpydoc_validation]`` table of pyproject.toml (with the reasons),
+# shared with the faster ``python -m numpydoc lint networkx_backbone/*.py``.
+with open(ROOT / "pyproject.toml", "rb") as _f:
+    _numpydoc_cfg = tomllib.load(_f)["tool"]["numpydoc_validation"]
+numpydoc_validation_checks = set(_numpydoc_cfg["checks"])
+numpydoc_validation_exclude = set(_numpydoc_cfg["exclude"])
 
 # -- Nitpick settings --------------------------------------------------------
 # Suppress warnings for type references that numpydoc extracts from docstrings
@@ -90,6 +97,9 @@ nitpick_ignore_regex = [
     (r"py:exc", r"NetworkXError"),
     (r"py:exc", r"NetworkXNotImplemented"),
     (r"py:exc", r"AmbiguousSolution"),
+    # numpydoc renders result-class "Attributes" as a parameter list, which
+    # creates no per-attribute link target.
+    (r"py:attr", r"(HypergraphBackbone|ValidatedHypergraph)\..*"),
 ]
 
 suppress_warnings = ["ref.citation", "ref.class"]
