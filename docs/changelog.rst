@@ -70,9 +70,13 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - ``multiple_linkage_analysis`` now fits each node's sorted weights to ideal
   dominance distributions by default (``method="dominance"``; Van Nuffel,
   2007, after Weaver, 1954) and adds ``mla_rank``. The previous LANS
-  threshold, which netbone uses, is ``method="lans"``. Les Misérables: 109 ->
-  223 edges (#10; the exact deviation measure is still to be checked against
-  the 2007 paper).
+  threshold, which netbone uses, is ``method="lans"``. The fit is the
+  coefficient of determination over the zero-padded profile, as restated by
+  Van Nuffel, Derudder & Witlox (2010), whose Table 1 the tests reproduce; a
+  new ``deviation=`` keyword also offers ``"profile"`` (whole-profile squared
+  deviation, the measure used earlier in this development cycle) and
+  ``"weaver"`` (Weaver's variance over the candidate links). Les Misérables:
+  109 -> 205 edges (``"profile"``: 223, ``"weaver"``: 253) (#10).
 - ``sparsify(umst=True)`` now adds the union of all minimum spanning trees
   (Hamann et al., 2016) instead of one arbitrary spanning forest, so tied
   scores no longer make the result depend on node order (#32). The union is

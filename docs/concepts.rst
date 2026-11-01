@@ -39,7 +39,8 @@ standard deviations (``nc_score > delta * nc_sdev``, with ``delta = 1.64`` in
 the paper); ``nc_pvalue`` expresses the same rule as a p-value.  Multiple
 linkage analysis is not a significance test: for each node it chooses how many
 links are dominant by comparing the node's sorted weight shares with ideal
-"one dominant link", "two equal links", ... distributions, whereas LANS gives
+"one dominant link", "two equal links", ... distributions (by the coefficient
+of determination, as restated by Van Nuffel et al., 2010), whereas LANS gives
 every link a p-value from its node's empirical weight distribution.
 
 P-values can be corrected for multiple comparisons with

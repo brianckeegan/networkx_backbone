@@ -31,7 +31,7 @@ EXPECTED_EDGES = {
     "marginal_likelihood_filter": 126,
     "ecm_filter": 72,
     "lans_filter": 109,
-    "multiple_linkage_analysis": 223,
+    "multiple_linkage_analysis": 205,
     "multiple_linkage_analysis(method='lans', alpha=0.05)": 109,
     "global_threshold_filter(threshold=2)": 157,
     "strongest_n_ties(n=2)": 113,

@@ -73,10 +73,12 @@ Correctness gaps found in review and not yet fixed
   posterior variance from the beta prior plus the delta method, and the
   transformed lift score. Keep the current score as an option for backward
   compatibility.
-- **next** (`#10 <https://github.com/brianckeegan/networkx_backbone/issues/10>`_): The dominance-fitting multiple
-  linkage analysis is implemented (``method="dominance"``). Its deviation
-  measure still needs checking against Van Nuffel (2007): the whole-profile
-  sum of squares versus Weaver's mean over the *k* candidate links.
+- **done** (`#10 <https://github.com/brianckeegan/networkx_backbone/issues/10>`_): The dominance-fitting multiple
+  linkage analysis is implemented (``method="dominance"``). Its fit is the
+  coefficient of determination, checked against Table 1 of Van Nuffel,
+  Derudder & Witlox (2010); the whole-profile sum of squares and Weaver's
+  variance are available through ``deviation=``. The 2007 paper itself is
+  paywalled and was not read.
 - **done** (`#11 <https://github.com/brianckeegan/networkx_backbone/issues/11>`_, contributed in
   `#34 <https://github.com/brianckeegan/networkx_backbone/pull/34>`_): Directed ``lans_filter`` now also tests the
   target's in-links.
