@@ -10,7 +10,7 @@ Methods
 disparity_filter
     Serrano et al. (2009) -- uniform distribution null model.
 noise_corrected_filter
-    Coscia & Neffke (2017) -- Bayesian binomial framework.
+    Coscia & Neffke (2017) -- Bayesian noise-corrected lift score.
 marginal_likelihood_filter
     Dianati (2016) -- binomial null considering both endpoints.
 ecm_filter
@@ -18,7 +18,7 @@ ecm_filter
 lans_filter
     Foti et al. (2011) -- nonparametric, empirical CDF-based.
 multiple_linkage_analysis
-    Local linkage significance backbone extraction.
+    Van Nuffel et al. (2010) -- dominant links by fitting ideal distributions.
 """
 
 import math
@@ -202,43 +202,62 @@ def _disparity_node_tails(w, s, k):
 
 
 @not_implemented_for("multigraph")
-def noise_corrected_filter(G, weight="weight"):
-    r"""Compute noise-corrected edge significance scores.
+def noise_corrected_filter(G, weight="weight", method="bayesian", signed=False):
+    r"""Compute noise-corrected (NC) edge scores (Coscia & Neffke, 2017).
 
-    Models each edge weight as the outcome of a binomial process in which
-    the total network weight *W* is distributed according to the endpoint
-    strengths, following the null model of Coscia & Neffke [1]_.  The
-    expected weight of edge (u, v) is::
+    The noise-corrected backbone [1]_ asks whether an edge carries more weight
+    than expected from the strengths of its endpoints, and how sure we can be
+    of that given that edge weights are noisy counts.  Write :math:`n_{ij}`
+    for the weight of edge :math:`(i, j)`, :math:`n_{i.}` and :math:`n_{.j}`
+    for the row and column sums of the weight matrix (out- and in-strength)
+    and :math:`n_{..}` for its total.  The edge score is the *lift*
+    :math:`L_{ij} = \kappa_{ij} n_{ij}`, with
+    :math:`\kappa_{ij} = n_{..} / (n_{i.} n_{.j})`, mapped to
+    :math:`(-1, 1)`:
 
-        E[w_uv] = (s_u * s_v) / W
+    .. math::
 
-    The score measures how many standard deviations the observed weight
-    lies above the expectation (a z-score).  Higher scores indicate
-    more significant edges.
+        \text{nc\_score}_{ij} = \frac{\kappa_{ij} n_{ij} - 1}{\kappa_{ij} n_{ij} + 1}.
 
-    .. note::
+    A score of 0 means the edge has exactly the weight expected from its
+    endpoints; positive scores mean more.  The standard deviation of the score
+    comes from a Bayesian model of :math:`n_{ij}` (see Notes).  The paper keeps
+    an edge when
 
-       This is a simplified, frequentist version of the noise-corrected
-       backbone.  It does not implement the Bayesian posterior variance
-       (delta-method) estimate of the original paper, so scores differ from
-       the reference implementation, especially for low-strength nodes.
-       See the project roadmap.
+    .. math::
 
-    For directed graphs, out-strength of *u* and in-strength of *v*
-    are used.
+        \text{nc\_score}_{ij} > \delta \cdot \text{nc\_sdev}_{ij},
+
+    with :math:`\delta = 1.64` the usual choice (a one-tailed test at about
+    the 5% level).  ``nc_pvalue`` is the matching normal-approximation p-value,
+    :math:`P(Z \geq \text{nc\_score} / \text{nc\_sdev})`, so the rule
+    ``score > delta * sdev`` is the same as ``nc_pvalue < 1 - Phi(delta)``
+    (0.0505 for ``delta=1.64``) and the scores compose with
+    :func:`~networkx_backbone.threshold_filter` and its multiple-testing
+    corrections.
 
     Parameters
     ----------
     G : networkx.Graph or networkx.DiGraph
-        A NetworkX graph.
+        A NetworkX graph.  The model treats weights as counts.
     weight : string, optional (default="weight")
         Edge attribute key for weights.  All weights must be positive.
+    method : {"bayesian", "zscore"}, optional (default="bayesian")
+        ``"bayesian"`` is the published noise-corrected backbone, matching the
+        authors' reference implementation (``backboning.noise_corrected``).
+        ``"zscore"`` is the binomial z-score computed by networkx-backbone
+        0.2 and earlier, kept for backward compatibility (see Notes).
+    signed : bool, optional (default=False)
+        If ``True``, run a two-tailed test on ``nc_score / nc_sdev``:
+        ``nc_pvalue`` becomes two-sided and a ``"sign"`` edge attribute marks
+        significantly strong (``+1``) versus significantly weak (``-1``) edges.
 
     Returns
     -------
     H : graph
-        A copy of *G* (same type) with ``"nc_score"`` edge attribute
-        (z-score; higher means more significant).
+        A copy of *G* (same type).  Every edge gets ``"nc_score"`` and
+        ``"nc_pvalue"``; with ``method="bayesian"`` also ``"nc_sdev"``; with
+        ``signed=True`` also ``"sign"``.
 
     Raises
     ------
@@ -246,15 +265,74 @@ def noise_corrected_filter(G, weight="weight"):
         If any edge has a non-positive, non-finite, or missing weight.
     NetworkXNotImplemented
         If *G* is a multigraph.
+    ValueError
+        If *method* is not ``"bayesian"`` or ``"zscore"``.
 
     See Also
     --------
-    threshold_filter : Use ``mode="above"`` to keep high scores.
+    threshold_filter : Keep edges with ``nc_pvalue`` below a threshold.
+    marginal_likelihood_filter : Binomial null model with exact p-values.
+
+    Notes
+    -----
+    **Prior.**  Under the null hypothesis the edge probability
+    :math:`p_{ij}` has the mean and variance of drawing the :math:`n_{..}`
+    units of weight without replacement (hypergeometric) given the margins:
+
+    .. math::
+
+        E[p_{ij}] = \frac{n_{i.} n_{.j}}{n_{..}^2}, \qquad
+        V[p_{ij}] = \frac{n_{i.} n_{.j} (n_{..} - n_{i.}) (n_{..} - n_{.j})}
+                         {n_{..}^4 (n_{..} - 1)}.
+
+    A Beta(:math:`\alpha, \beta`) prior is fitted to these moments,
+    :math:`\alpha = E^2 (1 - E) / V - E` and
+    :math:`\beta = E (1 - E^2) / V - (1 - E)` (the latter exactly as in the
+    reference code).
+
+    **Posterior.**  Observing :math:`n_{ij}` successes in :math:`n_{..}`
+    trials gives the posterior mean
+    :math:`\hat p_{ij} = (\alpha + n_{ij}) / (\alpha + \beta + n_{..})` and
+    the binomial variance
+    :math:`V[n_{ij}] = n_{..} \hat p_{ij} (1 - \hat p_{ij})`.
+
+    **Delta method.**  The variance of the score is
+    :math:`V[n_{ij}] \, (\partial\, \text{nc\_score} / \partial n_{ij})^2`,
+    where the derivative also accounts for :math:`n_{ij}` being part of
+    :math:`n_{i.}`, :math:`n_{.j}` and :math:`n_{..}`:
+
+    .. math::
+
+        \frac{\partial\, \text{nc\_score}}{\partial n_{ij}}
+        = \frac{2 (\kappa_{ij} + n_{ij} d_{ij})}{(\kappa_{ij} n_{ij} + 1)^2},
+        \qquad
+        d_{ij} = \frac{1}{n_{i.} n_{.j}}
+               - n_{..} \frac{n_{i.} + n_{.j}}{(n_{i.} n_{.j})^2}.
+
+    ``nc_sdev`` is the square root of this variance.  When the prior is
+    degenerate (total weight of at most 1, or one node carrying all of it)
+    the score cannot be tested: ``nc_sdev`` is ``inf`` and ``nc_pvalue`` 1.
+
+    **Directed and undirected graphs.**  For a directed graph,
+    :math:`n_{i.}` is the out-strength of *i*, :math:`n_{.j}` the in-strength
+    of *j* and :math:`n_{..}` the total weight.  An undirected graph is
+    treated as a symmetric weight matrix, as the reference implementation
+    expects: every edge is counted in both directions, so :math:`n_{i.}` is
+    the strength of *i* and :math:`n_{..} = 2W` for total edge weight *W*
+    (a self-loop is a single diagonal entry, counted once).  The score is
+    symmetric in *i* and *j*.
+
+    **Legacy z-score.**  ``method="zscore"`` returns
+    :math:`z = (w - W p) / \sqrt{W p (1 - p)}` with
+    :math:`p = s_u s_v / W^2`, where *W* counts each undirected edge once but
+    strengths count it at both endpoints.  That mismatch makes expected
+    weights sum to about :math:`2W`, so on a unit-weight complete graph every
+    edge gets a negative score.  Its ``nc_pvalue`` is :math:`P(Z \geq z)`.
 
     References
     ----------
     .. [1] Coscia, M. & Neffke, F. M. (2017). Network backboning with
-       noisy data. *Proc. IEEE ICDE*, 425-436.
+       noisy data. *Proc. IEEE ICDE*, 425-436. arXiv:1701.07336.
 
     Examples
     --------
@@ -262,17 +340,96 @@ def noise_corrected_filter(G, weight="weight"):
     >>> from networkx_backbone import noise_corrected_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = noise_corrected_filter(G)
-    >>> backbone = threshold_filter(H, "nc_score", 2.0, mode="above")
-    >>> backbone.number_of_edges() <= H.number_of_edges()
-    True
+    >>> kept = [(u, v) for u, v, d in H.edges(data=True)
+    ...         if d["nc_score"] > 1.64 * d["nc_sdev"]]
+    >>> len(kept)
+    195
+    >>> backbone = threshold_filter(H, "nc_pvalue", 0.05, mode="below")
+    >>> backbone.number_of_edges()
+    195
     """
+    if method not in ("bayesian", "zscore"):
+        raise ValueError(f"method must be 'bayesian' or 'zscore', got {method!r}")
+
     H = G.copy()
     _validate_weights(H, weight)
 
-    W = sum(d[weight] for _, _, d in G.edges(data=True))
-    if W == 0:
+    if G.number_of_edges() == 0:
         return H
 
+    if method == "zscore":
+        _noise_corrected_zscore(G, H, weight, signed)
+        return H
+
+    # Row and column sums of the (symmetric, for undirected graphs) weight
+    # matrix, counting each undirected non-loop edge in both directions.
+    s_out, s_in = {}, {}
+    total = 0.0
+    for u, v, d in G.edges(data=True):
+        w = d[weight]
+        s_out[u] = s_out.get(u, 0.0) + w
+        s_in[v] = s_in.get(v, 0.0) + w
+        total += w
+        if not G.is_directed() and u != v:
+            s_out[v] = s_out.get(v, 0.0) + w
+            s_in[u] = s_in.get(u, 0.0) + w
+            total += w
+
+    for u, v, data in H.edges(data=True):
+        score, sdev = _nc_score_sdev(data[weight], s_out[u], s_in[v], total)
+        if math.isinf(sdev):
+            p_hi, p_lo = 1.0, 1.0  # degenerate prior: nothing to test
+        elif sdev == 0.0:
+            p_hi, p_lo = _normal_tails(math.copysign(math.inf, score) if score else 0.0)
+        else:
+            p_hi, p_lo = _normal_tails(score / sdev)
+        data["nc_score"] = score
+        data["nc_sdev"] = sdev
+        if signed:
+            data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
+        else:
+            data["nc_pvalue"] = p_hi
+
+    return H
+
+
+def _nc_score_sdev(n_ij, n_i, n_j, n):
+    """NC score and its standard deviation for one cell of the weight matrix.
+
+    Mirrors ``backboning.noise_corrected`` of Coscia & Neffke (2017) term by
+    term.  ``n_i`` and ``n_j`` are the row and column sums and ``n`` the total.
+    """
+    kappa = n / (n_i * n_j)
+    lift = kappa * n_ij
+    score = (lift - 1.0) / (lift + 1.0)
+    if n <= 1.0:
+        return score, math.inf
+    mean_prior = (n_i * n_j / n) * (1.0 / n)
+    var_prior = (1.0 / n**2) * (n_i * n_j * (n - n_i) * (n - n_j)) / (n**2 * (n - 1.0))
+    if not var_prior > 0.0:
+        return score, math.inf
+    alpha_prior = (mean_prior**2 / var_prior) * (1.0 - mean_prior) - mean_prior
+    beta_prior = (mean_prior / var_prior) * (1.0 - mean_prior**2) - (1.0 - mean_prior)
+    alpha_post = alpha_prior + n_ij
+    beta_post = n - n_ij + beta_prior
+    expected_p = alpha_post / (alpha_post + beta_post)
+    variance_n = expected_p * (1.0 - expected_p) * n
+    d = 1.0 / (n_i * n_j) - n * ((n_i + n_j) / (n_i * n_j) ** 2)
+    deriv = 2.0 * (kappa + n_ij * d) / (lift + 1.0) ** 2
+    variance = variance_n * deriv**2
+    if not (variance >= 0.0 and math.isfinite(variance)):
+        return score, math.inf
+    return score, math.sqrt(variance)
+
+
+def _normal_tails(z):
+    """Upper and lower standard-normal tail probabilities at ``z``."""
+    return 0.5 * math.erfc(z / math.sqrt(2.0)), 0.5 * math.erfc(-z / math.sqrt(2.0))
+
+
+def _noise_corrected_zscore(G, H, weight, signed):
+    """Legacy binomial z-score (networkx-backbone <= 0.2), written into *H*."""
+    W = sum(d[weight] for _, _, d in G.edges(data=True))
     if G.is_directed():
         s_out = dict(G.out_degree(weight=weight))
         s_in = dict(G.in_degree(weight=weight))
@@ -281,23 +438,18 @@ def noise_corrected_filter(G, weight="weight"):
         s_in = s_out
 
     for u, v, data in H.edges(data=True):
-        w = data[weight]
-        su = s_out[u]
-        sv = s_in[v]
-
-        p_ij = (su * sv) / (W * W)
-        n = W
-        expected = n * p_ij
-        variance = n * p_ij * (1 - p_ij)
-
+        p_ij = (s_out[u] * s_in[v]) / (W * W)
+        variance = W * p_ij * (1 - p_ij)
         if variance > 0:
-            z = (w - expected) / math.sqrt(variance)
+            z = (data[weight] - W * p_ij) / math.sqrt(variance)
         else:
             z = 0.0
-
         data["nc_score"] = z
-
-    return H
+        p_hi, p_lo = _normal_tails(z)
+        if signed:
+            data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
+        else:
+            data["nc_pvalue"] = p_hi
 
 
 # =====================================================================
@@ -415,7 +567,7 @@ def marginal_likelihood_filter(G, weight="weight", signed=False):
 
 
 @not_implemented_for("multigraph")
-def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6):
+def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6, signed=False):
     r"""Compute ECM (Enhanced Configuration Model) p-values.
 
     The ECM [1]_ is the maximum-entropy ensemble of integer-weighted graphs
@@ -450,11 +602,17 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6):
     tol : float, optional (default=1e-6)
         Tolerance on the largest relative error of the reproduced degrees and
         strengths.  A :class:`RuntimeWarning` is raised if it is not met.
+    signed : bool, optional (default=False)
+        If ``True``, run a two-tailed test and add a ``"sign"`` edge attribute
+        (``+1`` significantly strong, ``-1`` significantly weak).  The lower
+        tail is :math:`P(w_{ij} \leq w) = 1 - p_{ij} (y_i y_j)^w`, using the
+        same fitted multipliers.
 
     Returns
     -------
     H : graph
-        A copy of *G* (same type) with ``"ecm_pvalue"`` edge attribute.
+        A copy of *G* (same type) with ``"ecm_pvalue"`` edge attribute (and
+        ``"sign"`` when ``signed=True``).
 
     Raises
     ------
@@ -504,6 +662,8 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6):
     if n == 0 or G.number_of_edges() == 0:
         for _, _, data in H.edges(data=True):
             data["ecm_pvalue"] = 1.0
+            if signed:
+                data["sign"] = 1
         return H
 
     idx = {v: i for i, v in enumerate(nodes)}
@@ -538,6 +698,8 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6):
     for u, v, data in H.edges(data=True):
         if u == v:
             data["ecm_pvalue"] = 1.0
+            if signed:
+                data["sign"] = 1
             continue
         i, j = idx[u], idx[v]
         # x_i x_j y_i y_j = exp(-(a_i + a_j)); y_i y_j = exp(-(b_i + b_j)).
@@ -550,8 +712,15 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6):
             math.exp(log_xxyy - hi) + math.exp(log_one_minus_yy - hi)
         )
         w = max(round(data[weight]), 1)
-        pval = math.exp(log_xxyy - log_denom + (w - 1) * log_yy)
-        data["ecm_pvalue"] = float(min(max(pval, 0.0), 1.0))
+        # Upper tail P(w_ij >= w) = p_ij (y_i y_j)^(w - 1).
+        log_p_hi = log_xxyy - log_denom + (w - 1) * log_yy
+        p_hi = float(min(max(math.exp(log_p_hi), 0.0), 1.0))
+        if signed:
+            # Lower tail P(w_ij <= w) = 1 - P(w_ij >= w + 1).
+            p_lo = -math.expm1(min(log_p_hi + log_yy, 0.0))
+            data["ecm_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
+        else:
+            data["ecm_pvalue"] = p_hi
 
     return H
 
@@ -867,44 +1036,89 @@ def lans_filter(G, weight="weight", signed=False):
 
 
 @not_implemented_for("multigraph")
-def multiple_linkage_analysis(G, alpha=0.05, weight="weight"):
+def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"):
     r"""Extract a backbone using Multiple Linkage Analysis (MLA).
 
-    Selects edges whose weights are unusually high relative to the other
-    edges of their endpoints, using the edge-level empirical-CDF p-values of
-    :func:`lans_filter` and keeping edges with p-value <= ``alpha``.  This
-    follows the netbone [2]_ implementation.
+    With ``method="dominance"`` (the default) this is the multiple linkage
+    analysis of Van Nuffel et al. [1]_, which decides how many of a node's
+    links are *dominant*.  For each node:
 
-    .. note::
+    1. Sort its link weights in decreasing order and divide by their sum,
+       giving the profile :math:`p_1 \geq p_2 \geq \dots \geq p_n`.
+    2. Compare the profile with the ideal distributions in which *k* links
+       share the weight equally and the others have none,
+       :math:`t^{(k)} = (1/k, \dots, 1/k, 0, \dots, 0)`, for
+       :math:`k = 1, \dots, n`, using the squared deviation
 
-       The original multiple linkage analysis of Van Nuffel et al. [1]_
-       instead compares each node's sorted link weights with a sequence of
-       ideal "dominance" distributions and keeps the links of the best fit.
-       That procedure is not implemented here yet; see the project roadmap.
+       .. math::
+
+           D_k = \sum_{r=1}^{n} \left(p_r - t^{(k)}_r\right)^2
+               = \sum_{r=1}^{n} p_r^2 + \frac{1 - 2 \sum_{r \leq k} p_r}{k}.
+
+    3. Keep the *k* strongest links of the best fit (smallest :math:`D_k`).
+
+    Each node keeps at least one link.  For a directed graph the profile is
+    built from each node's out-links (the setting of [1]_) and an edge is kept
+    when it is dominant for its source.  For an undirected graph each node
+    uses all of its links, and an edge is kept when it is dominant for
+    *either* endpoint (OR rule).
+
+    With ``method="lans"`` this reproduces the netbone [2]_ implementation,
+    which thresholds the edge p-values of :func:`lans_filter` at ``alpha``.
 
     Parameters
     ----------
     G : networkx.Graph or networkx.DiGraph
         A NetworkX graph.
     alpha : float, optional (default=0.05)
-        Significance threshold in [0, 1].
+        Significance threshold in [0, 1].  Only used by ``method="lans"``.
     weight : string, optional (default="weight")
         Edge attribute key for weights. All weights must be positive.
+    method : {"dominance", "lans"}, optional (default="dominance")
+        ``"dominance"`` fits ideal dominance distributions as in [1]_;
+        ``"lans"`` keeps edges with LANS p-value <= ``alpha``, as netbone
+        does and as networkx-backbone 0.2 and earlier did.
 
     Returns
     -------
     H : graph
-        A copy of *G* with ``"lans_pvalue"``, ``"mla_pvalue"``, and boolean
-        ``"mla_keep"`` edge attributes.
+        A copy of *G*.  With ``method="dominance"`` every edge gets a boolean
+        ``"mla_keep"`` attribute and every node an integer ``"mla_rank"``
+        attribute, the number of dominant links it keeps (0 for a node with
+        no links, or no out-links in a directed graph).  With
+        ``method="lans"`` every edge gets ``"lans_pvalue"``, ``"mla_pvalue"``
+        and boolean ``"mla_keep"``.
 
     Raises
     ------
     ValueError
-        If ``alpha`` is outside [0, 1].
+        If ``alpha`` is outside [0, 1] or *method* is unknown.
     NetworkXError
         If any edge has a non-positive, non-finite, or missing weight.
     NetworkXNotImplemented
         If *G* is a multigraph.
+
+    See Also
+    --------
+    lans_filter : Empirical-CDF p-values used by ``method="lans"``.
+    primary_linkage_analysis : Keeps only each node's single strongest link.
+    boolean_filter : Keep the edges flagged ``mla_keep``.
+
+    Notes
+    -----
+    The procedure is the least-squares comparison with ideal distributions
+    used in multiple linkage analysis, after Weaver's (1954) crop-combination
+    method.  Here the deviation is summed over the node's whole profile, so
+    links outside the dominant set count against a fit.  Ideal distributions
+    that would split a group of tied weights are not considered (such a split
+    never fits strictly better), so tied links are kept or dropped together and ``mla_rank`` is always the number
+    of links the node keeps.  If two fits are equally good, the smaller *k*
+    wins.
+
+    Unlike LANS, which tests each link against the empirical distribution of
+    its node's weights, the dominance fit chooses *how many* links each node
+    keeps: a node with one overwhelming link keeps one, a node whose weight is
+    spread evenly keeps all of them.
 
     References
     ----------
@@ -918,23 +1132,83 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight"):
 
     Examples
     --------
+    A node with one dominant link keeps one; a node with two equally strong
+    links keeps both:
+
     >>> import networkx as nx
     >>> from networkx_backbone import boolean_filter, multiple_linkage_analysis
+    >>> G = nx.DiGraph()
+    >>> G.add_weighted_edges_from([("a", "x", 10), ("a", "y", 1), ("a", "z", 1)])
+    >>> G.add_weighted_edges_from([("b", "x", 10), ("b", "y", 10), ("b", "z", 1)])
+    >>> H = multiple_linkage_analysis(G)
+    >>> H.nodes["a"]["mla_rank"], H.nodes["b"]["mla_rank"]
+    (1, 2)
+    >>> sorted(boolean_filter(H, "mla_keep").edges())
+    [('a', 'x'), ('b', 'x'), ('b', 'y')]
+
+    The netbone variant thresholds LANS p-values:
+
     >>> G = nx.les_miserables_graph()
-    >>> H = multiple_linkage_analysis(G, alpha=0.5)
+    >>> H = multiple_linkage_analysis(G, alpha=0.05, method="lans")
     >>> backbone = boolean_filter(H, "mla_keep")
     >>> backbone.number_of_edges() <= H.number_of_edges()
     True
     """
+    if method not in ("dominance", "lans"):
+        raise ValueError(f"method must be 'dominance' or 'lans', got {method!r}")
     if not 0.0 <= alpha <= 1.0:
         raise ValueError("alpha must be in [0, 1]")
 
-    scored = lans_filter(G, weight=weight)
-    for _, _, data in scored.edges(data=True):
-        pvalue = data["lans_pvalue"]
-        data["mla_pvalue"] = pvalue
-        data["mla_keep"] = pvalue <= alpha
-    return scored
+    if method == "lans":
+        scored = lans_filter(G, weight=weight)
+        for _, _, data in scored.edges(data=True):
+            pvalue = data["lans_pvalue"]
+            data["mla_pvalue"] = pvalue
+            data["mla_keep"] = pvalue <= alpha
+        return scored
+
+    H = G.copy()
+    _validate_weights(H, weight)
+
+    neighbors = G.succ if G.is_directed() else G.adj
+    cutoff = {}
+    for node in G:
+        weights = sorted((d[weight] for d in neighbors[node].values()), reverse=True)
+        k = _dominance_rank(weights)
+        H.nodes[node]["mla_rank"] = k
+        cutoff[node] = weights[k - 1] if k else math.inf
+
+    for u, v, data in H.edges(data=True):
+        w = data[weight]
+        keep = w >= cutoff[u]
+        if not G.is_directed():
+            keep = keep or w >= cutoff[v]
+        data["mla_keep"] = bool(keep)
+    return H
+
+
+def _dominance_rank(weights):
+    """Number of dominant links for a node's weights sorted in decreasing order.
+
+    Returns the *k* whose ideal distribution (*k* equal links, the rest zero)
+    is closest in squared deviation to the normalized profile; *k* never
+    splits a run of tied weights, and ties in the deviation go to the
+    smaller *k*.  The constant ``sum(p_r**2)`` is left out of the deviation.
+    """
+    n = len(weights)
+    if n == 0:
+        return 0
+    total = math.fsum(weights)
+    best_k, best_dev = n, math.inf
+    cum = 0.0
+    for k in range(1, n + 1):
+        cum += weights[k - 1]
+        if k < n and weights[k] == weights[k - 1]:
+            continue  # would split a group of tied weights
+        dev = (1.0 - 2.0 * cum / total) / k
+        if dev < best_dev - 1e-12:
+            best_k, best_dev = k, dev
+    return best_k
 
 
 def _empirical_cdf(w, sorted_weights):
@@ -996,7 +1270,7 @@ _COMPLEXITY = {
     "multiple_linkage_analysis": {
         "time": "O(m log n)",
         "space": "O(n + m)",
-        "notes": "Dominated by lans_filter.",
+        "notes": "Dominated by sorting each node's link weights (or lans_filter).",
     },
     "disparity": {
         "time": "O(n + m)",

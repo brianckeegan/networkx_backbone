@@ -34,6 +34,12 @@ WEIGHTED_METHOD_EDGE_COUNTS = [
     (
         "noise_corrected_filter",
         lambda G: nb.noise_corrected_filter(G),
+        lambda H: nb.threshold_filter(H, "nc_pvalue", DEFAULT_PVALUE, mode="below"),
+        195,
+    ),
+    (
+        "noise_corrected_filter(method='zscore')",
+        lambda G: nb.noise_corrected_filter(G, method="zscore"),
         lambda H: nb.threshold_filter(H, "nc_score", 2.0, mode="above"),
         98,
     ),
@@ -56,8 +62,14 @@ WEIGHTED_METHOD_EDGE_COUNTS = [
         109,
     ),
     (
-        "multiple_linkage_analysis(alpha=0.05)",
-        lambda G: nb.multiple_linkage_analysis(G, alpha=0.05),
+        "multiple_linkage_analysis",
+        lambda G: nb.multiple_linkage_analysis(G),
+        lambda H: nb.boolean_filter(H, "mla_keep"),
+        223,
+    ),
+    (
+        "multiple_linkage_analysis(method='lans', alpha=0.05)",
+        lambda G: nb.multiple_linkage_analysis(G, alpha=0.05, method="lans"),
         lambda H: nb.boolean_filter(H, "mla_keep"),
         109,
     ),
