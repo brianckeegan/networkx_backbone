@@ -37,6 +37,9 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
   ``h_backbone``; ``statistically_validated_cores(max_groups=...)``.
 
 - ``ecm_filter`` and ``noise_corrected_filter`` accept ``signed=True`` (#25).
+- ``glab_filter`` now supports directed graphs using the out- and
+  in-involvement of Zhang et al. (2014), Section 2.3 (#12). On a symmetric
+  ``DiGraph`` it gives the undirected p-values.
 
 **Changes in results (bug fixes)**
 
@@ -54,6 +57,10 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
   threshold, which netbone uses, is ``method="lans"``. Les Misérables: 109 ->
   223 edges (#10; the exact deviation measure is still to be checked against
   the 2007 paper).
+- ``sparsify(umst=True)`` now adds the union of all minimum spanning trees
+  (Hamann et al., 2016) instead of one arbitrary spanning forest, so tied
+  scores no longer make the result depend on node order (#32). The union is
+  added whenever ``umst=True``, not only when filtering split a component.
 
 The Les Misérables counts below are edges kept at the documented threshold.
 Davis counts are significant woman-woman pairs at alpha = 0.05.

@@ -21,7 +21,6 @@ from networkx_backbone._docstrings import append_complexity_docstrings
 __all__ = ["glab_filter"]
 
 
-@not_implemented_for("directed")
 @not_implemented_for("multigraph")
 def glab_filter(G, weight="weight", c=0.5):
     r"""Compute GLAB (Globally and Locally Adaptive Backbone) p-values.
@@ -50,10 +49,27 @@ def glab_filter(G, weight="weight", c=0.5):
     and the p-value of an undirected link is :math:`\min(SI_{ij}, SI_{ji})`.
     When one endpoint has degree 1, only the other endpoint's value is used.
 
+    For a directed graph the paper (Section 2.3, Eqs. 5-6) splits each link
+    *(i, j)* into an out-link of *i* and an in-link of *j*.  The
+    *out-involvement* :math:`I^{(out)}_{ij}` is the fraction of shortest
+    paths *from* *i* that leave through *(i, j)*, normalized by the number
+    of nodes reachable from *i*; the *in-involvement* :math:`I^{(in)}_{ij}`
+    is the fraction of shortest paths *to* *j* that arrive through
+    *(i, j)*, normalized by the number of nodes that can reach *j*.  Then
+
+    .. math::
+
+        SI^{(out)}_{ij} = (1 - I^{(out)}_{ij})^{(k^{(out)}_i - 1)^c},
+        \qquad
+        SI^{(in)}_{ij} = (1 - I^{(in)}_{ij})^{(k^{(in)}_j - 1)^c},
+
+    each defined when the degree in its exponent is at least 2, and the
+    p-value of the directed link is the minimum of the two.
+
     Parameters
     ----------
-    G : networkx.Graph
-        An undirected NetworkX graph.
+    G : networkx.Graph or networkx.DiGraph
+        A NetworkX graph, directed or undirected.
     weight : string or None, optional (default="weight")
         Edge attribute holding positive weights; shortest paths use
         ``1 / weight`` as link length.  If ``None``, every link has length 1.
@@ -63,13 +79,13 @@ def glab_filter(G, weight="weight", c=0.5):
 
     Returns
     -------
-    H : networkx.Graph
+    H : networkx.Graph or networkx.DiGraph
         A copy of *G* with a ``"glab_pvalue"`` edge attribute.
 
     Raises
     ------
     NetworkXNotImplemented
-        If *G* is directed or a multigraph.
+        If *G* is a multigraph.
     NetworkXError
         If ``weight`` is given and an edge has a missing, non-positive, or
         non-finite weight.
@@ -89,8 +105,16 @@ def glab_filter(G, weight="weight", c=0.5):
     have degree 1 (an isolated dyad) has no null distribution and gets a
     p-value of 1.
 
-    The paper also defines a directed variant using out- and in-involvement;
-    it is not implemented yet.
+    In a directed graph, :math:`I^{(out)}` is computed by a shortest-path
+    search from *i* along out-links and :math:`I^{(in)}` by a search from *j*
+    along reversed links.  A link whose source has out-degree below 2 uses
+    only :math:`SI^{(in)}`, one whose target has in-degree below 2 uses only
+    :math:`SI^{(out)}`, and a link with neither gets a p-value of 1, which
+    mirrors the undirected degree-1 rule.  On a symmetric directed graph
+    (every link present in both directions with equal weight), out- and
+    in-involvement of *(i, j)* equal the undirected :math:`I_{ij}` and
+    :math:`I_{ji}`, so both directions of each link get the undirected
+    p-value.
 
     References
     ----------
@@ -128,8 +152,33 @@ def glab_filter(G, weight="weight", c=0.5):
     else:
         length = None
 
-    degree = dict(G.degree())
-    # si[(i, j)] holds SI_ij: the importance of link (i, j) seen from node i.
+    if G.is_directed():
+        # SI^(out)_ij from i's out-links; SI^(in)_ij from j's in-links, i.e.
+        # j's out-links in the reversed graph (stored there as (j, i)).
+        si_out = _node_importance(G, dict(G.out_degree()), length, c)
+        si_in = _node_importance(G.reverse(copy=False), dict(G.in_degree()), length, c)
+        for u, v, data in H.edges(data=True):
+            values = [
+                d[key] for d, key in ((si_out, (u, v)), (si_in, (v, u))) if key in d
+            ]
+            data["glab_pvalue"] = min(values) if values else 1.0
+        return H
+
+    si = _node_importance(G, dict(G.degree()), length, c)
+    for u, v, data in H.edges(data=True):
+        values = [si[key] for key in ((u, v), (v, u)) if key in si]
+        data["glab_pvalue"] = min(values) if values else 1.0
+
+    return H
+
+
+def _node_importance(G, degree, length, c):
+    """Return ``{(i, j): SI_ij}`` for every node *i* with ``degree[i] >= 2``.
+
+    ``SI_ij = (1 - I_ij) ** ((degree[i] - 1) ** c)`` is the importance of
+    link ``(i, j)`` seen from *i*, where ``I_ij`` is the involvement over
+    the links leaving *i* in *G* (its successors if *G* is directed).
+    """
     si = {}
     for i in G:
         if degree[i] < 2:
@@ -138,19 +187,15 @@ def glab_filter(G, weight="weight", c=0.5):
         exponent = (degree[i] - 1) ** c
         for j, inv in involvement.items():
             si[(i, j)] = max(0.0, 1.0 - inv) ** exponent
-
-    for u, v, data in H.edges(data=True):
-        values = [si[key] for key in ((u, v), (v, u)) if key in si]
-        data["glab_pvalue"] = min(values) if values else 1.0
-
-    return H
+    return si
 
 
 def _involvement(G, source, length):
     """Fraction of shortest paths from ``source`` that leave via each neighbor.
 
     Returns ``{neighbor: I_source,neighbor}``, normalized by the number of
-    nodes reachable from ``source``.
+    nodes reachable from ``source``.  For a directed *G* the neighbors are
+    the successors of ``source`` and paths follow edge directions.
     """
     if length is None:
         pred = nx.predecessor(G, source)

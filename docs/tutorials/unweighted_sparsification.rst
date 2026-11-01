@@ -26,7 +26,8 @@ The :func:`~networkx_backbone.sparsify` function implements a four-step pipeline
 1. **Score**: Assign a score to each edge based on a chosen metric
 2. **Normalize**: Optionally rank-transform scores within each node's neighborhood
 3. **Filter**: Select edges based on the normalized scores
-4. **Connect** (optional): Add a union of maximum spanning trees to ensure connectivity
+4. **Connect** (optional): Add the union of all minimum spanning trees of the
+   edge-score graph (lower score = more important) to ensure connectivity
 
 Edge scoring methods
 ^^^^^^^^^^^^^^^^^^^^
@@ -94,7 +95,9 @@ lower values produce sparser backbones::
 UMST connectivity guarantee
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Set ``umst=True`` to add a union of maximum spanning trees, guaranteeing
+Set ``umst=True`` to add the union of all minimum spanning trees of the edge
+scores (every edge that belongs to *some* minimum spanning tree, so ties do
+not make the result depend on node order), guaranteeing
 that the backbone is connected (if the original graph is connected)::
 
     backbone = nb.boolean_filter(nb.sparsify(G, s=0.3, umst=True), "sparsify_keep")
