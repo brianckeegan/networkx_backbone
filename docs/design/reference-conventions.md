@@ -5,15 +5,16 @@
   (`backbone_from_projection(missing_as_zero=False)`,
   `lspar(convention="r")`). Nothing else changes any result.
 - **Tracking:** GitHub issue #59; roadmap entry in `docs/roadmap.rst`.
-  The signed LANS lower tail is issue #58 and is not decided here, but item 2
-  depends on it.
+  The signed LANS lower tail (#58, now merged) mirrors R's, which is why
+  item 2 now matters.
 - **References:** R `backbone` 3.0.4 (CRAN) and `netbone` 0.2.3 (PyPI sdist).
   The fixtures are `tests/fixtures/r_backbone.json` and
   `tests/fixtures/netbone.json`, and the tests are in
   `tests/test_reference_implementations.py`.
 
 > **How the numbers were measured.** Every count below was computed on
-> 2026-11-01 from the fixtures and the current code: Les Misérables (77 nodes,
+> 2026-11-01 from the fixtures and the code on `main` after #58 was merged:
+> Les Misérables (77 nodes,
 > 254 edges), the karate club (34 nodes, 78 edges) and Davis Southern Women
 > (18 women, 153 pairs). Significance is at alpha = 0.05 unless stated
 > otherwise. "Backbones identical" means that the same edges are kept with
@@ -33,7 +34,7 @@
 | # | Difference | Measured impact on the fixtures | Recommendation |
 |---|------------|---------------------------------|----------------|
 | 1 | Signed disparity lower tail | p-values differ on 23/78 (karate) and 102/254 (Les Mis) edges. Without `mtc`, the backbones are identical for every alpha up to 0.27. | **Keep**, documented |
-| 2 | Sign at exact ties | Today no retained edge is affected. After #58, 40 Les Mis and 15 karate LANS links would change sign. | **Decide together with #58**. Leaning toward matching R. |
+| 2 | Sign at exact ties | Since #58, 40 Les Mis and 15 karate signed LANS links are +1 here and −1 in R. With R's rule every signed weighted backbone equals R's. | **Match R** (needs a pin change) |
 | 3 | `mtc` counts non-co-occurring pairs | Davis: 14 of 153 pairs never co-occur, which scales adjusted p-values by up to 1.10. No backbone changes at 0.05. | **Keep the default**. Option added: `missing_as_zero=False`. |
 | 4 | `lspar` conventions | Karate: R keeps 30/38/50 and we keep 54/61/70. Les Mis: R keeps 101/148/194 and we keep 154/174/217. | **Keep the default**. Option added: `convention="r"`. |
 | 5 | `global` keeps `w >= t` (R: `w > t`) | Les Mis: 157 vs 107 edges at t = 2. Every integer threshold matters. | **Keep**, documented |
@@ -138,38 +139,42 @@ with p = 0 is significant, and R calls it significantly *weak*:
 
 | | karate | Les Mis |
 |---|---|---|
-| R negative LANS links (signed, every `mtc`) | 40 | 126 |
-| … of which exact ties | 15 | 40 (verified) |
-| Our positive LANS links vs R's | 45 vs 30 | 108 vs 68 |
+| R signed LANS links, + / − (every `mtc`) | 30 / 40 | 68 / 126 |
+| … R's − links that are exact ties | 15 | 40 (verified) |
+| Our signed LANS links, + / − (every `mtc`) | 45 / 25 | 108 / 86 |
 
-The surplus of positive links (15, 40) is exactly those ties.
+**Impact.** Since #58 our LANS tails are R's, so they tie exactly where
+R's do: 15 karate edges, all significant, and 48 Les Mis edges, 40 of them
+significant. Our signed LANS backbone keeps the same links as R's, with the
+same p-values. The only differences are the signs of those 15 and 40 tied
+links, which are +1 here and −1 in R. Elsewhere our tails tie only on 4
+Davis `fixedrow` pairs, all with p = 1. Disparity, MLF, SDSM, `fixedfill`
+and `fixedcol` have no ties.
 
-**Impact today: none.** With our current LANS lower tail (#58) the tails
-rarely tie. Our own tails tie on 1 karate LANS edge, 1 Les Mis LANS edge
-and 4 Davis `fixedrow` pairs, all with p >= 0.05. Disparity, MLF, SDSM,
-`fixedfill` and `fixedcol` have no ties. Switching to R's rule today changes
-no retained edge. It flips the `sign` attribute of those 6 non-significant
-edges and pairs.
-
-**Impact after #58.** If #58 mirrors R's lower tail, our LANS tails tie
-wherever R's do, and this rule decides whether 40 Les Mis and 15 karate
-links are +1 or −1.
+Switching `_combine_tails` to R's `p_hi < p_lo` was checked with a
+temporary patch. It makes every signed disparity, MLF and LANS backbone
+equal R's on both weighted datasets for every `mtc`; disparity and MLF
+are unchanged because they have no ties.
 
 **Options.**
 
-- *Keep +1* (cost: none). After #58, `test_r_lans_signed` would still need
-  to exclude ties.
-- *Match R, −1* (cost: one character in each of two helpers, plus the test
-  helpers `assert_signs` and `test_r_lans_signed`, which could then assert
-  equality). Signed LANS backbones would become directly comparable to R's.
+- *Keep +1* (cost: none). `test_r_lans_signed` keeps replacing R's tie
+  signs before comparing.
+- *Match R, −1* (cost: `<=` becomes `<` in `_combine_tails` and
+  `_signed_pvalues`, a **Changes in results** entry (55 LANS signs on the
+  fixtures), and simpler tests. `test_r_lans_signed` and `assert_signs`
+  could then assert plain equality). Signed backbones would become directly
+  comparable to R's.
 - *Sign 0, or do not retain ties*. A link that is both a node's strongest
   and its weakest is not evidence in either direction, but no reference
-  does this, and it adds a third sign value.
+  does this, it adds a third sign value, and it drops links that both
+  implementations call significant.
 
-**Recommendation: decide together with #58, leaning toward matching R.**
-On its own the rule changes nothing today. With #58 it is the last
-difference between our signed LANS and R's. Neither +1 nor −1 is more
-correct for a tie, so matching the reference is the cheap tiebreaker.
+**Recommendation: match R.** Neither +1 nor −1 is more correct for a tie,
+and after #58 this is the last difference between our signed weighted
+backbones and R's on the fixtures, so matching the reference costs one
+character. Because it changes results, it waits for the maintainer's
+decision and is not made in the change that added this note.
 
 ### 3. `mtc` scope in `backbone_from_projection`
 
