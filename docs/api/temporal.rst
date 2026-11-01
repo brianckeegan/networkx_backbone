@@ -31,6 +31,14 @@ rather than one graph.
 
 .. autofunction:: weight_trend
 
+.. rubric:: Model-based temporal scores
+
+These fit a model to every edge's series of observations and need numpy.
+:func:`~networkx_backbone.edge_persistence_hmm` gives posterior activity
+probabilities, which are smoothed membership scores, not p-values.
+
+.. autofunction:: edge_persistence_hmm
+
 .. rubric:: Forms
 
 .. autofunction:: temporal_form

@@ -95,7 +95,7 @@ _DEFAULT_START = {
     "a10": 0.1,
     "alpha": 0.1,
     "beta": 0.1,
-    "a": 0.5,
+    "a": 0.2,
     "pi1": 0.5,
 }
 
@@ -458,7 +458,7 @@ def _em(o, m, start, fixed, observation, fit_pi1, max_iter, tol):
             new[name] = value
         s, c = _canonicalize(new, observation, fixed, swappable)
         swapped |= s
-        constrained |= c
+        constrained = c  # whether the final parameters sit on the constraint
         change = max(abs(new[n] - p[n]) for n in names) if names else 0.0
         p = new
         if change <= tol:
@@ -495,7 +495,7 @@ def fit_hmm(
         As in :func:`forward_backward`.
     init : dict or None
         Starting values for free parameters (defaults: ``a01 = a10 = 0.1``,
-        ``alpha = beta = 0.1``, ``a = 0.5``, ``pi1 = 0.5``).
+        ``alpha = beta = 0.1``, ``a = 0.2``, ``pi1 = 0.5``).
     fixed : dict or None
         Parameters held at the given values.  Any subset of ``a01``, ``a10``,
         the emission parameters and ``pi1`` may be fixed; fixing ``pi1``
@@ -607,14 +607,21 @@ def fit_hmm(
             stacklevel=3,
         )
     if best["constrained"]:
-        warnings.warn(
-            "HMM identifiability constraint "
-            + ("a < 1" if observation == "pvalue" else "alpha < 1 - beta")
-            + " was enforced by clipping a free parameter; the model may "
-            "fit the data poorly with these fixed parameters.",
-            RuntimeWarning,
-            stacklevel=3,
-        )
+        if observation == "pvalue":
+            message = (
+                "HMM identifiability constraint a < 1 was enforced by clipping: "
+                "the fitted active state does not concentrate p-values near 0, "
+                "so the two states are nearly indistinguishable; try n_init > 1 "
+                "or fix some parameters."
+            )
+        else:
+            message = (
+                "HMM identifiability constraint alpha < 1 - beta was enforced "
+                "by clipping a free parameter: the two states are nearly "
+                "indistinguishable, or fixed parameters push the fit onto the "
+                "boundary; try n_init > 1 or other fixed parameters."
+            )
+        warnings.warn(message, RuntimeWarning, stacklevel=3)
     params = dict(best["params"])
     params["pi1"] = _initial_pi1(params)
     best["params"] = params

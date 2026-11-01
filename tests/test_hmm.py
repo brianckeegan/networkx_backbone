@@ -1,8 +1,10 @@
-"""Tests for the two-state edge-activity HMM engine (``networkx_backbone._hmm``).
+"""Tests for the two-state edge-activity HMM (#73).
 
-The exact algorithms are checked against brute-force enumeration of all 2^T
-state paths; EM is checked by parameter recovery on simulated data with fixed
-seeds.
+The engine (``networkx_backbone._hmm``): the exact algorithms are checked
+against brute-force enumeration of all 2^T state paths; EM by parameter
+recovery on simulated data with fixed seeds.  The public
+:func:`~networkx_backbone.edge_persistence_hmm` is checked against the engine
+on hand-built and perturbed snapshots.
 """
 
 import itertools
@@ -14,6 +16,7 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
+import networkx_backbone as nb  # noqa: E402
 from networkx_backbone import _hmm  # noqa: E402
 
 TRUE_BINARY = {"a01": 0.1, "a10": 0.2, "alpha": 0.05, "beta": 0.15}
@@ -164,7 +167,7 @@ def test_unknown_steps_carry_no_evidence():
 
 
 def test_parameter_recovery_binary():
-    o, s = _simulate(TRUE_BINARY, E=3000, T=40, seed=10)
+    o, s = _simulate(TRUE_BINARY, E=800, T=40, seed=10)
     m = np.random.default_rng(11).random(o.shape) < 0.9
     res = _hmm.fit_hmm(o, m)
     assert res["converged"]
@@ -182,7 +185,7 @@ def test_parameter_recovery_binary():
 
 
 def test_parameter_recovery_pvalue():
-    o, s = _simulate(TRUE_PVALUE, E=2000, T=40, seed=12, observation="pvalue")
+    o, s = _simulate(TRUE_PVALUE, E=800, T=40, seed=12, observation="pvalue")
     res = _hmm.fit_hmm(o, observation="pvalue")
     assert res["converged"]
     for name, value in TRUE_PVALUE.items():
@@ -193,7 +196,7 @@ def test_parameter_recovery_pvalue():
 
 
 def test_fixed_parameters_and_fitted_initial():
-    o, _ = _simulate(TRUE_BINARY, E=2000, T=30, seed=13)
+    o, _ = _simulate(TRUE_BINARY, E=800, T=30, seed=13)
     res = _hmm.fit_hmm(o, fixed={"alpha": 0.05, "a01": 0.1})
     assert res["params"]["alpha"] == 0.05 and res["params"]["a01"] == 0.1
     assert res["params"]["a10"] == pytest.approx(0.2, abs=0.015)
@@ -203,12 +206,12 @@ def test_fixed_parameters_and_fitted_initial():
     hist = np.array(res["loglik_history"])
     assert np.all(np.diff(hist) >= -1e-8 * abs(hist[-1]))
     assert res["params"]["pi1"] == pytest.approx(1 / 3, abs=0.04)
-    res = _hmm.fit_hmm(o, fixed={"pi1": 0.25})
+    res = _hmm.fit_hmm(o[:100], fixed={"pi1": 0.25})
     assert res["params"]["pi1"] == 0.25
 
 
 def test_label_switching_is_resolved():
-    o, _ = _simulate(TRUE_BINARY, E=2000, T=30, seed=14)
+    o, _ = _simulate(TRUE_BINARY, E=500, T=30, seed=14)
     ref = _hmm.fit_hmm(o)
     # Start EM in the mirrored labeling (alpha > 1 - beta).
     mirrored = {"a01": 0.2, "a10": 0.1, "alpha": 0.85, "beta": 0.95}
@@ -224,16 +227,21 @@ def test_label_switching_is_resolved():
         res = _hmm.fit_hmm(np.zeros((5, 6)), fixed={"alpha": 0.5})
     assert res["constrained"] and not res["label_swapped"]
     assert res["params"]["alpha"] + res["params"]["beta"] < 1
+    # p-values denser near 1 than uniform (Beta(2, 1)): a is held below 1.
+    pv = np.sqrt(np.random.default_rng(0).random((50, 10)))
+    with pytest.warns(RuntimeWarning, match="near 0"):
+        res = _hmm.fit_hmm(pv, observation="pvalue")
+    assert res["constrained"] and res["params"]["a"] < 1
 
 
 def test_restarts_nonconvergence_and_empty_input():
-    o, _ = _simulate(TRUE_BINARY, E=300, T=20, seed=15)
+    o, _ = _simulate(TRUE_BINARY, E=100, T=20, seed=15)
     with pytest.warns(RuntimeWarning, match="did not converge"):
         res = _hmm.fit_hmm(o, max_iter=1)
     assert not res["converged"] and res["n_iter"] == 1
     one = _hmm.fit_hmm(o)
-    a = _hmm.fit_hmm(o, n_init=4, seed=7)
-    b = _hmm.fit_hmm(o, n_init=4, seed=7)
+    a = _hmm.fit_hmm(o, n_init=3, seed=7)
+    b = _hmm.fit_hmm(o, n_init=3, seed=7)
     assert a["params"] == b["params"]
     assert a["loglik"] >= one["loglik"] - 1e-9
     with warnings.catch_warnings():
@@ -268,3 +276,152 @@ def test_invalid_input_raises():
     for call in bad_calls:
         with pytest.raises(nx.NetworkXError):
             call()
+
+
+# ---------------------------------------------------------------------------
+# Public function: edge_persistence_hmm
+# ---------------------------------------------------------------------------
+
+FIXED = {"a01": 0.2, "a10": 0.3, "alpha": 0.1, "beta": 0.2}
+
+
+def _late_joiner():
+    """Six steps; "c" joins at step 2 and "d" is present only at step 1."""
+    S = {t: nx.Graph() for t in range(6)}
+    for t, G in S.items():
+        G.add_nodes_from("ab" if t < 2 else "abc")
+    for t in (0, 1, 2, 4, 5):
+        S[t].add_edge("a", "b")
+    for t in (2, 3, 5):
+        S[t].add_edge("b", "c")
+    S[1].add_edge("a", "d")
+    return S
+
+
+def _expected(obs, mask, params, observation="binary"):
+    """Posterior and Viterbi path of one edge from the engine."""
+    mask = np.array([mask], dtype=bool)
+    post, _ = _hmm.forward_backward([obs], mask, params, observation=observation)
+    path = _hmm.viterbi([obs], mask, params, observation=observation)
+    return post[0], path[0]
+
+
+# Fitting three edges reaches the identifiability boundary (with a warning).
+@pytest.mark.filterwarnings("ignore:HMM identifiability:RuntimeWarning")
+def test_edge_persistence_hmm_presence():
+    S = _late_joiner()
+    H = nb.edge_persistence_hmm(S, params=FIXED, min_steps=3)
+    cases = {  # edge: (observations, eligible steps)
+        ("a", "b"): ([1, 1, 1, 0, 1, 1], [1] * 6),
+        ("b", "c"): ([0, 0, 1, 1, 0, 1], [0, 0, 1, 1, 1, 1]),
+        ("a", "d"): ([0, 1, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0]),
+    }
+    for (u, v), (obs, elig) in cases.items():
+        d = H[u][v]
+        post, path = _expected(obs, elig, FIXED)
+        steps = [t for t in range(6) if elig[t]]
+        assert d["hmm_posterior"] == pytest.approx({t: post[t] for t in steps})
+        assert d["hmm_score"] == pytest.approx(max(post[steps]))
+        assert d["hmm_active_fraction"] == pytest.approx(np.mean(post[steps]))
+        assert d["hmm_n_active"] == int(path[steps].sum())
+        assert d["hmm_keep"] is (d["hmm_n_active"] >= 3)
+    assert H["a"]["b"]["hmm_keep"] and not H["a"]["d"]["hmm_keep"]
+    meta = H.graph["temporal"]
+    assert meta["method"] == "edge_persistence_hmm" and meta["n_steps"] == 6
+    assert meta["parameters"]["observe"] == "presence"
+    assert meta["hmm"]["fixed"] == sorted(FIXED)
+    assert meta["hmm"]["pi1"] == pytest.approx(0.4)
+    # The three input forms agree, with fixed and with fitted parameters.
+    for params in (FIXED, None):
+        ref = nb.edge_persistence_hmm(S, params=params)
+        model = dict(ref.graph["temporal"]["hmm"])
+        fixed = model.pop("fixed")
+        for M in (nb.events_from_snapshots(S), nb.spans_from_snapshots(S)):
+            got = nb.edge_persistence_hmm(M, params=params)
+            fit = dict(got.graph["temporal"]["hmm"])
+            assert fit.pop("fixed") == fixed and fit == pytest.approx(model)
+            for u, v, d in ref.edges(data=True):
+                assert got[u][v]["hmm_posterior"] == pytest.approx(d["hmm_posterior"])
+    # With weight and min_weight, a light edge counts as unobserved (a missing
+    # weight counts as 1).
+    W = {t: G.copy() for t, G in S.items()}
+    W[1]["a"]["b"]["weight"] = 0.5
+    HW = nb.edge_persistence_hmm(W, params=FIXED, weight="weight", min_weight=0.75)
+    post, _ = _expected([1, 0, 1, 0, 1, 1], [1] * 6, FIXED)
+    assert HW["a"]["b"]["hmm_posterior"][1] == pytest.approx(post[1])
+
+
+def _perturbed_les_mis():
+    """Four perturbed Les Misérables snapshots; Marius and Gavroche join late."""
+    G = nx.les_miserables_graph()
+    S = {}
+    for t in range(4):
+        H = G.copy()
+        for i, (u, v, d) in enumerate(list(H.edges(data=True))):
+            d["weight"] += (i * (t + 1)) % 4
+            if (i + t) % 5 == 0:
+                H.remove_edge(u, v)
+        if t < 2:
+            H.remove_nodes_from(["Marius", "Gavroche"])
+        S[t] = H
+    return S
+
+
+def test_edge_persistence_hmm_keep_and_pvalue_observations():
+    S = _perturbed_les_mis()
+    scored = {t: nb.disparity_filter(G) for t, G in S.items()}
+    kept = {
+        t: nb.threshold_filter(H, "disparity_pvalue", 0.05) for t, H in scored.items()
+    }
+    for observe, observation in (("keep", "binary"), ("pvalue", "pvalue")):
+        H = nb.edge_persistence_hmm(S, observe=observe, method="disparity_filter")
+        model = H.graph["temporal"]["hmm"]
+        assert model["observation"] == observation and model["converged"]
+        names = ("a01", "a10", "alpha", "beta", "a", "pi1")
+        params = {k: model[k] for k in names if k in model}
+        for u, v, d in H.edges(data=True):
+            elig = [u in G and v in G for G in S.values()]
+            if observe == "keep":
+                obs = [float(kept[t].has_edge(u, v)) for t in S]
+            else:
+                obs = [
+                    scored[t][u][v]["disparity_pvalue"] if S[t].has_edge(u, v) else 1
+                    for t in S
+                ]
+            post, _ = _expected(obs, elig, params, observation)
+            steps = [t for t in S if elig[t]]
+            assert d["hmm_posterior"] == pytest.approx({t: post[t] for t in steps})
+    B = nb.boolean_filter(H, "hmm_keep")
+    text = nb.describe_backbone("edge_persistence_hmm", original=H, backbone=B)
+    assert "hidden Markov model" in text
+    assert "scored with the disparity filter" in text
+    assert "p-values were the observations" in text
+    assert "estimated by expectation-maximization pooled over all edges" in text
+    H = nb.edge_persistence_hmm(_late_joiner(), params=FIXED)
+    text = nb.describe_backbone("edge_persistence_hmm", backbone=H)
+    assert "were fixed at a01 = 0.2, a10 = 0.3, alpha = 0.1, beta = 0.2" in text
+    assert "whether the edge was present" in text
+
+
+def test_edge_persistence_hmm_errors():
+    S = _late_joiner()
+    call = nb.edge_persistence_hmm
+    bad = [
+        (ValueError, lambda: call(S, observe="flags")),
+        (ValueError, lambda: call(S, observe="keep")),
+        (ValueError, lambda: call(S, method="disparity_filter")),
+        (ValueError, lambda: call(S, threshold=0.1)),
+        (ValueError, lambda: call(S, alpha=0.1)),
+        (ValueError, lambda: call(S, min_steps=0)),
+        (ValueError, lambda: call(S, sign=0)),
+        (ValueError, lambda: call(S, observe="keep", method="mst", min_weight=1)),
+        (ValueError, lambda: call(S, observe="pvalue", method="mst")),
+        (ValueError, lambda: call(S, observe="pvalue", method="disparity", mtc="bh")),
+        (ValueError, lambda: call(S, freq=1)),
+        (nx.NetworkXError, lambda: call(S, params={"alpha": 2})),
+        (nx.NetworkXError, lambda: call(S, params={"gamma": 0.1})),
+        (nx.NetworkXNotImplemented, lambda: call([nx.MultiGraph([(0, 1)])])),
+    ]
+    for err, f in bad:
+        with pytest.raises(err):
+            f()
