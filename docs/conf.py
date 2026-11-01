@@ -152,3 +152,66 @@ html_context = {
     "doc_path": "docs",
 }
 html_static_path = ["_static"]
+
+
+# -- Les Misérables benchmark table ------------------------------------------
+# ``.. les-miserables-table::`` runs every case defined in
+# benchmarks/benchmarks/les_miserables.py (the definition whose counts
+# tests/test_les_miserables.py pins) and renders the edge counts at build
+# time, so the tutorial never hardcodes them.
+
+
+def _les_miserables_table_rst():
+    import warnings
+
+    from benchmarks.benchmarks import les_miserables as lm
+
+    original = lm.les_miserables_weighted().number_of_edges()
+    lines = [
+        ".. list-table::",
+        "   :header-rows: 1",
+        "   :widths: 50 30 20",
+        "",
+        "   * - Method",
+        "     - Filter applied",
+        f"     - Edges kept (of {original})",
+    ]
+    for case in lm.CASES:
+        with warnings.catch_warnings():
+            # Convergence warnings (e.g. Sinkhorn-Knopp) are the tests' concern.
+            warnings.simplefilter("ignore")
+            kept = case.run(lm.graph_for(case)).number_of_edges()
+        method = f":func:`~networkx_backbone.{case.method}`"
+        if case.kwargs:
+            args = ", ".join(f"{k}={v!r}" for k, v in case.kwargs.items())
+            method += f" (``{args}``)"
+        if not case.weighted:
+            method += ", unweighted"
+        lines += [
+            f"   * - {method}",
+            f"     - {case.describe_filter()}",
+            f"     - {kept}",
+        ]
+    return lines
+
+
+def setup(app):
+    from docutils import nodes
+    from docutils.statemachine import StringList
+    from sphinx.util.docutils import SphinxDirective
+
+    class LesMiserablesTable(SphinxDirective):
+        """Render the Les Misérables benchmark table, computed at build time."""
+
+        def run(self):
+            # The counts depend on library code, not on this page's source:
+            # recompute them on every build, incremental ones included.
+            self.env.note_reread()
+            container = nodes.container()
+            source = self.get_source_info()[0]
+            content = StringList(_les_miserables_table_rst(), source=source)
+            self.state.nested_parse(content, self.content_offset, container)
+            return container.children
+
+    app.add_directive("les-miserables-table", LesMiserablesTable)
+    return {"parallel_read_safe": True, "parallel_write_safe": True}
