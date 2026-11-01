@@ -94,7 +94,7 @@ Validation
 - **next** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional CI job that installs xgi, HyperNetX, HypergraphX, and
   HAT and runs the adapter round-trip tests against the real libraries; they
   currently run only against stubs.
-- **planned** (`#17 <https://github.com/brianckeegan/networkx_backbone/issues/17>`_): Turn on numpydoc validation (``numpydoc_validation_checks``)
+- **done** (`#17 <https://github.com/brianckeegan/networkx_backbone/issues/17>`_): Turn on numpydoc validation (``numpydoc_validation_checks``)
   in the docs build so missing Parameters, Returns, or Examples sections fail
   CI.
 
@@ -123,7 +123,7 @@ API and ecosystem compatibility
   vectorized.
 - **planned** (`#21 <https://github.com/brianckeegan/networkx_backbone/issues/21>`_): A sparse or blockwise ECM solver for graphs with more than
   about 2,000 nodes, where the dense Newton polish is skipped.
-- **planned** (`#22 <https://github.com/brianckeegan/networkx_backbone/issues/22>`_): An ``asv`` benchmark suite, so performance regressions show up in
+- **done** (`#22 <https://github.com/brianckeegan/networkx_backbone/issues/22>`_): An ``asv`` benchmark suite, so performance regressions show up in
   review.
 
 Methods
@@ -149,5 +149,5 @@ Documentation
 - **planned** (`#27 <https://github.com/brianckeegan/networkx_backbone/issues/27>`_): A "validating a backbone" tutorial showing the
   ``compare_backbones``, ``consensus_backbone``, and ``mtc`` workflow end to
   end.
-- **planned** (`#28 <https://github.com/brianckeegan/networkx_backbone/issues/28>`_): Turn the Les Misérables benchmark table into an executed
+- **done** (`#28 <https://github.com/brianckeegan/networkx_backbone/issues/28>`_): Turn the Les Misérables benchmark table into an executed
   Sphinx-Gallery example, so its edge counts cannot go stale.

@@ -1,0 +1,74 @@
+# Compare the asv benchmark suite (benchmarks/) between two commits.
+# Started by hand from the Actions tab; see docs/contributing.rst.
+
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Baseline commit, branch or tag"
+        required: false
+        default: "origin/main"
+      factor:
+        description: "Report changes larger than this ratio"
+        required: false
+        default: "1.1"
+      bench:
+        description: "Only run benchmarks matching this regex (empty: all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Force Node 24 for JS actions still on Node 20 (deprecation 2026-06-16).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  asv:
+    name: asv continuous ${{ inputs.base }} HEAD
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install asv
+        run: python -m pip install "asv>=0.6" virtualenv
+
+      - name: Compare benchmarks
+        working-directory: benchmarks
+        # An explicit `shell: bash` adds pipefail, so the step fails (as
+        # `asv continuous` does) when a benchmark got slower.
+        shell: bash
+        env:
+          BASE: ${{ inputs.base }}
+          FACTOR: ${{ inputs.factor }}
+          BENCH: ${{ inputs.bench }}
+        run: |
+          asv machine --yes
+          args=(--factor "$FACTOR" --show-stderr)
+          if [ -n "$BENCH" ]; then args+=(--bench "$BENCH"); fi
+          # Shared runners are noisy: treat a reported change as a lead to
+          # confirm locally, not as a verdict.
+          asv continuous "${args[@]}" "$BASE" HEAD | tee asv-continuous.log
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asv-results
+          path: |
+            benchmarks/.asv/results
+            benchmarks/asv-continuous.log

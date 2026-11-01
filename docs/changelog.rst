@@ -145,6 +145,17 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Infrastructure and documentation**
 
+- Docstrings are validated by the Sphinx build and by a new ``numpydoc lint``
+  CI step. The checks are GL06, GL08, SS01, PR01, PR02, PR03, RT01, and EX01,
+  configured in ``[tool.numpydoc_validation]``. numpydoc alone now renders
+  docstrings; ``sphinx.ext.napoleon`` was removed (#17).
+- The Les Misérables benchmark table is computed at docs build time from
+  ``benchmarks/benchmarks/les_miserables.py``, the same definitions whose
+  counts the tests pin (#28).
+- An asv benchmark suite in ``benchmarks/`` covers the statistical, bipartite,
+  MDL and SVH/SVC hypergraph, and shortest-path methods. It comes with a
+  ``benchmark`` extra and a manually triggered Benchmarks workflow (#22).
+
 - CI on every push and pull request: ruff lint and format checks, tests and
   doctests on Python 3.12-3.14, a job pinned to the oldest supported
   versions, and a NetworkX-only job that checks the optional dependencies

@@ -4,6 +4,7 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import sys
+import tomllib
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
@@ -29,7 +30,6 @@ version = ".".join(release.split(".")[:2])
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.napoleon",
     "sphinx.ext.mathjax",
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
@@ -42,15 +42,22 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-# -- Napoleon / numpydoc settings --------------------------------------------
+# -- numpydoc settings -------------------------------------------------------
+# numpydoc alone parses the NumPy-style docstrings.  (sphinx.ext.napoleon used
+# to run first and rewrite every section into field lists, which hid the
+# sections from numpydoc's validation below.)
 
-napoleon_google_docstring = False
-napoleon_numpy_docstring = True
-napoleon_use_param = True
-napoleon_use_rtype = True
 numpydoc_show_class_members = False
-numpydoc_validation_checks = set()
 numpydoc_xref_param_type = False
+
+# Validate every docstring autodoc renders; a failure is a Sphinx warning, so
+# the ``-W`` docs build fails on it.  The checks and exclusions live in the
+# ``[tool.numpydoc_validation]`` table of pyproject.toml (with the reasons),
+# shared with the faster ``python -m numpydoc lint networkx_backbone/*.py``.
+with open(ROOT / "pyproject.toml", "rb") as _f:
+    _numpydoc_cfg = tomllib.load(_f)["tool"]["numpydoc_validation"]
+numpydoc_validation_checks = set(_numpydoc_cfg["checks"])
+numpydoc_validation_exclude = set(_numpydoc_cfg["exclude"])
 
 # -- Nitpick settings --------------------------------------------------------
 # Suppress warnings for type references that numpydoc extracts from docstrings
@@ -90,6 +97,9 @@ nitpick_ignore_regex = [
     (r"py:exc", r"NetworkXError"),
     (r"py:exc", r"NetworkXNotImplemented"),
     (r"py:exc", r"AmbiguousSolution"),
+    # numpydoc renders result-class "Attributes" as a parameter list, which
+    # creates no per-attribute link target.
+    (r"py:attr", r"(HypergraphBackbone|ValidatedHypergraph)\..*"),
 ]
 
 suppress_warnings = ["ref.citation", "ref.class"]
@@ -142,3 +152,66 @@ html_context = {
     "doc_path": "docs",
 }
 html_static_path = ["_static"]
+
+
+# -- Les Misérables benchmark table ------------------------------------------
+# ``.. les-miserables-table::`` runs every case defined in
+# benchmarks/benchmarks/les_miserables.py (the definition whose counts
+# tests/test_les_miserables.py pins) and renders the edge counts at build
+# time, so the tutorial never hardcodes them.
+
+
+def _les_miserables_table_rst():
+    import warnings
+
+    from benchmarks.benchmarks import les_miserables as lm
+
+    original = lm.les_miserables_weighted().number_of_edges()
+    lines = [
+        ".. list-table::",
+        "   :header-rows: 1",
+        "   :widths: 50 30 20",
+        "",
+        "   * - Method",
+        "     - Filter applied",
+        f"     - Edges kept (of {original})",
+    ]
+    for case in lm.CASES:
+        with warnings.catch_warnings():
+            # Convergence warnings (e.g. Sinkhorn-Knopp) are the tests' concern.
+            warnings.simplefilter("ignore")
+            kept = case.run(lm.graph_for(case)).number_of_edges()
+        method = f":func:`~networkx_backbone.{case.method}`"
+        if case.kwargs:
+            args = ", ".join(f"{k}={v!r}" for k, v in case.kwargs.items())
+            method += f" (``{args}``)"
+        if not case.weighted:
+            method += ", unweighted"
+        lines += [
+            f"   * - {method}",
+            f"     - {case.describe_filter()}",
+            f"     - {kept}",
+        ]
+    return lines
+
+
+def setup(app):
+    from docutils import nodes
+    from docutils.statemachine import StringList
+    from sphinx.util.docutils import SphinxDirective
+
+    class LesMiserablesTable(SphinxDirective):
+        """Render the Les Misérables benchmark table, computed at build time."""
+
+        def run(self):
+            # The counts depend on library code, not on this page's source:
+            # recompute them on every build, incremental ones included.
+            self.env.note_reread()
+            container = nodes.container()
+            source = self.get_source_info()[0]
+            content = StringList(_les_miserables_table_rst(), source=source)
+            self.state.nested_parse(content, self.content_offset, container)
+            return container.children
+
+    app.add_directive("les-miserables-table", LesMiserablesTable)
+    return {"parallel_read_safe": True, "parallel_write_safe": True}
