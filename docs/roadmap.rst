@@ -5,7 +5,9 @@ This page tracks where ``networkx-backbone`` is headed: what was finished
 recently, known gaps against the cited methods, and planned features. It
 consolidates the design notes in ``docs/design/`` (the
 `Backbone 3.0 coverage evaluation
-<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/backbone-3.0-coverage.md>`_
+<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/backbone-3.0-coverage.md>`_,
+the `Yassin et al. (2025) coverage evaluation
+<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/yassin-2025-coverage.md>`_,
 and the `hypergraph backboning proposal
 <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/hypergraph-backboning.md>`_).
 Each open item links to its GitHub issue; `#31 <https://github.com/brianckeegan/networkx_backbone/issues/31>`_ tracks them all.
@@ -71,10 +73,12 @@ Correctness gaps found in review and not yet fixed
   posterior variance from the beta prior plus the delta method, and the
   transformed lift score. Keep the current score as an option for backward
   compatibility.
-- **next** (`#10 <https://github.com/brianckeegan/networkx_backbone/issues/10>`_): The dominance-fitting multiple
-  linkage analysis is implemented (``method="dominance"``). Its deviation
-  measure still needs checking against Van Nuffel (2007): the whole-profile
-  sum of squares versus Weaver's mean over the *k* candidate links.
+- **done** (`#10 <https://github.com/brianckeegan/networkx_backbone/issues/10>`_): The dominance-fitting multiple
+  linkage analysis is implemented (``method="dominance"``). Its fit is the
+  coefficient of determination, checked against Table 1 of Van Nuffel,
+  Derudder & Witlox (2010); the whole-profile sum of squares and Weaver's
+  variance are available through ``deviation=``. The 2007 paper itself is
+  paywalled and was not read.
 - **done** (`#11 <https://github.com/brianckeegan/networkx_backbone/issues/11>`_, contributed in
   `#34 <https://github.com/brianckeegan/networkx_backbone/pull/34>`_): Directed ``lans_filter`` now also tests the
   target's in-links.
@@ -116,9 +120,11 @@ API and ecosystem compatibility
 - **planned** (`#19 <https://github.com/brianckeegan/networkx_backbone/issues/19>`_): NetworkX backend dispatching (``@nx._dispatchable``) so
   backends such as ``nx-cugraph`` and ``nx-parallel`` can accelerate the
   shortest-path-heavy methods (salience, metric backbone, GLAB).
-- **planned** (`#20 <https://github.com/brianckeegan/networkx_backbone/issues/20>`_): Accept SciPy sparse arrays and pandas edge lists as input to the
-  statistical scorers, with ``to_*`` helpers back to NetworkX, matching how
-  NetworkX interoperates with the NumPy/SciPy/pandas stack.
+- **done** (`#20 <https://github.com/brianckeegan/networkx_backbone/issues/20>`_): Accept SciPy sparse arrays and pandas edge lists as input:
+  bipartite functions take incidence matrices, and ``backbone``,
+  ``backbone_from_weighted`` and ``backbone_from_unweighted`` take adjacency
+  matrices and edge lists via :func:`~networkx_backbone.to_graph`, matching
+  how NetworkX interoperates with the NumPy/SciPy/pandas stack.
 - **done** (`#30 <https://github.com/brianckeegan/networkx_backbone/issues/30>`_): Make the bipartite and projection code fully sparse
   (no dense agent-by-artifact matrices). The per-pair loops are already
   vectorized.
@@ -141,8 +147,20 @@ Methods
   filter, for parity with the other scorers' ``signed=True``.
 - **idea** (`#26 <https://github.com/brianckeegan/networkx_backbone/issues/26>`_): A ``missing_as_zero`` toggle for weighted inputs (Backbone 3.0),
   for testing absent dyads.
-- **idea** (`#29 <https://github.com/brianckeegan/networkx_backbone/issues/29>`_): Further methods from the Yassin et al. (2025)
-  structural and statistical comparisons that are not covered yet.
+- **done** (`#29 <https://github.com/brianckeegan/networkx_backbone/issues/29>`_): Survey the methods in the Yassin et al. (2025)
+  statistical and structural comparisons. The package covers 13 of the 15
+  methods; see the `coverage table
+  <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/yassin-2025-coverage.md>`__.
+- **idea**: The Pólya urn filter (Marcaccioli & Livan, 2019), missing per
+  the #29 survey. Its null model is unlike any method here, and Yassin et
+  al. (2025) found it best preserves the weight distribution.
+- **idea**: The GloSS filter (Radicchi et al., 2011), missing per the #29
+  survey. It is a global null with weights shuffled over the fixed topology;
+  lower priority.
+- **idea**: The connectivity stage of Slater's (2009) doubly stochastic
+  backbone (add edges by ``ds_weight`` until the backbone is connected). This
+  is the variant Yassin et al. (2025) evaluate; ``doubly_stochastic_filter``
+  returns only the scores.
 
 Documentation
 ~~~~~~~~~~~~~

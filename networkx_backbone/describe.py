@@ -23,7 +23,8 @@ own *References* sections).  The coverage policy is:
   building blocks (``bicm``, ``fastball``), hypergraph helpers that are not
   backbones, and result classes.
 - The helper modules ``filters``, ``measures``, ``hypergraph_io``,
-  ``visualization`` and ``describe`` are not methods and are skipped.
+  ``visualization``, ``describe`` and ``convert`` are not methods and are
+  skipped.
 
 The test suite checks that every public name falls in one of these groups, so
 a new method cannot be added without a registry entry.
@@ -43,7 +44,7 @@ REPOSITORY = "https://github.com/brianckeegan/networkx_backbone"
 
 #: Modules whose public functions are helpers rather than backbone methods.
 HELPER_MODULES = frozenset(
-    {"filters", "measures", "hypergraph_io", "visualization", "describe"}
+    {"filters", "measures", "hypergraph_io", "visualization", "describe", "convert"}
 )
 
 
@@ -206,6 +207,15 @@ REFERENCES = _refs(
         "origin-destination specific analysis: the case of commuting in "
         "Flanders", "Regional Studies", "41", "4", "509--524",
         doi="10.1080/00343400701281808",
+    ),
+    Reference(
+        "vannuffel2010", "article",
+        ("Van Nuffel, N.", "Derudder, B.", "Witlox, F."), 2010,
+        "Even important connections are not always meaningful: on the use "
+        "of a polarisation measure in a typology of European cities in air "
+        "transport networks", "Tijdschrift voor Economische en Sociale "
+        "Geografie", "101", "3", "333--348",
+        doi="10.1111/j.1467-9663.2009.00547.x",
     ),
     Reference(
         "weaver1954", "article", ("Weaver, J. C.",), 1954,
@@ -520,7 +530,7 @@ METHODS = {
         "which decides how many of each node's links are dominant by fitting "
         "the node's sorted link weights to ideal distributions of one, two, "
         "three, ... equally strong links, and keeps those links",
-        ("vannuffel2007", "weaver1954", "yassin2023"),
+        ("vannuffel2007", "vannuffel2010", "weaver1954", "yassin2023"),
     ),
     # --- structural --------------------------------------------------------
     "global_threshold_filter": Method(
