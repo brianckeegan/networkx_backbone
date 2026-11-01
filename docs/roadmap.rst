@@ -17,6 +17,54 @@ of the larger items.
 Status key: **done**, **next** (planned for the next release), **planned**,
 **idea** (open for discussion).
 
+Roadmap at a glance
+-------------------
+
+These figures and the table below are generated from this page every time the
+documentation is built, so they always match the lists that follow.
+
+.. figure:: _static/roadmap/status_by_section-light.svg
+   :figclass: only-light
+   :class: only-light
+   :width: 100%
+   :alt: Horizontal stacked bar chart of roadmap items per section, split by
+         status (idea, planned, next, done).
+
+   Roadmap items per section, by status.
+
+.. figure:: _static/roadmap/status_by_section-dark.svg
+   :figclass: only-dark
+   :class: only-dark
+   :width: 100%
+   :alt: Horizontal stacked bar chart of roadmap items per section, split by
+         status (idea, planned, next, done).
+
+   Roadmap items per section, by status.
+
+.. figure:: _static/roadmap/roadmap_map-light.svg
+   :figclass: only-light
+   :class: only-light
+   :width: 100%
+   :alt: Network diagram: each roadmap section is a gray hub connected to its
+         items, which are colored by status and labeled with their GitHub
+         issue numbers.
+
+   Each section (gray) and its items, colored by status and labeled with their
+   GitHub issue numbers.
+
+.. figure:: _static/roadmap/roadmap_map-dark.svg
+   :figclass: only-dark
+   :class: only-dark
+   :width: 100%
+   :alt: Network diagram: each roadmap section is a gray hub connected to its
+         items, which are colored by status and labeled with their GitHub
+         issue numbers.
+
+   Each section (gray) and its items, colored by status and labeled with their
+   GitHub issue numbers.
+
+.. include:: _static/roadmap/status_table.inc
+
 Recently completed
 ------------------
 

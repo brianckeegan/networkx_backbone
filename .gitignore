@@ -21,3 +21,5 @@ docs/sg_execution_times.rst
 .coverage.*
 coverage.xml
 htmlcov/
+# Generated at docs build time by scripts/roadmap_figures.py
+docs/_static/roadmap/
