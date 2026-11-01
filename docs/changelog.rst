@@ -106,7 +106,19 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
     ``write_hif`` output, which omitted the ``nodes`` and ``edges`` lists.
     ``write_hif`` now always writes both.
 
+- ``doubly_stochastic_filter(smoothing=...)`` adds a pseudocount to every
+  off-diagonal cell before Sinkhorn-Knopp, so the scaling converges on trees
+  and sparse networks (``netbone`` uses ``1e-4``). The default ``0`` leaves the
+  matrix unchanged.
+
 **Changes in results (bug fixes)**
+
+- ``doubly_stochastic_filter``: when Sinkhorn-Knopp does not converge,
+  ``ds_weight`` depended on the orientation in which each edge was stored,
+  and so on node insertion order (by up to 0.86 on Les Misérables). It is now
+  the symmetric scaling :math:`\sqrt{D_{uv} D_{vu}}`, which equals the doubly
+  stochastic limit whenever the iteration converges. On Les Misérables (no
+  convergence) ``ds_keep`` now keeps 187 of 254 edges instead of 220.
 
 - ``noise_corrected_filter`` now implements the published Bayesian
   noise-corrected backbone (Coscia & Neffke, 2017). Its scores and standard

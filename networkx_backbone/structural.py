@@ -825,8 +825,10 @@ def _distance_backbone(G, weight="weight", ultrametric=False):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
-def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
-    """Compute the doubly-stochastic backbone via Sinkhorn-Knopp normalization.
+def doubly_stochastic_filter(
+    G, weight="weight", max_iter=1000, tol=1e-8, smoothing=0.0
+):
+    r"""Compute the doubly-stochastic backbone via Sinkhorn-Knopp normalization.
 
     Implements both stages of Slater's two-stage algorithm [1]_ [2]_.  The
     first stage transforms the adjacency matrix into a doubly stochastic
@@ -849,6 +851,15 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
         Convergence tolerance on the row and column sums.  The second stage
         also treats ``ds_weight`` values that differ by at most *tol* as
         tied.
+    smoothing : float, optional (default=0.0)
+        Pseudocount added to every off-diagonal cell of the weighted
+        adjacency matrix, including node pairs without an edge, before
+        Sinkhorn-Knopp.  A positive value makes every matrix with at least
+        two nodes scalable, so the iteration converges on trees and sparse
+        networks where it otherwise does not.  It also changes the scores:
+        part of each node's unit row sum goes to non-edges.  Choose it small
+        relative to the weights; ``netbone`` uses ``1e-4``.  ``0`` (the
+        default) leaves the matrix unchanged.
 
     Returns
     -------
@@ -864,6 +875,8 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
     ------
     NetworkXError
         If an edge has no *weight* attribute or a negative weight.
+    ValueError
+        If *smoothing* is negative or not finite.
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
         with :func:`~networkx_backbone.multigraph_to_weighted`.
@@ -888,6 +901,28 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
     Notes
     -----
     Isolated nodes (all-zero rows) are ignored when checking convergence.
+
+    **Symmetry.**  Sinkhorn-Knopp alternates row and column scaling, so its
+    iterate is :math:`D = \operatorname{diag}(r) A \operatorname{diag}(c)`
+    with :math:`r \neq c` in general.  ``ds_weight`` is the geometric mean
+    :math:`\sqrt{D_{uv} D_{vu}}`, which is the symmetric scaling
+    :math:`\operatorname{diag}(x) A \operatorname{diag}(x)` with
+    :math:`x = \sqrt{r c}`.  When the iteration converges this equals the
+    (symmetric, unique) doubly stochastic limit, so converged results are
+    unchanged; when it does not, it makes ``ds_weight`` independent of the
+    orientation in which an edge happens to be stored, and therefore of node
+    insertion order.
+
+    **Smoothing.**  A matrix can be scaled to a doubly stochastic one only if
+    it has *total support*.  Adding a pseudocount :math:`\epsilon` to every
+    off-diagonal cell gives every matrix with at least two nodes that
+    property, so Sinkhorn-Knopp converges.  The scores then describe
+    :math:`A + \epsilon (J - I)`, where :math:`J` is the all-ones matrix:
+    each node's row sums to one over all other nodes, not only its
+    neighbors, so ``ds_weight`` summed over a node's edges is below one.
+    Smoothing therefore trades exactness for convergence; keep
+    :math:`\epsilon` small compared with the weights.  Self-loop cells keep
+    their weight.
 
     **Second stage.**  Slater [2]_ (Sec. III.B) thresholds the doubly
     stochastic matrix at progressively lower values; as the threshold falls,
@@ -921,7 +956,7 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
       entries of the last iterate shrink toward 0, possibly underflowing to
       exactly 0, which can split a component.  Joining a component then
       often needs these near-zero entries, so ``ds_keep`` may contain most
-      of the edges.  On Les Misérables (no convergence) it keeps 220 of 254
+      of the edges.  On Les Misérables (no convergence) it keeps 187 of 254
       edges.
     * **Directed graphs** are not supported.  Slater's rule for them is
       strong, not weak, connectivity.
@@ -933,7 +968,8 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
 
     * It adds ``1e-4`` to every cell of the matrix, including non-edges,
       before Sinkhorn-Knopp, so it converges where this function warns, and
-      its scores differ.
+      its scores differ.  ``smoothing=1e-4`` reproduces that step, though
+      not netbone's matrix construction (next item).
     * It builds the matrix from the edge list in one direction (rows are
       sources, columns are targets) rather than from the symmetric
       adjacency matrix, and then drops edges whose listed source sorts
@@ -997,6 +1033,11 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
     import numpy as np
 
     _check_weights(G, weight, "doubly_stochastic_filter", sign="nonnegative")
+    if not (0 <= smoothing < math.inf):
+        raise ValueError(
+            f"doubly_stochastic_filter: smoothing must be a finite, non-negative "
+            f"number, got {smoothing!r}."
+        )
     nodes = list(G)
     n = len(nodes)
     if n == 0:
@@ -1010,6 +1051,9 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
         w = float(data[weight])
         A[idx[u], idx[v]] = w
         A[idx[v], idx[u]] = w
+    if smoothing > 0:
+        off_diagonal = ~np.eye(n, dtype=bool)
+        A[off_diagonal] += smoothing
 
     active = A.sum(axis=1) > 0  # symmetric: same for rows and columns
 
@@ -1045,6 +1089,12 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
             RuntimeWarning,
             stacklevel=_caller_stacklevel(),
         )
+
+    # Geometric mean of D and its transpose: the symmetric scaling
+    # diag(sqrt(r c)) A diag(sqrt(r c)).  It equals the doubly stochastic
+    # limit when the iteration converged and makes a non-converged iterate
+    # independent of edge orientation (see Notes).
+    D = np.sqrt(D * D.T)
 
     H = G.copy()
     for u, v, data in H.edges(data=True):
