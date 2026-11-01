@@ -3,7 +3,7 @@ Complexity Summary
 
 This page summarizes the asymptotic complexity classes used in API docstrings.
 
-Notation: n = number of nodes, m = number of edges, n_a = agents, n_f = artifacts, e_b = bipartite edges, I = iterations, T = trials.
+Notation: n = number of nodes, m = number of edges, n_a = agents, n_f = artifacts, e_b = bipartite edges, I = iterations, T = trials; for temporal networks, S = snapshots, B = bins.
 
 Statistical
 -----------
@@ -408,3 +408,55 @@ Convert
      - ``O(n + m)``
      - ``O(n + m)``
      - Sparse input; a dense n x n array is O(n^2).
+
+Temporal
+--------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 24 24 20
+
+   * - Function
+     - Time
+     - Space
+     - Notes
+   * - ``convert_temporal``
+     - ``that of the converter``
+     - ``that of the converter``
+     - 
+   * - ``events_from_snapshots``
+     - ``O(S log S + n_S + m_S)``
+     - ``O(n_S + m_S)``
+     - n_S, m_S nodes and edges summed over snapshots.
+   * - ``events_from_spans``
+     - ``O(n + m log B + m_B)``
+     - ``O(n + m_B)``
+     - m_B span-bin overlaps (m with freq=None).
+   * - ``from_event_table``
+     - ``O(r)``
+     - ``O(r)``
+     - r rows.
+   * - ``snapshots_from_events``
+     - ``O(n + m log m + B)``
+     - ``O(n + m + B)``
+     - B bins.
+   * - ``snapshots_from_spans``
+     - ``O(n + m log m + m_B + B)``
+     - ``O(n + m_B + B)``
+     - m_B span-bin overlaps.
+   * - ``spans_from_events``
+     - ``O(n + m log m)``
+     - ``O(n + m)``
+     - 
+   * - ``spans_from_snapshots``
+     - ``O(S log S + n_S + m_S)``
+     - ``O(n_S + m_S)``
+     - n_S, m_S nodes and edges summed over snapshots.
+   * - ``temporal_form``
+     - ``O(m + S log S)``
+     - ``O(S)``
+     - m multigraph edges, S snapshots.
+   * - ``to_event_table``
+     - ``O(m log m)``
+     - ``O(m)``
+     - Snapshots are first converted to events.

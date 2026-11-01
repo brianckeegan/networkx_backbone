@@ -10,6 +10,7 @@ These guides explain how to use ``networkx-backbone`` effectively.
    choosing_method
    directed_graphs
    weight_transforms
+   temporal
    evaluation
    complexity
    backends
