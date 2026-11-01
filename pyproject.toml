@@ -137,4 +137,7 @@ exclude = [
     # documented under "Attributes" (which PR01 does not read), and the
     # functions that return them carry the examples.
     '(^|\.)(HypergraphBackbone|ValidatedHypergraph)(\.|$)',
+    # describe.py internals: registry record classes and the registry tables
+    # (data, not functions; documented in the module docstring).
+    '(^|\.)describe\.(Reference|Method|METHODS|ALIASES|EXCLUDED|REFERENCES)(\.|$)',
 ]

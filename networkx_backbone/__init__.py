@@ -2,7 +2,7 @@
 Backbone extraction algorithms for complex networks.
 
 This package provides algorithms for extracting backbone structures from
-networks, organized into ten submodules:
+networks, organized into the following submodules:
 
 - **statistical**: Hypothesis-testing methods (disparity, noise-corrected, etc.)
 - **structural**: Topology-based methods (threshold, spanning tree, salience, etc.)
@@ -16,9 +16,11 @@ networks, organized into ten submodules:
 - **filters**: Post-hoc filtering utilities (threshold, fraction, boolean, consensus)
 - **measures**: Evaluation measures for comparing backbones
 - **visualization**: Graph-comparison plotting helpers
+- **describe**: Methods-section text and citations for a backbone
 """
 
 from networkx_backbone.bipartite import *
+from networkx_backbone.describe import *
 from networkx_backbone.filters import *
 from networkx_backbone.hybrid import *
 from networkx_backbone.hypergraph import *
@@ -138,4 +140,6 @@ __all__ = [
     "graph_difference",
     "compare_graphs",
     "save_graph_comparison",
+    # Reporting
+    "describe_backbone",
 ]

@@ -2,7 +2,7 @@
 
 Backbone extraction algorithms for complex networks, built on [NetworkX](https://networkx.org/).
 
-This library provides about 90 functions across 11 modules for extracting backbone
+This library provides about 90 functions across 12 modules for extracting backbone
 structures from weighted, unweighted, and higher-order (hypergraph) networks.
 
 Full documentation: https://www.brianckeegan.com/networkx_backbone/
@@ -42,6 +42,7 @@ pip install -e ".[full]"
 | **filters** | Post-hoc filtering utilities | `multigraph_to_weighted`, `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone` |
 | **measures** | Evaluation and comparison | `node_fraction`, `edge_fraction`, `weight_fraction`, `reachability`, `ks_degree`, `ks_weight`, `compare_backbones` |
 | **visualization** | Graph comparison plotting | `graph_difference`, `compare_graphs`, `save_graph_comparison` |
+| **describe** | Methods text and citations | `describe_backbone` |
 
 ## NetBone Core Coverage
 
@@ -95,6 +96,25 @@ signed = nb.disparity_filter(G, signed=True)
 strong = nb.threshold_filter(signed, "disparity_pvalue", 0.05, mtc="holm")
 positives = [(u, v) for u, v, d in strong.edges(data=True) if d["sign"] == 1]
 ```
+
+### Reporting a backbone (methods text and citations)
+
+`describe_backbone` writes a methods paragraph for the backbone you extracted:
+the method and its null model, the parameters, the multiple-testing
+correction, the share of nodes, edges and weight kept, and the citations
+(including this package and its version). It is the counterpart of Backbone
+3.0's `narrative` option.
+
+```python
+print(nb.describe_backbone("disparity_filter", alpha=0.05, mtc="bh",
+                           original=G, backbone=backbone))
+print(nb.describe_backbone("disparity_filter", style="bibtex"))  # BibTeX entries
+```
+
+See the [Validating a backbone](https://www.brianckeegan.com/networkx_backbone/tutorials/validating_backbones.html)
+tutorial for multiple-testing correction, method comparison, consensus and
+signed backbones end to end. To cite the package itself, use
+[`CITATION.cff`](CITATION.cff).
 
 ### Disparity filter visualization
 

@@ -13,6 +13,7 @@ extraction methods.
    bipartite_backbone
    hypergraph_backbone
    comparing_methods
+   validating_backbones
    unweighted_sparsification
    les_miserables_benchmark
    graph_gallery

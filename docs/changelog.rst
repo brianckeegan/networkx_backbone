@@ -36,6 +36,13 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - ``local_path_index(weight=...)``; a ``h_bridge`` attribute from
   ``h_backbone``; ``statistically_validated_cores(max_groups=...)``.
 
+- New :func:`~networkx_backbone.describe_backbone`: methods-section text and
+  citations for a backbone, in text, Markdown, or BibTeX; the counterpart of
+  Backbone 3.0's ``narrative`` (#23). It is backed by one method-to-BibTeX
+  registry that covers every public scorer, and a test enforces that coverage.
+- Added ``CITATION.cff``.
+- New tutorial, "Validating a backbone": multiple-testing correction,
+  ``compare_backbones``, consensus, signed backbones, and reporting (#27).
 - ``ecm_filter`` and ``noise_corrected_filter`` accept ``signed=True`` (#25).
 - Bipartite functions accept NumPy, SciPy sparse, or pandas incidence
   matrices with ``agent_labels``/``artifact_labels``, and ``agent_nodes`` is
