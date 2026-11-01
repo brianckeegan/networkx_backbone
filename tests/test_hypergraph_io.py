@@ -1,6 +1,5 @@
 """Tests for hypergraph ingestion / interoperability adapters."""
 
-import importlib
 import io
 import json
 import sys
@@ -202,54 +201,21 @@ def test_read_hif_spec_variants():
     assert nb.write_hif([(1, 2)], network_type="asc")["network-type"] == "asc"
 
 
-# ---------------------------------------------------------------------------
-# Cross-library interoperability (run when a library is available)
-# ---------------------------------------------------------------------------
-
-
-def test_hif_crosscheck_with_xgi(tmp_path):
-    xgi = pytest.importorskip("xgi")
-    path = tmp_path / "h.json"
-    # xgi reads HIF we wrote.
-    nb.write_hif(HYPEREDGES, path)
-    Hx = xgi.read_hif(path)
-    assert {frozenset(m) for m in Hx.edges.members()} == EXPECTED
-    # We read HIF xgi wrote.
-    xgi.write_hif(xgi.Hypergraph([list(e) for e in HYPEREDGES]), path)
-    assert set(nb.read_hif(path)) == EXPECTED
-
-
-ADAPTERS = [
-    ("xgi", nb.to_xgi, nb.from_xgi),
-    ("hypernetx", nb.to_hypernetx, nb.from_hypernetx),
-    ("hypergraphx", nb.to_hypergraphx, nb.from_hypergraphx),
-    ("HAT", nb.to_hat, nb.from_hat),
-]
-
-
-@pytest.mark.parametrize("module,to_fn,from_fn", ADAPTERS, ids=[a[0] for a in ADAPTERS])
-def test_adapter_roundtrip_or_importerror(module, to_fn, from_fn):
-    try:
-        importlib.import_module(module)
-    except ImportError:
-        # Absent (or broken) optional dependency raises a helpful ImportError.
-        with pytest.raises(ImportError, match=module):
-            to_fn(HYPEREDGES)
-        return
-
-    obj = to_fn(HYPEREDGES)
-    recovered = from_fn(obj)
-    if module == "HAT":
-        # HAT is positional: labels become indices, so compare the order multiset.
-        assert sorted(len(e) for e in recovered) == sorted(
-            len(set(e)) for e in HYPEREDGES
-        )
-    else:
-        assert set(recovered) == EXPECTED
+def test_write_hif_always_writes_nodes_and_edges():
+    # Regression: the HAT and HypergraphX HIF readers raise KeyError without
+    # "nodes" and "edges", which were omitted (edges unless weighted).
+    hif = nb.write_hif([("b", "a"), (), ("a", "c")])
+    assert hif["nodes"] == [{"node": "a"}, {"node": "b"}, {"node": "c"}]
+    assert hif["edges"] == [{"edge": 0}, {"edge": 1}]
+    assert nb.read_hif(hif, return_weights=True) == (
+        [frozenset("ab"), frozenset("ac")],
+        [1, 1],
+    )
 
 
 # ---------------------------------------------------------------------------
-# Adapter logic, exercised with lightweight stand-in modules
+# Adapter logic, exercised with lightweight stand-in modules.  The real
+# libraries are tested in test_hypergraph_interop.py (``pytest -m interop``).
 # ---------------------------------------------------------------------------
 
 
@@ -262,68 +228,170 @@ def _install(monkeypatch, name, **attrs):
 
 
 INPUT = [(1, 2, 3), (), (3, 4), (1, 2, 3, 3)]  # empty edge dropped, dup kept
+INPUT_WEIGHTS = [2, 99, 1.5, 3]
 CLEAN = [frozenset({1, 2, 3}), frozenset({3, 4}), frozenset({1, 2, 3})]
+CLEAN_WEIGHTS = [2, 1.5, 3]
 
 
 def test_xgi_adapter_with_stub(monkeypatch):
     class Hypergraph:
-        def __init__(self, members):
-            self._members = [set(m) for m in members]
+        def __init__(self):
+            self._members = {}
+            self._attrs = {}
             outer = self
 
             class _Edges:
-                def members(self):
-                    return list(outer._members)
+                def members(self, dtype=None):
+                    assert dtype is dict
+                    return dict(outer._members)
+
+                def __getitem__(self, edge):
+                    return outer._attrs[edge]
 
             self.edges = _Edges()
 
+        def add_edges_from(self, ebunch):
+            # Regression: a list of edges made of two tuple labels was read by
+            # xgi as (members, edge_id); the {id: members} form is unambiguous.
+            assert isinstance(ebunch, dict)
+            for edge, members in ebunch.items():
+                self._members[edge] = set(members)
+                self._attrs[edge] = {}
+
+        def set_edge_attributes(self, values, name=None):
+            for edge, value in values.items():
+                self._attrs[edge][name] = value
+
     _install(monkeypatch, "xgi", Hypergraph=Hypergraph)
     H = nb.to_xgi(INPUT)
-    assert isinstance(H, Hypergraph)
-    assert H._members == [set(e) for e in CLEAN]
+    assert H._members == {i: set(e) for i, e in enumerate(CLEAN)}
     assert nb.from_xgi(H) == CLEAN
+    assert nb.from_xgi(H, return_weights=True) == (CLEAN, [1, 1, 1])
+    H = nb.to_xgi(INPUT, weights=INPUT_WEIGHTS)
+    assert nb.from_xgi(H, return_weights=True) == (CLEAN, CLEAN_WEIGHTS)
+    with pytest.raises(ValueError, match="same length"):
+        nb.to_xgi(INPUT, weights=[1])
 
 
 def test_hypernetx_adapter_with_stub(monkeypatch):
     class Hypergraph:
-        def __init__(self, setsystem):
+        def __init__(self, setsystem, edge_properties=None):
             self.incidence_dict = dict(setsystem)
+            props = edge_properties or {}
+            # HyperNetX stores weights as floats, defaulting to 1.0.
+            self.edges = {
+                e: types.SimpleNamespace(
+                    weight=float(props.get(e, {}).get("weight", 1))
+                )
+                for e in setsystem
+            }
 
     _install(monkeypatch, "hypernetx", Hypergraph=Hypergraph)
     H = nb.to_hypernetx(INPUT)
     assert list(H.incidence_dict) == [0, 1, 2]
     assert nb.from_hypernetx(H) == CLEAN
+    assert nb.from_hypernetx(H, return_weights=True) == (CLEAN, [1, 1, 1])
+    H = nb.to_hypernetx(INPUT, weights=INPUT_WEIGHTS)
+    assert nb.from_hypernetx(H, return_weights=True) == (CLEAN, CLEAN_WEIGHTS)
 
 
 def test_hypergraphx_adapter_with_stub(monkeypatch):
     class Hypergraph:
-        def __init__(self, edge_list=None):
-            self._edges = list(edge_list)
+        def __init__(self, edge_list=None, weighted=False, weights=None):
+            # Like HypergraphX: edges are sorted tuples and must be unique.
+            self._edges = [tuple(sorted(e)) for e in edge_list]
+            assert len(set(self._edges)) == len(self._edges)
+            self.weighted = weighted
+            self._weights = dict(zip(self._edges, weights or [1] * len(edge_list)))
 
         def get_edges(self):
             return list(self._edges)
 
+        def get_weight(self, edge):
+            return self._weights[tuple(sorted(edge))]
+
     _install(monkeypatch, "hypergraphx", Hypergraph=Hypergraph)
+    # Regression: repeated hyperedges were passed through, and HypergraphX
+    # silently merged them; now they merge here, with weights summed.
     H = nb.to_hypergraphx(INPUT)
-    assert all(isinstance(e, tuple) for e in H._edges)
-    assert nb.from_hypergraphx(H) == CLEAN
+    assert H.weighted
+    assert nb.from_hypergraphx(H) == CLEAN[:2]
+    assert nb.from_hypergraphx(H, return_weights=True) == (CLEAN[:2], [2, 1])
+    H = nb.to_hypergraphx(INPUT, weights=INPUT_WEIGHTS)
+    assert nb.from_hypergraphx(H, return_weights=True) == (CLEAN[:2], [5, 1.5])
+    H = nb.to_hypergraphx([(1, 2), (2, 3)])
+    assert not H.weighted
+    assert nb.from_hypergraphx(H, return_weights=True) == (
+        [frozenset({1, 2}), frozenset({2, 3})],
+        [1, 1],
+    )
+    with pytest.raises(TypeError, match="mutually comparable"):
+        nb.to_hypergraphx([(1, "a")])
+
+
+class _Frame:
+    """Just enough of a pandas DataFrame for HAT's nodes/edges tables."""
+
+    def __init__(self, n):
+        self._n = n
+        self._data = {}
+
+    @property
+    def columns(self):
+        return list(self._data)
+
+    def __getitem__(self, key):
+        return self._data[key]
+
+    def __setitem__(self, key, value):
+        assert len(value) == self._n
+        self._data[key] = list(value)
 
 
 def test_hat_adapter_with_stub(monkeypatch):
     class Hypergraph:
-        def __init__(self, incidence_matrix=None):
+        def __init__(self, incidence_matrix=None, compress=True):
+            # Regression: HAT's default compress=True drops repeated columns.
+            assert compress is False
             self.incidence_matrix = incidence_matrix
+            self.nodes = _Frame(incidence_matrix.shape[0])
+            self.edges = _Frame(incidence_matrix.shape[1])
 
     _install(monkeypatch, "HAT", Hypergraph=Hypergraph)
-    H = nb.to_hat([("b", "a"), (), ("c", "b", "d"), ("a", "d")])
+    H = nb.to_hat([("b", "a"), (), ("c", "b", "d"), ("a", "d"), ("a", "b")])
     M = H.incidence_matrix
-    # Rows follow sorted labels a, b, c, d; empty edge dropped.
-    assert M.tolist() == [[1, 0, 1], [1, 1, 0], [0, 1, 0], [0, 1, 1]]
-    assert nb.from_hat(H) == [
-        frozenset({0, 1}),
-        frozenset({1, 2, 3}),
-        frozenset({0, 3}),
-    ]
+    # Rows follow sorted labels a, b, c, d; empty edge dropped, repeat kept.
+    assert M.tolist() == [[1, 0, 1, 1], [1, 1, 0, 1], [0, 1, 0, 0], [0, 1, 1, 0]]
+    assert H.nodes["Names"] == ["a", "b", "c", "d"]
+    assert "weight" not in H.edges.columns
+    # Regression: labels used to come back as row indices.
+    expected = [frozenset("ab"), frozenset("bcd"), frozenset("ad"), frozenset("ab")]
+    assert nb.from_hat(H) == expected
+    assert nb.from_hat(H, return_weights=True) == (expected, [1, 1, 1, 1])
+
+    H = nb.to_hat([((0, 1), (0, 2)), ((0, 2), (1, 1))], weights=[2, 0.5])
+    assert H.nodes["Names"] == [(0, 1), (0, 2), (1, 1)]  # tuples stay tuples
+    assert H.edges["weight"] == [2, 0.5]
+    assert nb.from_hat(H, return_weights=True) == (
+        [frozenset({(0, 1), (0, 2)}), frozenset({(0, 2), (1, 1)})],
+        [2, 0.5],
+    )
+
+
+def test_from_hat_nodes_column_and_dropped_columns():
+    # HAT.Hypergraph.from_hif keeps the HIF node IDs in nodes["Nodes"].
+    class H:
+        incidence_matrix = np.array([[1, 0, 1], [1, 0, 0], [0, 0, 1]])
+        nodes = _Frame(3)
+        edges = _Frame(3)
+
+    H.nodes["Nodes"] = ["x", "y", "z"]
+    H.edges["weight"] = [4, 5, 6]
+    # The all-zero column is dropped together with its weight.
+    assert nb.from_hat(H(), return_weights=True) == (
+        [frozenset("xy"), frozenset("xz")],
+        [4, 6],
+    )
 
 
 @pytest.mark.parametrize("attr", ["IM", "incidence_matrix", "incidenceMatrix"])

@@ -36,10 +36,61 @@ Hypergraph interoperability
 
 The ``from_*``/``to_*`` adapters in :mod:`networkx_backbone.hypergraph_io`
 import their target library lazily, so none of them is a dependency. Install
-the ones you use: ``xgi``, ``hypernetx``, ``hypergraphx``, or
-``Hypergraph-Analysis-Toolbox``. Reading and writing the HIF interchange format
+the ones you use through an extra, or all four with ``[interop]``::
+
+    pip install "networkx-backbone[xgi]"          # or [hypernetx], [hypergraphx], [hat]
+    pip install "networkx-backbone[interop]"      # all four
+
+Reading and writing the HIF interchange format
 (:func:`~networkx_backbone.read_hif`, :func:`~networkx_backbone.write_hif`) needs
 only the standard library.
+
+The version floors below are the oldest releases that pass the round-trip
+tests in ``tests/test_hypergraph_interop.py``: hyperedges, weights, and node
+labels survive ``from_X(to_X(h))`` and ``to_X(from_X(H))``, and each library's
+own HIF reader and writer exchange files with ours. The "Interop" CI workflow
+runs these tests against the latest releases on every pull request and weekly;
+it is not a required check, so an upstream release cannot block unrelated
+work.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 30 14 38
+
+   * - Extra
+     - PyPI distribution (import name)
+     - Version
+     - Notes
+   * - ``[xgi]``
+     - ``xgi``
+     - >= 0.9.1
+     - Multi-edges kept. xgi's HIF reader ignores the ``weight`` field of
+       edge records, so weights read with ``xgi.read_hif`` are lost; use
+       ``to_xgi(*read_hif(path, return_weights=True))``.
+   * - ``[hypernetx]``
+     - ``hypernetx``
+     - >= 2.3.10
+     - HIF support (``hnx.to_hif``/``hnx.from_hif``) first appears in 2.3.10;
+       the adapters themselves also work with 2.3.2. Weights come back as
+       floats.
+   * - ``[hypergraphx]``
+     - ``hypergraphx``
+     - >= 1.7.7
+     - No multi-edges: :func:`~networkx_backbone.to_hypergraphx` merges a
+       repeated hyperedge into one edge with the summed weight. Node labels in
+       a hyperedge must be mutually comparable (HypergraphX sorts them). Its
+       HIF reader relabels nodes ``0..n-1`` and ignores weights, and its HIF
+       writer (1.8.0) leaves out the incidences.
+   * - ``[hat]``
+     - ``HypergraphAnalysisToolbox`` (``HAT``)
+     - >= 1.1.18
+     - Building from an incidence matrix fails in 1.1.14 and 1.1.16.
+       :func:`~networkx_backbone.to_hat` stores node labels in
+       ``H.nodes["Names"]`` and weights in ``H.edges["weight"]``.
+
+These ranges were tested on Python 3.13 with xgi 0.10.2, HyperNetX 2.4.3,
+HypergraphX 1.8.0, and HAT 1.1.18 (the latest releases in November 2026) and
+with the floors above.
 
 Conda installation
 ------------------

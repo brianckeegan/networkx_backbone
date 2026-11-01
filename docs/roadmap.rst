@@ -91,9 +91,10 @@ Validation
   datasets (Les Misérables, Davis Southern Women, karate) against R
   ``backbone`` 3.0 and ``netbone``, stored as small JSON fixtures so the test
   suite needs neither R nor netbone.
-- **next** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional CI job that installs xgi, HyperNetX, HypergraphX, and
-  HAT and runs the adapter round-trip tests against the real libraries; they
-  currently run only against stubs.
+- **done** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional "Interop" CI workflow that installs xgi, HyperNetX,
+  HypergraphX, and HAT (the ``[interop]`` extra) and runs the adapter and HIF
+  round-trip tests against the real libraries on pull requests and weekly.
+  Supported versions are listed in :doc:`install`.
 - **done** (`#17 <https://github.com/brianckeegan/networkx_backbone/issues/17>`_): Turn on numpydoc validation (``numpydoc_validation_checks``)
   in the docs build so missing Parameters, Returns, or Examples sections fail
   CI.
