@@ -121,8 +121,9 @@ API and ecosystem compatibility
 - **done** (`#30 <https://github.com/brianckeegan/networkx_backbone/issues/30>`_): Make the bipartite and projection code fully sparse
   (no dense agent-by-artifact matrices). The per-pair loops are already
   vectorized.
-- **planned** (`#21 <https://github.com/brianckeegan/networkx_backbone/issues/21>`_): A sparse or blockwise ECM solver for graphs with more than
-  about 2,000 nodes, where the dense Newton polish is skipped.
+- **done** (`#21 <https://github.com/brianckeegan/networkx_backbone/issues/21>`_): A sparse or blockwise ECM solver for graphs with more than
+  about 2,000 nodes. The fit now runs over degree-strength classes with
+  chunked pair sums and Newton or Newton-CG steps.
 - **done** (`#22 <https://github.com/brianckeegan/networkx_backbone/issues/22>`_): An ``asv`` benchmark suite, so performance regressions show up in
   review.
 
