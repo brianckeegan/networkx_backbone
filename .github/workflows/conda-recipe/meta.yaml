@@ -1,5 +1,9 @@
 {% set name = "networkx-backbone" %}
-{% set version = "0.1.0" %}
+{# The version comes from the release tag.  publish-to-conda.yml sets
+   NETWORKX_BACKBONE_VERSION from setuptools-scm (checked against the tag on
+   release), and the build passes it on to setuptools-scm so the conda package
+   and the installed metadata agree. #}
+{% set version = environ.get("NETWORKX_BACKBONE_VERSION", "0.0.0") %}
 
 package:
   name: {{ name }}
@@ -11,7 +15,7 @@ source:
 build:
   noarch: python
   number: 0
-  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+  script: SETUPTOOLS_SCM_PRETEND_VERSION={{ version }} {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
 
 requirements:
   host:
@@ -21,18 +25,27 @@ requirements:
     - setuptools-scm >=8
   run:
     - python >=3.12
-    - networkx >=3.0
+    - networkx >=3.4
 
 test:
   imports:
     - networkx_backbone
+  # The tests also read the Les Misérables benchmark definitions, the roadmap
+  # figure script, two docs pages, the README and the pytest configuration.
   source_files:
     - tests/
+    - benchmarks/
+    - scripts/
+    - docs/
+    - README.md
+    - pyproject.toml
   requires:
     - pytest >=7.0
-    - numpy >=1.23
-    - scipy >=1.9
+    - numpy >=2.2
+    - scipy >=1.15
+    - pandas >=2.3
   commands:
+    - python -c "import importlib.metadata as m; v = m.version('networkx-backbone'); assert v == '{{ version }}', v"
     - pytest tests/ -v
 
 about:
@@ -41,9 +54,10 @@ about:
   license_file: LICENSE
   summary: Backbone extraction algorithms for complex networks
   description: |
-    networkx-backbone provides 56 backbone extraction algorithms for
-    complex networks, organized into statistical, structural, proximity,
-    hybrid, bipartite, unweighted, filtering, and evaluation modules.
+    networkx-backbone provides backbone extraction algorithms for complex
+    networks and hypergraphs, organized into statistical, structural,
+    proximity, hybrid, bipartite, hypergraph, unweighted, filtering, and
+    evaluation modules.
   dev_url: https://github.com/brianckeegan/networkx_backbone
 
 extra:

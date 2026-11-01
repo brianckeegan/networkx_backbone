@@ -1,15 +1,19 @@
 # Build and publish networkx-backbone as a conda package.
 #
-# Triggered on every push (for CI validation) and on release (for upload).
-# conda-forge publishing is handled separately via the feedstock repository;
-# this workflow builds the package and uploads to anaconda.org directly.
+# Triggered when a GitHub Release is published (build and upload) and
+# manually (build only).  conda-forge publishing is handled separately via the
+# feedstock repository; this workflow builds the package and uploads to
+# anaconda.org directly.
+#
+# The recipe takes its version from NETWORKX_BACKBONE_VERSION, which the build
+# job sets from setuptools-scm and, for a release, checks against the tag.
 
 name: Publish to Conda
 
 on:
   release:
     types: [published]
-  workflow_dispatch: 
+  workflow_dispatch:
 
 env:
   # Force Node 24 for JS actions still on Node 20 (deprecation 2026-06-16).
@@ -25,6 +29,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.event_name == 'release' && format('refs/tags/{0}', github.event.release.tag_name) || '' }}
+          # setuptools-scm needs the tags and the history to find them.
           fetch-depth: 0
 
       - name: Set up Miniconda
@@ -34,6 +40,20 @@ jobs:
           python-version: "3.12"
           channels: conda-forge,defaults
           channel-priority: strict
+
+      - name: Determine the package version
+        shell: bash -l {0}
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python -m pip install "setuptools-scm>=8"
+          version="$(python -m setuptools_scm)"
+          if [ "${GITHUB_EVENT_NAME}" = "release" ] && [ "${version}" != "${TAG#v}" ]; then
+            echo "::error::setuptools-scm version ${version} does not match release tag ${TAG}"
+            exit 1
+          fi
+          echo "Building conda package version ${version}"
+          echo "NETWORKX_BACKBONE_VERSION=${version}" >> "$GITHUB_ENV"
 
       - name: Install conda-build tools
         shell: bash -l {0}
@@ -98,4 +118,14 @@ jobs:
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_TOKEN }}
         run: |
-          anaconda upload --user brianckeegan dist/conda/noarch/*.tar.bz2
+          if [ -z "${ANACONDA_API_TOKEN}" ]; then
+            echo "::error::The ANACONDA_TOKEN repository secret is not set"
+            exit 1
+          fi
+          shopt -s nullglob
+          packages=(dist/conda/noarch/*.tar.bz2 dist/conda/noarch/*.conda)
+          if [ "${#packages[@]}" -eq 0 ]; then
+            echo "::error::No conda package found in dist/conda/noarch/"
+            exit 1
+          fi
+          anaconda upload --user brianckeegan "${packages[@]}"
