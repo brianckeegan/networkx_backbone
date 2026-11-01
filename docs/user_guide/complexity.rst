@@ -432,6 +432,10 @@ Temporal
      - ``O(n + m log B + m_B)``
      - ``O(n + m_B)``
      - m_B span-bin overlaps (m with freq=None).
+   * - ``flatten_temporal``
+     - ``O(n + m + S log S)``
+     - ``O(n + m)``
+     - m observations (snapshot edges, events or spans), S snapshots.
    * - ``from_event_table``
      - ``O(r)``
      - ``O(r)``

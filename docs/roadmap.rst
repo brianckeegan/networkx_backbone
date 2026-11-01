@@ -275,8 +275,9 @@ the method proposals are in the `temporal backbones proposal
 - **planned** (`#67 <https://github.com/brianckeegan/networkx_backbone/issues/67>`_): Foundation: the three input forms, binning
   with ``freq=``, the node-presence rule (an absent edge is zero only when both
   endpoints are present), and the scored-static-graph output. Done so far: the
-  three forms, ``temporal_form``, binning, and lossless conversions between
-  the forms. Remaining: presence and eligibility arrays, the output
+  three forms, ``temporal_form``, binning, lossless conversions between
+  the forms, and ``flatten_temporal`` (collapse to a static weighted graph).
+  Remaining: presence and eligibility arrays, the output
   conventions, and the API-contract ``kind="temporal"``.
 - **planned** (`#68 <https://github.com/brianckeegan/networkx_backbone/issues/68>`_): ``observation_fraction`` and ``persistence``
   (runs of consecutive observed steps).

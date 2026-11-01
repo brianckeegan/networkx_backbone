@@ -881,6 +881,7 @@ EXCLUDED = {
         (
             "temporal_form",
             "convert_temporal",
+            "flatten_temporal",
             "snapshots_from_events",
             "snapshots_from_spans",
             "events_from_snapshots",
