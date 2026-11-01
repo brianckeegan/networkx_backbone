@@ -13,14 +13,6 @@ def weighted_triangle():
 
 
 @pytest.fixture
-def weighted_star():
-    """Weighted star graph centered on node 0."""
-    G = nx.Graph()
-    G.add_weighted_edges_from([(0, 1, 5.0), (0, 2, 3.0), (0, 3, 1.0)])
-    return G
-
-
-@pytest.fixture
 def karate():
     """Zachary's karate club graph (unweighted)."""
     return nx.karate_club_graph()
@@ -36,11 +28,16 @@ def complete4():
 def bipartite_graph():
     """Simple bipartite graph with agents [1,2,3] and artifacts ['a','b','c']."""
     B = nx.Graph()
-    B.add_edges_from([
-        (1, "a"), (1, "b"),
-        (2, "a"), (2, "c"),
-        (3, "b"), (3, "c"),
-    ])
+    B.add_edges_from(
+        [
+            (1, "a"),
+            (1, "b"),
+            (2, "a"),
+            (2, "c"),
+            (3, "b"),
+            (3, "c"),
+        ]
+    )
     return B
 
 

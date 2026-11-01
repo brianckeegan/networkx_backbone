@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Backbone extraction algorithms for complex networks"
 readme = "README.md"
 license = "BSD-3-Clause"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 authors = [
     {name = "Brian C. Keegan", email = "brian.keegan@colorado.edu"},
 ]
@@ -17,26 +17,33 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Scientific/Engineering :: Mathematics",
 ]
 dependencies = [
-    "networkx>=3.0",
+    "networkx>=3.4",
 ]
 
 [project.optional-dependencies]
 full = [
-    "numpy>=1.23",
-    "scipy>=1.9",
+    "numpy>=2.2",
+    "scipy>=1.15",
+]
+viz = [
+    "matplotlib>=3.10",
 ]
 test = [
     "pytest>=7.0",
-    "numpy>=1.23",
-    "scipy>=1.9",
+    "numpy>=2.2",
+    "scipy>=1.15",
+]
+dev = [
+    "networkx-backbone[full,test,viz]",
+    "pytest-cov>=4.0",
+    "ruff>=0.6",
 ]
 docs = [
     "sphinx>=7.0",
@@ -44,9 +51,9 @@ docs = [
     "pydata-sphinx-theme>=0.15",
     "numpydoc>=1.6",
     "sphinx-copybutton>=0.5",
-    "matplotlib>=3.7",
-    "numpy>=1.23",
-    "scipy>=1.9",
+    "matplotlib>=3.10",
+    "numpy>=2.2",
+    "scipy>=1.15",
 ]
 
 [project.urls]
@@ -65,3 +72,35 @@ fallback_version = "0.0.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Run docstring examples too: `pytest --doctest-modules networkx_backbone tests`.
+doctest_optionflags = ["NORMALIZE_WHITESPACE", "ELLIPSIS"]
+filterwarnings = [
+    # Methods warn when a filter keeps every edge; tests check for it explicitly.
+    "ignore:.*filtered graph has the same number of edges:UserWarning",
+]
+
+[tool.coverage.run]
+source = ["networkx_backbone"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+# Mirrors the rule families NetworkX and the wider scientific-Python stack use.
+select = ["E", "F", "W", "I", "UP", "B", "C4", "PIE", "RUF"]
+ignore = [
+    "E501",    # long lines in docstrings/references are fine; the formatter wraps code
+    "RUF001",  # Greek letters and math symbols in strings are intentional
+    "RUF002",
+    "RUF003",
+    "RUF022",  # __all__ is grouped by topic, not sorted
+    "B905",    # zip(strict=...) is not required for same-length internal arrays
+]
+
+[tool.ruff.lint.per-file-ignores]
+"networkx_backbone/__init__.py" = ["F401", "F403", "F405"]
+"tests/*" = ["B018", "E741", "RUF012"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["networkx_backbone"]

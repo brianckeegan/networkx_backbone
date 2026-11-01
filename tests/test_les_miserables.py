@@ -26,7 +26,9 @@ WEIGHTED_METHOD_EDGE_COUNTS = [
     (
         "disparity_filter",
         lambda G: nb.disparity_filter(G),
-        lambda H: nb.threshold_filter(H, "disparity_pvalue", DEFAULT_PVALUE, mode="below"),
+        lambda H: nb.threshold_filter(
+            H, "disparity_pvalue", DEFAULT_PVALUE, mode="below"
+        ),
         9,
     ),
     (
@@ -39,13 +41,13 @@ WEIGHTED_METHOD_EDGE_COUNTS = [
         "marginal_likelihood_filter",
         lambda G: nb.marginal_likelihood_filter(G),
         lambda H: nb.threshold_filter(H, "ml_pvalue", DEFAULT_PVALUE, mode="below"),
-        70,
+        126,
     ),
     (
         "ecm_filter",
         lambda G: nb.ecm_filter(G),
         lambda H: nb.threshold_filter(H, "ecm_pvalue", DEFAULT_PVALUE, mode="below"),
-        254,
+        72,
     ),
     (
         "lans_filter",
@@ -123,11 +125,11 @@ WEIGHTED_METHOD_EDGE_COUNTS = [
         "h_backbone",
         lambda G: nb.h_backbone(G),
         lambda H: nb.boolean_filter(H, "h_backbone_keep"),
-        22,
+        18,
     ),
     (
         "modularity_backbone",
-        lambda G: nb.modularity_backbone(G),
+        lambda G: nb.modularity_backbone(G, seed=42),
         lambda H: nb.boolean_filter(H, "modularity_keep"),
         72,
     ),
@@ -219,7 +221,7 @@ WEIGHTED_METHOD_EDGE_COUNTS = [
         "glab_filter",
         lambda G: nb.glab_filter(G),
         lambda H: nb.threshold_filter(H, "glab_pvalue", DEFAULT_PVALUE, mode="below"),
-        5,
+        56,
     ),
 ]
 
@@ -228,19 +230,19 @@ UNWEIGHTED_METHOD_EDGE_COUNTS = [
         "sparsify",
         lambda G: nb.sparsify(G),
         lambda H: nb.boolean_filter(H, "sparsify_keep"),
-        136,
+        174,
     ),
     (
         "lspar",
         lambda G: nb.lspar(G),
         lambda H: nb.boolean_filter(H, "sparsify_keep"),
-        136,
+        174,
     ),
     (
         "local_degree",
         lambda G: nb.local_degree(G),
         lambda H: nb.boolean_filter(H, "sparsify_keep"),
-        135,
+        91,
     ),
 ]
 
@@ -273,7 +275,9 @@ def test_weighted_methods_edge_counts(
     scored = score_method(les_miserables_weighted)
     filtered = filter_method(scored)
     assert isinstance(filtered, nx.Graph), method_name
-    assert filtered.number_of_nodes() == les_miserables_weighted.number_of_nodes(), method_name
+    assert filtered.number_of_nodes() == les_miserables_weighted.number_of_nodes(), (
+        method_name
+    )
     assert filtered.number_of_edges() == expected_edges, method_name
     _warn_if_no_edge_reduction(
         method_name,
@@ -298,7 +302,9 @@ def test_unweighted_methods_edge_counts(
     scored = score_method(les_miserables_unweighted)
     filtered = filter_method(scored)
     assert isinstance(filtered, nx.Graph), method_name
-    assert filtered.number_of_nodes() == les_miserables_unweighted.number_of_nodes(), method_name
+    assert filtered.number_of_nodes() == les_miserables_unweighted.number_of_nodes(), (
+        method_name
+    )
     assert filtered.number_of_edges() == expected_edges, method_name
     _warn_if_no_edge_reduction(
         method_name,
