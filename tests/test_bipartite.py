@@ -355,20 +355,133 @@ class TestSDSMEC:
         with pytest.raises(nx.NetworkXError):
             nb.sdsm(davis_southern_women_graph, davis_women_nodes, prohibited=[pair])
 
-    def test_contradictory_constraints_raise(
+    @staticmethod
+    def _pvalues(H):
+        return {frozenset((u, v)): p for u, v, p in H.edges(data="sdsm_pvalue")}
+
+    def test_contradictory_constraints_warn_and_are_ignored(
         self, davis_southern_women_graph, davis_women_nodes
     ):
-        _, _, _, required, prohibited = self._cells(
-            davis_southern_women_graph, davis_women_nodes
-        )
-        with pytest.raises(nx.NetworkXError):
-            nb.sdsm(
-                davis_southern_women_graph, davis_women_nodes, prohibited=required[:1]
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        base = self._pvalues(nb.sdsm(B, women))
+        with pytest.warns(RuntimeWarning, match=r"1 prohibited pair\(s\)") as rec:
+            H = nb.sdsm(B, women, prohibited=edges[:1])
+        assert len(rec) == 1 and repr(edges[0]) in str(rec[0].message)
+        assert "required" not in str(rec[0].message)
+        assert self._pvalues(H) == base
+        with pytest.warns(RuntimeWarning, match=r"1 required pair\(s\)") as rec:
+            H = nb.sdsm(B, women, required=non_edges[:1])
+        assert len(rec) == 1 and repr(non_edges[0]) in str(rec[0].message)
+        assert self._pvalues(H) == base
+
+    def test_all_dropped_equals_unconstrained_signed(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        base = nb.sdsm(B, women, signed=True, pvalue_method="rna")
+        with pytest.warns(RuntimeWarning):
+            H = nb.sdsm(
+                B,
+                women,
+                signed=True,
+                pvalue_method="rna",
+                required=non_edges,
+                prohibited=edges,
             )
-        with pytest.raises(nx.NetworkXError):
-            nb.sdsm(
-                davis_southern_women_graph, davis_women_nodes, required=prohibited[:1]
+        assert dict(H.edges) == dict(base.edges)
+
+    def test_one_warning_counts_and_lists_both_kinds(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        assert len(non_edges) > 5
+        with pytest.warns(RuntimeWarning) as rec:
+            nb.sdsm(B, women, required=non_edges + non_edges, prohibited=edges)
+        assert len(rec) == 1
+        msg = str(rec[0].message)
+        # Duplicates count once; at most five pairs are listed per kind.
+        assert f"{len(non_edges)} required pair(s)" in msg
+        assert f"{len(edges)} prohibited pair(s)" in msg
+        assert sum(repr(p) in msg for p in non_edges) == 5
+        assert "..." in msg
+        assert all(repr(p) in msg for p in edges)
+
+    def test_valid_constraints_kept_when_others_dropped(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        valid = nb.sdsm(B, women, required=edges[1:], prohibited=non_edges[2:])
+        with pytest.warns(RuntimeWarning, match="ignoring"):
+            mixed = nb.sdsm(
+                B,
+                women,
+                required=edges[1:] + non_edges[:2],
+                prohibited=non_edges[2:] + edges[:1],
             )
+        assert self._pvalues(mixed) == self._pvalues(valid)
+        assert self._pvalues(valid) != self._pvalues(nb.sdsm(B, women))
+
+    def test_contradiction_warning_points_at_caller(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, _ = self._cells(B, women)
+        calls = [
+            lambda: nb.sdsm(B, women, prohibited=edges[:1]),
+            lambda: nb.backbone_from_projection(B, women, prohibited=edges[:1]),
+            lambda: nb.backbone(B, agent_nodes=women, prohibited=edges[:1]),
+            lambda: nb.backbone(
+                B, method="sdsm", agent_nodes=women, prohibited=edges[:1]
+            ),
+        ]
+        for call in calls:
+            with pytest.warns(RuntimeWarning, match="prohibited") as rec:
+                call()
+            assert len(rec) == 1
+            assert rec[0].filename == __file__
+
+    def test_wrappers_ignore_contradictions_like_sdsm(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, _, non_edges = self._cells(B, women)
+        kwargs = {"agent_nodes": women, "alpha": 0.5, "required": non_edges[:3]}
+        base = nb.backbone_from_projection(B, women, alpha=0.5)
+        with pytest.warns(RuntimeWarning, match="required"):
+            H = nb.backbone_from_projection(B, **kwargs)
+        assert dict(H.edges) == dict(base.edges)
+        with pytest.warns(RuntimeWarning, match="required"):
+            H = nb.backbone(B, method="sdsm", **kwargs)
+        assert dict(H.edges) == dict(base.edges)
+
+    def test_matrix_input_contradiction_warns(self):
+        M = np.array([[1, 1, 0, 0], [1, 0, 1, 0], [0, 1, 1, 1], [1, 1, 1, 0]])
+        with pytest.warns(RuntimeWarning, match=r"\(0, 0\)"):
+            H = nb.sdsm(M, prohibited=[(0, 0)])
+        assert dict(H.edges) == dict(nb.sdsm(M).edges)
+
+    def test_required_and_prohibited_pair_raises(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        for pair in (edges[0], non_edges[0]):
+            with pytest.raises(nx.NetworkXError, match="both required and prohib"):
+                nb.sdsm(B, women, required=[pair], prohibited=[pair])
+
+    def test_unknown_node_raises_even_with_contradictions(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, _ = self._cells(B, women)
+        with pytest.raises(nx.NetworkXError, match="not an"):
+            nb.sdsm(B, women, prohibited=[*edges[:1], ("missing", "E1")])
+        with pytest.raises(nx.NetworkXError, match="not an"):
+            nb.backbone_from_projection(B, women, required=[(women[0], "missing")])
 
     def test_empty_constraints_equal_unconstrained(
         self, davis_southern_women_graph, davis_women_nodes
