@@ -792,8 +792,8 @@ def ecm_filter(
         P(w_{ij} \geq w) = p_{ij} (y_i y_j)^{w - 1}, \; w \geq 1,
 
     and the p-value of an observed link is :math:`P(w_{ij} \geq w)`.  The
-    multipliers are found by maximizing the likelihood (L-BFGS-B with the
-    analytic gradient), which is equivalent to solving
+    multipliers are found by maximizing the likelihood (damped Newton with
+    the analytic gradient and Hessian), which is equivalent to solving
     :math:`\sum_j p_{ij} = k_i` and :math:`\sum_j \langle w_{ij}\rangle = s_i`.
 
     For directed graphs, each node has separate out- and in-multipliers that
@@ -851,7 +851,23 @@ def ecm_filter(
     Notes
     -----
     Self-loops are ignored when fitting the null model and get a p-value
-    of 1.  The fit costs :math:`O(n^2)` memory and time per iteration.
+    of 1.
+
+    Nodes with the same degree and strength (for directed graphs, the same
+    out- and in-degree and strength) have the same multipliers, so the
+    likelihood is maximized over these :math:`C` classes rather than over
+    the :math:`n` nodes.  This is exact, and :math:`C` is usually much
+    smaller than :math:`n` (520 classes for a 2,000-node Barabási-Albert
+    graph with weights 1-20, 1,695 for 20,000 nodes; directed graphs have
+    more classes).  A node whose links all have weight 1 gets
+    :math:`y_i = 0`, the maximum-likelihood value.
+
+    The fit uses damped Newton steps.  Each costs :math:`O(C^2)` time, with
+    pair sums computed in fixed-size chunks so that their memory does not
+    grow with :math:`C`.  The step is a dense solve, :math:`O(C^3)` time and
+    :math:`O(C^2)` memory, for up to 4,000 parameters (2 per class, 4 for
+    directed graphs), and conjugate gradients with Hessian-vector products,
+    :math:`O(C^2)` time each, above that.
 
     **Absent pairs** (``missing_as_zero=True``).  The multipliers are fitted
     to the degrees and strengths of the existing edges only, so the null
@@ -934,13 +950,17 @@ def ecm_filter(
             math.exp(log_xxyy - hi) + math.exp(log_one_minus_yy - hi)
         )
         log_p_link = log_xxyy - log_denom  # log p_ij = log P(w_ij >= 1)
-        # Upper tail P(w_ij >= w) = p_ij (y_i y_j)^(w - 1) for w >= 1.
+        # y is 0 (b and log_yy infinite) for nodes whose links all have
+        # weight 1, so (y_i y_j)^e is only formed for positive exponents e.
         if w == 0:
             p_hi = 1.0
         else:
-            p_hi = float(min(max(math.exp(log_p_link + (w - 1) * log_yy), 0.0), 1.0))
+            # Upper tail P(w_ij >= w) = p_ij (y_i y_j)^(w - 1) for w >= 1.
+            log_p_hi = log_p_link + ((w - 1) * log_yy if w > 1 else 0.0)
+            p_hi = float(min(max(math.exp(log_p_hi), 0.0), 1.0))
         # Lower tail P(w_ij <= w) = 1 - P(w_ij >= w + 1) = 1 - p_ij (y_i y_j)^w.
-        p_lo = -math.expm1(min(log_p_link + w * log_yy, 0.0))
+        log_p_next = log_p_link + (w * log_yy if w > 0 else 0.0)
+        p_lo = -math.expm1(min(log_p_next, 0.0))
         return p_hi, p_lo
 
     for u, v, data in H.edges(data=True):
@@ -965,207 +985,422 @@ def ecm_filter(
     return H
 
 
-# Largest parameter vector for which the dense Newton polish is used
-# (2 parameters per node undirected, 4 directed).
+# Largest number of class parameters for which Newton steps use a dense
+# Hessian solve; larger problems use Newton-CG with Hessian-vector products.
 _ECM_NEWTON_MAX_PARAMS = 4000
+# Number of class pairs evaluated at once; bounds the solver's working memory.
+_ECM_CHUNK = 1 << 19
+# Newton-CG keeps the per-pair curvature between Hessian-vector products when
+# there are at most this many class pairs.
+_ECM_CACHE_PAIRS = 1 << 22
 
 
 def _fit_ecm(k_out, s_out, k_in, s_in, directed, max_iter, tol):
     """Maximum-likelihood ECM multipliers.
 
-    Works with ``x * y = exp(-c)`` and ``y = exp(-b)`` (``b > 0`` keeps
-    ``y < 1``).  Parameterizing by ``x * y`` keeps the problem well
-    conditioned for nodes whose links all have weight 1, where ``y -> 0``
-    and ``x -> inf`` with finite product.  Nodes with zero degree are pinned
-    to ``x = 0``.  Returns
-    ``(x_out, y_out, x_in, y_in, max_relative_error)``.
+    Works with ``x * y = exp(-a)`` and ``y = exp(-b)``.  Parameterizing by
+    ``x * y`` keeps the problem well conditioned for nodes whose links all
+    have weight 1: their ``y`` is exactly 0 (``b = inf``) at the optimum,
+    with ``x * y`` finite.
+
+    The likelihood is strictly convex up to the directed gauge, so nodes
+    that the constraints cannot tell apart share their multipliers at the
+    optimum: nodes with the same degree and strength (undirected), or the
+    same out- and in-degree and strength (directed).  The fit runs over
+    these classes, which is exact.  For directed graphs it is warm-started
+    from the cheaper fit over separate out- and in-classes, which is exact
+    except for the excluded self-pairs.
+
+    Nodes with zero degree are left out of the fit.  Returns
+    ``(a_out, b_out, a_in, b_in, active_out, active_in, max_relative_error)``
+    with one entry per node.
     """
     import numpy as np
-    from scipy.optimize import minimize
 
     n = len(k_out)
     act_out = k_out > 0
     act_in = k_in > 0
-    off_diag = ~np.eye(n, dtype=bool)
 
-    def unpack(theta):
-        if directed:
-            a_out, b_out, a_in, b_in = np.split(theta, 4)
-        else:
-            a_out, b_out = np.split(theta, 2)
-            a_in, b_in = a_out, b_out
-        return a_out, b_out, a_in, b_in
+    def unique_rows(*columns):
+        keys, inverse, counts = np.unique(
+            np.stack(columns, axis=1),
+            axis=0,
+            return_inverse=True,
+            return_counts=True,
+        )
+        return keys, inverse.reshape(-1), counts.astype(float)
 
-    def expectations(theta):
-        a_out, b_out, a_in, b_in = unpack(theta)
-        # log of x_i x_j y_i y_j and of y_i y_j, for every ordered pair.
-        log_yy = -(b_out[:, None] + b_in[None, :])
-        log_xxyy = -(a_out[:, None] + a_in[None, :])
+    def self_pairs(row, col, counts, n_rows, n_cols):
+        # Aggregate (row, col, count) triples; result sorted by row.
+        flat, inverse = np.unique(row * n_cols + col, return_inverse=True)
+        total = np.bincount(inverse.reshape(-1), weights=counts, minlength=len(flat))
+        r, c = np.divmod(flat, n_cols)
+        return r, c, total
+
+    if not directed:
+        keys, node_class, mult = unique_rows(k_out, s_out)
+        rows = np.flatnonzero(keys[:, 0] > 0)
+        pos = np.full(len(keys), -1)
+        pos[rows] = np.arange(len(rows))
+        k, s, m = keys[rows, 0], keys[rows, 1], mult[rows]
+        diag = np.arange(len(rows))
+        a, b, _, _, err = _ecm_newton(
+            (k, s, m), (k, s, m), (diag, diag, m), False, None, max_iter, tol
+        )
+        out_pos = in_pos = pos[node_class]
+        a_o, b_o, a_i, b_i = a, b, a, b
+    else:
+        keys, node_class, mult = unique_rows(k_out, s_out, k_in, s_in)
+        rows = np.flatnonzero(keys[:, 0] > 0)
+        cols = np.flatnonzero(keys[:, 2] > 0)
+        row_pos = np.full(len(keys), -1)
+        row_pos[rows] = np.arange(len(rows))
+        col_pos = np.full(len(keys), -1)
+        col_pos[cols] = np.arange(len(cols))
+        both = np.flatnonzero((row_pos >= 0) & (col_pos >= 0))
+        out_side = (keys[rows, 0], keys[rows, 1], mult[rows])
+        in_side = (keys[cols, 2], keys[cols, 3], mult[cols])
+        selfp = (row_pos[both], col_pos[both], mult[both])
+
+        # Warm start: classes of (k_out, s_out) and of (k_in, s_in) alone.
+        okeys, ocls, _ = unique_rows(*out_side[:2])
+        ikeys, icls, _ = unique_rows(*in_side[:2])
+        theta0 = None
+        if len(okeys) < len(rows) or len(ikeys) < len(cols):
+            coarse = _ecm_newton(
+                (okeys[:, 0], okeys[:, 1], np.bincount(ocls, weights=out_side[2])),
+                (ikeys[:, 0], ikeys[:, 1], np.bincount(icls, weights=in_side[2])),
+                self_pairs(
+                    ocls[selfp[0]], icls[selfp[1]], selfp[2], len(okeys), len(ikeys)
+                ),
+                True,
+                None,
+                max_iter,
+                tol,
+            )
+            theta0 = (
+                coarse[0][ocls],
+                coarse[1][ocls],
+                coarse[2][icls],
+                coarse[3][icls],
+            )
+        a_o, b_o, a_i, b_i, err = _ecm_newton(
+            out_side, in_side, selfp, True, theta0, max_iter, tol
+        )
+        out_pos = row_pos[node_class]
+        in_pos = col_pos[node_class]
+
+    def per_node(values, pos, default):
+        out = np.full(n, default)
+        out[pos >= 0] = values[pos[pos >= 0]]
+        return out
+
+    return (
+        per_node(a_o, out_pos, 0.0),
+        per_node(b_o, out_pos, 1.0),
+        per_node(a_i, in_pos, 0.0),
+        per_node(b_i, in_pos, 1.0),
+        act_out,
+        act_in,
+        err,
+    )
+
+
+def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
+    """Damped Newton fit of the class-reduced ECM likelihood.
+
+    ``out_side = (k, s, m)`` holds the out-degree, out-strength and number of
+    nodes of each out-class (row), and ``in_side`` the same for the
+    in-classes (columns).  Class pair ``(c, d)`` stands for
+    ``m_out[c] * m_in[d]`` ordered node pairs, less the self-pairs: the
+    ``self_pairs = (row, col, count)`` triples, sorted by row, count the
+    nodes in out-class ``row`` and in-class ``col``.  For undirected graphs
+    the two sides are the same classes and share their multipliers, and
+    every unordered pair is counted twice.
+
+    Pair sums are computed in chunks of about :data:`_ECM_CHUNK` class pairs.
+    Newton steps are solved densely for up to
+    :data:`_ECM_NEWTON_MAX_PARAMS` parameters and by block-Jacobi-preconditioned
+    conjugate gradients (Hessian-vector products) above.
+
+    Returns ``(a_out, b_out, a_in, b_in, max_relative_error)`` per class.
+    """
+    import numpy as np
+    from scipy.linalg import LinAlgWarning, solve
+
+    ko, so, mo = out_side
+    ki, si, mi = in_side
+    self_row, self_col, self_counts = self_pairs
+    n_out, n_in = len(ko), len(ki)
+
+    step_rows = max(1, _ECM_CHUNK // max(n_in, 1))
+    chunks = []
+    for r0 in range(0, n_out, step_rows):
+        r1 = min(r0 + step_rows, n_out)
+        lo, hi = np.searchsorted(self_row, [r0, r1])
+        chunks.append((r0, r1, lo, hi))
+
+    def pair_counts(r0, r1, lo, hi):
+        W = mo[r0:r1, None] * mi[None, :]
+        W[self_row[lo:hi] - r0, self_col[lo:hi]] -= self_counts[lo:hi]
+        return W
+
+    # Parameter layout.  Undirected graphs share out- and in-multipliers;
+    # their objective is half the directed one, which counts each unordered
+    # pair twice.
+    ao = np.arange(n_out)
+    bo = ao + n_out
+    if directed:
+        ai = np.arange(n_in) + 2 * n_out
+        bi = ai + n_in
+        n_par = 2 * (n_out + n_in)
+        scale = 1.0
+    else:
+        ai, bi = ao, bo
+        n_par = 2 * n_out
+        scale = 0.5
+
+    def pairs(theta, r0, r1):
+        # log of x_i x_j y_i y_j and of y_i y_j for out-class rows r0:r1.
+        log_yy = -(theta[bo[r0:r1], None] + theta[bi][None, :])
+        log_xxyy = -(theta[ao[r0:r1], None] + theta[ai][None, :])
         one_minus_yy = -np.expm1(log_yy)
-        # q_ij = x_i x_j y_i y_j / (1 - y_i y_j); log Z_ij = log(1 + q_ij)
+        # q = x_i x_j y_i y_j / (1 - y_i y_j); log Z = log(1 + q)
         log_q = log_xxyy - np.log(one_minus_yy)
-        mask = off_diag & act_out[:, None] & act_in[None, :]
-        log_q = np.where(mask, log_q, -np.inf)
         log_z = np.logaddexp(0.0, log_q)
         p = np.exp(log_q - log_z)  # link probability
-        w_mean = p / one_minus_yy  # expected weight
-        return p, w_mean, log_z
+        return p, one_minus_yy, log_yy, log_z
 
-    def objective(theta):
-        a_out, b_out, a_in, b_in = unpack(theta)
-        p, w_mean, log_z = expectations(theta)
-        # With x*y = exp(-c), the sufficient statistic of b is s - k.
-        if directed:
-            nll = (
-                a_out @ k_out
-                + b_out @ (s_out - k_out)
-                + a_in @ k_in
-                + b_in @ (s_in - k_in)
-                + log_z.sum()
-            )
-            grad = np.concatenate(
-                [
-                    k_out - p.sum(1),
-                    (s_out - k_out) - (w_mean - p).sum(1),
-                    k_in - p.sum(0),
-                    (s_in - k_in) - (w_mean - p).sum(0),
-                ]
-            )
-        else:
-            # Symmetric matrices count each unordered pair twice.
-            nll = a_out @ k_out + b_out @ (s_out - k_out) + 0.5 * log_z.sum()
-            grad = np.concatenate(
-                [k_out - p.sum(1), (s_out - k_out) - (w_mean - p).sum(1)]
-            )
-        return nll, grad
-
-    def start(k, s):
-        total = max(k.sum(), 1.0)
-        # Chung-Lu-like guess for x*y, and mean link weight 1/(1-y) ~ s/k.
-        a = -np.log(np.where(k > 0, k / np.sqrt(total), 1.0))
-        ratio = np.where(k > 0, s / np.maximum(k, 1.0), 2.0)
-        b = -np.log(np.clip(1.0 - 1.0 / np.maximum(ratio, 1.0 + 1e-6), 1e-12, 1.0))
-        return a, b
-
-    a0, b0 = start(k_out, s_out)
-    if directed:
-        a1, b1 = start(k_in, s_in)
-        theta0 = np.concatenate([a0, b0, a1, b1])
-    else:
-        theta0 = np.concatenate([a0, b0])
-    b_floor = 1e-10
-    bounds = []
-    blocks = 2 if directed else 1
-    for _ in range(blocks):
-        bounds += [(None, None)] * n + [(b_floor, None)] * n
-
-    def rel_err(obs, fit):
-        ok = obs > 0
-        return float(np.max(np.abs(fit[ok] - obs[ok]) / obs[ok])) if ok.any() else 0.0
-
-    def max_error(theta):
-        p, w_mean, _ = expectations(theta)
-        if directed:
-            return max(
-                rel_err(k_out, p.sum(1)),
-                rel_err(s_out, w_mean.sum(1)),
-                rel_err(k_in, p.sum(0)),
-                rel_err(s_in, w_mean.sum(0)),
-            )
-        return max(rel_err(k_out, p.sum(1)), rel_err(s_out, w_mean.sum(1)))
-
-    def hessian(theta):
-        p, w_mean, _ = expectations(theta)
-        m = w_mean - p
-        with np.errstate(divide="ignore", invalid="ignore"):
-            g = np.where(p > 0, m / np.where(p > 0, p, 1.0), 0.0)
-        A = p * (1.0 - p)  # -dp/dt
-        B = A * g  # -dp/dr  (= -dm/dt)
-        C = A * g * g + p * g * (1.0 + g)  # -dm/dr
-        if directed:
-            Hm = np.zeros((4 * n, 4 * n))
-            # parameter order: c_out, b_out, c_in, b_in
-            pairs = {(0, 0): A, (0, 1): B, (1, 1): C}
-            for (r, c), M in pairs.items():
-                Hm[r * n : (r + 1) * n, c * n : (c + 1) * n] += np.diag(M.sum(1))
-                Hm[(r + 2) * n : (r + 3) * n, (c + 2) * n : (c + 3) * n] += np.diag(
-                    M.sum(0)
-                )
-                Hm[r * n : (r + 1) * n, (c + 2) * n : (c + 3) * n] += M
-                Hm[(c + 2) * n : (c + 3) * n, r * n : (r + 1) * n] += M.T
-                if r != c:
-                    Hm[c * n : (c + 1) * n, r * n : (r + 1) * n] += np.diag(M.sum(1))
-                    Hm[(c + 2) * n : (c + 3) * n, (r + 2) * n : (r + 3) * n] += np.diag(
-                        M.sum(0)
-                    )
-                    Hm[c * n : (c + 1) * n, (r + 2) * n : (r + 3) * n] += M
-                    Hm[(r + 2) * n : (r + 3) * n, c * n : (c + 1) * n] += M.T
-            return Hm
-        # Undirected: symmetric pair matrices, each unordered pair once per row.
-        Hcc = np.diag(A.sum(1)) + A
-        Hcb = np.diag(B.sum(1)) + B
-        Hbb = np.diag(C.sum(1)) + C
-        return np.block([[Hcc, Hcb], [Hcb.T, Hbb]])
-
-    lower = np.array([lo if lo is not None else -np.inf for lo, _ in bounds])
-
-    theta = theta0
-    use_newton = len(theta0) <= _ECM_NEWTON_MAX_PARAMS
-    # With a Newton polish available, L-BFGS-B only needs to get close.
-    iters_left = min(max_iter, 200) if use_newton else max_iter
-    # Restarting L-BFGS-B resets its curvature estimate, which helps it
-    # finish ill-conditioned problems; a few restarts are plenty.
-    for _ in range(1 if use_newton else 3):
-        res = minimize(
-            objective,
-            theta,
-            jac=True,
-            method="L-BFGS-B",
-            bounds=bounds,
-            options={
-                "maxiter": iters_left,
-                "maxfun": 4 * max_iter,
-                "gtol": 1e-12,
-                "ftol": 1e-15,
-            },
+    def evaluate(theta):
+        """Objective, gradient and largest relative error."""
+        # With x*y = exp(-a), the sufficient statistic of b is s - k.
+        # Pinned classes (b = inf) have s = k and contribute nothing.
+        b_o = np.where(free[bo], theta[bo], 0.0)
+        b_i = np.where(free[bi], theta[bi], 0.0)
+        nll = mo @ (theta[ao] * ko + b_o * (so - ko)) + mi @ (
+            theta[ai] * ki + b_i * (si - ki)
         )
-        theta = res.x
-        iters_left -= res.nit
-        if max_error(theta) <= tol or iters_left <= 0:
-            break
+        k_o, s_o = np.zeros(n_out), np.zeros(n_out)
+        k_i, s_i = np.zeros(n_in), np.zeros(n_in)
+        for r0, r1, lo, hi in chunks:
+            W = pair_counts(r0, r1, lo, hi)
+            p, one_minus_yy, _, log_z = pairs(theta, r0, r1)
+            nll += np.sum(W * log_z)
+            Wp = W * p
+            Ww = Wp / one_minus_yy  # times the expected weight
+            k_o[r0:r1] = Wp.sum(1)
+            s_o[r0:r1] = Ww.sum(1)
+            k_i += Wp.sum(0)
+            s_i += Ww.sum(0)
+        grad = np.zeros(n_par)
+        grad[ao] += mo * ko - k_o
+        grad[bo] += mo * (so - ko) - (s_o - k_o)
+        grad[ai] += mi * ki - k_i
+        grad[bi] += mi * (si - ki) - (s_i - k_i)
 
-    # Damped Newton polish with the analytic Hessian.  The negative
-    # log-likelihood is convex, so this converges quadratically; it needs a
-    # dense solve, so it is only used for moderately sized graphs.
-    if use_newton and max_error(theta) > tol:
-        f, grad = objective(theta)
-        for _ in range(min(100, max_iter)):
-            Hm = hessian(theta)
-            # The directed model has a gauge freedom (shift out-parameters
-            # up and in-parameters down), so the Hessian is singular; a small
-            # scaled ridge keeps the step in the identifiable subspace.
-            Hm[np.diag_indices_from(Hm)] += 1e-9 * max(np.abs(Hm).max(), 1.0)
-            try:
-                step = np.linalg.solve(Hm, grad)
-            except np.linalg.LinAlgError:
-                step = np.linalg.lstsq(Hm, grad, rcond=None)[0]
+        def rel(obs, total, mult):
+            return np.max(np.abs(total / mult - obs) / obs, initial=0.0)
+
+        err = max(
+            rel(ko, k_o, mo), rel(so, s_o, mo), rel(ki, k_i, mi), rel(si, s_i, mi)
+        )
+        return scale * nll, scale * grad, float(err)
+
+    def curvature(theta, r0, r1, lo, hi):
+        """Pair-count-weighted second derivatives of log Z in (a, b)."""
+        W = pair_counts(r0, r1, lo, hi)
+        p, one_minus_yy, log_yy, _ = pairs(theta, r0, r1)
+        g = np.exp(log_yy) / one_minus_yy  # (expected weight - p) / p
+        A = W * p * (1.0 - p)  # d2/da2
+        B = A * g  # d2/da db
+        C = B * g + W * p * g * (1.0 + g)  # d2/db2
+        return A, B, C
+
+    def dense_hessian(theta):
+        # Each parameter block is a contiguous range, so the pair blocks are
+        # added through slices.  Only one triangle of each symmetric pair of
+        # blocks is filled (diagonal terms halved), then H += H.T.
+        Hm = np.zeros((n_par, n_par))
+        i_a = slice(ai[0], ai[-1] + 1) if n_in else slice(0, 0)
+        i_b = slice(bi[0], bi[-1] + 1) if n_in else slice(0, 0)
+        for r0, r1, lo, hi in chunks:
+            A, B, C = curvature(theta, r0, r1, lo, hi)
+            ro, rb = ao[r0:r1], bo[r0:r1]
+            Hm[ro, ro] += 0.5 * A.sum(1)
+            Hm[ro, rb] += B.sum(1)
+            Hm[rb, rb] += 0.5 * C.sum(1)
+            Hm[ai, ai] += 0.5 * A.sum(0)
+            Hm[ai, bi] += B.sum(0)
+            Hm[bi, bi] += 0.5 * C.sum(0)
+            o_a = slice(ao[r0], ao[r0] + r1 - r0)
+            o_b = slice(bo[r0], bo[r0] + r1 - r0)
+            Hm[o_a, i_a] += A
+            Hm[o_a, i_b] += B
+            Hm[o_b, i_a] += B
+            Hm[o_b, i_b] += C
+        Hm += Hm.T
+        Hm *= scale
+        return Hm
+
+    def newton_cg_step(theta, grad, eta):
+        """Approximately solve H d = grad by block-Jacobi-preconditioned CG."""
+        if n_out * n_in <= _ECM_CACHE_PAIRS:
+            cached = [(c, curvature(theta, *c)) for c in chunks]
+
+            def curvatures():
+                return cached
+        else:
+
+            def curvatures():
+                return ((c, curvature(theta, *c)) for c in chunks)
+
+        # H = (2x2 block per class, from the pair-curvature row and column
+        # sums) + (pair-curvature matrices coupling out- and in-parameters).
+        a_idx = np.concatenate([ao, ai]) if directed else ao
+        b_idx = np.concatenate([bo, bi]) if directed else bo
+        d_aa, d_ab, d_bb = np.zeros(n_par), np.zeros(n_par), np.zeros(n_par)
+        for (r0, r1, _, _), (A, B, C) in curvatures():
+            for M, d in ((A, d_aa), (B, d_ab), (C, d_bb)):
+                d[ao[r0:r1]] += M.sum(1)
+                d[ai] += M.sum(0)
+        d_aa, d_ab, d_bb = scale * d_aa[a_idx], scale * d_ab[a_idx], scale * d_bb[a_idx]
+        b_free = free[b_idx]
+        det = np.where(b_free, d_aa * d_bb - d_ab**2, 1.0)
+
+        def hessp(v):
+            out = np.zeros(n_par)
+            for (r0, r1, _, _), (A, B, C) in curvatures():
+                va, vb = v[ao[r0:r1]], v[bo[r0:r1]]
+                out[ao[r0:r1]] += A @ v[ai] + B @ v[bi]
+                out[bo[r0:r1]] += B @ v[ai] + C @ v[bi]
+                out[ai] += va @ A + vb @ B
+                out[bi] += va @ B + vb @ C
+            out *= scale
+            va, vb = v[a_idx], v[b_idx]
+            out[a_idx] += d_aa * va + d_ab * vb
+            out[b_idx] += d_ab * va + d_bb * vb
+            return out
+
+        def precondition(r):
+            # Inverse of the 2x2 diagonal blocks (just d_aa for pinned b).
+            z = np.zeros(n_par)
+            ra, rb = r[a_idx], r[b_idx]
+            z[a_idx] = np.where(b_free, (d_bb * ra - d_ab * rb) / det, ra / d_aa)
+            z[b_idx] = np.where(b_free, (d_aa * rb - d_ab * ra) / det, 0.0)
+            return z
+
+        target = eta * np.linalg.norm(grad)
+        x = np.zeros(n_par)
+        r = grad.copy()
+        z = precondition(r)
+        d = z.copy()
+        rz = r @ z
+        for _ in range(max(100, n_par // 20)):
+            Hd = hessp(d)
+            curv = d @ Hd
+            if curv <= 0:
+                break
+            alpha = rz / curv
+            x += alpha * d
+            r -= alpha * Hd
+            if np.linalg.norm(r) <= target:
+                break
+            z = precondition(r)
+            rz_new = r @ z
+            d = z + (rz_new / rz) * d
+            rz = rz_new
+        return x if x.any() else precondition(grad)
+
+    theta = np.zeros(n_par)
+    if theta0 is None:
+        total = max(mo @ ko, 1.0)
+
+        def start(k, s):
+            # Chung-Lu-like guess for x*y, and mean link weight 1/(1-y) ~ s/k.
+            a = -np.log(k / np.sqrt(total))
+            ratio = np.maximum(s / k, 1.0 + 1e-3)
+            return a, -np.log1p(-1.0 / ratio)
+
+        theta[ao], theta[bo] = start(ko, so)
+        theta[ai], theta[bi] = start(ki, si)
+    else:
+        theta[ao], theta[bo], theta[ai], theta[bi] = theta0
+    # A class whose links all have weight 1 (s = k) has y = 0 at the optimum:
+    # its b is pinned to infinity and left out of the Newton system.
+    free = np.ones(n_par, dtype=bool)
+    free[bo[so == ko]] = False
+    free[bi[si == ki]] = False
+    theta[~free] = np.inf
+    idx = np.flatnonzero(free)
+
+    # The directed model has a gauge freedom: shifting every out-parameter
+    # up and every in-parameter down by the same amount changes nothing, so
+    # the Hessian is singular along these directions.  Adding them as
+    # rank-one terms makes it invertible without changing the Newton step,
+    # because the gradient is orthogonal to them.
+    gauge = []
+    if directed:
+        for out_idx, in_idx in ((ao, ai), (bo, bi)):
+            u = np.zeros(n_par)
+            u[out_idx] = 1.0
+            u[in_idx] = -1.0
+            u[~free] = 0.0
+            if u.any():
+                gauge.append(u[idx] / np.linalg.norm(u))
+
+    # Damped Newton.  The negative log-likelihood is convex and grows
+    # without bound as any y_i y_j -> 1, so with a backtracking line search
+    # (which rejects steps leaving that domain) it converges globally and,
+    # near the optimum, quadratically.
+    dense = len(idx) <= _ECM_NEWTON_MAX_PARAMS
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        f, grad, err = evaluate(theta)
+        polish = True
+        for _ in range(max_iter):
+            # Once within tol, one more (quadratically convergent) step makes
+            # the result essentially independent of where the solver stopped.
+            if err <= tol:
+                if not polish or err <= 1e-3 * tol:
+                    break
+                polish = False
+            if dense:
+                Hm = dense_hessian(theta)
+                if len(idx) < n_par:
+                    Hm = Hm[np.ix_(idx, idx)]
+                shift = np.trace(Hm) / max(len(idx), 1)
+                for u in gauge:
+                    Hm += shift * np.outer(u, u)
+                step = np.zeros(n_par)
+                try:
+                    # Positive definite: a Cholesky solve.  An ill-conditioned
+                    # Hessian is fine here; the line search guards the step.
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", LinAlgWarning)
+                        step[idx] = solve(Hm, grad[idx], assume_a="pos")
+                except (np.linalg.LinAlgError, ValueError):
+                    step[idx] = np.linalg.lstsq(Hm, grad[idx], rcond=None)[0]
+            else:
+                # Inexact Newton: solve more accurately as the margins
+                # converge, for superlinear convergence.
+                step = newton_cg_step(theta, grad, min(0.5, np.sqrt(err)))
+            step[~free] = 0.0
             t = 1.0
-            while t > 1e-8:
-                cand = np.maximum(theta - t * step, lower)
-                f_new, grad_new = objective(cand)
-                if f_new <= f + 1e-4 * t * (grad @ (cand - theta)) or f_new < f:
+            while t > 1e-10:
+                cand = theta - t * step
+                f_new, grad_new, err_new = evaluate(cand)
+                # Near the optimum f is flat to rounding error; then accept
+                # a step that reduces the error in the margins.
+                if np.isfinite(f_new) and (
+                    f_new <= f - 1e-4 * t * (grad @ step)
+                    or (f_new - f <= 1e-12 * abs(f) and err_new < err)
+                ):
                     break
                 t *= 0.5
             else:
                 break
-            theta, f, grad = cand, f_new, grad_new
-            if max_error(theta) <= tol:
-                break
+            theta, f, grad, err = cand, f_new, grad_new, err_new
 
-    err = max_error(theta)
-
-    a_out, b_out, a_in, b_in = unpack(theta)
-    return a_out, b_out, a_in, b_in, act_out, act_in, err
+    return theta[ao], theta[bo], theta[ai], theta[bi], err
 
 
 # =====================================================================
@@ -2221,9 +2456,14 @@ _COMPLEXITY = {
         "notes": "n=|V|, m=|E|. missing_as_zero=True adds O(n^2) time and space.",
     },
     "ecm_filter": {
-        "time": "O(I * n^2 + m)",
-        "space": "O(n^2 + m)",
-        "notes": "I=solver iterations; a dense O(n^3) Newton polish is used for n <= 2000. missing_as_zero=True adds O(n^2) time and space.",
+        "time": "O(I * C^2 + n log n + m)",
+        "space": "O(C^2 + n + m)",
+        "notes": (
+            "C=distinct (degree, strength) classes (directed: (k_out, s_out, "
+            "k_in, s_in)), I=Newton iterations; a dense O(C^3) Newton solve "
+            "is used up to 4000 parameters, Newton-CG above. "
+            "missing_as_zero=True adds O(n^2) time and space."
+        ),
     },
     "lans_filter": {
         "time": "O(m log n)",

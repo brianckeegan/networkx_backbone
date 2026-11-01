@@ -219,6 +219,18 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   0.36 s); MDL ``"node"`` optimizer with a lazy heap (m = 2000: 8.3 s ->
   0.47 s); vectorized SVC p-values.
 
+- ``ecm_filter`` fits the ECM over classes of nodes with the same degree and
+  strength (out- and in-degree and strength for directed graphs), which is
+  exact. Pair sums are computed in chunks, and the dense Newton polish is
+  replaced by damped Newton steps (Newton-CG for large problems). On a
+  2,000-node Barabási-Albert graph the fit drops from about 90 s and 600 MB
+  to under 2 s and 50 MB; 20,000 nodes take about 16 s and 300 MB (about
+  90 s for a directed version, which has 10,660 classes). The fit
+  now also converges on directed graphs where the old solver stopped short,
+  and nodes whose links all have weight 1 get the exact :math:`y_i = 0`.
+  P-values on Les Misérables agree with the old solver to about 1e-8
+  (#21).
+
 **Infrastructure and documentation**
 
 - Docstrings are validated by the Sphinx build and by a new ``numpydoc lint``
