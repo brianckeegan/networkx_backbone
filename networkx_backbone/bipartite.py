@@ -31,12 +31,22 @@ fixedfill, fixedrow, fixedcol
     Fixed fill / row / column null models (Neal et al. 2021).
 """
 
+from __future__ import annotations
+
 import warnings
-from typing import NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast, overload
 
 import networkx as nx
 
 from networkx_backbone._docstrings import append_complexity_docstrings
+
+if TYPE_CHECKING:
+    from collections.abc import Hashable, Iterable, Sequence
+
+    import numpy as np
+    import numpy.typing as npt
+
+    from networkx_backbone._typing import GraphInput, IdentityDecorator, Seed
 
 __all__ = [
     # Bipartite projection methods
@@ -92,7 +102,11 @@ def _reject_directed_or_multigraph(B):
     return B
 
 
-_graph_or_matrix = nx.utils.argmap(_reject_directed_or_multigraph, 0)
+# The cast keeps the decorated functions' signatures for type checkers
+# (types-networkx types ``argmap`` as returning ``Callable[..., Any]``).
+_graph_or_matrix = cast(
+    "IdentityDecorator", nx.utils.argmap(_reject_directed_or_multigraph, 0)
+)
 
 
 def _validate_bipartite(B, agent_nodes):
@@ -267,7 +281,7 @@ def _incidence(B, agent_nodes=None, agent_labels=None, artifact_labels=None):
     return _Incidence(agents, artifacts, R)
 
 
-def _degrees(R):
+def _degrees(R: Any) -> tuple[np.ndarray, np.ndarray]:
     """Return ``(agent_degrees, artifact_degrees)`` of a sparse incidence."""
     import numpy as np
 
@@ -625,8 +639,13 @@ def _projection_graph(inc, method, weight="weight", directed=False, **kwargs):
 
 @_graph_or_matrix
 def simple_projection(
-    B, agent_nodes=None, weight="weight", *, agent_labels=None, artifact_labels=None
-):
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    weight: str = "weight",
+    *,
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     r"""Project a bipartite graph using shared-neighbor counts.
 
     The weight of agents ``u`` and ``v`` is the number of artifacts they
@@ -703,14 +722,14 @@ def simple_projection(
 
 @_graph_or_matrix
 def hyper_projection(
-    B,
-    agent_nodes=None,
-    weight="weight",
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    weight: str = "weight",
     *,
-    newman=False,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    newman: bool = False,
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     r"""Project a bipartite graph with hyperbolic (degree-discounted) weights.
 
     Each shared artifact ``z`` contributes the inverse of its degree
@@ -802,14 +821,14 @@ def hyper_projection(
 
 @_graph_or_matrix
 def probs_projection(
-    B,
-    agent_nodes=None,
-    weight="weight",
-    directed=False,
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    weight: str = "weight",
+    directed: bool = False,
     *,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     r"""Project a bipartite graph using ProbS random-walk weights.
 
     ProbS (probabilistic spreading, or mass diffusion) [1]_ [2]_ sends a unit
@@ -889,16 +908,16 @@ def probs_projection(
 
 @_graph_or_matrix
 def ycn_projection(
-    B,
-    agent_nodes=None,
-    weight="weight",
-    directed=False,
-    max_iter=1000,
-    tol=1e-12,
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    weight: str = "weight",
+    directed: bool = False,
+    max_iter: int = 1000,
+    tol: float = 1e-12,
     *,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     r"""Project a bipartite graph using YCN random-walk stationary flow.
 
     YCN (Yildirim & Coscia [1]_, who call it BPR) extends ProbS to random
@@ -986,17 +1005,17 @@ def ycn_projection(
 
 @_graph_or_matrix
 def bipartite_projection(
-    B,
-    agent_nodes=None,
-    method="simple",
-    weight="weight",
-    directed=False,
-    max_iter=1000,
-    tol=1e-12,
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    method: str = "simple",
+    weight: str = "weight",
+    directed: bool = False,
+    max_iter: int = 1000,
+    tol: float = 1e-12,
     *,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     """Dispatch weighted bipartite projections by method name.
 
     Parameters
@@ -1412,17 +1431,52 @@ def _bicm_classes(row_deg, col_deg, tol=1e-8, max_iter=10000):
     return Q, row_class, col_class
 
 
+@overload
+def bicm(
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = ...,
+    return_labels: Literal[False] = ...,
+    *,
+    tol: float = ...,
+    max_iter: int = ...,
+    agent_labels: Sequence[Hashable] | None = ...,
+    artifact_labels: Sequence[Hashable] | None = ...,
+) -> np.ndarray: ...  # numpydoc ignore=GL08
+@overload
+def bicm(
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = ...,
+    *,
+    return_labels: Literal[True],
+    tol: float = ...,
+    max_iter: int = ...,
+    agent_labels: Sequence[Hashable] | None = ...,
+    artifact_labels: Sequence[Hashable] | None = ...,
+) -> tuple[np.ndarray, list[Hashable], list[Hashable]]: ...  # numpydoc ignore=GL08
+@overload
+def bicm(
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = ...,
+    return_labels: bool = ...,
+    *,
+    tol: float = ...,
+    max_iter: int = ...,
+    agent_labels: Sequence[Hashable] | None = ...,
+    artifact_labels: Sequence[Hashable] | None = ...,
+) -> (
+    np.ndarray | tuple[np.ndarray, list[Hashable], list[Hashable]]
+): ...  # numpydoc ignore=GL08
 @_graph_or_matrix
 def bicm(
-    B,
-    agent_nodes=None,
-    return_labels=False,
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    return_labels: bool = False,
     *,
-    tol=1e-8,
-    max_iter=10000,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    tol: float = 1e-8,
+    max_iter: int = 10000,
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> np.ndarray | tuple[np.ndarray, list[Hashable], list[Hashable]]:
     """Estimate Bipartite Configuration Model edge probabilities.
 
     Fits the maximum-entropy BiCM [1]_: ``P[i, k] = x_i y_k / (1 + x_i y_k)``
@@ -1552,7 +1606,9 @@ def _rows_to_matrix(row_sets, n_cols):
     return out
 
 
-def fastball(matrix, n_swaps=None, seed=None):
+def fastball(
+    matrix: npt.ArrayLike, n_swaps: int | None = None, seed: Seed = None
+) -> np.ndarray:
     """Randomize a binary matrix while preserving row and column sums.
 
     This is a Curveball-style randomizer commonly used for bipartite
@@ -1814,19 +1870,19 @@ def _fixedcol_tails(inc, *, signed=False):
 
 @_graph_or_matrix
 def fixedfill(
-    B,
-    agent_nodes=None,
-    alpha=0.05,
-    signed=False,
-    projection="simple",
-    projection_weight="weight",
-    projection_directed=False,
-    projection_max_iter=1000,
-    projection_tol=1e-12,
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    alpha: float = 0.05,
+    signed: bool = False,
+    projection: str = "simple",
+    projection_weight: str = "weight",
+    projection_directed: bool = False,
+    projection_max_iter: int = 1000,
+    projection_tol: float = 1e-12,
     *,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     """Backbone from the fixed-fill null model for bipartite projections.
 
     Under the fixed fill model (FFM) [1]_ every bipartite matrix with the same
@@ -1919,19 +1975,19 @@ def fixedfill(
 
 @_graph_or_matrix
 def fixedrow(
-    B,
-    agent_nodes=None,
-    alpha=0.05,
-    signed=False,
-    projection="simple",
-    projection_weight="weight",
-    projection_directed=False,
-    projection_max_iter=1000,
-    projection_tol=1e-12,
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    alpha: float = 0.05,
+    signed: bool = False,
+    projection: str = "simple",
+    projection_weight: str = "weight",
+    projection_directed: bool = False,
+    projection_max_iter: int = 1000,
+    projection_tol: float = 1e-12,
     *,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     """Backbone from the fixed-row null model for bipartite projections.
 
     Under the fixed row model (FRM) [1]_ each agent keeps its degree ``d_i``
@@ -2020,19 +2076,19 @@ def fixedrow(
 
 @_graph_or_matrix
 def fixedcol(
-    B,
-    agent_nodes=None,
-    alpha=0.05,
-    signed=False,
-    projection="simple",
-    projection_weight="weight",
-    projection_directed=False,
-    projection_max_iter=1000,
-    projection_tol=1e-12,
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    alpha: float = 0.05,
+    signed: bool = False,
+    projection: str = "simple",
+    projection_weight: str = "weight",
+    projection_directed: bool = False,
+    projection_max_iter: int = 1000,
+    projection_tol: float = 1e-12,
     *,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     """Backbone from the fixed-column null model for bipartite projections.
 
     Under the fixed column model (FCM) [1]_ each artifact ``k`` keeps its
@@ -2135,21 +2191,21 @@ def fixedcol(
 
 @_graph_or_matrix
 def backbone_from_projection(
-    B,
-    agent_nodes=None,
-    method="sdsm",
-    alpha=0.05,
-    projection="simple",
-    projection_weight="weight",
-    projection_directed=False,
-    projection_max_iter=1000,
-    projection_tol=1e-12,
-    mtc="none",
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    method: str = "sdsm",
+    alpha: float = 0.05,
+    projection: str = "simple",
+    projection_weight: str = "weight",
+    projection_directed: bool = False,
+    projection_max_iter: int = 1000,
+    projection_tol: float = 1e-12,
+    mtc: str = "none",
     *,
-    agent_labels=None,
-    artifact_labels=None,
-    **kwargs,
-):
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+    **kwargs: Any,
+) -> nx.Graph:
     """Extract a bipartite projection backbone using method-name dispatch.
 
     Mirrors ``backbone::backbone_from_projection`` in R: the selected null
@@ -2282,22 +2338,22 @@ def backbone_from_projection(
 
 
 def backbone_from_weighted(
-    G,
-    method="disparity",
-    weight="weight",
-    alpha=0.05,
-    signed=False,
-    mtc="none",
-    collapse_multiedges=True,
-    edge_type_attr=None,
-    missing_as_zero=False,
+    G: GraphInput,
+    method: str = "disparity",
+    weight: str = "weight",
+    alpha: float = 0.05,
+    signed: bool = False,
+    mtc: str = "none",
+    collapse_multiedges: bool = True,
+    edge_type_attr: str | None = None,
+    missing_as_zero: bool = False,
     *,
-    nodelist=None,
-    directed=False,
-    source="source",
-    target="target",
-    **kwargs,
-):
+    nodelist: Sequence[Hashable] | None = None,
+    directed: bool = False,
+    source: str = "source",
+    target: str = "target",
+    **kwargs: Any,
+) -> nx.Graph:
     """Extract a weighted-network backbone using method-name dispatch.
 
     Multi-edge inputs can be collapsed automatically before scoring.
@@ -2444,7 +2500,11 @@ def backbone_from_weighted(
             "missing_as_zero=True is only supported for the statistical "
             "methods 'disparity', 'mlf' and 'lans'."
         )
-    score_kw = {"weight": weight, "signed": signed, "missing_as_zero": missing_as_zero}
+    score_kw: dict[str, Any] = {
+        "weight": weight,
+        "signed": signed,
+        "missing_as_zero": missing_as_zero,
+    }
 
     if method_l in ("disparity", "disparity_filter"):
         scored = disparity_filter(G, **score_kw)
@@ -2473,15 +2533,15 @@ def backbone_from_weighted(
 
 
 def backbone_from_unweighted(
-    G,
-    method="sparsify",
+    G: GraphInput,
+    method: str = "sparsify",
     *,
-    nodelist=None,
-    directed=False,
-    source="source",
-    target="target",
-    **kwargs,
-):
+    nodelist: Sequence[Hashable] | None = None,
+    directed: bool = False,
+    source: str = "source",
+    target: str = "target",
+    **kwargs: Any,
+) -> nx.Graph:
     """Extract an unweighted-network backbone using method-name dispatch.
 
     Parameters
@@ -2567,7 +2627,7 @@ def backbone_from_unweighted(
     )
 
 
-def backbone(G, method=None, **kwargs):
+def backbone(G: GraphInput, method: str | None = None, **kwargs: Any) -> nx.Graph:
     """Unified dispatch wrapper across projection, weighted, and unweighted methods.
 
     Parameters
@@ -2671,6 +2731,8 @@ def backbone(G, method=None, **kwargs):
     if method is not None:
         raise ValueError(f"Unknown method {method!r}")
 
+    # Only graphs reach this point (matrices returned above); tell mypy so.
+    G = cast("nx.Graph", G)
     has_bipartite_attr = any("bipartite" in data for _, data in G.nodes(data=True))
     if (
         has_bipartite_attr
@@ -2873,23 +2935,23 @@ def _fdsm_tails(inc, *, trials=1000, seed=None, signed=False, burn_in=None, thin
 
 @_graph_or_matrix
 def sdsm(
-    B,
-    agent_nodes=None,
-    alpha=0.05,
-    weight=None,
-    signed=False,
-    prohibited=None,
-    required=None,
-    projection="simple",
-    projection_weight="weight",
-    projection_directed=False,
-    projection_max_iter=1000,
-    projection_tol=1e-12,
-    pvalue_method="auto",
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    alpha: float = 0.05,
+    weight: str | None = None,
+    signed: bool = False,
+    prohibited: Iterable[tuple[Hashable, Hashable]] | None = None,
+    required: Iterable[tuple[Hashable, Hashable]] | None = None,
+    projection: str = "simple",
+    projection_weight: str = "weight",
+    projection_directed: bool = False,
+    projection_max_iter: int = 1000,
+    projection_tol: float = 1e-12,
+    pvalue_method: str = "auto",
     *,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     """Score a bipartite projection using the SDSM.
 
     The Stochastic Degree Sequence Model [1]_ treats each bipartite edge as
@@ -3056,23 +3118,23 @@ def sdsm(
 
 @_graph_or_matrix
 def fdsm(
-    B,
-    agent_nodes=None,
-    alpha=0.05,
-    trials=1000,
-    seed=None,
-    signed=False,
-    projection="simple",
-    projection_weight="weight",
-    projection_directed=False,
-    projection_max_iter=1000,
-    projection_tol=1e-12,
-    burn_in=None,
-    thin=None,
+    B: GraphInput,
+    agent_nodes: Iterable[Hashable] | None = None,
+    alpha: float = 0.05,
+    trials: int = 1000,
+    seed: Seed = None,
+    signed: bool = False,
+    projection: str = "simple",
+    projection_weight: str = "weight",
+    projection_directed: bool = False,
+    projection_max_iter: int = 1000,
+    projection_tol: float = 1e-12,
+    burn_in: int | None = None,
+    thin: int | None = None,
     *,
-    agent_labels=None,
-    artifact_labels=None,
-):
+    agent_labels: Sequence[Hashable] | None = None,
+    artifact_labels: Sequence[Hashable] | None = None,
+) -> nx.Graph:
     """Score a bipartite projection using the FDSM.
 
     The Fixed Degree Sequence Model [1]_ uses Monte Carlo simulation to

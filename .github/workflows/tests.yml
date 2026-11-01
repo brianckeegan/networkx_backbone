@@ -36,6 +36,22 @@ jobs:
       # pyproject.toml), without building the docs.
       - run: python -m numpydoc lint networkx_backbone/*.py
 
+  typecheck:
+    # Non-strict mypy over the annotated public API ([tool.mypy] in
+    # pyproject.toml).  numpy, scipy and matplotlib are installed so their
+    # types resolve; mypy and the NetworkX stubs are pinned in the typing extra.
+    name: Type check (mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[full,viz,typing]"
+      - run: mypy networkx_backbone
+
   test:
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
