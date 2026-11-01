@@ -11,6 +11,8 @@ The :func:`~networkx_backbone.mdl_hypergraph_backbone` method implements the
 parameter-free, information-theoretic (minimum description length) backbone of
 Kirkley, Felippe, Malizia & Battiston (2026), which prunes nested and redundant
 hyperedges and naturally extends to weighted hypergraphs.
+:func:`~networkx_backbone.local_mdl_hypergraph_backbone` is its local variant
+(Appendix E of the paper), which backbones each node's neighborhood separately.
 
 .. automodule:: networkx_backbone.hypergraph
    :no-members:
@@ -18,6 +20,8 @@ hyperedges and naturally extends to weighted hypergraphs.
 .. currentmodule:: networkx_backbone
 
 .. autofunction:: mdl_hypergraph_backbone
+
+.. autofunction:: local_mdl_hypergraph_backbone
 
 .. autofunction:: hypergraph_compression_ratio
 
