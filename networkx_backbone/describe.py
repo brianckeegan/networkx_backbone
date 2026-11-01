@@ -195,6 +195,12 @@ REFERENCES = _refs(
         "entropy", eprint="1706.00230",
     ),
     Reference(
+        "marcaccioli2019", "article", ("Marcaccioli, R.", "Livan, G."), 2019,
+        "A Pólya urn approach to information filtering in complex networks",
+        "Nature Communications", "10", pages="745",
+        doi="10.1038/s41467-019-08667-3",
+    ),
+    Reference(
         "foti2011", "article",
         ("Foti, N. J.", "Hughes, J. M.", "Rockmore, D. N."), 2011,
         "Nonparametric sparsification of complex multiscale networks",
@@ -521,6 +527,14 @@ METHODS = {
         "the node's sorted link weights to ideal distributions of one, two, "
         "three, ... equally strong links, and keeps those links",
         ("vannuffel2007", "weaver1954", "yassin2023"),
+    ),
+    "polya_filter": Method(
+        "the Pólya filter",
+        "which tests each edge's weight against a null model in which each "
+        "node distributes its strength over its edges through a "
+        "self-reinforcing Pólya urn process (a beta-binomial distribution "
+        "with reinforcement parameter a)",
+        ("marcaccioli2019",), test=True,
     ),
     # --- structural --------------------------------------------------------
     "global_threshold_filter": Method(

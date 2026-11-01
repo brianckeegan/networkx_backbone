@@ -53,6 +53,14 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
   hyperbolic weight, :math:`1/d(z)`, is unchanged and follows Coscia & Rossi
   (2019). Projection citations are corrected to Coscia & Rossi (2019,
   arXiv:1906.09081) (#13).
+- New :func:`~networkx_backbone.polya_filter`: the Pólya urn filter of
+  Marcaccioli & Livan (2019), adding ``polya_pvalue``. The null model is the
+  beta-binomial urn of Eqs. (1)-(2), tested from both endpoints (out- and
+  in-links for directed graphs). By default the reinforcement parameter ``a``
+  is the maximum-likelihood estimate of the paper's Supplementary Note 5,
+  stored in ``H.graph["polya_a"]``; non-integer weights use the paper's
+  large-strength approximation, Eq. (6). Les Misérables: ``a`` = 0.340 and
+  12 edges at ``polya_pvalue < 0.05`` (#42).
 - ``glab_filter`` now supports directed graphs using the out- and
   in-involvement of Zhang et al. (2014), Section 2.3 (#12). On a symmetric
   ``DiGraph`` it gives the undirected p-values.

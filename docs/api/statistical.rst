@@ -24,6 +24,8 @@ Complexity classes are provided in each function docstring.
 
 .. autofunction:: multiple_linkage_analysis
 
+.. autofunction:: polya_filter
+
 .. minigallery::
    networkx_backbone.disparity_filter
    networkx_backbone.noise_corrected_filter
@@ -31,6 +33,7 @@ Complexity classes are provided in each function docstring.
    networkx_backbone.ecm_filter
    networkx_backbone.lans_filter
    networkx_backbone.multiple_linkage_analysis
+   networkx_backbone.polya_filter
    :add-heading: Gallery Examples
 
 .. rubric:: Function Image Reference
