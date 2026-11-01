@@ -53,6 +53,11 @@ Core method families used in [netbone](https://gitlab.liris.cnrs.fr/coregraphie/
 - Structural: `global_threshold_filter`, `global_sparsification`, `primary_linkage_analysis`, `edge_betweenness_filter`, `high_salience_skeleton`, `doubly_stochastic_filter`, `maximum_spanning_tree_backbone`
 - Hybrid: `glab_filter`
 
+[docs/design/yassin-2025-coverage.md](docs/design/yassin-2025-coverage.md)
+checks the package method by method against the two comparative studies by
+Yassin et al. (2025). It covers 13 of the 15 methods; the Pólya urn and GloSS
+filters are missing.
+
 Every backbone *model* in Neal's
 [Backbone 3.0](https://doi.org/10.1371/journal.pone.0349258) R package is also
 covered (`disparity`, `mlf`, `lans`, `sdsm`, `fdsm`, `fixedfill`/`fixedrow`/`fixedcol`,
