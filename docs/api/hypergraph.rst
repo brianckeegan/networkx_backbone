@@ -47,7 +47,8 @@ These return plain hyperedge collections rather than a
 Hypothesis-testing hypergraph backbones that validate hyperedges/groups
 recurring more than expected under a null model (Musciotto, Battiston &
 Mantegna, 2021).  These require ``scipy`` and return a
-:class:`~networkx_backbone.ValidatedHypergraph`.
+:class:`~networkx_backbone.ValidatedHypergraph`.  The short names ``svh`` and ``svc``
+are aliases for the two functions.
 
 .. autofunction:: statistically_validated_hypergraph
 

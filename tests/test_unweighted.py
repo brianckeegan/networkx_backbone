@@ -1,6 +1,6 @@
 """Reference-implementation and regression tests for networkx_backbone.unweighted.
 
-Shared behaviour (attributes, directed/multigraph rejection, empty graphs,
+Shared behavior (attributes, directed/multigraph rejection, empty graphs,
 mixed labels, no input mutation) is covered by ``test_api_contract.py``.
 """
 
@@ -34,7 +34,7 @@ def _jaccard(G):
     return score
 
 
-def _neighbour_degree(G):
+def _neighbor_degree(G):
     def score(u, v):
         return G.degree(v)
 
@@ -81,11 +81,11 @@ def test_local_degree_matches_reference():
     for i, G in enumerate(_test_graphs()):
         G = nx.Graph(G.edges())
         for s in EXPONENTS:
-            expected = _reference(G, s, _neighbour_degree(G), "floor")
+            expected = _reference(G, s, _neighbor_degree(G), "floor")
             assert _kept(local_degree(G, s=s)) == expected, f"graph {i}, s={s}"
 
 
-def test_sparsify_degree_filter_is_normalisation_invariant(karate):
+def test_sparsify_degree_filter_is_normalization_invariant(karate):
     for s in EXPONENTS:
         ranked = sparsify(karate, escore="jaccard", normalize="rank", s=s)
         raw = sparsify(karate, escore="jaccard", normalize=None, s=s)
@@ -96,7 +96,7 @@ def test_karate_counts_known_answer():
     G = nx.karate_club_graph()
     assert len(_kept(lspar(G, s=0.5))) == 61
     assert len(_kept(local_degree(G, s=0.3))) == len(
-        _reference(G, 0.3, _neighbour_degree(G), "floor")
+        _reference(G, 0.3, _neighbor_degree(G), "floor")
     )
 
 
@@ -122,7 +122,7 @@ def test_local_degree_score_is_critical_exponent():
         assert via_score == _kept(local_degree(G, s=s2))
 
 
-def test_local_degree_ranks_by_neighbour_degree():
+def test_local_degree_ranks_by_neighbor_degree():
     """Regression: the old symmetric max(deg u, deg v) score kept (x, y)."""
     G = nx.Graph()
     G.add_edges_from((0, i) for i in range(1, 6))  # hub 0, degree 5
@@ -221,17 +221,17 @@ class TestSparsifyOptions:
         H = sparsify(G, escore="triangles", normalize=None, filter="threshold", s=2)
         assert H[0][1]["sparsify_keep"] and not H[3][4]["sparsify_keep"]
         H = sparsify(G, escore="degree", normalize=None, filter="threshold", s=4)
-        # Raw neighbour-degree scores combine by max over the two endpoints.
+        # Raw neighbor-degree scores combine by max over the two endpoints.
         assert H[3][4]["sparsify_score"] == 4.0
         assert H[0][1]["sparsify_score"] == 3.0
 
-    def test_rank_threshold_normalised_values(self):
+    def test_rank_threshold_normalized_values(self):
         G = nx.star_graph(3)
         G.add_edge(1, 2)
         H = sparsify(G, escore="jaccard", normalize="rank", filter="threshold", s=1.0)
         for _, _, sc in H.edges(data="sparsify_score"):
             assert 0.0 < sc <= 1.0
-        # Each node's best edge has normalised rank 1 and is kept.
+        # Each node's best edge has normalized rank 1 and is kept.
         assert H[1][2]["sparsify_keep"]
         assert H[0][3]["sparsify_keep"]  # only edge of leaf 3
 
@@ -265,7 +265,7 @@ class TestSparsifyOptions:
         assert _kept(sparsify(G, umst=True, **kw)) == {frozenset(e) for e in G.edges()}
 
     def test_umst_unique_tree_hand_built(self):
-        # Raw neighbour-degree scores (max over endpoints):
+        # Raw neighbor-degree scores (max over endpoints):
         #   (0,1): 2, (1,2): 3, (0,2): 3, (2,3): 3, (3,4): 2.
         # The three 3-edges form a tree; (3,4) attaches 4 and (0,1) closes a
         # cycle of more important edges, so the maximum spanning tree is

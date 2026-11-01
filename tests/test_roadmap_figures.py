@@ -62,7 +62,7 @@ def test_status_table_totals(rf, tmp_path):
     path = tmp_path / "roadmap.rst"
     path.write_text(SAMPLE, encoding="utf-8")
     table = rf.status_table_rst(rf.parse_roadmap(path))
-    assert "* - Section one" not in table  # rows are labelled "group: section"
+    assert "* - Section one" not in table  # rows are labeled "group: section"
     assert "* - Group A: Section one" in table
     assert table.rstrip().endswith("- **4**")
 

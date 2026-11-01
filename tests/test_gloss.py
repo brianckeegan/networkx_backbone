@@ -3,7 +3,7 @@
 The expected p-values come from the paper's Eqs. (1)-(4), evaluated by hand,
 in closed form, or by enumerating every weight assignment of the null model
 (topology fixed, i.i.d. weights from the observed weight distribution).
-Shared behaviour (attributes, p-value range, weight validation, multigraphs,
+Shared behavior (attributes, p-value range, weight validation, multigraphs,
 empty graphs, input order) is covered by ``test_api_contract.py``.
 """
 

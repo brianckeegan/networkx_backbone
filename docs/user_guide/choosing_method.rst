@@ -86,6 +86,18 @@ Method comparison table
      - p-value
      - No guarantee
      - Statistical
+   * - :func:`~networkx_backbone.polya_filter`
+     - Yes
+     - Yes
+     - p-value
+     - No guarantee
+     - Statistical
+   * - :func:`~networkx_backbone.gloss_filter`
+     - Yes
+     - Yes
+     - p-value
+     - No guarantee
+     - Statistical
    * - :func:`~networkx_backbone.multiple_linkage_analysis`
      - Yes
      - Yes
@@ -222,7 +234,7 @@ Method comparison table
 Choosing a statistical method
 -----------------------------
 
-All six statistical methods test edge significance, but they differ in their
+All eight statistical methods test edge significance, but they differ in their
 null models:
 
 - :func:`~networkx_backbone.disparity_filter`: Assumes each node's total
@@ -247,6 +259,17 @@ null models:
 - :func:`~networkx_backbone.lans_filter`: Nonparametric method using empirical
   CDFs. Makes no distributional assumptions but relies on sufficient data at
   each node.
+
+- :func:`~networkx_backbone.polya_filter`: Lets each node hand out its
+  strength through a self-reinforcing Pólya urn. The reinforcement parameter
+  ``a`` sets how much heterogeneity the null tolerates; ``a=None`` fits it to
+  the data by maximum likelihood. Treats weights as integer counts. Yassin et
+  al. (2025) found it best preserves the weight distribution.
+
+- :func:`~networkx_backbone.gloss_filter`: A global null that keeps the
+  topology and draws every edge weight from the observed weight
+  distribution, conditioned on the endpoints' degrees and strengths. Keeps
+  the fewest edges of these methods in the Yassin et al. (2025) comparison.
 
 - :func:`~networkx_backbone.multiple_linkage_analysis`: For each node, compares
   the sorted shares of its link weights with ideal "k equally dominant links"

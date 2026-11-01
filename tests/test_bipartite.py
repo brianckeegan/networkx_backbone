@@ -1,6 +1,6 @@
 """Tests for networkx_backbone.bipartite: projections, null models, wrappers.
 
-Shared behaviour of every projection scorer (attributes, p-value ranges,
+Shared behavior of every projection scorer (attributes, p-value ranges,
 agent-set validation, directed/multigraph rejection, generator input, empty
 graphs, mixed labels, no input mutation) is covered by ``test_api_contract.py``.
 """

@@ -2,7 +2,7 @@
 
 Each check is tied to an equation in the cited paper, so a regression here
 means the implementation drifted from the method it claims to implement.
-Shared behaviour (attributes, p-value ranges, validation, multigraphs, empty
+Shared behavior (attributes, p-value ranges, validation, multigraphs, empty
 graphs, input order) is covered by ``test_api_contract.py``.
 """
 

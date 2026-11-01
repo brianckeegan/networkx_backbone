@@ -5,7 +5,7 @@ the attributes it adds and the ways it legitimately differs from the others
 (directed support, weight validation, ...).  :func:`test_contract` then checks
 every invariant that applies, so adding a scorer means adding one registry row.
 
-Method-specific behaviour (known answers, paper equations, reference
+Method-specific behavior (known answers, paper equations, reference
 implementations) lives in the per-module test files.
 """
 
@@ -66,7 +66,7 @@ class Spec:
         Scores do not depend on node/edge insertion order (false when ties
         are broken by input order).
     label_ties
-        Ties are broken by node label, so relabelling may change which tied
+        Ties are broken by node label, so relabeling may change which tied
         edge is kept.
     allow_inf
         Scores may be +/-inf by design (never NaN).
@@ -312,10 +312,10 @@ def _check_graph_scorer(spec, G):
     HM = spec(M)
     _check_scored_graph(spec, M, HM, edges=_edge_set(M))
     if spec.order_invariant and not spec.label_ties:
-        relabelled = {
+        relabeled = {
             frozenset(labels[n] for n in edge): vals for edge, vals in scores.items()
         }
-        _assert_same_scores(spec, relabelled, _scores(spec, HM), "with mixed labels")
+        _assert_same_scores(spec, relabeled, _scores(spec, HM), "with mixed labels")
 
     D = nx.DiGraph(G)
     if spec.directed:

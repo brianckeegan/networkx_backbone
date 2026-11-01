@@ -110,7 +110,7 @@ def compare_graphs(
 ):
     """Visualize differences between an original graph and a backbone graph.
 
-    Original edges are drawn as a thin grey layer, edges retained in the
+    Original edges are drawn as a thin gray layer, edges retained in the
     backbone are drawn on top in thicker black, and nodes missing from the
     backbone are drawn in red.
 
