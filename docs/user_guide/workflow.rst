@@ -89,8 +89,9 @@ attribute name when calling a filter function.
      - ``ultrametric_keep``
      - Boolean keep flag
    * - :func:`~networkx_backbone.doubly_stochastic_filter`
-     - ``ds_weight``
-     - Normalized weight (higher = more important)
+     - ``ds_weight``, ``ds_keep``
+     - Normalized weight (higher = more important); boolean keep flag from
+       the connectivity stage
    * - :func:`~networkx_backbone.h_backbone`
      - ``h_backbone_keep``
      - Boolean keep flag

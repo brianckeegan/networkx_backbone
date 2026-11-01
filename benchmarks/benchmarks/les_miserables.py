@@ -156,6 +156,7 @@ WEIGHTED_CASES = [
     _keep("metric_backbone", "metric_keep"),
     _keep("ultrametric_backbone", "ultrametric_keep"),
     Case("doubly_stochastic_filter", "threshold", "ds_weight", 0.1, "above"),
+    _keep("doubly_stochastic_filter", "ds_keep", "doubly_stochastic_filter (ds_keep)"),
     _keep("h_backbone", "h_backbone_keep"),
     _keep("modularity_backbone", "modularity_keep", seed=42),
     _keep("planar_maximally_filtered_graph", "pmfg_keep"),
