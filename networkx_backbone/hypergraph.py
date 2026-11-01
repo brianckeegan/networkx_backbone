@@ -14,6 +14,9 @@ Methods
 mdl_hypergraph_backbone
     Parameter-free information-theoretic (MDL) backbone that prunes nested and
     redundant hyperedges (Kirkley, Felippe, Malizia & Battiston, 2026).
+local_mdl_hypergraph_backbone
+    Local variant that backbones each node neighborhood separately and
+    aggregates the results (Kirkley et al., 2026, Appendix E).
 hypergraph_compression_ratio
     Inverse compression ratio ``eta`` achieved by the MDL backbone.
 intersection_graph
@@ -30,6 +33,7 @@ from networkx_backbone._docstrings import append_complexity_docstrings
 __all__ = [
     "intersection_graph",
     "mdl_hypergraph_backbone",
+    "local_mdl_hypergraph_backbone",
     "hypergraph_compression_ratio",
     "HypergraphBackbone",
     "maximal_hyperedges",
@@ -218,7 +222,7 @@ def _sorted_by(items, key):
 
 @dataclass
 class HypergraphBackbone:
-    """Result of :func:`mdl_hypergraph_backbone`.
+    """Result of :func:`mdl_hypergraph_backbone` or its local variant.
 
     Attributes
     ----------
@@ -227,7 +231,8 @@ class HypergraphBackbone:
     assignment : dict
         Mapping from each parent hyperedge to the list of child hyperedges it
         encodes (its star in the intersection graph).  Parents with no children
-        are absent from this mapping.
+        are absent from this mapping.  Empty for a local backbone, which has no
+        single global star partition (see *local_backbones*).
     n_nodes : int
         Number of distinct nodes in the input hypergraph.
     n_orders : int
@@ -244,7 +249,22 @@ class HypergraphBackbone:
         Description length ``L(G, G)`` with no backbone (bits).
     compression_ratio : float
         Inverse compression ratio ``eta = L(G, B*) / L(G, G)`` in ``[0, 1]``.
-        Smaller means more redundant structure was removed.
+        Smaller means more redundant structure was removed.  For a local
+        backbone this is ``eta^(local)`` (Eq. (E4)).
+    n_hyperedges : int or None
+        Number of distinct (deduplicated, non-empty) input hyperedges, or
+        ``None`` if unknown (then derived from *backbone* and *assignment*).
+    aggregation : str or None
+        For a local backbone, the rule used to combine the neighborhood
+        backbones (``"union"``, ``"majority"`` or ``"all"``); ``None`` for the
+        global backbone.
+    local_backbones : dict
+        For a local backbone, a mapping from each node ``i`` to its
+        neighborhood backbone ``B_i*`` (a list of frozenset), the MDL optimum
+        of the hyperedges containing ``i`` (Eq. (E1)).  Empty otherwise.
+    local_description_lengths : dict
+        For a local backbone, a mapping from each node ``i`` to the
+        neighborhood optimum ``L(G_i, B_i*)`` in bits.  Empty otherwise.
     """
 
     backbone: list = field(default_factory=list)
@@ -257,13 +277,19 @@ class HypergraphBackbone:
     description_length: float = 0.0
     baseline_description_length: float = 0.0
     compression_ratio: float = 1.0
+    n_hyperedges: int | None = None
+    aggregation: str | None = None
+    local_backbones: dict = field(default_factory=dict)
+    local_description_lengths: dict = field(default_factory=dict)
 
     def __len__(self):
         return len(self.backbone)
 
     @property
     def n_input_hyperedges(self):
-        """Total hyperedges = backbone parents + all children."""
+        """Total distinct input hyperedges (backbone parents + all children)."""
+        if self.n_hyperedges is not None:
+            return self.n_hyperedges
         return len(self.backbone) + sum(len(v) for v in self.assignment.values())
 
     @property
@@ -492,36 +518,130 @@ def _greedy_node(n_edges, neighbors, wterm):
     return {e: best_parent[e] for e in range(n_edges) if not in_backbone[e]}
 
 
-def _description_length(
-    edges,
-    parent_of,
-    weight_list,
-    n_nodes,
-    n_orders,
-    weighted,
-    gamma,
-    mean_weight,
-    prior,
-):
-    """Return ``(L(G, B), L(G, G))`` in bits for a given parent/child assignment."""
-    dl = 0.0
-    dl0 = 0.0
-    for i, e in enumerate(edges):
-        size = len(e)
-        dl0 += _parent_codelength(size, n_orders, n_nodes)
-        if weighted:
-            dl0 += _weight_codelength(weight_list[i], 1, gamma, mean_weight, prior)
-        if i in parent_of:
-            p = parent_of[i]
-            overlap = len(e & edges[p])
-            dl += _child_codelength(size, len(edges[p]), overlap, n_orders, n_nodes)
-            if weighted:
-                dl += _weight_codelength(weight_list[i], 0, gamma, mean_weight, prior)
+class _MDLFit:
+    """The MDL objective of one hypergraph, ready to optimise and evaluate.
+
+    Holds everything the description length depends on -- the node count
+    ``N``, the number of distinct orders ``L``, the empirical mean weight and
+    the reduced mutual information of every overlapping pair -- for the
+    deduplicated hyperedge list *edges*.  Used both for the whole hypergraph
+    (:func:`mdl_hypergraph_backbone`) and for each node neighborhood ``G_i``
+    considered in isolation (:func:`local_mdl_hypergraph_backbone`).
+    """
+
+    def __init__(self, edges, weight_list, weights_given, gamma, prior):
+        self.edges = edges
+        self.weight_list = weight_list
+        self.gamma = gamma
+        self.prior = prior
+        n_edges = len(edges)
+        self.n_edges = n_edges
+
+        all_nodes = set()
+        sizes = set()
+        for e in edges:
+            all_nodes.update(e)
+            sizes.add(len(e))
+        self.n_nodes = len(all_nodes)
+        self.n_orders = len(sizes)
+
+        self.mean_weight = sum(weight_list) / n_edges
+        self.weighted = weights_given and any(w != 1.0 for w in weight_list)
+
+        # Pairwise overlaps via node neighborhoods (Appendix D).
+        node_to_edges = {}
+        for i, e in enumerate(edges):
+            for v in e:
+                node_to_edges.setdefault(v, []).append(i)
+        overlaps = {}
+        for incident in node_to_edges.values():
+            m = len(incident)
+            if m < 2:
+                continue
+            for a in range(m):
+                for b in range(a + 1, m):
+                    i, j = incident[a], incident[b]
+                    key = (i, j) if i < j else (j, i)
+                    overlaps[key] = overlaps.get(key, 0) + 1
+
+        # Per-edge weight terms (0 when unweighted).
+        if self.weighted:
+            self.wterm = [
+                _weight_term(w, gamma, self.mean_weight, prior) for w in weight_list
+            ]
         else:
-            dl += _parent_codelength(size, n_orders, n_nodes)
-            if weighted:
-                dl += _weight_codelength(weight_list[i], 1, gamma, mean_weight, prior)
-    return dl, dl0
+            self.wterm = [0.0] * n_edges
+
+        # Intersection-graph adjacency with reduced mutual information per pair.
+        neighbors = [[] for _ in range(n_edges)]
+        for (i, j), o in overlaps.items():
+            rmi = _reduced_mutual_information(
+                len(edges[i]), len(edges[j]), o, self.n_nodes
+            )
+            neighbors[i].append((j, rmi))
+            neighbors[j].append((i, rmi))
+        self.neighbors = neighbors
+
+    def optimize(self, method):
+        """Return ``parent_of`` (child index -> parent index) from a greedy."""
+        if method == "edge":
+            return _greedy_edge(self.n_edges, self.edges, self.neighbors, self.wterm)
+        if method == "node":
+            return _greedy_node(self.n_edges, self.neighbors, self.wterm)
+        # "auto": run both and keep the lower description length.
+        return min(
+            (
+                _greedy_edge(self.n_edges, self.edges, self.neighbors, self.wterm),
+                _greedy_node(self.n_edges, self.neighbors, self.wterm),
+            ),
+            key=self.description_length,
+        )
+
+    def description_length(self, parent_of):
+        """``L(G, B)`` in bits for a parent/child assignment (Eqs (5), (13))."""
+        edges = self.edges
+        dl = 0.0
+        for i, e in enumerate(edges):
+            role = 0 if i in parent_of else 1
+            if role:
+                dl += _parent_codelength(len(e), self.n_orders, self.n_nodes)
+            else:
+                p = edges[parent_of[i]]
+                dl += _child_codelength(
+                    len(e), len(p), len(e & p), self.n_orders, self.n_nodes
+                )
+            if self.weighted:
+                dl += _weight_codelength(
+                    self.weight_list[i], role, self.gamma, self.mean_weight, self.prior
+                )
+        return dl
+
+    def baseline_description_length(self):
+        """``L(G, G)`` in bits: every hyperedge transmitted as a parent."""
+        return self.description_length({})
+
+    def assign_children(self, parents):
+        """Best ``parent_of`` for a fixed backbone (set of parent indices).
+
+        Each non-backbone hyperedge becomes the child of the overlapping
+        backbone hyperedge with the largest reduced mutual information, which
+        minimises its child codelength ``H(c|p)`` (Eq. (12)); ties go to the
+        smallest index.  Returns ``None`` if some hyperedge overlaps no parent.
+        """
+        parent_of = {}
+        for c in range(self.n_edges):
+            if c in parents:
+                continue
+            best = None
+            for p, rmi in self.neighbors[c]:
+                if p in parents and (
+                    best is None or rmi > best[0] or (rmi == best[0] and p < best[1])
+                ):
+                    best = (rmi, p)
+            if best is None:
+                return None
+            parent_of[c] = best[1]
+        return parent_of
 
 
 def mdl_hypergraph_backbone(
@@ -623,84 +743,15 @@ def mdl_hypergraph_backbone(
     if n_edges == 0:
         return result
 
-    all_nodes = set()
-    sizes = set()
-    for e in edges:
-        all_nodes.update(e)
-        sizes.add(len(e))
-    n_nodes = len(all_nodes)
-    n_orders = len(sizes)
-    result.n_nodes = n_nodes
-    result.n_orders = n_orders
+    fit = _MDLFit(edges, weight_list, weights is not None, gamma, prior)
+    parent_of = fit.optimize(method)
+    dl = fit.description_length(parent_of)
+    dl0 = fit.baseline_description_length()
 
-    mean_weight = sum(weight_list) / n_edges
-    weighted = weights is not None and any(w != 1.0 for w in weight_list)
-    result.weighted = weighted
-
-    # Pairwise overlaps via node neighbourhoods (Appendix D).
-    node_to_edges = {}
-    for i, e in enumerate(edges):
-        for v in e:
-            node_to_edges.setdefault(v, []).append(i)
-    overlaps = {}
-    for incident in node_to_edges.values():
-        m = len(incident)
-        if m < 2:
-            continue
-        for a in range(m):
-            for b in range(a + 1, m):
-                i, j = incident[a], incident[b]
-                key = (i, j) if i < j else (j, i)
-                overlaps[key] = overlaps.get(key, 0) + 1
-
-    # Precompute per-edge weight terms (0 when unweighted).
-    if weighted:
-        wterm = [_weight_term(w, gamma, mean_weight, prior) for w in weight_list]
-    else:
-        wterm = [0.0] * n_edges
-
-    # Intersection-graph adjacency with reduced mutual information per pair.
-    neighbors = [[] for _ in range(n_edges)]
-    for (i, j), o in overlaps.items():
-        rmi = _reduced_mutual_information(len(edges[i]), len(edges[j]), o, n_nodes)
-        neighbors[i].append((j, rmi))
-        neighbors[j].append((i, rmi))
-
-    if method == "edge":
-        parent_of = _greedy_edge(n_edges, edges, neighbors, wterm)
-    elif method == "node":
-        parent_of = _greedy_node(n_edges, neighbors, wterm)
-    else:  # "auto": run both and keep the lower description length.
-        parent_of = min(
-            (
-                _greedy_edge(n_edges, edges, neighbors, wterm),
-                _greedy_node(n_edges, neighbors, wterm),
-            ),
-            key=lambda po: _description_length(
-                edges,
-                po,
-                weight_list,
-                n_nodes,
-                n_orders,
-                weighted,
-                gamma,
-                mean_weight,
-                prior,
-            )[0],
-        )
-
-    dl, dl0 = _description_length(
-        edges,
-        parent_of,
-        weight_list,
-        n_nodes,
-        n_orders,
-        weighted,
-        gamma,
-        mean_weight,
-        prior,
-    )
-
+    result.n_nodes = fit.n_nodes
+    result.n_orders = fit.n_orders
+    result.weighted = fit.weighted
+    result.n_hyperedges = n_edges
     result.backbone = [edges[i] for i in range(n_edges) if i not in parent_of]
     assignment = {}
     for c, p in parent_of.items():
@@ -757,6 +808,225 @@ def hypergraph_compression_ratio(hyperedges, weights=None, gamma=1.0, prior="poi
     return mdl_hypergraph_backbone(
         hyperedges, weights=weights, gamma=gamma, prior=prior
     ).compression_ratio
+
+
+_AGGREGATIONS = ("union", "majority", "all")
+
+
+def local_mdl_hypergraph_backbone(
+    hyperedges,
+    weights=None,
+    gamma=1.0,
+    prior="poisson",
+    aggregation="majority",
+    method="auto",
+):
+    """Extract the local (per-node neighborhood) MDL hypergraph backbone.
+
+    The local variant of :func:`mdl_hypergraph_backbone` from Appendix E of
+    Kirkley, Felippe, Malizia & Battiston [1]_, the higher-order analogue of
+    the disparity filter.  Each node ``i`` has a *neighborhood*
+    ``G_i = {e in G : i in e}``, the hyperedges containing it.  The MDL
+    objective is minimised on every neighborhood separately, "considered in
+    isolation" (Eq. (E1)),
+
+    .. math:: B_i^* = \\arg\\min_{B_i \\subseteq G_i} \\mathcal{L}(G_i, B_i),
+
+    and the neighborhood backbones ``B_i*`` are combined into one backbone
+    ``B^(local)`` by an *aggregation* rule.  Because each hyperedge is judged
+    only against the other hyperedges of its own nodes, the backbone keeps
+    hyperedges that are informative locally even when the global backbone
+    encodes them as children of a hyperedge elsewhere; local backbones are
+    therefore denser and compress less than the global one [1]_.
+
+    Parameters
+    ----------
+    hyperedges : iterable of iterables
+        The hypergraph.  Each hyperedge is an iterable of node labels (treated
+        as a set).  Duplicate hyperedges are merged.
+    weights : iterable of numbers or None, optional (default=None)
+        Optional per-hyperedge weights (each ``>= 1``), parallel to
+        *hyperedges*.  As in [1]_, the weighted objective ``L_w`` (Eq. (13))
+        then replaces ``L`` in every neighborhood.
+    gamma : float, optional (default=1.0)
+        Weight/topology trade-off in ``(0, 1]``; see
+        :func:`mdl_hypergraph_backbone`.  Ignored when *weights* is ``None``.
+    prior : {"poisson", "geometric"}, optional (default="poisson")
+        Weight prior family.  Ignored when *weights* is ``None``.
+    aggregation : {"majority", "union", "all"}, optional (default="majority")
+        How the neighborhood backbones are combined.  A hyperedge ``e`` is
+        kept if it belongs to ``B_i*`` for
+
+        - ``"union"``: at least one of its nodes (Eq. (E2)); every node then
+          stays in the backbone, but the backbone tends to be dense;
+        - ``"majority"``: at least half of its nodes (the rule used for
+          Table II of [1]_; see Notes);
+        - ``"all"``: every one of its nodes (the most conservative rule,
+          often very sparse).
+    method : {"auto", "edge", "node"}, optional (default="auto")
+        Greedy optimiser applied to each neighborhood; see
+        :func:`mdl_hypergraph_backbone`.
+
+    Returns
+    -------
+    result : HypergraphBackbone
+        The local backbone ``B^(local)`` (in input order) with
+        ``description_length`` = Eq. (E3), ``baseline_description_length`` =
+        ``sum_i L(G_i, G_i)`` and ``compression_ratio`` = ``eta^(local)``
+        (Eq. (E4)).  Per-node results are in ``local_backbones`` (each
+        ``B_i*``) and ``local_description_lengths`` (each
+        ``L(G_i, B_i*)``); ``aggregation`` records the rule.  ``assignment``
+        is empty, since there is no single global parent--child partition.
+
+    Raises
+    ------
+    ValueError
+        If *aggregation* is unknown, or for any invalid argument of
+        :func:`mdl_hypergraph_backbone`.
+
+    See Also
+    --------
+    mdl_hypergraph_backbone : The global MDL backbone.
+    disparity_filter : The dyadic local backbone this generalises.
+
+    Notes
+    -----
+    Every hyperedge of ``G_i`` contains ``i``, so all pairs of hyperedges in a
+    neighborhood overlap and any non-empty subset of ``G_i`` is a valid
+    backbone of it.  The neighborhood objectives involve ``O(sum_i |G_i|^2)``
+    hyperedge pairs, as many as the global intersection graph is built from.
+
+    Appendix E of [1]_ leaves a few details implicit; this implementation
+    makes the following choices.
+
+    - "Considered in isolation" is read literally: the node count ``N``, the
+      number of distinct orders ``L`` and, for weighted input, the mean weight
+      of the empirical-Bayes prior are those of ``G_i``, not of ``G``.
+    - *Majority* means at least half of a hyperedge's nodes.  The paper notes
+      that, with the union rule, the majority rule is "consistent with the
+      disparity filter convention for pairwise edges in which the edge is kept
+      [...] if it belongs to either node's neighborhood backbone"; for a
+      two-node hyperedge only the at-least-half reading does that.
+    - In Eq. (E3), ``L(G_i, B_i* ∩ B^(local))`` assigns each remaining
+      hyperedge of ``G_i`` to the parent in ``B_i* ∩ B^(local)`` that encodes
+      it most cheaply.  If that intersection is empty (possible only under
+      ``"majority"`` or ``"all"``), the neighborhood is charged its
+      uncompressed cost ``L(G_i, G_i)``.
+    - The denominator ``L^(local)(G, G)`` of Eq. (E4) is taken as
+      ``sum_i L(G_i, G_i)``, the cost with no compression in any
+      neighborhood (read literally, ``B_i* ∩ G = B_i*`` would make
+      ``eta^(local)`` identically 1 under the union rule).  With the union
+      rule ``eta^(local) <= 1``; with ``"majority"`` or ``"all"`` it can
+      exceed 1 when dropping a neighborhood's parents forces costlier
+      encodings of its remaining hyperedges.
+
+    References
+    ----------
+    .. [1] Kirkley, A., Felippe, H., Malizia, F., & Battiston, F. (2026).
+       Hypergraph backboning. arXiv:2606.00893.
+
+    Examples
+    --------
+    A core hyperedge ``{0, ..., 5}`` with two nested sub-hyperedges and two
+    "satellites", each joining four core nodes to three peripheral nodes of
+    its own.  The global backbone encodes the satellite ``{0, 1, 2, 3, 6, 7,
+    8}`` as a child, but it is the only hyperedge in the neighborhoods of
+    nodes 6, 7 and 8, so the local backbone keeps it (while still pruning the
+    nested sub-hyperedges):
+
+    >>> from networkx_backbone import (
+    ...     local_mdl_hypergraph_backbone,
+    ...     mdl_hypergraph_backbone,
+    ... )
+    >>> G = [
+    ...     (0, 1, 2, 3, 4, 5),
+    ...     (0, 1, 2, 3, 4),
+    ...     (0, 1, 2, 3, 5),
+    ...     (0, 1, 2, 3, 6, 7, 8),
+    ...     (2, 3, 4, 5, 9, 10, 11),
+    ... ]
+    >>> satellite = frozenset({0, 1, 2, 3, 6, 7, 8})
+    >>> satellite in mdl_hypergraph_backbone(G).backbone
+    False
+    >>> local = local_mdl_hypergraph_backbone(G)  # majority rule
+    >>> satellite in local.backbone
+    True
+    >>> len(local.backbone)
+    3
+    >>> local.local_backbones[6] == [satellite]
+    True
+    """
+    if aggregation not in _AGGREGATIONS:
+        raise ValueError(
+            f"aggregation must be 'union', 'majority', or 'all', got {aggregation!r}"
+        )
+    if not 0.0 < gamma <= 1.0:
+        raise ValueError(f"gamma must be in (0, 1], got {gamma}")
+    if prior not in ("poisson", "geometric"):
+        raise ValueError(f"prior must be 'poisson' or 'geometric', got {prior!r}")
+    if method not in ("edge", "node", "auto"):
+        raise ValueError(f"method must be 'edge', 'node', or 'auto', got {method!r}")
+
+    edges, weight_list = _normalize_hyperedges(hyperedges, weights)
+    n_edges = len(edges)
+    result = HypergraphBackbone(gamma=gamma, prior=prior, aggregation=aggregation)
+    if n_edges == 0:
+        return result
+
+    node_to_edges = {}
+    sizes = set()
+    for k, e in enumerate(edges):
+        sizes.add(len(e))
+        for v in e:
+            node_to_edges.setdefault(v, []).append(k)
+    result.n_nodes = len(node_to_edges)
+    result.n_orders = len(sizes)
+    result.n_hyperedges = n_edges
+
+    # Eq. (E1): the MDL backbone of every neighborhood, in isolation.
+    votes = [0] * n_edges
+    neighborhoods = []
+    for v in _sorted_labels(node_to_edges):
+        members = node_to_edges[v]  # global indices, increasing
+        fit = _MDLFit(
+            [edges[k] for k in members],
+            [weight_list[k] for k in members],
+            weights is not None,
+            gamma,
+            prior,
+        )
+        result.weighted = result.weighted or fit.weighted
+        parents = {j for j in range(fit.n_edges) if j not in fit.optimize(method)}
+        for j in parents:
+            votes[members[j]] += 1
+        result.local_backbones[v] = [edges[members[j]] for j in sorted(parents)]
+        result.local_description_lengths[v] = fit.description_length(
+            fit.assign_children(parents)
+        )
+        neighborhoods.append((members, fit, parents))
+
+    # Aggregate the neighborhood backbones (Eq. (E2) and the paper's
+    # majority and all-nodes rules).
+    if aggregation == "union":
+        keep = [votes[k] >= 1 for k in range(n_edges)]
+    elif aggregation == "majority":
+        keep = [2 * votes[k] >= len(edges[k]) for k in range(n_edges)]
+    else:
+        keep = [votes[k] == len(edges[k]) for k in range(n_edges)]
+    result.backbone = [edges[k] for k in range(n_edges) if keep[k]]
+
+    # Eqs (E3)-(E4): neighborhood codelengths restricted to B^(local).
+    dl = 0.0
+    dl0 = 0.0
+    for members, fit, parents in neighborhoods:
+        baseline = fit.baseline_description_length()
+        dl0 += baseline
+        kept = {j for j in parents if keep[members[j]]}
+        dl += fit.description_length(fit.assign_children(kept)) if kept else baseline
+    result.description_length = dl
+    result.baseline_description_length = dl0
+    result.compression_ratio = dl / dl0 if dl0 > 0 else 1.0
+    return result
 
 
 def maximal_hyperedges(hyperedges):
@@ -1296,6 +1566,15 @@ _COMPLEXITY = {
         "notes": (
             "P=overlapping pairs. method='edge' sorts candidates; method='node'/"
             "'auto' run a facility-location greedy up to O(m*(m+P))."
+        ),
+    },
+    "local_mdl_hypergraph_backbone": {
+        "time": "O(sum_i k |G_i|^2 log |G_i|)",
+        "space": "O(sum_i |G_i|^2)",
+        "notes": (
+            "G_i=hyperedges containing node i (all pairs overlap), k=mean "
+            "hyperedge size. method='node'/'auto' run a facility-location "
+            "greedy per neighborhood, up to O(sum_i |G_i|^3)."
         ),
     },
     "hypergraph_compression_ratio": {

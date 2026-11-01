@@ -92,7 +92,7 @@ paper gives no DOI, none is added here.
 | HB | h-backbone | [T] ref 71 | Zhang RJ, Stanley HE, Ye FY. Extracting h-backbone as a core structure in weighted networks. *Sci Rep*. 2018;8(1):1–7. doi:10.1038/s41598-018-32430-1 | `h_backbone` (`h_backbone_keep`, `h_bridge`) | Covered; bridge value differs from `netbone` (§4) |
 | MB | Metric (distance) backbone | [T] ref 62 | Simas T, Correia RB, Rocha LM. The distance backbone of complex networks. *J Complex Netw*. 2021;9:cnab021. doi:10.1093/comnet/cnab021 | `metric_backbone` (`metric_keep`) | Covered |
 | UMB | Ultrametric (distance) backbone | [T] ref 62 | (same as MB) | `ultrametric_backbone` (`ultrametric_keep`) | Covered |
-| DS | Doubly stochastic filter | [T] ref 61 | Slater PB. A two-stage algorithm for extracting the multiscale backbone of complex weighted networks. *PNAS*. 2009;106(26):E66. doi:10.1073/pnas.0904725106 | `doubly_stochastic_filter` (`ds_weight`) | Score only; the connectivity stage is missing (§4) |
+| DS | Doubly stochastic filter | [T] ref 61 | Slater PB. A two-stage algorithm for extracting the multiscale backbone of complex weighted networks. *PNAS*. 2009;106(26):E66. doi:10.1073/pnas.0904725106 | `doubly_stochastic_filter` (`ds_weight`, `ds_keep`) | Covered; connectivity stage added in #44 (§4) |
 | HSS | High salience skeleton | [T] ref 56 | Grady D, Thiemann C, Brockmann D. Robust classification of salient links in complex networks. *Nat Commun*. 2012;3:864. doi:10.1038/ncomms1847 | `high_salience_skeleton` (`salience`) | Covered; no built-in 0.8 cut (§4) |
 
 Notes on the citations:
@@ -191,7 +191,8 @@ implementation. Undirected graphs are assumed throughout, as in both papers.
   only `ds_weight`. **The connectivity stage that [T] evaluates has no
   equivalent here.** A user can get close with `fraction_filter`, but no
   function stops at connectivity. This is the largest behavioral gap among
-  the covered methods. [T] attributes DS's distinctive results to this
+  the covered methods. *(Resolved in #44: `ds_keep` flags the connectivity
+  stage; the docstring Notes list the remaining differences from `netbone`.)* [T] attributes DS's distinctive results to this
   method: it best preserves weight and degree distributions and
   transitivity.
 - **HSS**: Both use one shortest-path tree per root, with `1 / w` as the

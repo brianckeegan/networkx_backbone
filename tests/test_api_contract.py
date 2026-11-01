@@ -120,6 +120,8 @@ REGISTRY = [
     Spec(nb.multiple_linkage_analysis, W, {"mla_pvalue": P, "lans_pvalue": P},
          keep=("mla_keep",), kwargs={"method": "lans"}, directed=True,
          bad_weights=STATISTICAL_BAD),
+    Spec(nb.polya_filter, W, {"polya_pvalue": P}, directed=True,
+         bad_weights=STATISTICAL_BAD),
     Spec(nb.gloss_filter, W, {"gloss_pvalue": P}, directed=True,
          bad_weights=STATISTICAL_BAD),
     # --- structural --------------------------------------------------------
@@ -139,7 +141,8 @@ REGISTRY = [
     Spec(nb.metric_backbone, W, keep=("metric_keep",), bad_weights=POSITIVE_BAD),
     Spec(nb.ultrametric_backbone, W, keep=("ultrametric_keep",),
          bad_weights=POSITIVE_BAD),
-    Spec(nb.doubly_stochastic_filter, W, {"ds_weight": P}, order_invariant=False,
+    Spec(nb.doubly_stochastic_filter, W, {"ds_weight": P}, keep=("ds_keep",),
+         order_invariant=False,
          bad_weights=NONNEGATIVE_BAD),
     Spec(nb.h_backbone, W, {"h_bridge": NONNEG}, keep=("h_backbone_keep",),
          bad_weights=_NON_NUMERIC),

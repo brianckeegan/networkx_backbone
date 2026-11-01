@@ -17,9 +17,11 @@ networks, organized into the following submodules:
 - **measures**: Evaluation measures for comparing backbones
 - **visualization**: Graph-comparison plotting helpers
 - **describe**: Methods-section text and citations for a backbone
+- **convert**: NumPy/SciPy adjacency matrices and pandas edge lists to graphs
 """
 
 from networkx_backbone.bipartite import *
+from networkx_backbone.convert import *
 from networkx_backbone.describe import *
 from networkx_backbone.filters import *
 from networkx_backbone.hybrid import *
@@ -40,6 +42,7 @@ __all__ = [
     "ecm_filter",
     "lans_filter",
     "multiple_linkage_analysis",
+    "polya_filter",
     "gloss_filter",
     # Statistical aliases
     "disparity",
@@ -96,6 +99,7 @@ __all__ = [
     # Hypergraph
     "intersection_graph",
     "mdl_hypergraph_backbone",
+    "local_mdl_hypergraph_backbone",
     "hypergraph_compression_ratio",
     "HypergraphBackbone",
     "maximal_hyperedges",
@@ -143,4 +147,6 @@ __all__ = [
     "save_graph_comparison",
     # Reporting
     "describe_backbone",
+    # Conversion
+    "to_graph",
 ]

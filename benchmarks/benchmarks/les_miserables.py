@@ -125,6 +125,7 @@ WEIGHTED_CASES = [
         kwargs={"method": "lans", "alpha": ALPHA},
         label="multiple_linkage_analysis(method='lans', alpha=0.05)",
     ),
+    _pvalue("polya_filter", "polya_pvalue"),
     _pvalue("gloss_filter", "gloss_pvalue"),
     # Structural
     _keep(
@@ -157,6 +158,7 @@ WEIGHTED_CASES = [
     _keep("metric_backbone", "metric_keep"),
     _keep("ultrametric_backbone", "ultrametric_keep"),
     Case("doubly_stochastic_filter", "threshold", "ds_weight", 0.1, "above"),
+    _keep("doubly_stochastic_filter", "ds_keep", "doubly_stochastic_filter (ds_keep)"),
     _keep("h_backbone", "h_backbone_keep"),
     _keep("modularity_backbone", "modularity_keep", seed=42),
     _keep("planar_maximally_filtered_graph", "pmfg_keep"),

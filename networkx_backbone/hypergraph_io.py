@@ -187,6 +187,13 @@ def write_hif(hyperedges, target=None, weights=None, network_type="undirected"):
     Tuple node labels are written as JSON arrays and restored as tuples by
     :func:`read_hif`.
 
+    The output always has ``nodes`` and ``edges`` lists, which the HAT and
+    HypergraphX readers require.  Hyperedge weights go in the edge records'
+    ``weight`` field, as the HIF schema specifies.  HyperNetX and HAT read
+    them; xgi's reader keeps only ``attrs`` and HypergraphX's ignores weights,
+    so for those two use ``to_xgi(*read_hif(path, return_weights=True))`` (or
+    :func:`to_hypergraphx`) instead of the library's own reader.
+
     Parameters
     ----------
     hyperedges : iterable of iterables
@@ -226,6 +233,8 @@ def write_hif(hyperedges, target=None, weights=None, network_type="undirected"):
     5
     >>> hif["edges"]
     [{'edge': 0, 'weight': 2}, {'edge': 1, 'weight': 1}]
+    >>> hif["nodes"][:2]
+    [{'node': 1}, {'node': 2}]
     """
     _check_network_type(network_type)
     raw = list(hyperedges)
@@ -235,6 +244,7 @@ def write_hif(hyperedges, target=None, weights=None, network_type="undirected"):
             raise ValueError("weights must have the same length as hyperedges")
 
     incidences = []
+    node_records = {}
     edge_records = []
     edge_id = 0
     for i, e in enumerate(raw):
@@ -243,13 +253,22 @@ def write_hif(hyperedges, target=None, weights=None, network_type="undirected"):
             continue
         for node in _sorted_labels(members):
             incidences.append({"edge": edge_id, "node": node})
+            node_records.setdefault(node, {"node": node})
+        record = {"edge": edge_id}
         if weights is not None:
-            edge_records.append({"edge": edge_id, "weight": _to_builtin(weights[i])})
+            record["weight"] = _to_builtin(weights[i])
+        edge_records.append(record)
         edge_id += 1
 
-    hif = {"network-type": network_type, "metadata": {}, "incidences": incidences}
-    if edge_records:
-        hif["edges"] = edge_records
+    # ``nodes`` and ``edges`` are optional in the spec, but the HAT and
+    # HypergraphX readers fail without them, so both are always written.
+    hif = {
+        "network-type": network_type,
+        "metadata": {},
+        "incidences": incidences,
+        "nodes": list(node_records.values()),
+        "edges": edge_records,
+    }
 
     if target is None:
         return hif
@@ -337,22 +356,56 @@ def read_hif(source, return_weights=False):
 
 
 # ---------------------------------------------------------------------------
+# Shared helpers for the library adapters
+# ---------------------------------------------------------------------------
+
+
+def _edges_and_weights(hyperedges, weights):
+    """Drop empty hyperedges, keeping *weights* (if any) aligned with the rest."""
+    raw = list(hyperedges)
+    if weights is not None:
+        weights = list(weights)
+        if len(weights) != len(raw):
+            raise ValueError("weights must have the same length as hyperedges")
+    edges, kept = [], []
+    for i, e in enumerate(raw):
+        fs = frozenset(e)
+        if fs:
+            edges.append(fs)
+            if weights is not None:
+                kept.append(_to_builtin(weights[i]))
+    return edges, (kept if weights is not None else None)
+
+
+def _result(edges, weights, return_weights):
+    if return_weights:
+        return edges, [_to_builtin(w) for w in weights]
+    return edges
+
+
+# ---------------------------------------------------------------------------
 # xgi
 # ---------------------------------------------------------------------------
 
 
-def from_xgi(H):
+def from_xgi(H, return_weights=False):
     """Convert an :class:`xgi.Hypergraph` to a list of :class:`frozenset` hyperedges.
 
     Parameters
     ----------
     H : xgi.Hypergraph
-        The xgi hypergraph (read via ``H.edges.members()``).
+        The xgi hypergraph (read via ``H.edges.members(dtype=dict)``).
+    return_weights : bool, optional (default=False)
+        If ``True``, also return each edge's ``"weight"`` attribute
+        (default 1).
 
     Returns
     -------
     hyperedges : list of frozenset
-        One frozenset per xgi hyperedge, in xgi's edge order.
+        One frozenset per xgi hyperedge, in xgi's edge order.  Multi-edges are
+        kept; edge IDs are discarded.
+    weights : list of numbers
+        Returned only when *return_weights* is ``True``.
 
     See Also
     --------
@@ -366,16 +419,24 @@ def from_xgi(H):
     >>> nb.from_xgi(xgi.Hypergraph([[1, 2, 3], [3, 4]]))  # doctest: +SKIP
     [frozenset({1, 2, 3}), frozenset({3, 4})]
     """
-    return [frozenset(members) for members in H.edges.members()]
+    members = H.edges.members(dtype=dict)
+    edges = [frozenset(m) for m in members.values()]
+    if not return_weights:
+        return edges
+    return _result(edges, [H.edges[e].get("weight", 1) for e in members], True)
 
 
-def to_xgi(hyperedges):
+def to_xgi(hyperedges, weights=None):
     """Convert hyperedges to an :class:`xgi.Hypergraph`.
 
     Parameters
     ----------
     hyperedges : iterable of iterables
-        The hypergraph.  Empty hyperedges are skipped.
+        The hypergraph.  Empty hyperedges are skipped; the remaining edges get
+        the IDs ``0, 1, 2, ...``.  Repeated hyperedges become xgi multi-edges.
+    weights : iterable of numbers or None, optional (default=None)
+        Per-hyperedge weights (aligned with *hyperedges*), stored as the
+        ``"weight"`` edge attribute.
 
     Returns
     -------
@@ -386,6 +447,8 @@ def to_xgi(hyperedges):
     ------
     ImportError
         If ``xgi`` is not installed.
+    ValueError
+        If *weights* does not match *hyperedges* in length.
 
     See Also
     --------
@@ -395,12 +458,19 @@ def to_xgi(hyperedges):
     Examples
     --------
     >>> import networkx_backbone as nb
-    >>> H = nb.to_xgi([(1, 2, 3), (3, 4)])  # doctest: +SKIP
+    >>> H = nb.to_xgi([(1, 2, 3), (3, 4)], weights=[2.0, 1.0])  # doctest: +SKIP
     >>> H.num_edges  # doctest: +SKIP
     2
     """
     xgi = _require("xgi")
-    return xgi.Hypergraph([set(e) for e in _as_hyperedges(hyperedges)])
+    edges, weights = _edges_and_weights(hyperedges, weights)
+    H = xgi.Hypergraph()
+    # The {id: members} form is unambiguous: from a list, xgi reads a 2-tuple
+    # of tuple labels as a (members, edge_id) pair.
+    H.add_edges_from({i: set(e) for i, e in enumerate(edges)})
+    if weights is not None:
+        H.set_edge_attributes(dict(enumerate(weights)), name="weight")
+    return H
 
 
 # ---------------------------------------------------------------------------
@@ -408,19 +478,24 @@ def to_xgi(hyperedges):
 # ---------------------------------------------------------------------------
 
 
-def from_hypernetx(H):
+def from_hypernetx(H, return_weights=False):
     """Convert a :class:`hypernetx.Hypergraph` to a list of :class:`frozenset` hyperedges.
 
     Parameters
     ----------
     H : hypernetx.Hypergraph
         The HyperNetX hypergraph (read via ``H.incidence_dict``).
+    return_weights : bool, optional (default=False)
+        If ``True``, also return each edge's HyperNetX ``weight`` property
+        (HyperNetX defaults it to 1 and stores it as a float).
 
     Returns
     -------
     hyperedges : list of frozenset
         One frozenset per HyperNetX edge, in ``incidence_dict`` order (edge
         names are discarded).
+    weights : list of numbers
+        Returned only when *return_weights* is ``True``.
 
     See Also
     --------
@@ -434,10 +509,14 @@ def from_hypernetx(H):
     >>> nb.from_hypernetx(hnx.Hypergraph({"a": [1, 2], "b": [2, 3]}))  # doctest: +SKIP
     [frozenset({1, 2}), frozenset({2, 3})]
     """
-    return [frozenset(members) for members in H.incidence_dict.values()]
+    incidence = H.incidence_dict
+    edges = [frozenset(members) for members in incidence.values()]
+    if not return_weights:
+        return edges
+    return _result(edges, [H.edges[e].weight for e in incidence], True)
 
 
-def to_hypernetx(hyperedges):
+def to_hypernetx(hyperedges, weights=None):
     """Convert hyperedges to a :class:`hypernetx.Hypergraph`.
 
     Parameters
@@ -445,6 +524,9 @@ def to_hypernetx(hyperedges):
     hyperedges : iterable of iterables
         The hypergraph.  Empty hyperedges are skipped; the remaining edges are
         named ``0, 1, 2, ...``.
+    weights : iterable of numbers or None, optional (default=None)
+        Per-hyperedge weights (aligned with *hyperedges*), stored as the
+        HyperNetX edge ``weight`` property.
 
     Returns
     -------
@@ -455,6 +537,8 @@ def to_hypernetx(hyperedges):
     ------
     ImportError
         If ``hypernetx`` is not installed.
+    ValueError
+        If *weights* does not match *hyperedges* in length.
 
     See Also
     --------
@@ -469,7 +553,12 @@ def to_hypernetx(hyperedges):
     [0, 1]
     """
     hnx = _require("hypernetx")
-    return hnx.Hypergraph({i: set(e) for i, e in enumerate(_as_hyperedges(hyperedges))})
+    edges, weights = _edges_and_weights(hyperedges, weights)
+    setsystem = {i: set(e) for i, e in enumerate(edges)}
+    if weights is None:
+        return hnx.Hypergraph(setsystem)
+    properties = {i: {"weight": w} for i, w in enumerate(weights)}
+    return hnx.Hypergraph(setsystem, edge_properties=properties)
 
 
 # ---------------------------------------------------------------------------
@@ -477,18 +566,23 @@ def to_hypernetx(hyperedges):
 # ---------------------------------------------------------------------------
 
 
-def from_hypergraphx(H):
+def from_hypergraphx(H, return_weights=False):
     """Convert a ``hypergraphx.Hypergraph`` to a list of :class:`frozenset` hyperedges.
 
     Parameters
     ----------
     H : hypergraphx.Hypergraph
         The HypergraphX hypergraph (read via ``H.get_edges()``).
+    return_weights : bool, optional (default=False)
+        If ``True``, also return each edge's weight (``H.get_weight``; 1 in an
+        unweighted HypergraphX hypergraph).
 
     Returns
     -------
     hyperedges : list of frozenset
         One frozenset per HypergraphX hyperedge.
+    weights : list of numbers
+        Returned only when *return_weights* is ``True``.
 
     See Also
     --------
@@ -502,16 +596,28 @@ def from_hypergraphx(H):
     >>> nb.from_hypergraphx(hgx.Hypergraph(edge_list=[(1, 2), (2, 3, 4)]))  # doctest: +SKIP
     [frozenset({1, 2}), frozenset({2, 3, 4})]
     """
-    return [frozenset(e) for e in H.get_edges()]
+    raw = list(H.get_edges())
+    edges = [frozenset(e) for e in raw]
+    if not return_weights:
+        return edges
+    return _result(edges, [H.get_weight(e) for e in raw], True)
 
 
-def to_hypergraphx(hyperedges):
+def to_hypergraphx(hyperedges, weights=None):
     """Convert hyperedges to a ``hypergraphx.Hypergraph``.
+
+    HypergraphX has no multi-edges, so repeated hyperedges are merged into one
+    edge whose weight is the sum of theirs (each counts 1 when *weights* is
+    ``None``).  The result is weighted when *weights* is given or a hyperedge
+    repeats, and unweighted otherwise.
 
     Parameters
     ----------
     hyperedges : iterable of iterables
-        The hypergraph.  Empty hyperedges are skipped.
+        The hypergraph.  Empty hyperedges are skipped.  HypergraphX sorts the
+        nodes of each hyperedge, so node labels must be mutually comparable.
+    weights : iterable of numbers or None, optional (default=None)
+        Per-hyperedge weights (aligned with *hyperedges*).
 
     Returns
     -------
@@ -523,6 +629,11 @@ def to_hypergraphx(hyperedges):
     ------
     ImportError
         If ``hypergraphx`` is not installed.
+    ValueError
+        If *weights* does not match *hyperedges* in length.
+    TypeError
+        If the node labels of a hyperedge cannot be sorted (for example, a mix
+        of ``int`` and ``str``).
 
     See Also
     --------
@@ -532,12 +643,28 @@ def to_hypergraphx(hyperedges):
     Examples
     --------
     >>> import networkx_backbone as nb
-    >>> H = nb.to_hypergraphx([(1, 2, 3), (3, 4)])  # doctest: +SKIP
-    >>> H.num_edges()  # doctest: +SKIP
-    2
+    >>> H = nb.to_hypergraphx([(1, 2, 3), (3, 4), (3, 4)])  # doctest: +SKIP
+    >>> nb.from_hypergraphx(H, return_weights=True)  # doctest: +SKIP
+    ([frozenset({1, 2, 3}), frozenset({3, 4})], [1, 2])
     """
     hgx = _require("hypergraphx")
-    return hgx.Hypergraph(edge_list=[tuple(e) for e in _as_hyperedges(hyperedges)])
+    edges, weights = _edges_and_weights(hyperedges, weights)
+    merged = {}
+    for e, w in zip(edges, weights if weights is not None else [1] * len(edges)):
+        merged[e] = merged.get(e, 0) + w
+    edge_list = [tuple(e) for e in merged]
+    weighted = weights is not None or len(merged) < len(edges)
+    try:
+        if weighted:
+            return hgx.Hypergraph(
+                edge_list=edge_list, weighted=True, weights=list(merged.values())
+            )
+        return hgx.Hypergraph(edge_list=edge_list, weighted=False)
+    except TypeError as exc:
+        raise TypeError(
+            "hypergraphx sorts the nodes of each hyperedge, so node labels must "
+            "be mutually comparable"
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -557,11 +684,22 @@ def _hat_incidence_matrix(H):
     raise AttributeError("could not find an incidence matrix on the HAT hypergraph")
 
 
-def from_hat(H):
+def _hat_column(H, table, column):
+    """Return a column of HAT's ``nodes``/``edges`` table as a list, or None."""
+    frame = getattr(H, table, None)
+    if column not in getattr(frame, "columns", ()):
+        return None
+    return list(frame[column])
+
+
+def from_hat(H, return_weights=False):
     """Convert a HAT ``Hypergraph`` to a list of :class:`frozenset` hyperedges.
 
-    Node labels are positional (row indices of the incidence matrix), as HAT is
-    incidence/tensor-based.
+    HAT stores nodes by position (row of the incidence matrix).  Node labels
+    are read from the ``"Names"`` column of ``H.nodes`` when it exists (HAT
+    fills it when built from labelled edges, and :func:`to_hat` sets it), else
+    from its ``"Nodes"`` column (row indices, or the HIF node IDs for a
+    hypergraph from ``HAT.Hypergraph.from_hif``), else the row indices.
 
     Parameters
     ----------
@@ -569,11 +707,16 @@ def from_hat(H):
         The HAT hypergraph.  Its node-by-edge incidence matrix is read from the
         ``IM``, ``incidence_matrix``, or ``incidenceMatrix`` attribute (dense or
         scipy sparse; a method is called).
+    return_weights : bool, optional (default=False)
+        If ``True``, also return the ``"weight"`` column of ``H.edges``
+        (default 1).
 
     Returns
     -------
-    hyperedges : list of frozenset of int
-        One frozenset of row indices per non-empty incidence-matrix column.
+    hyperedges : list of frozenset
+        One frozenset per non-empty incidence-matrix column.
+    weights : list of numbers
+        Returned only when *return_weights* is ``True``.
 
     Raises
     ------
@@ -592,41 +735,55 @@ def from_hat(H):
     >>> import networkx_backbone as nb
     >>> H = nb.to_hat([("a", "b"), ("b", "c", "d")])  # doctest: +SKIP
     >>> nb.from_hat(H)  # doctest: +SKIP
-    [frozenset({0, 1}), frozenset({1, 2, 3})]
+    [frozenset({'a', 'b'}), frozenset({'b', 'c', 'd'})]
     """
     np = _require("numpy")
     matrix = np.asarray(_hat_incidence_matrix(H))
-    hyperedges = []
+    names = _hat_column(H, "nodes", "Names")
+    if names is None:
+        # Row positions, or the HIF node IDs when read with Hypergraph.from_hif.
+        names = _hat_column(H, "nodes", "Nodes")
+    label = (lambda r: _to_builtin(names[r])) if names is not None else int
+    all_weights = _hat_column(H, "edges", "weight")
+    hyperedges, weights = [], []
     for col in range(matrix.shape[1]):
-        members = frozenset(int(r) for r in np.flatnonzero(matrix[:, col]))
+        members = frozenset(label(r) for r in np.flatnonzero(matrix[:, col]))
         if members:
             hyperedges.append(members)
-    return hyperedges
+            weights.append(1 if all_weights is None else all_weights[col])
+    return _result(hyperedges, weights, return_weights)
 
 
-def to_hat(hyperedges):
+def to_hat(hyperedges, weights=None):
     """Convert hyperedges to a HAT ``Hypergraph`` via an incidence matrix.
 
-    Node labels are replaced by contiguous integer indices (HAT is positional),
-    assigned in sorted label order (natural order when the labels are mutually
-    comparable, otherwise by ``repr``).
+    HAT is positional: node ``i`` is row ``i`` of the incidence matrix.  Rows
+    follow sorted label order (natural order when the labels are mutually
+    comparable, otherwise by ``repr``), and the labels are kept in the
+    ``"Names"`` column of ``H.nodes``, where :func:`from_hat` finds them.
+    Repeated hyperedges are kept (HAT's own duplicate removal is turned off).
 
     Parameters
     ----------
     hyperedges : iterable of iterables
         The hypergraph.  Empty hyperedges are skipped.
+    weights : iterable of numbers or None, optional (default=None)
+        Per-hyperedge weights (aligned with *hyperedges*), stored in the
+        ``"weight"`` column of ``H.edges`` (HAT's ``edge_weights``).
 
     Returns
     -------
     H : HAT.Hypergraph
         A HAT hypergraph built from the ``nodes x hyperedges`` 0/1 incidence
-        matrix (``HAT.Hypergraph(incidence_matrix=...)``).
+        matrix (``HAT.Hypergraph(incidence_matrix=..., compress=False)``).
 
     Raises
     ------
     ImportError
         If ``numpy`` or ``HAT`` (``pip install HypergraphAnalysisToolbox``) is
         not installed.
+    ValueError
+        If *weights* does not match *hyperedges* in length.
 
     See Also
     --------
@@ -636,16 +793,26 @@ def to_hat(hyperedges):
     Examples
     --------
     >>> import networkx_backbone as nb
-    >>> H = nb.to_hat([("a", "b"), ("b", "c", "d")])  # doctest: +SKIP
+    >>> H = nb.to_hat([("a", "b"), ("b", "c", "d")], weights=[2, 1])  # doctest: +SKIP
+    >>> list(H.edge_weights)  # doctest: +SKIP
+    [2, 1]
     """
     np = _require("numpy")
     hat = _require("HAT", pip_name="HypergraphAnalysisToolbox")
 
-    edges = _as_hyperedges(hyperedges)
+    edges, weights = _edges_and_weights(hyperedges, weights)
     nodes = _sorted_labels({v for e in edges for v in e})
     index = {v: i for i, v in enumerate(nodes)}
     matrix = np.zeros((len(nodes), len(edges)), dtype=int)
     for j, e in enumerate(edges):
         for v in e:
             matrix[index[v], j] = 1
-    return hat.Hypergraph(incidence_matrix=matrix)
+    # compress=False keeps repeated hyperedges (HAT drops duplicate columns).
+    H = hat.Hypergraph(incidence_matrix=matrix, compress=False)
+    names = np.empty(len(nodes), dtype=object)
+    for i, v in enumerate(nodes):  # element-wise, so tuple labels stay tuples
+        names[i] = v
+    H.nodes["Names"] = names
+    if weights is not None:
+        H.edges["weight"] = weights
+    return H

@@ -26,6 +26,7 @@ from networkx_backbone import (
     planar_maximally_filtered_graph,
     primary_linkage_analysis,
     strongest_n_ties,
+    threshold_filter,
     ultrametric_backbone,
 )
 
@@ -280,6 +281,138 @@ class TestDoublyStochastic:
             with pytest.warns(RuntimeWarning, match="did not converge") as rec:
                 doubly_stochastic_filter(G)
             assert rec[0].filename == __file__
+
+
+# Every node has strength 100, so the matrix is already doubly stochastic after
+# dividing by 100: ds_weight == weight / 100 (hand-computable).
+DS_TWO_TRIANGLES = [
+    ("a", "b", 60),
+    ("e", "f", 60),
+    ("b", "c", 40),
+    ("d", "f", 40),
+    ("a", "c", 35),
+    ("d", "e", 35),
+    ("c", "d", 25),  # bridge needed for connectivity
+    ("a", "e", 5),  # weaker second link between the triangles
+]
+# A 4-clique whose two strongest "levels" (0.43, then 0.30) connect it; the
+# 0.27 edges lie above the two-triangle graph's threshold of 0.25.
+DS_CLIQUE = [
+    ("p", "q", 43),
+    ("r", "s", 43),
+    ("p", "r", 30),
+    ("q", "s", 30),
+    ("p", "s", 27),
+    ("q", "r", 27),
+]
+
+
+def _ds_graph(*edge_lists, nodes=()):
+    G = nx.Graph()
+    G.add_nodes_from(nodes)
+    for edges in edge_lists:
+        G.add_weighted_edges_from(edges)
+    return G
+
+
+class TestDoublyStochasticConnectivity:
+    def test_hand_computed_two_triangles(self):
+        G = _ds_graph(DS_TWO_TRIANGLES)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            H = doubly_stochastic_filter(G)
+        for u, v, w in DS_TWO_TRIANGLES:
+            assert H[u][v]["ds_weight"] == pytest.approx(w / 100)
+        # Levels 0.6, 0.4, 0.35 leave two triangles; 0.25 adds the bridge.
+        kept = {frozenset((u, v)) for u, v, _ in DS_TWO_TRIANGLES[:-1]}
+        assert _kept(H, "ds_keep") == kept
+        assert all(isinstance(k, bool) for *_, k in H.edges(data="ds_keep"))
+        # A plain threshold above the bridge's value misses it.
+        cut = threshold_filter(H, "ds_weight", 0.3, mode="above")
+        assert not nx.is_connected(cut)
+        assert nx.is_connected(boolean_filter(H, "ds_keep"))
+
+    def test_ds_weight_unchanged(self):
+        """The stage only adds ds_keep; ds_weight is the Sinkhorn output."""
+        import numpy as np
+
+        G = nx.complete_graph(5)
+        rng = random.Random(3)
+        for u, v in G.edges():
+            G[u][v]["weight"] = rng.uniform(0.5, 5.0)
+        H = doubly_stochastic_filter(G)
+        nodes = list(G)
+        A = nx.to_numpy_array(G, nodelist=nodes)
+        for _ in range(1000):
+            A = A / A.sum(axis=1, keepdims=True)
+            A = A / A.sum(axis=0, keepdims=True)
+        idx = {v: i for i, v in enumerate(nodes)}
+        for u, v, d in H.edges(data=True):
+            assert d["ds_weight"] == pytest.approx(A[idx[u], idx[v]], abs=1e-8)
+            assert set(d) == {"weight", "ds_weight", "ds_keep"}
+        assert np.isclose(A.sum(axis=0), 1).all()
+
+    def test_tie_level_added_as_a_block(self):
+        """All edges of a cycle tie at 0.5; a prefix rule would drop one."""
+        G = nx.cycle_graph(7)
+        nx.set_edge_attributes(G, 1.0, "weight")
+        H = doubly_stochastic_filter(G)
+        assert all(keep for *_, keep in H.edges(data="ds_keep"))
+
+    def test_near_ties_within_tol(self):
+        """Opposite 4-clique edges are equal in exact arithmetic only."""
+        G = nx.complete_graph(4)
+        nx.set_edge_attributes(
+            G, dict(zip(G.edges(), [1.0, 2.0, 3.0, 4.0, 5.0, 6.0])), "weight"
+        )
+        H = doubly_stochastic_filter(G)
+        assert H[0][2]["ds_weight"] != H[1][3]["ds_weight"]  # float noise
+        assert _kept(H, "ds_keep") == {
+            frozenset(e) for e in [(0, 3), (1, 2), (0, 2), (1, 3)]
+        }
+
+    def test_disconnected_input(self):
+        """Each component gets its own threshold (Slater: analyze separately)."""
+        G = _ds_graph(DS_TWO_TRIANGLES, DS_CLIQUE, [("x", "y", 2.0)], nodes=["z"])
+        H = doubly_stochastic_filter(G)
+        expected = {frozenset((u, v)) for u, v, _ in DS_TWO_TRIANGLES[:-1]}
+        expected |= {frozenset((u, v)) for u, v, _ in DS_CLIQUE[:4]}
+        expected.add(frozenset(("x", "y")))
+        assert _kept(H, "ds_keep") == expected
+        backbone = boolean_filter(H, "ds_keep")
+        assert nx.number_connected_components(backbone) == 4  # incl. "z"
+        # A single global cut low enough for the triangles (0.25) would also
+        # keep the clique's 0.27 edges.
+        assert H["p"]["s"]["ds_weight"] > H["c"]["d"]["ds_weight"]
+        # Same answer as scoring each component on its own.
+        for comp in nx.connected_components(G):
+            Hc = doubly_stochastic_filter(G.subgraph(comp).copy())
+            assert _kept(Hc, "ds_keep") == {e for e in expected if e <= frozenset(comp)}
+
+    def test_zero_weight_edges_are_not_links(self):
+        G = _ds_graph(DS_TWO_TRIANGLES[:-2])  # two triangles, no links between
+        G.add_edge("c", "d", weight=0.0)
+        H = doubly_stochastic_filter(G)
+        assert H["c"]["d"]["ds_weight"] == 0.0
+        assert H["c"]["d"]["ds_keep"] is False
+        assert len(_kept(H, "ds_keep")) == 6
+
+    def test_isolated_nodes_and_empty(self):
+        G = nx.empty_graph(3)
+        H = doubly_stochastic_filter(G)
+        assert H.number_of_edges() == 0 and len(H) == 3
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_insertion_order_independent(self, seed):
+        edges = DS_TWO_TRIANGLES + DS_CLIQUE + [("x", "y", 2.0)]
+        expected = _kept(doubly_stochastic_filter(_ds_graph(edges)), "ds_keep")
+        rng = random.Random(seed)
+        shuffled = [(v, u, w) if rng.random() < 0.5 else (u, v, w) for u, v, w in edges]
+        rng.shuffle(shuffled)
+        nodes = sorted({n for e in edges for n in e[:2]})
+        rng.shuffle(nodes)
+        G = _ds_graph(shuffled, nodes=nodes)
+        assert _kept(doubly_stochastic_filter(G), "ds_keep") == expected
 
 
 class TestHBackbone:

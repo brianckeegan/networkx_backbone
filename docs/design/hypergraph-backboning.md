@@ -281,8 +281,49 @@ def hypergraph_compression_ratio(hyperedges, backbone=None, weights=None, gamma=
 
 Building blocks: `intersection_graph(hyperedges)` (NetworkX), the parent/child MDL
 terms (`gammaln`-based), greedy "node"/"edge" optimizers over the star partition,
-and optional pair-sampling for very large/dense inputs. The local variant
-(Appendix E) is a natural follow-up.
+and optional pair-sampling for very large/dense inputs.
+
+**Local variant (Appendix E) — implemented (#24).** A separate function,
+`local_mdl_hypergraph_backbone(hyperedges, weights=None, gamma=1.0,
+prior="poisson", aggregation="majority", method="auto")`, rather than a
+`method="local"` option: the local variant has its own choice (the aggregation
+rule), and it still needs a greedy optimizer for each neighborhood, so putting
+it in `method` would mix two separate choices. It returns the same
+`HypergraphBackbone`. The equations, as in the paper:
+
+- Neighborhood `G_i = {e ∈ G : i ∈ e}`; `B_i* = argmin_{B_i ⊆ G_i} L(G_i, B_i)`
+  with `G_i` "considered in isolation" (Eq. E1); `Lw` (Eq. 13) replaces `L` for
+  weighted input.
+- Aggregation: `"union"` keeps `e` if any of its nodes keeps it (Eq. E2);
+  `"majority"` (default; used for Table II) if a majority do; `"all"` if every
+  node does.
+- `L^(local)(G, B^(local)) = Σ_i L(G_i, B_i* ∩ B^(local))` (Eq. E3) and
+  `η^(local) = L^(local)(G, B^(local)) / L^(local)(G, G)` (Eq. E4).
+
+The appendix leaves some details open. These are the choices made, each
+documented in the function's Notes:
+(1) "in isolation" means `N`, `L` and the empirical-Bayes mean weight are those
+of `G_i`. (2) "Majority" means at least half of the hyperedge's nodes. Only that
+reading gives the paper's stated consistency with the disparity filter's
+"either endpoint" rule for pairwise edges. (3) In E3, each remaining hyperedge
+of `G_i` is assigned to the parent in `B_i* ∩ B^(local)` that encodes it most
+cheaply. If that set is empty (possible only under majority/all), the
+neighborhood is charged `L(G_i, G_i)`. (4) The E4 denominator is
+`Σ_i L(G_i, G_i)`. Read literally, `B_i* ∩ G = B_i*` would make `η^(local) ≡ 1`
+under union. `η^(local) ≤ 1` holds under union, but it can exceed 1 under
+majority/all. The result records `aggregation`, each node's `B_i*`
+(`local_backbones`) and `L(G_i, B_i*)` (`local_description_lengths`).
+
+The appendix has no synthetic benchmark; its Fig. 7 shows only the output of
+the union rule on a toy hypergraph whose input is not given. Table II needs
+the empirical datasets. The tests therefore use a planted construction of
+our own: cores with nested sub-hyperedges plus "satellite" hyperedges whose
+peripheral nodes appear nowhere else. The global backbone drops every
+satellite, and the local (majority) backbone keeps every one of them while
+still pruning the nested sub-hyperedges. The tests also check the
+aggregation definitions, the union rule's node coverage, E1 against the global
+backbone of each `G_i`, E3/E4, γ = 1 against the unweighted result, and
+determinism.
 
 ### 9.4 Phase 2 — complementary methods
 
@@ -323,7 +364,11 @@ Resolved during implementation:
 3. Result object — a `HypergraphBackbone` dataclass (backbone, assignment, `η`,
    description lengths).
 
-Remaining nice-to-have: the Appendix E local (per-node-neighbourhood) variant.
+4. Local variant (Appendix E) — `local_mdl_hypergraph_backbone` with
+   `aggregation="majority"` (default), `"union"` or `"all"`; see §9.3 for the
+   interpretation choices (#24).
+
+No Phase 1 items remain open.
 
 ## 11. References
 

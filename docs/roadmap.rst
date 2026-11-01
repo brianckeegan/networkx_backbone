@@ -73,10 +73,12 @@ Correctness gaps found in review and not yet fixed
   posterior variance from the beta prior plus the delta method, and the
   transformed lift score. Keep the current score as an option for backward
   compatibility.
-- **next** (`#10 <https://github.com/brianckeegan/networkx_backbone/issues/10>`_): The dominance-fitting multiple
-  linkage analysis is implemented (``method="dominance"``). Its deviation
-  measure still needs checking against Van Nuffel (2007): the whole-profile
-  sum of squares versus Weaver's mean over the *k* candidate links.
+- **done** (`#10 <https://github.com/brianckeegan/networkx_backbone/issues/10>`_): The dominance-fitting multiple
+  linkage analysis is implemented (``method="dominance"``). Its fit is the
+  coefficient of determination, checked against Table 1 of Van Nuffel,
+  Derudder & Witlox (2010); the whole-profile sum of squares and Weaver's
+  variance are available through ``deviation=``. The 2007 paper itself is
+  paywalled and was not read.
 - **done** (`#11 <https://github.com/brianckeegan/networkx_backbone/issues/11>`_, contributed in
   `#34 <https://github.com/brianckeegan/networkx_backbone/pull/34>`_): Directed ``lans_filter`` now also tests the
   target's in-links.
@@ -93,9 +95,10 @@ Validation
   datasets (Les Misérables, Davis Southern Women, karate) against R
   ``backbone`` 3.0 and ``netbone``, stored as small JSON fixtures so the test
   suite needs neither R nor netbone.
-- **next** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional CI job that installs xgi, HyperNetX, HypergraphX, and
-  HAT and runs the adapter round-trip tests against the real libraries; they
-  currently run only against stubs.
+- **done** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional "Interop" CI workflow that installs xgi, HyperNetX,
+  HypergraphX, and HAT (the ``[interop]`` extra) and runs the adapter and HIF
+  round-trip tests against the real libraries on pull requests and weekly.
+  Supported versions are listed in :doc:`install`.
 - **done** (`#17 <https://github.com/brianckeegan/networkx_backbone/issues/17>`_): Turn on numpydoc validation (``numpydoc_validation_checks``)
   in the docs build so missing Parameters, Returns, or Examples sections fail
   CI.
@@ -117,9 +120,11 @@ API and ecosystem compatibility
 - **planned** (`#19 <https://github.com/brianckeegan/networkx_backbone/issues/19>`_): NetworkX backend dispatching (``@nx._dispatchable``) so
   backends such as ``nx-cugraph`` and ``nx-parallel`` can accelerate the
   shortest-path-heavy methods (salience, metric backbone, GLAB).
-- **planned** (`#20 <https://github.com/brianckeegan/networkx_backbone/issues/20>`_): Accept SciPy sparse arrays and pandas edge lists as input to the
-  statistical scorers, with ``to_*`` helpers back to NetworkX, matching how
-  NetworkX interoperates with the NumPy/SciPy/pandas stack.
+- **done** (`#20 <https://github.com/brianckeegan/networkx_backbone/issues/20>`_): Accept SciPy sparse arrays and pandas edge lists as input:
+  bipartite functions take incidence matrices, and ``backbone``,
+  ``backbone_from_weighted`` and ``backbone_from_unweighted`` take adjacency
+  matrices and edge lists via :func:`~networkx_backbone.to_graph`, matching
+  how NetworkX interoperates with the NumPy/SciPy/pandas stack.
 - **done** (`#30 <https://github.com/brianckeegan/networkx_backbone/issues/30>`_): Make the bipartite and projection code fully sparse
   (no dense agent-by-artifact matrices). The per-pair loops are already
   vectorized.
@@ -136,27 +141,28 @@ Methods
 - **done** (`#32 <https://github.com/brianckeegan/networkx_backbone/issues/32>`_): ``sparsify(umst=True)`` should add the union of
   all minimum spanning trees (Hamann et al., 2016), not a single spanning
   forest.
-- **planned** (`#24 <https://github.com/brianckeegan/networkx_backbone/issues/24>`_): The local (per-node-neighborhood) MDL hypergraph backbone
-  (Kirkley et al., 2026, Appendix E).
+- **done** (`#24 <https://github.com/brianckeegan/networkx_backbone/issues/24>`_): The local (per-node-neighborhood) MDL hypergraph backbone
+  (Kirkley et al., 2026, Appendix E): ``local_mdl_hypergraph_backbone``.
 - **done** (`#25 <https://github.com/brianckeegan/networkx_backbone/issues/25>`_): Signed variants of ``ecm_filter`` and the noise-corrected
   filter, for parity with the other scorers' ``signed=True``.
-- **idea** (`#26 <https://github.com/brianckeegan/networkx_backbone/issues/26>`_): A ``missing_as_zero`` toggle for weighted inputs (Backbone 3.0),
+- **done** (`#26 <https://github.com/brianckeegan/networkx_backbone/issues/26>`_): A ``missing_as_zero`` toggle for weighted inputs (Backbone 3.0),
   for testing absent dyads.
 - **done** (`#29 <https://github.com/brianckeegan/networkx_backbone/issues/29>`_): Survey the methods in the Yassin et al. (2025)
   statistical and structural comparisons. The package covers 13 of the 15
   methods; see the `coverage table
   <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/yassin-2025-coverage.md>`__.
-- **idea**: The Pólya urn filter (Marcaccioli & Livan, 2019), missing per
-  the #29 survey. Its null model is unlike any method here, and Yassin et
-  al. (2025) found it best preserves the weight distribution.
+- **done** (`#42 <https://github.com/brianckeegan/networkx_backbone/issues/42>`_): The Pólya urn filter (Marcaccioli & Livan, 2019),
+  missing per the #29 survey, as :func:`~networkx_backbone.polya_filter`.
+  Its null model is unlike any method here, and Yassin et al. (2025) found
+  it best preserves the weight distribution.
 - **done** (`#43 <https://github.com/brianckeegan/networkx_backbone/issues/43>`_): The GloSS filter (Radicchi et al., 2011), missing per the #29
   survey: :func:`~networkx_backbone.gloss_filter`, a global null with
   weights drawn from the observed weight distribution over the fixed
   topology.
-- **idea**: The connectivity stage of Slater's (2009) doubly stochastic
-  backbone (add edges by ``ds_weight`` until the backbone is connected). This
-  is the variant Yassin et al. (2025) evaluate; ``doubly_stochastic_filter``
-  returns only the scores.
+- **done** (`#44 <https://github.com/brianckeegan/networkx_backbone/issues/44>`_): The connectivity stage of Slater's (2009) doubly stochastic
+  backbone (add edges by ``ds_weight`` until the backbone is connected), the
+  variant Yassin et al. (2025) evaluate. ``doubly_stochastic_filter`` now
+  flags it as ``ds_keep``.
 
 Documentation
 ~~~~~~~~~~~~~

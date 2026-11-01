@@ -11,6 +11,7 @@ from networkx_backbone import (
     ValidatedHypergraph,
     hypergraph_compression_ratio,
     intersection_graph,
+    local_mdl_hypergraph_backbone,
     maximal_hyperedges,
     mdl_hypergraph_backbone,
     order_filter,
@@ -707,3 +708,258 @@ def test_greedy_node_scales():
     start = time.perf_counter()
     mdl_hypergraph_backbone(edges, method="node")
     assert time.perf_counter() - start < 5.0
+
+
+# ---------------------------------------------------------------------------
+# Local (per-node neighborhood) MDL backbone, Kirkley et al. 2026, Appendix E
+# ---------------------------------------------------------------------------
+
+
+def planted_local_parents(n_communities=1, offset=0):
+    """Cores with nested sub-hyperedges plus planted "satellite" hyperedges.
+
+    Each community has a core hyperedge of six nodes, two nested
+    sub-hyperedges of it, and four satellites that each join four core nodes
+    to three peripheral nodes found in no other hyperedge.  Globally a
+    satellite is cheap to encode as a child of the core; locally it is the
+    only hyperedge in its peripheral nodes' neighborhoods, so it is a
+    planted *local* parent.  Returns ``(hyperedges, cores, nested,
+    satellites)``.
+    """
+    edges, cores, nested, satellites = [], [], [], []
+    base = offset
+    for _ in range(n_communities):
+        c = [base + k for k in range(6)]
+        core = tuple(c)
+        subs = [tuple(c[:5]), tuple(c[:4] + c[5:])]
+        shared = [c[:4], c[:2] + c[4:], c[2:], c[:4]]
+        private = base + 6
+        sats = []
+        for s in shared:
+            sats.append(tuple(s) + tuple(range(private, private + 3)))
+            private += 3
+        edges += [core, *subs, *sats]
+        cores.append(frozenset(core))
+        nested += [frozenset(e) for e in subs]
+        satellites += [frozenset(e) for e in sats]
+        base = private
+    return edges, cores, nested, satellites
+
+
+@pytest.mark.parametrize("n_communities", [1, 3])
+def test_local_recovers_planted_local_parents(n_communities):
+    G, cores, nested, satellites = planted_local_parents(n_communities)
+    global_bb = set(mdl_hypergraph_backbone(G).backbone)
+    local = local_mdl_hypergraph_backbone(G)  # majority rule
+
+    # The global backbone keeps only the cores and drops every satellite ...
+    assert global_bb == set(cores)
+    # ... while the local backbone recovers every planted local parent and
+    # still prunes the nested (locally redundant) sub-hyperedges.
+    assert set(local.backbone) == set(cores) | set(satellites)
+    assert not set(nested) & set(local.backbone)
+    peripheral = [v for sat in satellites for v in sat if sum(v in e for e in G) == 1]
+    assert len(peripheral) == 3 * len(satellites)
+    for v in peripheral:
+        (sat,) = (s for s in satellites if v in s)
+        assert local.local_backbones[v] == [sat]
+
+
+def test_local_aggregation_rules_are_nested():
+    G, *_ = planted_local_parents(2)
+    union = set(local_mdl_hypergraph_backbone(G, aggregation="union").backbone)
+    majority = set(local_mdl_hypergraph_backbone(G, aggregation="majority").backbone)
+    every = set(local_mdl_hypergraph_backbone(G, aggregation="all").backbone)
+    assert every <= majority <= union
+
+
+def _check_votes(G, aggregation, rule):
+    result = local_mdl_hypergraph_backbone(G, aggregation=aggregation)
+    for e in {frozenset(e) for e in G}:
+        votes = sum(e in result.local_backbones[v] for v in e)
+        assert (e in result.backbone) == rule(votes, len(e)), e
+
+
+def test_local_aggregation_rules_match_definitions():
+    for seed in range(15):
+        edges, _, _ = _random_hypergraph(seed)
+        _check_votes(edges, "union", lambda k, n: k >= 1)
+        _check_votes(edges, "majority", lambda k, n: 2 * k >= n)
+        _check_votes(edges, "all", lambda k, n: k == n)
+
+
+def test_local_union_covers_every_node():
+    # Eq. (E2) "guarantee[s] that every node is included in the final backbone".
+    for seed in range(15):
+        edges, _, _ = _random_hypergraph(seed)
+        result = local_mdl_hypergraph_backbone(edges, aggregation="union")
+        covered = set().union(*result.backbone)
+        assert covered == set().union(*map(set, edges))
+
+
+def test_local_neighborhood_is_considered_in_isolation():
+    # Eq. (E1): B_i* is the MDL backbone of G_i as a hypergraph of its own.
+    G, *_ = planted_local_parents(2)
+    result = local_mdl_hypergraph_backbone(G)
+    for v in result.local_backbones:
+        G_v = [e for e in G if v in e]
+        alone = mdl_hypergraph_backbone(G_v)
+        assert set(result.local_backbones[v]) == set(alone.backbone)
+        assert result.local_description_lengths[v] == pytest.approx(
+            alone.description_length
+        )
+
+
+def test_local_description_length_union_is_sum_of_optima():
+    # With the union rule B_i* ∩ B^(local) = B_i*, so Eq. (E3) is the sum of
+    # the neighborhood optima and eta^(local) (Eq. (E4)) is at most 1.
+    for seed in range(15):
+        edges, _, _ = _random_hypergraph(seed)
+        result = local_mdl_hypergraph_backbone(edges, aggregation="union")
+        assert result.description_length == pytest.approx(
+            sum(result.local_description_lengths.values())
+        )
+        baseline = sum(
+            mdl_hypergraph_backbone(
+                [e for e in edges if v in e]
+            ).baseline_description_length
+            for v in result.local_backbones
+        )
+        assert result.baseline_description_length == pytest.approx(baseline)
+        assert result.compression_ratio == pytest.approx(
+            result.description_length / baseline
+        )
+        assert result.compression_ratio <= 1.0 + 1e-12
+
+
+def test_local_compresses_less_than_global():
+    # Appendix E / Table II: local backbones are denser, compressing less.
+    G, *_ = planted_local_parents(3)
+    glob = mdl_hypergraph_backbone(G)
+    local = local_mdl_hypergraph_backbone(G)
+    assert len(local.backbone) > len(glob.backbone)
+    assert 0.0 < local.compression_ratio < 1.0
+    assert local.compression_ratio > glob.compression_ratio
+
+
+def test_local_majority_equals_union_for_pairwise_edges():
+    # For two-node hyperedges, the majority rule reduces to the disparity
+    # filter's "either endpoint" convention, like the union rule.
+    rng = random.Random(1)
+    edges = [tuple(rng.sample(range(12), 2)) for _ in range(40)]
+    union = local_mdl_hypergraph_backbone(edges, aggregation="union")
+    majority = local_mdl_hypergraph_backbone(edges, aggregation="majority")
+    assert set(union.backbone) == set(majority.backbone)
+
+
+def test_local_result_fields():
+    G, *_ = planted_local_parents(1)
+    result = local_mdl_hypergraph_backbone(G, aggregation="majority")
+    assert isinstance(result, HypergraphBackbone)
+    assert result.aggregation == "majority"
+    assert result.assignment == {}
+    assert result.n_hyperedges == len(G)
+    assert result.n_input_hyperedges == len(G)
+    assert result.fraction_kept == pytest.approx(len(result.backbone) / len(G))
+    assert result.n_nodes == len(set().union(*map(set, G)))
+    assert result.n_orders == 3
+    assert result.weighted is False
+    assert list(result.local_backbones) == sorted(result.local_backbones)
+    assert set(result.local_description_lengths) == set(result.local_backbones)
+    # Backbone in input order.
+    order = [frozenset(e) for e in G]
+    assert result.backbone == sorted(result.backbone, key=order.index)
+    # Global results do not carry local information.
+    glob = mdl_hypergraph_backbone(G)
+    assert glob.aggregation is None and glob.local_backbones == {}
+
+
+def test_local_is_deterministic():
+    edges, _, _ = _random_hypergraph(3)
+    first = local_mdl_hypergraph_backbone(edges)
+    for _ in range(3):
+        again = local_mdl_hypergraph_backbone(list(edges))
+        assert again.backbone == first.backbone
+        assert again.local_backbones == first.local_backbones
+        assert again.description_length == first.description_length
+
+
+@pytest.mark.parametrize("method", ["edge", "node", "auto"])
+def test_local_methods(method):
+    G, cores, _, satellites = planted_local_parents(1)
+    result = local_mdl_hypergraph_backbone(G, method=method)
+    assert set(cores) | set(satellites) <= set(result.backbone)
+
+
+def test_local_gamma_one_equivalent_to_unweighted():
+    G, *_ = planted_local_parents(2)
+    unweighted = local_mdl_hypergraph_backbone(G)
+    weighted = local_mdl_hypergraph_backbone(G, weights=[3.0] * len(G), gamma=1.0)
+    assert weighted.weighted is True
+    assert weighted.backbone == unweighted.backbone
+    assert weighted.local_backbones == unweighted.local_backbones
+
+
+@pytest.mark.parametrize("prior", ["poisson", "geometric"])
+def test_local_low_gamma_keeps_heavy_nested_hyperedge(prior):
+    G, _, nested, _ = planted_local_parents(1)
+    heavy = nested[0]
+    weights = [100.0 if frozenset(e) == heavy else 1.0 for e in G]
+    assert heavy not in local_mdl_hypergraph_backbone(G).backbone
+    result = local_mdl_hypergraph_backbone(G, weights=weights, gamma=0.01, prior=prior)
+    assert heavy in result.backbone
+
+
+def test_local_empty_and_trivial_inputs():
+    empty = local_mdl_hypergraph_backbone([])
+    assert empty.backbone == [] and empty.compression_ratio == 1.0
+    single = local_mdl_hypergraph_backbone([(1, 2, 3), (3, 2, 1), ()])
+    assert single.backbone == [frozenset({1, 2, 3})]
+    assert single.n_hyperedges == 1
+    assert single.compression_ratio == pytest.approx(1.0)
+
+
+def test_local_mixed_labels():
+    result = local_mdl_hypergraph_backbone(MIXED)
+    assert set(result.local_backbones) == set().union(*map(set, MIXED))
+
+
+def test_local_invalid_arguments():
+    with pytest.raises(ValueError, match="aggregation"):
+        local_mdl_hypergraph_backbone([(1, 2)], aggregation="bogus")
+    with pytest.raises(ValueError, match="gamma"):
+        local_mdl_hypergraph_backbone([(1, 2)], weights=[2.0], gamma=0.0)
+    with pytest.raises(ValueError, match="prior"):
+        local_mdl_hypergraph_backbone([(1, 2)], prior="bogus")
+    with pytest.raises(ValueError, match="method"):
+        local_mdl_hypergraph_backbone([(1, 2)], method="local")
+    with pytest.raises(ValueError, match="weights"):
+        local_mdl_hypergraph_backbone([(1, 2), (2, 3)], weights=[1.0])
+
+
+def test_local_description_length_hand_computed():
+    # Eq. (E3) by hand under the "all" rule.  Node 0's neighborhood keeps only
+    # {0, 8}, which must then encode both large hyperedges; nodes 1-7 keep
+    # nothing of their backbones and are charged L(G_i, G_i).
+    big, sub, pair = (0, 1, 2, 3, 4, 5, 6, 7), (0, 1, 2, 3, 4, 5, 6), (0, 8)
+    G = [big, sub, pair]
+    result = local_mdl_hypergraph_backbone(G, aggregation="all")
+    assert result.backbone == [frozenset(pair)]
+
+    # Node 0: N=9 nodes, L=3 orders; {0, 8} is the parent of both others.
+    node0 = (
+        _parent_codelength(2, 3, 9)
+        + _child_codelength(8, 2, 1, 3, 9)
+        + _child_codelength(7, 2, 1, 3, 9)
+    )
+    # Node 8: a single hyperedge costs nothing.  Nodes 1-6: {big, sub}
+    # uncompressed (N=8, L=2); node 7: {big} alone (N=8, L=1).
+    rest = 6 * (_parent_codelength(8, 2, 8) + _parent_codelength(7, 2, 8))
+    rest += _parent_codelength(8, 1, 8)
+    assert result.description_length == pytest.approx(node0 + rest)
+    baseline = (
+        _parent_codelength(8, 3, 9)
+        + _parent_codelength(7, 3, 9)
+        + _parent_codelength(2, 3, 9)
+    ) + rest
+    assert result.baseline_description_length == pytest.approx(baseline)
