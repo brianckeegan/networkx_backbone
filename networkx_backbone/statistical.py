@@ -962,6 +962,7 @@ def ecm_filter(
         log_p_next = log_p_link + (w * log_yy if w > 0 else 0.0)
         p_lo = -math.expm1(min(log_p_next, 0.0))
         return p_hi, p_lo
+
     for u, v, data in H.edges(data=True):
         if u == v:
             data["ecm_pvalue"] = 1.0
