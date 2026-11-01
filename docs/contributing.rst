@@ -152,6 +152,17 @@ stack:
   SciPy sparse, or pandas incidence matrices) use the module's own check,
   which raises the same exception for graph input, because
   ``not_implemented_for`` assumes a graph argument.
+- Annotate public functions (the package ships ``py.typed``). Start each
+  module with ``from __future__ import annotations`` and import NumPy, SciPy,
+  pandas, and Matplotlib types only under ``if TYPE_CHECKING:``, so the core
+  package still imports with only NetworkX installed. Shared aliases (``Seed``,
+  ``GraphInput``, ``Hyperedges``, ...) live in ``networkx_backbone._typing``;
+  import ``not_implemented_for`` and ``py_random_state`` from there too. They
+  are NetworkX's own decorators, typed so that they keep the decorated
+  function's signature. Check with mypy (non-strict, configured in
+  ``pyproject.toml``; the ``typing`` extra pins mypy and ``types-networkx``)::
+
+      mypy networkx_backbone
 - Name score attributes ``<method>_pvalue``, ``<method>_score``, or
   ``<method>_keep`` so they compose with the filters in
   :mod:`networkx_backbone.filters`.

@@ -37,14 +37,20 @@ maximum_spanning_tree_backbone
     Maximum spanning tree.
 """
 
+from __future__ import annotations
+
 import heapq
 import math
 import warnings
+from typing import TYPE_CHECKING
 
 import networkx as nx
-from networkx.utils import not_implemented_for
 
 from networkx_backbone._docstrings import append_complexity_docstrings
+from networkx_backbone._typing import not_implemented_for
+
+if TYPE_CHECKING:
+    from networkx_backbone._typing import PySeed
 
 __all__ = [
     "global_threshold_filter",
@@ -164,7 +170,9 @@ def _mark_kept_edges(H, keep_edges, attr):
 
 
 @not_implemented_for("multigraph")
-def global_threshold_filter(G, threshold, weight="weight"):
+def global_threshold_filter(
+    G: nx.Graph, threshold: float, weight: str = "weight"
+) -> nx.Graph:
     """Score edges against a global weight threshold.
 
     For each edge, mark whether its *weight* attribute is greater than
@@ -220,7 +228,7 @@ def global_threshold_filter(G, threshold, weight="weight"):
 
 
 @not_implemented_for("multigraph")
-def strongest_n_ties(G, n=1, weight="weight"):
+def strongest_n_ties(G: nx.Graph, n: int = 1, weight: str = "weight") -> nx.Graph:
     """Score edges by strongest-*n* membership per node.
 
     For each node, select the *n* incident edges with the largest
@@ -290,7 +298,9 @@ def strongest_n_ties(G, n=1, weight="weight"):
 
 
 @not_implemented_for("multigraph")
-def global_sparsification(G, s=0.5, weight="weight"):
+def global_sparsification(
+    G: nx.Graph, s: float = 0.5, weight: str = "weight"
+) -> nx.Graph:
     """Score edges by global top-fraction membership.
 
     This method ranks all edges by *weight* and keeps the top ``s``
@@ -370,7 +380,7 @@ def global_sparsification(G, s=0.5, weight="weight"):
 
 
 @not_implemented_for("multigraph")
-def primary_linkage_analysis(G, weight="weight"):
+def primary_linkage_analysis(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Score edges by primary-linkage membership.
 
     Each node keeps only its strongest outgoing connection (its strongest
@@ -422,7 +432,7 @@ def primary_linkage_analysis(G, weight="weight"):
 
     if G.is_directed():
         for u in G.nodes():
-            out_edges = list(G.out_edges(u, data=True))
+            out_edges = list(G.out_edges(u, data=True))  # type: ignore[attr-defined]
             if not out_edges:
                 continue
             _, v, _ = max(out_edges, key=lambda x: (x[2].get(weight, 0.0), str(x[1])))
@@ -447,7 +457,9 @@ def primary_linkage_analysis(G, weight="weight"):
 
 
 @not_implemented_for("multigraph")
-def edge_betweenness_filter(G, s=0.5, weight="weight"):
+def edge_betweenness_filter(
+    G: nx.Graph, s: float = 0.5, weight: str = "weight"
+) -> nx.Graph:
     """Score edges by edge betweenness and top-fraction membership.
 
     Parameters
@@ -530,7 +542,7 @@ def edge_betweenness_filter(G, s=0.5, weight="weight"):
 
 
 @not_implemented_for("multigraph")
-def node_degree_filter(G, min_degree=1):
+def node_degree_filter(G: nx.Graph, min_degree: int = 1) -> nx.Graph:
     """Score nodes and edges by a minimum node-degree criterion.
 
     Parameters
@@ -588,7 +600,7 @@ def node_degree_filter(G, min_degree=1):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
-def high_salience_skeleton(G, weight="weight"):
+def high_salience_skeleton(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Compute edge salience from shortest-path tree participation.
 
     For every node *r*, a shortest-path tree rooted at *r* is computed
@@ -681,7 +693,7 @@ def high_salience_skeleton(G, weight="weight"):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
-def metric_backbone(G, weight="weight"):
+def metric_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Extract the metric backbone using sum-of-distances shortest paths.
 
     An edge *(u, v)* is in the metric backbone if and only if its direct
@@ -735,7 +747,7 @@ def metric_backbone(G, weight="weight"):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
-def ultrametric_backbone(G, weight="weight"):
+def ultrametric_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Extract the ultrametric backbone using max-distance (minimax) paths.
 
     An edge *(u, v)* is in the ultrametric backbone if its direct
@@ -837,8 +849,12 @@ def _distance_backbone(G, weight="weight", ultrametric=False):
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
 def doubly_stochastic_filter(
-    G, weight="weight", max_iter=1000, tol=1e-8, smoothing=0.0
-):
+    G: nx.Graph,
+    weight: str = "weight",
+    max_iter: int = 1000,
+    tol: float = 1e-8,
+    smoothing: float = 0.0,
+) -> nx.Graph:
     r"""Compute the doubly-stochastic backbone via Sinkhorn-Knopp normalization.
 
     Implements both stages of Slater's two-stage algorithm [1]_ [2]_.  The
@@ -1169,7 +1185,7 @@ def _mark_ds_connectivity_stage(H, tol):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
-def h_backbone(G, weight="weight"):
+def h_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     r"""Extract the h-backbone of a weighted graph.
 
     Following Zhang et al. (2018) [1]_, the h-backbone is the union of
@@ -1267,7 +1283,9 @@ def h_backbone(G, weight="weight"):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
-def modularity_backbone(G, weight="weight", seed=None):
+def modularity_backbone(
+    G: nx.Graph, weight: str = "weight", seed: PySeed = None
+) -> nx.Graph:
     """Compute the modularity vitality index for each node.
 
     The vitality index [1]_ measures the change in modularity when a
@@ -1352,7 +1370,7 @@ def modularity_backbone(G, weight="weight", seed=None):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
-def planar_maximally_filtered_graph(G, weight="weight"):
+def planar_maximally_filtered_graph(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Construct the Planar Maximally Filtered Graph (PMFG).
 
     Iteratively adds edges from heaviest to lightest, keeping only
@@ -1426,7 +1444,7 @@ def planar_maximally_filtered_graph(G, weight="weight"):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
-def maximum_spanning_tree_backbone(G, weight="weight"):
+def maximum_spanning_tree_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     """Extract the maximum spanning tree as a backbone.
 
     Parameters

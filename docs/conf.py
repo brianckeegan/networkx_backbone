@@ -107,6 +107,11 @@ suppress_warnings = ["ref.citation", "ref.class"]
 # -- Autodoc settings --------------------------------------------------------
 
 autodoc_member_order = "bysource"
+# The public API is annotated (and ships ``py.typed``), but the rendered pages
+# keep plain signatures: the numpydoc "Parameters" and "Returns" sections
+# already give every type in prose, the annotations name private aliases from
+# ``networkx_backbone._typing``, and overloads would repeat each signature.
+autodoc_typehints = "none"
 autodoc_default_options = {
     "members": True,
     "undoc-members": False,

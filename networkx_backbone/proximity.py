@@ -53,12 +53,14 @@ Liben-Nowell, D. & Kleinberg, J. (2007). "The link-prediction problem
 for social networks." *JASIST*, 58(7), 1019-1031.
 """
 
+from __future__ import annotations
+
 import math
 
 import networkx as nx
-from networkx.utils import not_implemented_for
 
 from networkx_backbone._docstrings import append_complexity_docstrings
+from networkx_backbone._typing import not_implemented_for
 
 __all__ = [
     "neighborhood_overlap",
@@ -101,7 +103,7 @@ def _degrees(nbrs):
 
 
 @not_implemented_for("multigraph")
-def neighborhood_overlap(G):
+def neighborhood_overlap(G: nx.Graph) -> nx.Graph:
     """Score each edge by the raw neighborhood overlap of its endpoints.
 
     For each edge (u, v), the overlap is the number of common neighbors:
@@ -142,7 +144,7 @@ def neighborhood_overlap(G):
 
 
 @not_implemented_for("multigraph")
-def jaccard_backbone(G):
+def jaccard_backbone(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Jaccard similarity of its endpoint neighborhoods.
 
     For each edge (u, v):
@@ -196,7 +198,7 @@ def jaccard_backbone(G):
 
 
 @not_implemented_for("multigraph")
-def dice_backbone(G):
+def dice_backbone(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Dice similarity of its endpoint neighborhoods.
 
     For each edge (u, v):
@@ -248,7 +250,7 @@ def dice_backbone(G):
 
 
 @not_implemented_for("multigraph")
-def cosine_backbone(G):
+def cosine_backbone(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the cosine similarity of its endpoint neighborhoods.
 
     For each edge (u, v):
@@ -300,7 +302,7 @@ def cosine_backbone(G):
 
 
 @not_implemented_for("multigraph")
-def hub_promoted_index(G):
+def hub_promoted_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Hub Promoted Index of its endpoint neighborhoods.
 
     For each edge (u, v):
@@ -353,7 +355,7 @@ def hub_promoted_index(G):
 
 
 @not_implemented_for("multigraph")
-def hub_depressed_index(G):
+def hub_depressed_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Hub Depressed Index of its endpoint neighborhoods.
 
     For each edge (u, v):
@@ -406,7 +408,7 @@ def hub_depressed_index(G):
 
 
 @not_implemented_for("multigraph")
-def lhn_local_index(G):
+def lhn_local_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Leicht-Holme-Newman local similarity index.
 
     For each edge (u, v):
@@ -458,7 +460,7 @@ def lhn_local_index(G):
 
 
 @not_implemented_for("multigraph")
-def preferential_attachment_score(G):
+def preferential_attachment_score(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the preferential attachment index.
 
     For each edge (u, v):
@@ -507,7 +509,7 @@ def preferential_attachment_score(G):
 
 
 @not_implemented_for("multigraph")
-def adamic_adar_index(G):
+def adamic_adar_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the Adamic-Adar index.
 
     For each edge (u, v):
@@ -560,7 +562,7 @@ def adamic_adar_index(G):
 
 
 @not_implemented_for("multigraph")
-def resource_allocation_index(G):
+def resource_allocation_index(G: nx.Graph) -> nx.Graph:
     r"""Score each edge by the resource-allocation index.
 
     For each edge (u, v):
@@ -620,7 +622,7 @@ def resource_allocation_index(G):
 
 
 @not_implemented_for("multigraph")
-def graph_distance_proximity(G, all_pairs=False):
+def graph_distance_proximity(G: nx.Graph, all_pairs: bool = False) -> nx.Graph:
     r"""Score node pairs by reciprocal shortest-path distance.
 
     The ``"dist"`` attribute holds the *proximity* :math:`1 / d(u, v)`,
@@ -712,7 +714,9 @@ def graph_distance_proximity(G, all_pairs=False):
 
 
 @not_implemented_for("multigraph")
-def local_path_index(G, epsilon=0.01, weight=None):
+def local_path_index(
+    G: nx.Graph, epsilon: float = 0.01, weight: str | None = None
+) -> nx.Graph:
     r"""Score each edge by the local path index.
 
     For each edge (u, v):
