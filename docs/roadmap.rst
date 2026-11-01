@@ -274,13 +274,18 @@ the method proposals are in the `temporal backbones proposal
 
 - **planned** (`#67 <https://github.com/brianckeegan/networkx_backbone/issues/67>`_): Foundation: the three input forms, binning
   with ``freq=``, the node-presence rule (an absent edge is zero only when both
-  endpoints are present), and the scored-static-graph output.
+  endpoints are present), and the scored-static-graph output. Done so far: the
+  three forms, ``temporal_form``, binning, and lossless conversions between
+  the forms. Remaining: presence and eligibility arrays, the output
+  conventions, and the API-contract ``kind="temporal"``.
 - **planned** (`#68 <https://github.com/brianckeegan/networkx_backbone/issues/68>`_): ``observation_fraction`` and ``persistence``
   (runs of consecutive observed steps).
 - **planned** (`#69 <https://github.com/brianckeegan/networkx_backbone/issues/69>`_): ``backbone_stability`` (how often any static
   scorer keeps an edge across steps) and ``weight_trend``.
 - **planned** (`#70 <https://github.com/brianckeegan/networkx_backbone/issues/70>`_): Interop with pandas event tables, DyNetX,
-  teneto, and pathpy.
+  teneto, and pathpy. Done so far: pandas event tables
+  (``from_event_table``, ``to_event_table``). Remaining: the DyNetX, teneto,
+  and pathpy adapters.
 - **idea** (`#71 <https://github.com/brianckeegan/networkx_backbone/issues/71>`_): Null-model significance tests for the simple
   filters.
 - **planned** (`#72 <https://github.com/brianckeegan/networkx_backbone/issues/72>`_): ``kalman_backbone``: Kalman smoothing of

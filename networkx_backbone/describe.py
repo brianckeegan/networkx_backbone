@@ -21,7 +21,9 @@ own *References* sections).  The coverage policy is:
 - **Not described** (:data:`EXCLUDED`, with the reason for each): the
   dispatch wrappers (describe the method they dispatch to), null-model
   building blocks (``bicm``, ``fastball``), hypergraph helpers that are not
-  backbones, and result classes.
+  backbones, result classes, and the temporal-network format conversions
+  of ``temporal`` (that module will also hold temporal backbone methods,
+  so it is not a helper module).
 - The helper modules ``filters``, ``measures``, ``hypergraph_io``,
   ``visualization``, ``describe`` and ``convert`` are not methods and are
   skipped.
@@ -875,6 +877,21 @@ EXCLUDED = {
     "hypergraph_compression_ratio": "a measure of the MDL backbone",
     "HypergraphBackbone": "a result class",
     "ValidatedHypergraph": "a result class",
+    **dict.fromkeys(
+        (
+            "temporal_form",
+            "convert_temporal",
+            "snapshots_from_events",
+            "snapshots_from_spans",
+            "events_from_snapshots",
+            "spans_from_snapshots",
+            "events_from_spans",
+            "spans_from_events",
+            "from_event_table",
+            "to_event_table",
+        ),
+        "a temporal-network format conversion, not a backbone",
+    ),
 }
 
 # Wording and references for each multiple-testing correction.

@@ -16,10 +16,11 @@ casts its ``argmap`` instance to :class:`IdentityDecorator` the same way.)
 
 from __future__ import annotations
 
-from collections.abc import Callable, Hashable, Iterable
+from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Protocol, overload
 
 if TYPE_CHECKING:
+    import datetime
     import random
 
     import networkx as nx
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
     import scipy.sparse as sp
 
 __all__ = [
+    "Frequency",
     "GraphInput",
     "Hyperedge",
     "Hyperedges",
@@ -37,6 +39,8 @@ __all__ = [
     "IdentityDecorator",
     "PySeed",
     "Seed",
+    "Snapshots",
+    "TemporalNetwork",
     "not_implemented_for",
     "py_random_state",
 ]
@@ -59,6 +63,21 @@ type PySeed = int | random.Random | np.random.Generator | np.random.RandomState 
 #: ``DataFrame``): an adjacency matrix or edge list for :func:`to_graph`, an
 #: agents x artifacts incidence matrix for the bipartite methods.
 type GraphInput = nx.Graph | npt.ArrayLike | sp.sparray | sp.spmatrix | pd.DataFrame
+
+
+#: Snapshots of a temporal network: ``{time: graph}`` with mutually comparable
+#: times, or a list of graphs read as times ``0, ..., T - 1``.
+type Snapshots = Mapping[Any, nx.Graph] | Sequence[nx.Graph]
+
+#: A temporal network in any of the three forms of
+#: :mod:`networkx_backbone.temporal`: snapshots, or a multigraph of events
+#: (``time=``) or spans (``start=``/``end=``).
+type TemporalNetwork = Snapshots | nx.MultiGraph
+
+#: A time step (``freq=``, ``duration=``, ``gap=``): a number for numeric
+#: times, a :class:`datetime.timedelta` for datetimes, or a pandas frequency
+#: string or offset (pandas only).
+type Frequency = float | datetime.timedelta | str | pd.DateOffset
 
 
 class IdentityDecorator(Protocol):
