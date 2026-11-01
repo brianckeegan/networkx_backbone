@@ -77,7 +77,7 @@ Correctness gaps found in review and not yet fixed
 - **done** (`#11 <https://github.com/brianckeegan/networkx_backbone/issues/11>`_, contributed in
   `#34 <https://github.com/brianckeegan/networkx_backbone/pull/34>`_): Directed ``lans_filter`` now also tests the
   target's in-links.
-- **planned** (`#12 <https://github.com/brianckeegan/networkx_backbone/issues/12>`_): A directed GLAB variant, using the out- and in-involvement of
+- **done** (`#12 <https://github.com/brianckeegan/networkx_backbone/issues/12>`_): A directed GLAB variant, using the out- and in-involvement of
   Zhang et al. (2014), Section 2.3.
 - **next** (`#13 <https://github.com/brianckeegan/networkx_backbone/issues/13>`_): Check ``hyper_projection``'s weighting (:math:`1/d(z)` versus
   Newman's :math:`1/(d(z)-1)`) and the arXiv identifier cited for the
@@ -130,7 +130,7 @@ Methods
 
 - **planned** (`#23 <https://github.com/brianckeegan/networkx_backbone/issues/23>`_): ``describe_backbone`` (Backbone 3.0's ``narrative``): methods
   text and citations for a chosen backbone and its parameters.
-- **planned** (`#32 <https://github.com/brianckeegan/networkx_backbone/issues/32>`_): ``sparsify(umst=True)`` should add the union of
+- **done** (`#32 <https://github.com/brianckeegan/networkx_backbone/issues/32>`_): ``sparsify(umst=True)`` should add the union of
   all minimum spanning trees (Hamann et al., 2016), not a single spanning
   forest.
 - **planned** (`#24 <https://github.com/brianckeegan/networkx_backbone/issues/24>`_): The local (per-node-neighborhood) MDL hypergraph backbone
