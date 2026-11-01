@@ -167,7 +167,12 @@ Release engineering
 - **next** (`#16 <https://github.com/brianckeegan/networkx_backbone/issues/16>`_): Release ``v0.3.0``, the first
   release with this sprint's correctness fixes, new methods, and changes in
   results. ``v0.2.0`` (February 2026) is tagged in git, but PyPI has
-  only 0.1.0 and a development build. Publish to PyPI and conda-forge from the existing workflows.
+  only 0.1.0 and a development build: the tag still had a static
+  ``version = "0.1.0"``. The publishing workflows now build exactly the
+  release tag's version and refuse to upload anything else, and the release
+  notes are drafted in ``docs/release-notes/v0.3.0.md``. What remains is
+  dating the changelog and publishing the GitHub Release, which uploads to
+  PyPI and anaconda.org.
 - **planned** (`#18 <https://github.com/brianckeegan/networkx_backbone/issues/18>`_): Add ``py.typed`` and type annotations for the public API.
 
 Planned features
