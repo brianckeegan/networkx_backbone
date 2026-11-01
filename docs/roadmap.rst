@@ -91,10 +91,11 @@ Correctness gaps found in review and not yet fixed
 Validation
 ~~~~~~~~~~
 
-- **next** (`#14 <https://github.com/brianckeegan/networkx_backbone/issues/14>`_): Cross-implementation reference tests. Pin p-values on shared
-  datasets (Les Misérables, Davis Southern Women, karate) against R
-  ``backbone`` 3.0 and ``netbone``, stored as small JSON fixtures so the test
-  suite needs neither R nor netbone.
+- **done** (`#14 <https://github.com/brianckeegan/networkx_backbone/issues/14>`_): Cross-implementation reference tests. P-values and backbones
+  on Les Misérables, Davis Southern Women, and karate are pinned against R
+  ``backbone`` 3.0.4 and ``netbone`` 0.2.3 in JSON fixtures, so the test suite
+  needs neither R nor netbone. Open follow-up: whether the signed LANS lower tail
+  should exclude the link itself, as R's does.
 - **done** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional "Interop" CI workflow that installs xgi, HyperNetX,
   HypergraphX, and HAT (the ``[interop]`` extra) and runs the adapter and HIF
   round-trip tests against the real libraries on pull requests and weekly.

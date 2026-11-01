@@ -239,6 +239,14 @@ def disparity_filter(G, weight="weight", signed=False, missing_as_zero=False):
     An endpoint of degree 1 cannot reject the null model, so it contributes a
     p-value of 1 and the edge's p-value comes from the other endpoint.
 
+    **Comparison with R backbone.**  The one-tailed p-values equal R
+    ``backbone::disparity`` and netbone ``disparity``.  For ``signed=True`` R
+    takes the lower tail as ``1 - upper``, the complement of the combined
+    upper tail ``min(alpha_u, alpha_v)``; here the OR rule is applied to each
+    tail, giving ``min(1 - alpha_u, 1 - alpha_v)``.  The lower tail is
+    therefore never larger than R's, so an edge can be significantly weak
+    here and not in R (``tests/test_reference_implementations.py``).
+
     **Absent pairs** (``missing_as_zero=True``).  A weight-0 pair does not
     count toward any node's degree or strength; the null model of every
     existing edge is unchanged, as in R.  From an endpoint of degree
@@ -466,6 +474,12 @@ def noise_corrected_filter(
     strengths count it at both endpoints.  That mismatch makes expected
     weights sum to about :math:`2W`, so on a unit-weight complete graph every
     edge gets a negative score.  Its ``nc_pvalue`` is :math:`P(Z \geq z)`.
+
+    **Comparison with netbone.**  netbone's ``noise_corrected`` uses the same
+    score and standard deviation formulas but sums each undirected edge once
+    for :math:`n_{..}` while counting it at both endpoints for the strengths,
+    i.e. :math:`n_{..} = W`.  Its values equal ``nc_score`` and ``nc_sdev``
+    computed with :math:`n_{..} = W` instead of :math:`2W`.
 
     **Absent pairs** (``missing_as_zero=True``).  The margins
     :math:`n_{i.}`, :math:`n_{.j}` and :math:`n_{..}` are computed from the
@@ -695,6 +709,10 @@ def marginal_likelihood_filter(G, weight="weight", signed=False, missing_as_zero
 
     Notes
     -----
+    The p-values, one-tailed and signed, equal R ``backbone::mlf`` and netbone's
+    marginal likelihood filter on Les Misérables and karate
+    (``tests/test_reference_implementations.py``).
+
     **Absent pairs** (``missing_as_zero=True``).  *T* and the strengths are
     computed from the existing edges only, so the null model of every
     existing edge is unchanged, as in R.  An absent pair is tested as
@@ -878,6 +896,9 @@ def ecm_filter(
     (for a directed pair ``(i, j)``, out-degree of *i* or in-degree of *j*)
     has :math:`p_{ij} = 0` and p-value 1.  The R backbone package has no ECM
     model to compare against; this is the ECM evaluated at a weight of 0.
+
+    The p-values agree with netbone's ``ecm`` to about ``1e-5``, the
+    tolerance of the two solvers (``tests/test_reference_implementations.py``).
 
     References
     ----------
@@ -1468,6 +1489,19 @@ def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
 
     Notes
     -----
+    **Comparison with R backbone.**  The one-tailed p-values equal R
+    ``backbone::lans`` and netbone ``lans``.  For ``signed=True`` R's lower tail
+    is the mirror image of the upper tail, ``#{weights < w} / k``, so the weakest
+    link of every node gets 0.  Here it is the empirical CDF
+    ``#{weights <= w} / k``, which counts the link itself, so it is at least
+    ``1 / k`` and a link is significantly weak only when ``1 / k < alpha / 2``.
+    When both tails are 0 (for example the only link of a degree-1 node) R
+    signs the link ``-1`` and this function ``+1``.  On Les Misérables at
+    alpha = 0.05 R's signed backbone has 68 positive and 126 negative links
+    (40 of them such ties); this one has 108 positive and none negative.  The
+    two tails here are not symmetric (the upper one excludes the link, the
+    lower one includes it), which may be worth revisiting.
+
     **Absent pairs** (``missing_as_zero=True``).  As in R, each node's
     empirical CDF is built from its existing links only; weight-0 pairs do
     not enter it, so the p-values of existing edges are unchanged.  A weight
@@ -1577,8 +1611,9 @@ def multiple_linkage_analysis(
     uses all of its links, and an edge is kept when it is dominant for
     *either* endpoint (OR rule).
 
-    With ``method="lans"`` this reproduces the netbone [4]_ implementation,
-    which thresholds the edge p-values of :func:`lans_filter` at ``alpha``.
+    With ``method="lans"`` the edge p-values of :func:`lans_filter` are
+    thresholded at ``alpha`` instead, as networkx-backbone 0.2 and earlier
+    did.
 
     Parameters
     ----------
@@ -1590,8 +1625,8 @@ def multiple_linkage_analysis(
         Edge attribute key for weights. All weights must be positive.
     method : {"dominance", "lans"}, optional (default="dominance")
         ``"dominance"`` fits ideal dominance distributions as in [1]_;
-        ``"lans"`` keeps edges with LANS p-value <= ``alpha``, as netbone
-        does and as networkx-backbone 0.2 and earlier did.
+        ``"lans"`` keeps edges with LANS p-value <= ``alpha``, as
+        networkx-backbone 0.2 and earlier did.
     deviation : {"cod", "profile", "weaver"}, optional (default="cod")
         How ``method="dominance"`` measures the fit between a node's profile
         and an ideal distribution; see above.  Ignored by ``method="lans"``.
@@ -1657,6 +1692,12 @@ def multiple_linkage_analysis(
     keeps: a node with one overwhelming link keeps one, a node whose weight is
     spread evenly keeps all of them.
 
+    netbone [2]_ (version 0.2.3, ``mlam``) fits the same ideal distributions
+    by the squared correlation (rounded to two decimals) and stops at the
+    first fit that does not improve; neither method here reproduces it.  It
+    keeps fewer links than ``method="dominance"``: 134 versus 223 on Les
+    Misérables, all of them also kept here (``method="lans"`` keeps 109).
+
     References
     ----------
     .. [1] Van Nuffel, N. (2007). Determination of the number of significant
@@ -1705,7 +1746,7 @@ def multiple_linkage_analysis(
     >>> multiple_linkage_analysis(G, deviation="profile").nodes["X"]["mla_rank"]
     4
 
-    The netbone variant thresholds LANS p-values:
+    The LANS variant thresholds LANS p-values:
 
     >>> G = nx.les_miserables_graph()
     >>> H = multiple_linkage_analysis(G, alpha=0.05, method="lans")

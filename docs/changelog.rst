@@ -135,6 +135,9 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - ``multiple_linkage_analysis`` now fits each node's sorted weights to ideal
   dominance distributions by default (``method="dominance"``; Van Nuffel,
   2007, after Weaver, 1954) and adds ``mla_rank``. The previous LANS
+  threshold is ``method="lans"``. Les Misérables: 109 ->
+  223 edges (#10; the exact deviation measure is still to be checked against
+  the 2007 paper).
   threshold, which netbone uses, is ``method="lans"``. The fit is the
   coefficient of determination over the zero-padded profile, as restated by
   Van Nuffel, Derudder & Witlox (2010), whose Table 1 the tests reproduce; a
@@ -243,6 +246,25 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 - An asv benchmark suite in ``benchmarks/`` covers the statistical, bipartite,
   MDL and SVH/SVC hypergraph, and shortest-path methods. It comes with a
   ``benchmark`` extra and a manually triggered Benchmarks workflow (#22).
+- Cross-implementation reference tests (``tests/test_reference_implementations.py``)
+  compare p-values and backbones with R ``backbone`` 3.0.4 and netbone 0.2.3
+  on Les Misérables, the karate club, and Davis Southern Women, using JSON
+  fixtures written by ``scripts/make_reference_fixtures.R`` and
+  ``scripts/make_netbone_fixtures.py`` (no R or netbone needed to run them).
+  Disparity, MLF, LANS (one-tailed), BiCM, SDSM (RNA), fixed fill, fixed row,
+  ``p.adjust``, local degree, metric and ultrametric backbones match exactly.
+  SDSM on Davis finds no significant pair at alpha = 0.05 in R either
+  (smallest p-value 0.097 in R, 0.088 here with the exact tail), and FDSM finds
+  the same 5 pairs. Documented differences: signed disparity and LANS lower
+  tails, ``lspar`` conventions, ``global`` threshold strictness, ``mtc``
+  counting non-co-occurring pairs, R's logistic-regression SDSM-EC fit, and
+  netbone's noise-corrected total, GLAB
+  and salience tie handling, h-bridge, and MLA. R's ``fdsm`` default draws
+  samples with too few curveball trades on Davis, which biases its p-values
+  upward by up to about 0.03 (#14).
+- The ``multiple_linkage_analysis`` documentation no longer says
+  ``method="lans"`` reproduces netbone: netbone 0.2.3's ``mlam`` is a
+  correlation-based fit that neither method reproduces (#14).
 
 - CI on every push and pull request: ruff lint and format checks, tests and
   doctests on Python 3.12-3.14, a job pinned to the oldest supported

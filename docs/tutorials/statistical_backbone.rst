@@ -133,9 +133,9 @@ links::
 
 This differs from LANS: LANS gives each link a p-value from the empirical
 distribution of its node's weights, while the dominance fit chooses a number
-of links per node and has no significance level.  ``method="lans"`` gives the
-netbone variant, which keeps links whose LANS p-value is at most ``alpha``
-(this was the behavior of networkx-backbone 0.2 and earlier)::
+of links per node and has no significance level.  ``method="lans"`` keeps
+links whose LANS p-value is at most ``alpha`` instead (the behavior of
+networkx-backbone 0.2 and earlier)::
 
     H = nb.multiple_linkage_analysis(G, alpha=0.05, method="lans")
 
