@@ -37,6 +37,36 @@ the :doc:`roadmap` and in GitHub issues.
   stored in ``H.graph["polya_a"]``; non-integer weights use the paper's
   large-strength approximation, Eq. (6). Les Misérables: ``a`` = 0.340 and
   12 edges at ``polya_pvalue < 0.05`` (#42).
+- ``disparity_filter(a=...)`` generalizes the uniform share null to a
+  symmetric Dirichlet null with concentration ``1/a``, so a share is
+  Beta(1/a, (k-1)/a) and the p-value is a regularized incomplete beta
+  function. ``a=1`` (the default) is the original filter, bit for bit and
+  without SciPy; ``a="ml"`` fits ``a`` by maximum likelihood and stores it in
+  ``H.graph["disparity_a"]``. With the shares fixed, it is the
+  large-strength limit of ``polya_filter``'s beta-binomial null. Les
+  Misérables: ``a`` = 0.525 and 19 edges at alpha = 0.05 (9 at ``a=1``)
+  (#55).
+- New :func:`~networkx_backbone.transform_weights` returns a copy of a graph
+  with transformed weights, from a plain callable or any object with a
+  scikit-learn style ``fit_transform`` (scikit-learn is not a dependency). It
+  keeps each node's neighbor order, rejects non-finite or constant output,
+  warns when a transform reorders weights or creates ties, and records the
+  transform for ``describe_backbone``. The new user guide page
+  :doc:`user_guide/weight_transforms` has a table of which methods are
+  invariant to rescaling and to increasing transforms, each entry checked by
+  a test (#55).
+- ``unit=`` on ``marginal_likelihood_filter``, ``ecm_filter``, and
+  ``noise_corrected_filter`` sets the weight of one count; the models use
+  ``weight / unit``. The default ``unit=1`` leaves results unchanged. The
+  three scorers now warn (``UserWarning``) when ``weight / unit`` is not an
+  integer count, naming how they coerce it: MLF rounds counts below 0.5 to 0,
+  the ECM raises counts below 1.5 to 1 (#55).
+- ``describe_backbone`` reports ``a`` of the disparity filter (with the
+  fitted value for ``a="ml"``), ``unit``, and transforms recorded by
+  ``transform_weights`` (#55).
+- A calibration test harness (``tests/test_calibration.py``) simulates
+  weights from the disparity filter's null models and checks that endpoint
+  p-values are uniform (#55).
 - ``ecm_filter`` and ``noise_corrected_filter`` accept ``signed=True`` (#25).
 - ``missing_as_zero=True`` on ``disparity_filter``, ``lans_filter``,
   ``marginal_likelihood_filter``, ``ecm_filter``, ``noise_corrected_filter``

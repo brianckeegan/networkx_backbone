@@ -246,11 +246,12 @@ Methods
   a pseudocount so Sinkhorn-Knopp converges on sparse graphs, and
   ``ds_weight`` no longer depends on node insertion order when it does not
   converge.
-- **planned** (`#55 <https://github.com/brianckeegan/networkx_backbone/issues/55>`_): Relax the distributional assumptions of the
+- **done** (`#55 <https://github.com/brianckeegan/networkx_backbone/issues/55>`_): Relax the distributional assumptions of the
   statistical nulls: a ``transform_weights`` preprocessing helper with an
   invariance table, a generalized ``disparity_filter(a=...)`` share null with
   a calibration test harness, and an explicit count ``unit=`` for MLF, ECM,
-  and the noise-corrected filter.
+  and the noise-corrected filter.  Not scheduled: a continuous-weight ECM,
+  an overdispersed MLF, and user-supplied weight distributions for GloSS.
 - **planned** (`#76 <https://github.com/brianckeegan/networkx_backbone/issues/76>`_): ``fdsm`` Monte Carlo resolution
   diagnostics: warn when ``1/(trials+1)`` makes family-wise significance
   unreachable, and report the p-value's Monte Carlo uncertainty.
