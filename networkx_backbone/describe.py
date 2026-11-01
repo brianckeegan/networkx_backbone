@@ -749,6 +749,13 @@ METHODS = {
         "criterion",
         ("kirkley2026",), H,
     ),
+    "local_mdl_hypergraph_backbone": Method(
+        "the local minimum description length (MDL) hypergraph backbone",
+        "which finds the MDL backbone of each node's neighborhood (the "
+        "hyperedges containing it) separately and keeps a hyperedge according "
+        "to how many of its nodes' neighborhood backbones contain it",
+        ("kirkley2026",), H,
+    ),
     "maximal_hyperedges": Method(
         "inclusion (toplex) reduction",
         "which keeps only the hyperedges not contained in another hyperedge",

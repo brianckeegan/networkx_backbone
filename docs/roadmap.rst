@@ -140,8 +140,8 @@ Methods
 - **done** (`#32 <https://github.com/brianckeegan/networkx_backbone/issues/32>`_): ``sparsify(umst=True)`` should add the union of
   all minimum spanning trees (Hamann et al., 2016), not a single spanning
   forest.
-- **planned** (`#24 <https://github.com/brianckeegan/networkx_backbone/issues/24>`_): The local (per-node-neighborhood) MDL hypergraph backbone
-  (Kirkley et al., 2026, Appendix E).
+- **done** (`#24 <https://github.com/brianckeegan/networkx_backbone/issues/24>`_): The local (per-node-neighborhood) MDL hypergraph backbone
+  (Kirkley et al., 2026, Appendix E): ``local_mdl_hypergraph_backbone``.
 - **done** (`#25 <https://github.com/brianckeegan/networkx_backbone/issues/25>`_): Signed variants of ``ecm_filter`` and the noise-corrected
   filter, for parity with the other scorers' ``signed=True``.
 - **idea** (`#26 <https://github.com/brianckeegan/networkx_backbone/issues/26>`_): A ``missing_as_zero`` toggle for weighted inputs (Backbone 3.0),
