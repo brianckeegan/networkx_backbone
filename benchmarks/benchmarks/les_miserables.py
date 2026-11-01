@@ -125,6 +125,7 @@ WEIGHTED_CASES = [
         kwargs={"method": "lans", "alpha": ALPHA},
         label="multiple_linkage_analysis(method='lans', alpha=0.05)",
     ),
+    _pvalue("gloss_filter", "gloss_pvalue"),
     # Structural
     _keep(
         "global_threshold_filter",

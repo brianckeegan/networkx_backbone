@@ -33,6 +33,7 @@ EXPECTED_EDGES = {
     "lans_filter": 109,
     "multiple_linkage_analysis": 223,
     "multiple_linkage_analysis(method='lans', alpha=0.05)": 109,
+    "gloss_filter": 3,
     "global_threshold_filter(threshold=2)": 157,
     "strongest_n_ties(n=2)": 113,
     "global_sparsification(s=0.5)": 127,

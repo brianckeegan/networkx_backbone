@@ -201,6 +201,13 @@ REFERENCES = _refs(
         "PLoS ONE", "6", "2", "e16431", doi="10.1371/journal.pone.0016431",
     ),
     Reference(
+        "radicchi2011", "article",
+        ("Radicchi, F.", "Ramasco, J. J.", "Fortunato, S."), 2011,
+        "Information filtering in complex weighted networks",
+        "Physical Review E", "83", "4", "046101",
+        doi="10.1103/PhysRevE.83.046101",
+    ),
+    Reference(
         "vannuffel2007", "article", ("Van Nuffel, N.",), 2007,
         "Determination of the number of significant flows in "
         "origin-destination specific analysis: the case of commuting in "
@@ -521,6 +528,14 @@ METHODS = {
         "the node's sorted link weights to ideal distributions of one, two, "
         "three, ... equally strong links, and keeps those links",
         ("vannuffel2007", "weaver1954", "yassin2023"),
+    ),
+    "gloss_filter": Method(
+        "the global statistical significance (GloSS) filter",
+        "which tests each edge's weight against a global null model that keeps "
+        "the topology fixed and draws every edge weight independently from the "
+        "network's empirical weight distribution, conditioning on the degrees "
+        "and strengths of the edge's endpoints",
+        ("radicchi2011",), test=True,
     ),
     # --- structural --------------------------------------------------------
     "global_threshold_filter": Method(

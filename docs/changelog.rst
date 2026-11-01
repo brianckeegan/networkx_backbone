@@ -40,6 +40,14 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
   citations for a backbone, in text, Markdown, or BibTeX; the counterpart of
   Backbone 3.0's ``narrative`` (#23). It is backed by one method-to-BibTeX
   registry that covers every public scorer, and a test enforces that coverage.
+- New :func:`~networkx_backbone.gloss_filter`, the GloSS filter of Radicchi,
+  Ramasco & Fortunato (2011). It tests each edge weight against a global null
+  model that keeps the topology and draws weights from the network's own
+  weight distribution, conditioning on both endpoints' degrees and strengths,
+  and adds ``gloss_pvalue``. The p-values of the paper's Eq. (4) are computed
+  exactly (integer weights) by direct convolution, stable at any degree;
+  directed graphs use out- and in-degrees and strengths. Les Misérables: 3
+  edges at alpha = 0.05 (#43).
 - Added ``CITATION.cff``.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
