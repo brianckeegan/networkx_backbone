@@ -35,7 +35,7 @@ the result against plain NetworkX (see :doc:`user_guide/backends`)::
 
     NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules networkx_backbone tests
 
-Continuous integration (``.github/workflows/tests.yml``) runs lint, the test
+Continuous integration (``.github/workflows/tests.yml``) runs lint, mypy, the test
 suite on Python 3.12-3.14, a job pinned to the oldest supported versions, the
 suite under ``nx_loopback``, and the minimal-dependency smoke tests on every
 push and pull request.
