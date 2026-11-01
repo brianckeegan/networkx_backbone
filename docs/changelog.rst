@@ -262,6 +262,16 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   measure, and conversion functions are not dispatchable, since they take
   matrices or hyperedge lists or return numbers. The ``RuntimeWarning`` of
   ``ecm_filter`` and ``polya_filter`` now points at the caller's line (#19).
+- SDSM-EC constraints that contradict the data (a ``required`` pair that is
+  not an edge of ``B``, a ``prohibited`` pair that is) are now ignored with one
+  ``RuntimeWarning`` per call, pointing at the caller's line, that counts and
+  lists them, instead of raising ``NetworkXError``. This applies to ``sdsm``,
+  ``backbone_from_projection`` and ``backbone``. Pairs naming nodes that are
+  not an ``(agent, artifact)`` pair of ``B`` still raise, and so does a pair
+  listed as both required and prohibited. When no constraint remains (all
+  ignored, or empty lists), the p-values equal those of the unconstrained
+  SDSM exactly. R ``backbone`` 3.0.4 codes constraints as cell values of the
+  incidence matrix, so a constraint there replaces the observed value instead.
 
 **Performance**
 
