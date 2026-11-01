@@ -392,3 +392,19 @@ Visualization
      - ``O(n + m) without layout; plus rendering/write cost``
      - ``O(n + m)``
      - 
+
+Convert
+-------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 24 24 20
+
+   * - Function
+     - Time
+     - Space
+     - Notes
+   * - ``to_graph``
+     - ``O(n + m)``
+     - ``O(n + m)``
+     - Sparse input; a dense n x n array is O(n^2).
