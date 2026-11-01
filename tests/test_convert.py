@@ -299,7 +299,7 @@ def test_backbone_auto_dispatch_edgelist(pd, les_mis, karate):
     # A weighted edge list gets the disparity filter, as a weighted graph does.
     df = nx.to_pandas_edgelist(les_mis)
     assert _same(nb.backbone(df), nb.backbone(les_mis))
-    # Custom columns are recognised as an edge list too.
+    # Custom columns are recognized as an edge list too.
     renamed = df.rename(columns={"source": "a", "target": "b", "weight": "w"})
     got = nb.backbone(renamed, source="a", target="b", weight="w")
     assert _pvalues(got) == _pvalues(nb.backbone(les_mis))

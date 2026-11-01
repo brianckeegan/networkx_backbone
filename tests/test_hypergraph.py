@@ -170,7 +170,7 @@ def test_s_components_chain():
 
 
 # ---------------------------------------------------------------------------
-# Core MDL backbone behaviour
+# Core MDL backbone behavior
 # ---------------------------------------------------------------------------
 
 
@@ -356,7 +356,7 @@ def test_mdl_auto_is_best_of_edge_and_node():
 
 
 def test_mdl_node_weighting_keeps_high_weight_child():
-    # The gamma weight knob must work under the node optimiser too.
+    # The gamma weight knob must work under the node optimizer too.
     A = [(0, 1, 2, 3, 4), (0, 1, 2, 3)]
     filler = simplex_with_subfaces(range(5, 10))
     G = A + filler

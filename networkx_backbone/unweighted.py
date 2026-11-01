@@ -7,11 +7,11 @@ based on local topology.
 Methods
 -------
 sparsify
-    Generic sparsification framework (score -> normalise -> filter -> connect).
+    Generic sparsification framework (score -> normalize -> filter -> connect).
 lspar
     Local Sparsification (Satuluri et al. 2011) -- Jaccard-based.
 local_degree
-    Local Degree (Lindner et al. 2015) -- keep edges to high-degree neighbours.
+    Local Degree (Lindner et al. 2015) -- keep edges to high-degree neighbors.
 """
 
 import math
@@ -36,16 +36,16 @@ _FILTERS = ("degree", "threshold")
 def sparsify(
     G, escore="jaccard", normalize="rank", filter="degree", s=0.5, umst=False, seed=None
 ):
-    r"""Sparsify an unweighted graph using a score-normalise-filter pipeline.
+    r"""Sparsify an unweighted graph using a score-normalize-filter pipeline.
 
     Follows the four-step pipeline from Neal (2022) [1]_:
 
     1. **Score**: every node *u* scores each of its incident edges
        ``(u, v)``.  Some scores are symmetric (Jaccard, triangles,
        quadrangles, random); ``"degree"`` is asymmetric: *u* scores the
-       edge by the degree of the *neighbour* *v*.
-    2. **Normalise**: optionally rank-transform the scores within each
-       node's neighbourhood.
+       edge by the degree of the *neighbor* *v*.
+    2. **Normalize**: optionally rank-transform the scores within each
+       node's neighborhood.
     3. **Filter**: retain the top ``max(1, ceil(d_u**s))`` edges of every
        node *u* (``filter="degree"``), or every edge whose score is at
        least *s* (``filter="threshold"``).  An edge is kept if *either*
@@ -60,13 +60,13 @@ def sparsify(
         An undirected NetworkX graph.  Edge attributes are ignored.
     escore : string, optional (default="jaccard")
         Edge scoring method.  One of ``"jaccard"`` (Jaccard similarity of
-        the endpoint neighbourhoods), ``"degree"`` (degree of the
-        neighbour), ``"triangles"`` (number of common neighbours),
+        the endpoint neighborhoods), ``"degree"`` (degree of the
+        neighbor), ``"triangles"`` (number of common neighbors),
         ``"quadrangles"`` (number of 4-cycles through the edge) or
         ``"random"`` (uniform random score in [0, 1)).
     normalize : {"rank", None}, optional (default="rank")
         ``"rank"`` replaces each node's view of an edge score by its
-        normalised rank among that node's edges, ``r / d_u``, where *r* is
+        normalized rank among that node's edges, ``r / d_u``, where *r* is
         the number of the node's edges scoring less than or equal to the
         edge (so the best edge has value 1 and tied edges share a value).
         ``None`` keeps the raw scores.  With ``filter="degree"`` both
@@ -109,7 +109,7 @@ def sparsify(
     ``1 + #{edges of u scoring strictly better than e}``, so tied edges
     share a rank and are retained or dropped together.  Self-loops are
     ignored when scoring and ranking and are never retained; *d_u* is the
-    number of distinct neighbours of *u*.
+    number of distinct neighbors of *u*.
 
     With ``filter="degree"`` node *u* keeps the edges whose rank *r*
     satisfies ``r <= max(1, ceil(d_u**s))``, and ``"sparsify_score"`` is
@@ -126,11 +126,11 @@ def sparsify(
     scores mean more important edges.
 
     With ``filter="threshold"``, ``"sparsify_score"`` is the larger of the
-    two endpoints' (normalised) scores and the edge is retained when it is
+    two endpoints' (normalized) scores and the edge is retained when it is
     at least *s*.
 
-    With ``umst=True`` the spanning trees minimise the sum of
-    ``"sparsify_score"`` for ``filter="degree"`` and maximise it for
+    With ``umst=True`` the spanning trees minimize the sum of
+    ``"sparsify_score"`` for ``filter="degree"`` and maximize it for
     ``filter="threshold"``.  Following Hamann et al. [2]_, the *union* of
     all such trees is added, not one arbitrary tree: an edge with score
     *w* is added exactly when its endpoints are not already connected by
@@ -169,7 +169,7 @@ def lspar(G, s=0.5):
     r"""Compute the Local Sparsification (L-Spar) backbone.
 
     Every node *u* ranks its incident edges by the Jaccard similarity of
-    the endpoint neighbourhoods and keeps its top ``ceil(d_u**s)`` edges;
+    the endpoint neighborhoods and keeps its top ``ceil(d_u**s)`` edges;
     an edge is retained if either endpoint keeps it [1]_.  Equivalent to
     ``sparsify(G, escore="jaccard", normalize="rank", filter="degree", s=s)``.
 
@@ -200,7 +200,7 @@ def lspar(G, s=0.5):
 
     **Comparison with R backbone.**  R ``backbone_from_unweighted(model =
     "lspar")`` uses different conventions and keeps fewer edges (30 versus 54
-    on the karate club at ``s = 0.3``).  It divides the common neighbours by
+    on the karate club at ``s = 0.3``).  It divides the common neighbors by
     :math:`|N(u) \cup N(v)| - 2`, excluding the endpoints, ranks with dense
     ranks, ignores edges in no triangle (Jaccard 0) both when ranking and when
     counting :math:`d_u`, and keeps ranks up to ``floor(d_u**s)`` with no
@@ -235,8 +235,8 @@ def lspar(G, s=0.5):
 def local_degree(G, s=0.3):
     r"""Compute the Local Degree backbone.
 
-    Every node *u* ranks its neighbours by their degree (highest first)
-    and keeps the edges to its top ``floor(d_u**s)`` neighbours; an edge is
+    Every node *u* ranks its neighbors by their degree (highest first)
+    and keeps the edges to its top ``floor(d_u**s)`` neighbors; an edge is
     retained if either endpoint keeps it [1]_, [2]_.  Edges to hubs are
     therefore preferred, which preserves the network's hub structure.
 
@@ -260,7 +260,7 @@ def local_degree(G, s=0.3):
 
     Notes
     -----
-    Neighbours of equal degree share a rank (competition ranking), so
+    Neighbors of equal degree share a rank (competition ranking), so
     ties at the cut-off are all retained.  Each node always keeps at
     least its top-ranked edge(s).  ``"sparsify_score"`` is the critical
     exponent
@@ -293,7 +293,7 @@ def local_degree(G, s=0.3):
     >>> H = local_degree(G, s=0.0)
     >>> sorted(e for e in H.edges() if H.edges[e]["sparsify_keep"])
     [(0, 1), (0, 2), (0, 3), (0, 4), (4, 5), (4, 6)]
-    >>> H[0][4]["sparsify_keep"]  # the hub keeps the edge to its best-connected neighbour
+    >>> H[0][4]["sparsify_keep"]  # the hub keeps the edge to its best-connected neighbor
     True
     """
     return _sparsify(G, "degree", "rank", "degree", s, False, None, rounding="floor")
@@ -327,7 +327,7 @@ def _sparsify(G, escore, normalize, filter, s, umst, seed, rounding):
         badness = scores
     else:
         if normalize == "rank":
-            views = _rank_normalise(views)
+            views = _rank_normalize(views)
         scores = {}
         for u, view in views.items():
             for v, sc in view.items():
@@ -419,20 +419,20 @@ def _score_views(G, nbrs, method, seed):
     return views
 
 
-def _rank_normalise(views):
-    """Replace each node's scores by normalised ranks ``#{<= score} / d``."""
-    normalised = {}
+def _rank_normalize(views):
+    """Replace each node's scores by normalized ranks ``#{<= score} / d``."""
+    normalized = {}
     for u, view in views.items():
         ordered = sorted(view.values())
         d = len(ordered)
-        normalised[u] = {v: bisect_right(ordered, sc) / d for v, sc in view.items()}
-    return normalised
+        normalized[u] = {v: bisect_right(ordered, sc) / d for v, sc in view.items()}
+    return normalized
 
 
 def _critical_exponents(views, rounding):
     """Per-edge critical exponent of the per-node top-k ("degree") filter.
 
-    Node *u* with ``d`` distinct neighbours keeps an edge of competition
+    Node *u* with ``d`` distinct neighbors keeps an edge of competition
     rank ``r`` iff ``r <= max(1, ceil(d**s))`` (``rounding="ceil"``), i.e.
     iff ``s > log(r - 1) / log(d)``; or iff ``r <= max(1, floor(d**s))``
     (``rounding="floor"``), i.e. iff ``s >= log(r) / log(d)``.  Top-ranked
@@ -470,7 +470,7 @@ _COMPLEXITY = {
     "local_degree": {
         "time": "O(m log n)",
         "space": "O(n + m)",
-        "notes": "Per-node sorting of neighbour degrees.",
+        "notes": "Per-node sorting of neighbor degrees.",
     },
 }
 

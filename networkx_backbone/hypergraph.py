@@ -91,7 +91,7 @@ def _reduced_mutual_information(size_p, size_c, overlap, n_nodes):
     """R(c, p): reduced mutual information between hyperedges.  Eq. (11).
 
     Symmetric in the two hyperedge sizes.  Larger overlap / nestedness gives a
-    larger value, so the description length favours assigning highly overlapping
+    larger value, so the description length favors assigning highly overlapping
     hyperedges as children of a shared parent.
     """
     p_not_c = size_p - overlap
@@ -346,7 +346,7 @@ class ValidatedHypergraph:
 def intersection_graph(hyperedges, s=1, weight="overlap"):
     """Build the intersection graph (or s-line graph) of a hypergraph.
 
-    Each hyperedge becomes a node (labelled by its integer index after
+    Each hyperedge becomes a node (labeled by its integer index after
     deduplication); two hyperedges are linked when they share at least *s*
     nodes.  With ``s=1`` this is the intersection graph over which MDL
     parent--child relationships are formed (Kirkley et al. 2026, Appendix D);
@@ -422,7 +422,7 @@ def intersection_graph(hyperedges, s=1, weight="overlap"):
 
 
 def _greedy_edge(n_edges, edges, neighbors, wterm):
-    """Greedy "edge" optimiser: accept parent->child links by decreasing gain.
+    """Greedy "edge" optimizer: accept parent->child links by decreasing gain.
 
     Builds a star partition of the intersection graph by greedily accepting the
     highest-gain parent--child assignment that preserves the star structure
@@ -453,7 +453,7 @@ def _greedy_edge(n_edges, edges, neighbors, wterm):
 
 
 def _greedy_node(n_edges, neighbors, wterm):
-    """Greedy "node" optimiser: add backbone parents by decreasing total gain.
+    """Greedy "node" optimizer: add backbone parents by decreasing total gain.
 
     The alternative scheme of Kirkley et al. 2026 (Appendix D): repeatedly add to
     the backbone the hyperedge whose promotion to a parent most increases the
@@ -519,7 +519,7 @@ def _greedy_node(n_edges, neighbors, wterm):
 
 
 class _MDLFit:
-    """The MDL objective of one hypergraph, ready to optimise and evaluate.
+    """The MDL objective of one hypergraph, ready to optimize and evaluate.
 
     Holds everything the description length depends on -- the node count
     ``N``, the number of distinct orders ``L``, the empirical mean weight and
@@ -625,7 +625,7 @@ class _MDLFit:
 
         Each non-backbone hyperedge becomes the child of the overlapping
         backbone hyperedge with the largest reduced mutual information, which
-        minimises its child codelength ``H(c|p)`` (Eq. (12)); ties go to the
+        minimizes its child codelength ``H(c|p)`` (Eq. (12)); ties go to the
         smallest index.  Returns ``None`` if some hyperedge overlaps no parent.
         """
         parent_of = {}
@@ -658,8 +658,8 @@ def mdl_hypergraph_backbone(
     of hyperedges ("parents") chosen so that the remaining "child" hyperedges can
     be cheaply reconstructed from a parent they overlap, exploiting the nested
     and redundant structure unique to higher-order networks.  The optimal
-    backbone minimises the two-part description length
-    ``L(G, B) = L(B) + L(G|B)`` (Eqs (1)-(6)); equivalently it maximises the
+    backbone minimizes the two-part description length
+    ``L(G, B) = L(B) + L(G|B)`` (Eqs (1)-(6)); equivalently it maximizes the
     total parent--child reduced mutual information (Eq. (12)).
 
     The method is **fully nonparametric** for unweighted hypergraphs.  Edge
@@ -683,7 +683,7 @@ def mdl_hypergraph_backbone(
     prior : {"poisson", "geometric"}, optional (default="poisson")
         Weight prior family (Eqs (16)-(17)).  Ignored when *weights* is ``None``.
     method : {"auto", "edge", "node"}, optional (default="auto")
-        Greedy optimiser (Kirkley et al. 2026, Appendix D).  ``"edge"`` adds
+        Greedy optimizer (Kirkley et al. 2026, Appendix D).  ``"edge"`` adds
         parent--child links by decreasing gain; ``"node"`` adds backbone parents
         by decreasing total gain; ``"auto"`` runs both and keeps the lower
         description length (the procedure used in [1]_).
@@ -708,7 +708,7 @@ def mdl_hypergraph_backbone(
 
     Notes
     -----
-    Exact minimisation is combinatorial; this uses the greedy heuristics of
+    Exact minimization is combinatorial; this uses the greedy heuristics of
     [1]_, which forms a maximum-reward partition of the intersection graph into
     disjoint stars (each child attached to a single parent).  On small inputs the
     greedy compression matches exhaustive search.
@@ -827,7 +827,7 @@ def local_mdl_hypergraph_backbone(
     Kirkley, Felippe, Malizia & Battiston [1]_, the higher-order analogue of
     the disparity filter.  Each node ``i`` has a *neighborhood*
     ``G_i = {e in G : i in e}``, the hyperedges containing it.  The MDL
-    objective is minimised on every neighborhood separately, "considered in
+    objective is minimized on every neighborhood separately, "considered in
     isolation" (Eq. (E1)),
 
     .. math:: B_i^* = \\arg\\min_{B_i \\subseteq G_i} \\mathcal{L}(G_i, B_i),
@@ -864,7 +864,7 @@ def local_mdl_hypergraph_backbone(
         - ``"all"``: every one of its nodes (the most conservative rule,
           often very sparse).
     method : {"auto", "edge", "node"}, optional (default="auto")
-        Greedy optimiser applied to each neighborhood; see
+        Greedy optimizer applied to each neighborhood; see
         :func:`mdl_hypergraph_backbone`.
 
     Returns

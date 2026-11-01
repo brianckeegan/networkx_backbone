@@ -50,7 +50,7 @@ def adjust_pvalues(pvalues, method="bh"):
     Raises
     ------
     ValueError
-        If *method* is not recognised.
+        If *method* is not recognized.
 
     References
     ----------

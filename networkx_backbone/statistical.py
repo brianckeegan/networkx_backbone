@@ -180,9 +180,9 @@ def disparity_filter(G, weight="weight", signed=False, missing_as_zero=False):
     statistically significant compared to a null model where each node's
     total strength is uniformly distributed across its edges.
 
-    For each node *u* with degree *k_u* and strength *s_u*, the normalised
+    For each node *u* with degree *k_u* and strength *s_u*, the normalized
     weight of edge (u, v) is ``p_uv = w_uv / s_u``.  Under the null the
-    probability of observing a normalised weight >= p_uv is::
+    probability of observing a normalized weight >= p_uv is::
 
         alpha_uv = (1.0 - p_uv) ** (k_u - 1)
 
@@ -1880,7 +1880,7 @@ def polya_filter(G, weight="weight", a=None, approximate=None):
         {B\left(\frac{1}{a}, \frac{k-1}{a}\right)},
 
     which is the Pólya urn that starts with one red ball and *k* - 1 black
-    balls and adds *a* balls of the drawn colour after each of the *s*
+    balls and adds *a* balls of the drawn color after each of the *s*
     draws.  The p-value is the upper tail (Eq. (2) of [1]_)
 
     .. math::

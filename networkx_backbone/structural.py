@@ -253,7 +253,7 @@ def strongest_n_ties(G, n=1, weight="weight"):
 
     Notes
     -----
-    Ties in weight are broken by neighbour iteration order, so exactly
+    Ties in weight are broken by neighbor iteration order, so exactly
     *n* edges are selected per node (fewer if the node has fewer edges).
     Edges without a *weight* attribute count as weight 0.
 
@@ -271,7 +271,7 @@ def strongest_n_ties(G, n=1, weight="weight"):
         raise ValueError("n must be >= 1")
 
     kept_edges = set()
-    # G[u] holds the successors for directed graphs and the neighbours
+    # G[u] holds the successors for directed graphs and the neighbors
     # otherwise.  Sort on the weight only so that mixed-type node labels
     # are never compared.
     for u in G.nodes():
@@ -398,7 +398,7 @@ def primary_linkage_analysis(G, weight="weight"):
 
     Notes
     -----
-    Ties are broken by the string form of the neighbour (largest wins);
+    Ties are broken by the string form of the neighbor (largest wins);
     edges without a *weight* attribute count as weight 0.
 
     References
@@ -740,7 +740,7 @@ def ultrametric_backbone(G, weight="weight"):
 
     An edge *(u, v)* is in the ultrametric backbone if its direct
     distance is no greater than the minimax path distance between *u*
-    and *v* (the path that minimises the maximum edge distance along
+    and *v* (the path that minimizes the maximum edge distance along
     the path).
 
     Parameters
@@ -844,7 +844,7 @@ def doubly_stochastic_filter(
     Implements both stages of Slater's two-stage algorithm [1]_ [2]_.  The
     first stage transforms the adjacency matrix into a doubly stochastic
     matrix via iterative Sinkhorn-Knopp normalization and stores the
-    normalised weight as the ``"ds_weight"`` edge attribute.  The second
+    normalized weight as the ``"ds_weight"`` edge attribute.  The second
     stage adds edges in descending ``ds_weight`` order to an initially
     edgeless graph until it is connected, and flags the edges it added with
     the boolean ``"ds_keep"`` edge attribute.
@@ -876,7 +876,7 @@ def doubly_stochastic_filter(
     -------
     H : graph
         A copy of *G* with two additional edge attributes:
-        ``"ds_weight"`` (doubly-stochastic normalised weight) and
+        ``"ds_weight"`` (doubly-stochastic normalized weight) and
         ``"ds_keep"`` (``True`` for the edges of the backbone found by the
         second stage).  Use ``boolean_filter(H, "ds_keep")`` to extract
         that backbone, or ``threshold_filter`` / ``fraction_filter`` on
@@ -1072,11 +1072,11 @@ def doubly_stochastic_filter(
     D = A.copy()
     converged = False
     for _ in range(max_iter):
-        # Row normalise
+        # Row normalize
         row_sums = D.sum(axis=1, keepdims=True)
         row_sums[row_sums == 0] = 1.0
         D = D / row_sums
-        # Column normalise
+        # Column normalize
         col_sums = D.sum(axis=0, keepdims=True)
         col_sums[col_sums == 0] = 1.0
         D = D / col_sums
@@ -1180,7 +1180,7 @@ def h_backbone(G, weight="weight"):
     2. the **h-bridge network**: the edges whose *bridge*
        :math:`b(e) = eb(e) / N` is at least the *h-bridge* :math:`h_b`, the
        largest integer such that at least :math:`h_b` edges have
-       :math:`b(e) \ge h_b`.  Here :math:`eb(e)` is the (unnormalised)
+       :math:`b(e) \ge h_b`.  Here :math:`eb(e)` is the (unnormalized)
        edge betweenness of *e* counted over ordered node pairs and *N* is
        the number of nodes.
 
@@ -1301,7 +1301,7 @@ def modularity_backbone(G, weight="weight", seed=None):
 
     Notes
     -----
-    Louvain is randomised, so with ``seed=None`` the vitalities (and the
+    Louvain is randomized, so with ``seed=None`` the vitalities (and the
     retained edges) can change between calls.  A graph (or node-deleted
     subgraph) with zero total edge weight has modularity 0.
 

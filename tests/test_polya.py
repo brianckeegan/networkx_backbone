@@ -4,7 +4,7 @@ Equation numbers refer to the paper (Nature Communications 10, 745) and,
 for Eqs. (15)-(16), to its Supplementary Information.  The exact p-values
 are checked against an independent reference that plays the Pólya urn
 forward draw by draw in rational arithmetic, rather than against the
-beta-binomial formula the implementation uses.  Shared behaviour
+beta-binomial formula the implementation uses.  Shared behavior
 (attributes, p-value range, weight validation, multigraphs, empty graphs,
 input order) is covered by ``test_api_contract.py``.
 """
@@ -25,7 +25,7 @@ def urn_tail(w, k, s, a):
     """P(at least w red draws in s) for the urn of Fig. 1, exactly.
 
     The urn starts with one red and k - 1 black balls; after each draw the
-    ball goes back with *a* more balls of its colour (a = 0: simple
+    ball goes back with *a* more balls of its color (a = 0: simple
     replacement).
     """
     a = Fraction(a)
@@ -65,7 +65,7 @@ def test_figure_1_example():
     # B has degree 1, so the edge is tested from A only.
     assert H["A"]["B"]["polya_pvalue"] == pytest.approx(6 / 15, rel=1e-12)
     assert urn_tail(2, 3, 4, 1) == Fraction(6, 15)
-    # The three favourable outcomes of the figure, via Eq. (1).
+    # The three favorable outcomes of the figure, via Eq. (1).
     pmf = stats.betabinom(4, 1, 2).pmf
     assert [pmf(4), pmf(3), pmf(2)] == pytest.approx([1 / 15, 2 / 15, 1 / 5])
 

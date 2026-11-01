@@ -45,7 +45,7 @@ _UNDIRECTED_HIF_TYPES = ("undirected", "asc")
 
 
 def _as_hyperedges(hyperedges):
-    """Normalise to a list of non-empty :class:`frozenset` hyperedges (order kept)."""
+    """Normalize to a list of non-empty :class:`frozenset` hyperedges (order kept)."""
     out = []
     for e in hyperedges:
         fs = frozenset(e)
@@ -309,7 +309,7 @@ def read_hif(source, return_weights=False):
         If the HIF ``network-type`` is ``"directed"`` (directed hyperedges would
         otherwise silently lose their head/tail orientation).
     ValueError
-        If the HIF ``network-type`` is not a recognised value.
+        If the HIF ``network-type`` is not a recognized value.
 
     See Also
     --------
@@ -697,7 +697,7 @@ def from_hat(H, return_weights=False):
 
     HAT stores nodes by position (row of the incidence matrix).  Node labels
     are read from the ``"Names"`` column of ``H.nodes`` when it exists (HAT
-    fills it when built from labelled edges, and :func:`to_hat` sets it), else
+    fills it when built from labeled edges, and :func:`to_hat` sets it), else
     from its ``"Nodes"`` column (row indices, or the HIF node IDs for a
     hypergraph from ``HAT.Hypergraph.from_hif``), else the row indices.
 

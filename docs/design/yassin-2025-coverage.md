@@ -1,6 +1,8 @@
 # Coverage evaluation: Yassin et al. (2025) statistical and structural comparisons
 
-- **Status:** Evaluation and gap proposals (this document changes no library code)
+- **Status:** Evaluation and gap proposals. All three follow-ups (§8) are
+  now implemented: #42 (Pólya), #43 (GloSS), and #44 (doubly stochastic
+  connectivity stage).
 - **Tracking:** GitHub issue #29; open items are listed in `docs/roadmap.rst`
 - **Papers:**
   - Yassin, A., Cherifi, H., Seba, H., & Togni, O. (2025). Backbone extraction
@@ -28,9 +30,10 @@
 ## 1. Summary
 
 The two papers evaluate **15 methods**: 7 statistical in [S] and 8 structural
-in [T]. **`networkx-backbone` implements 13 of them. Two are missing: the
-Pólya urn filter (PF) and the Global Statistical Significance filter
-(GloSS).** Both are statistical methods from [S].
+in [T]. **`networkx-backbone` now implements all 15.** When this evaluation
+was written, two were missing, the Pólya urn filter (PF) and the Global
+Statistical Significance filter (GloSS), both statistical methods from [S].
+They were added as `polya_filter` (#42) and `gloss_filter` (#43).
 
 The covered methods do not always give the same backbone as the papers. In
 most cases the cause is the **extraction rule**, not the edge score. This
@@ -40,8 +43,9 @@ cut for each method. The differences that change results:
 
 - **Doubly stochastic (DS):** [T] keeps edges in descending score order until
   the backbone is connected. That is the second stage of Slater (2009).
-  `doubly_stochastic_filter` returns only the score (`ds_weight`) and has no
-  connectivity rule.
+  `doubly_stochastic_filter` now flags it as `ds_keep` (#44). `netbone` also
+  adds 1e-4 to every cell before scaling; `smoothing=1e-4` reproduces that
+  step (#54), but not `netbone`'s matrix construction.
 - **High salience skeleton (HSS):** `netbone` keeps salience > 0.8.
   `high_salience_skeleton` returns only the score. It also gives tied
   shortest paths fractional credit; `netbone` uses one arbitrary path tree
@@ -53,8 +57,8 @@ cut for each method. The differences that change results:
   `noise_corrected_filter` defaults to the Bayesian score. The closest match
   here is `method="zscore"`, a normal approximation to the same binomial.
 
-Details are in Section 4. Assessments of the two missing methods are in
-Section 5.
+Details are in Section 4. The assessments of PF and GloSS made before they
+were implemented are in Section 5.
 
 ## 2. What the papers evaluated
 
@@ -80,11 +84,11 @@ paper gives no DOI, none is added here.
 | Abbr. | Method | Paper | Citation as given in the paper | `networkx-backbone` | Status |
 |---|---|---|---|---|---|
 | DF | Disparity filter | [S] ref 12 | Serrano MA, Boguna M, Vespignani A. Extracting the multiscale backbone of complex weighted networks. *PNAS*. 2009;106:6483–6488. doi:10.1073/pnas.0808904106 | `disparity_filter` (`disparity_pvalue`); also `disparity` / `backbone_from_weighted(model="disparity")` | Covered |
-| PF | Pólya urn filter | [S] ref 13 | Marcaccioli R, Livan G. A Pólya urn approach to information filtering in complex networks. *Nature Communications*. 2019;10:745. doi:10.1038/s41467-019-08667-3 | — | **Missing** |
+| PF | Pólya urn filter | [S] ref 13 | Marcaccioli R, Livan G. A Pólya urn approach to information filtering in complex networks. *Nature Communications*. 2019;10:745. doi:10.1038/s41467-019-08667-3 | `polya_filter` (`polya_pvalue`) | Covered (#42) |
 | MLF | Marginal likelihood filter | [S] ref 15 | Dianati N. Unwinding the hairball graph: Pruning algorithms for weighted complex networks. *Physical Review E*. 2016;93. doi:10.1103/PhysRevE.93.012304 | `marginal_likelihood_filter` (`ml_pvalue`); also `mlf` | Covered |
 | NC | Noise-corrected filter | [S] ref 14 | Coscia M, Neffke FMH. Network Backboning with Noisy Data. IEEE; 2017. p. 425–436. *(no DOI given)* | `noise_corrected_filter` (`nc_pvalue`, `nc_score`) | Covered; uses a different p-value by default (§4) |
 | ECM | Enhanced configuration model filter | [S] ref 16 | Gemmetto V, Cardillo A, Garlaschelli D. Irreducible network backbones: unbiased graph filtering via maximum entropy; 2017. https://arxiv.org/abs/1706.00230 | `ecm_filter` (`ecm_pvalue`) | Covered |
-| GloSS | Global statistical significance filter | [S] ref 17 | Radicchi F, Ramasco JJ, Fortunato S. Information filtering in complex weighted networks. *Physical Review E*. 2011;83:046101. doi:10.1103/PhysRevE.83.046101 | — | **Missing** |
+| GloSS | Global statistical significance filter | [S] ref 17 | Radicchi F, Ramasco JJ, Fortunato S. Information filtering in complex weighted networks. *Physical Review E*. 2011;83:046101. doi:10.1103/PhysRevE.83.046101 | `gloss_filter` (`gloss_pvalue`) | Covered (#43) |
 | LANS | Locally adaptive network sparsification | [S] ref 18 | Foti NJ, Hughes JM, Rockmore DN. Nonparametric Sparsification of Complex Multiscale Networks. *PLoS ONE*. 2011;6:e16431. doi:10.1371/journal.pone.0016431 | `lans_filter` (`lans_pvalue`); also `lans` | Covered |
 | MSP | Maximum spanning tree | [T] ref 52 | Kruskal JB Jr. On the shortest spanning subtree of a graph and the traveling salesman problem. *Proc Am Math Soc*. 1956;7:48–50. doi:10.2307/2033241 | `maximum_spanning_tree_backbone` (`mst_keep`) | Covered |
 | PMFG | Planar maximally filtered graph | [T] ref 69 | Tumminello M, Aste T, Di Matteo T, Mantegna RN. A tool for filtering information in complex systems. *PNAS*. 2005;102(30):10421–6. doi:10.1073/pnas.0500298102 | `planar_maximally_filtered_graph` (`pmfg_keep`) | Covered |
@@ -207,7 +211,12 @@ implementation. Undirected graphs are assumed throughout, as in both papers.
     example `threshold_filter(H, "salience", 0.8, mode="above")`. That rule
     keeps salience >= 0.8, not > 0.8.
 
-## 5. Missing methods
+## 5. Missing methods (now implemented)
+
+> **Update.** Both methods below have since been implemented and checked
+> against their papers: `polya_filter` (#42) and `gloss_filter` (#43). Their
+> docstrings record how the open questions listed here were resolved. This
+> section is kept as the original assessment.
 
 ### 5.1 Pólya urn filter (PF)
 
@@ -334,6 +343,8 @@ Weight entropy and the overlap coefficient are small additions, but they are
 evaluation helpers, not methods, so they are not proposed as issues here.
 
 ## 8. Proposed follow-ups
+
+All three are done: #42, #43, and #44.
 
 1. **Pólya urn filter** (§5.1). Medium-high priority.
 2. **GloSS filter** (§5.2). Low-medium priority.

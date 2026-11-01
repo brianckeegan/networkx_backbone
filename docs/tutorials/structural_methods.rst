@@ -109,6 +109,18 @@ as ``ds_keep``::
     backbone = nb.threshold_filter(H, "ds_weight", 0.1, mode="above")
     print(f"Doubly stochastic (>0.1): {backbone.number_of_edges()} edges")
 
+Sinkhorn-Knopp does not converge on many sparse graphs, including this one: a
+graph with several leaves on one node has no doubly stochastic scaling, and
+the filter warns.  ``smoothing`` adds a small pseudocount to every off-diagonal
+cell first, which makes the iteration converge.  Keep it small relative to the
+weights, since it spreads each row's unit sum over every node::
+
+    H = nb.doubly_stochastic_filter(G, smoothing=1e-4)
+    backbone = nb.boolean_filter(H, "ds_keep")
+    print(f"Doubly stochastic (smoothed): {backbone.number_of_edges()} edges")
+
+On Les Misérables this keeps 220 edges, against 187 without smoothing.
+
 Index-based
 -----------
 
