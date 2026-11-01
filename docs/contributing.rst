@@ -53,9 +53,9 @@ its own virtual environment, so commit your changes first::
     asv continuous main HEAD     # flags benchmarks that changed by > 10%
 
 ``asv continuous -b MDL main HEAD`` runs only the benchmarks matching a regular
-expression, and ``asv run --quick --dry-run`` (on the current commit, with
-results discarded) is a fast smoke test after editing a benchmark. Benchmarks
-are plain Python: a class with ``setup`` and ``time_*`` methods and optional
+expression. After editing a benchmark, ``asv run -E existing --quick`` runs each
+one once against the networkx-backbone already installed in your environment,
+without building anything. Benchmarks are plain Python: a class with ``setup`` and ``time_*`` methods and optional
 ``params``; seeded inputs come from ``benchmarks/benchmarks/_data.py``.
 
 The *Benchmarks* workflow (``.github/workflows/benchmarks.yml``) runs the same
