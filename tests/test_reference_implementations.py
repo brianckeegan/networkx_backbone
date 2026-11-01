@@ -232,41 +232,32 @@ def test_r_disparity_signed(dataset):
 
 @pytest.mark.parametrize("dataset", sorted(WEIGHTED))
 def test_r_lans_signed(dataset):
-    """Signed LANS: documented lower-tail difference.
+    """Signed LANS: two-sided p-values and signs equal R's, apart from ties.
 
-    Both use the upper tail ``#{weights > w} / k``.  R's lower tail is the
-    mirror image ``#{weights < w} / k``; networkx-backbone's is the empirical
-    CDF ``#{weights <= w} / k``, which counts the edge itself, so it is
-    larger by at least ``1 / k``.  Every edge R signs ``+1`` has the same sign
-    and p-value here, and networkx-backbone retains a subset of R's
-    negative edges: R marks the weakest edge of any node as significantly
-    weak, networkx-backbone only when ``1 / k < alpha / 2``.
+    Both use the upper tail ``#{weights > w} / k`` and its mirror image, the
+    lower tail ``#{weights < w} / k`` (#58).  The only difference is the sign
+    of an exact tie upper == lower (for example the only link of a degree-1
+    node, or a node whose links all have the same weight): R signs it ``-1``
+    and networkx-backbone ``+1``.  The two-sided p-value is the same either
+    way.
     """
     G, nodes, edges = weighted_case(dataset, r_fixture())
     section = r_fixture()[dataset]["lans"]
     upper, lower = values(section["upper"]), values(section["lower"])
-    r_p, r_sign = r_two_sided(upper, lower)
+    r_p, _ = r_two_sided(upper, lower)
     H = nb.lans_filter(G, signed=True)
-    p = edge_values(H, edges, "lans_pvalue")
+    np.testing.assert_allclose(edge_values(H, edges, "lans_pvalue"), r_p, atol=1e-12)
     sign = edge_values(H, edges, "sign")
-    pos = r_sign == 1
-    np.testing.assert_allclose(p[pos], r_p[pos], atol=1e-12)
-    assert np.all(sign[pos] == 1)
-    assert np.all(p >= r_p - 1e-12)
-    # R signs an exact tie upper == lower as -1 (a node whose links all have
-    # the same weight makes each of them both its strongest and its weakest);
-    # networkx-backbone signs it +1.
-    ties = {frozenset(e) for e, u, lo in zip(edges, upper, lower) if u == lo}
+    assert_signs(sign, upper, lower)
+    tie = np.abs(upper - lower) <= 1e-12
+    assert tie.any()
+    assert np.all(sign[tie] == 1)
+    # The backbones agree once R's sign of each tie is replaced by +1.
+    ties = {frozenset(e) for e, t in zip(edges, tie) if t}
     for mtc in ("none", "bonferroni", "holm", "BH"):
-        B = our_backbone_set(
-            nb.backbone_from_weighted(G, method="lans", signed=True, mtc=mtc)
-        )
+        B = nb.backbone_from_weighted(G, method="lans", signed=True, mtc=mtc)
         R = r_backbone_set(section["backbones"][f"signed_{mtc}"], nodes)
-        ours_pos = {e for e, s in B if s == 1}
-        r_pos = {e for e, s in R if s == 1}
-        assert r_pos <= ours_pos
-        assert ours_pos - r_pos <= ties & {e for e, s in R if s == -1}
-        assert {e for e in B if e[1] == -1} <= {e for e in R if e[1] == -1}
+        assert our_backbone_set(B) == {(e, 1 if e in ties else s) for e, s in R}
 
 
 def test_r_p_adjust():
