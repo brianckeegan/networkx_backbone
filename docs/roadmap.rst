@@ -110,7 +110,7 @@ breaking changes:
 - CI now runs tests on every push and pull request (Python 3.12-3.14 and a
   NetworkX-only job), along with ruff lint and format checks and doctests.
 
-Next release (0.2.0)
+Next release (0.3.0)
 --------------------
 
 Correctness gaps found in review
@@ -135,6 +135,15 @@ Correctness gaps found in review
 - **done** (`#13 <https://github.com/brianckeegan/networkx_backbone/issues/13>`_): Check ``hyper_projection``'s weighting (:math:`1/d(z)` versus
   Newman's :math:`1/(d(z)-1)`) and the arXiv identifier cited for the
   projection methods against Coscia & Neffke (2017).
+- **next** (`#58 <https://github.com/brianckeegan/networkx_backbone/issues/58>`_): Signed ``lans_filter`` counts the edge itself
+  in its lower tail, so almost no edge is significantly weak (Les Misérables:
+  0 negative links, against 126 in R). Mirror the upper tail, as R does.
+- **next** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` breaks weight ties by
+  adjacency order, so ``G`` and ``G.copy()`` can give different backbones.
+  Make the result independent of node order.
+- **planned** (`#59 <https://github.com/brianckeegan/networkx_backbone/issues/59>`_): Decide, for each convention difference from
+  R ``backbone`` and ``netbone`` that the reference tests document, whether
+  to keep it, match the reference, or add an option.
 
 Validation
 ~~~~~~~~~~
@@ -155,9 +164,10 @@ Validation
 Release engineering
 ~~~~~~~~~~~~~~~~~~~
 
-- **next** (`#16 <https://github.com/brianckeegan/networkx_backbone/issues/16>`_): Tag ``v0.2.0``. The repository has no version tags yet, so
-  ``setuptools-scm`` falls back to ``0.0.0``. Publish to PyPI and conda-forge
-  from the existing workflows.
+- **next** (`#16 <https://github.com/brianckeegan/networkx_backbone/issues/16>`_): Release ``v0.3.0``, the first
+  release with this sprint's correctness fixes, new methods, and changes in
+  results. ``v0.2.0`` (February 2026) is tagged in git, but PyPI has
+  only 0.1.0 and a development build. Publish to PyPI and conda-forge from the existing workflows.
 - **planned** (`#18 <https://github.com/brianckeegan/networkx_backbone/issues/18>`_): Add ``py.typed`` and type annotations for the public API.
 
 Planned features

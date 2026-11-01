@@ -1,7 +1,7 @@
 Changelog
 =========
 
-Unreleased (0.2.0)
+Unreleased (0.3.0)
 ------------------
 
 This release adds hypergraph backbones and the remaining Backbone 3.0
@@ -319,6 +319,20 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   al., 2009; Lindner et al., 2015); the docs version is taken from the package
   metadata.
 
+
+Version 0.2.0 (2026-02-14)
+--------------------------
+
+Tagged ``v0.2.0`` in git. PyPI has 0.1.0 and a development build
+(``0.2.0.post1.dev9``), but no 0.2.0 release.
+
+- New :mod:`~networkx_backbone.visualization` module:
+  :func:`~networkx_backbone.graph_difference`,
+  :func:`~networkx_backbone.compare_graphs`, and
+  :func:`~networkx_backbone.save_graph_comparison` draw an original graph
+  and its backbone side by side.
+- A Sphinx-Gallery visual comparison gallery and score-then-filter examples
+  in the documentation.
 
 Version 0.1.0 (Initial Release)
 --------------------------------
