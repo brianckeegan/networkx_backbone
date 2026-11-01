@@ -443,6 +443,15 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Infrastructure and documentation**
 
+- A shared figure style for the docs, ``docs/_figures/style.py`` (docs only,
+  not library API): color tokens checked with a palette validator against the
+  docs theme's light and dark backgrounds (kept and removed edges, positive
+  and negative edges, a one-hue ramp for scores, eight categorical colors in a
+  fixed order), matplotlib defaults, a cached layout per dataset, a helper
+  that draws a backbone over its original graph with a legend and the counts,
+  and helpers that save light and dark variants and write the reST that shows
+  the one matching the reader's theme. Sphinx-Gallery examples start from
+  this style (#88, #96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose
