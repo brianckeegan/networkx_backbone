@@ -1598,7 +1598,7 @@ def multiple_linkage_analysis(
         The squared deviation summed over the whole profile,
         :math:`D_k = \sum_{r=1}^{n} (p_r - t^{(k)}_r)^2`, so links outside
         the dominant set count against a fit.  The smallest value wins.
-        This was the default in the development versions of 0.2.0.
+        This was the default in the development versions of 0.3.0.
     ``"weaver"``
         The mean squared deviation over the *k* links of the candidate set
         only, :math:`V_k = \frac{1}{k} \sum_{r=1}^{k} (p_r - 1/k)^2`, the

@@ -180,7 +180,7 @@ settings:
    for this GitHub repository.
 2. Use the workflow filename ``publish-to-PyPI.yml`` and environment name
    ``pypi``.
-3. Create and push a version tag (for example ``v0.2.0``) and then publish a
+3. Create and push a version tag (for example ``v0.3.0``) and then publish a
    GitHub Release from that tag; the workflow will run tests, build
    distributions, verify them with ``twine check``, and publish to PyPI using
    that tag as the package version.
