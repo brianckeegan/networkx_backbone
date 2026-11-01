@@ -799,6 +799,23 @@ class TestSignedProjections:
             assert H["a"][other][f"{model}_pvalue"] == 1.0
             assert H["a"][other]["sign"] == -1
 
+    def test_fixedrow_symmetric_null_is_an_exact_tie(self):
+        # b and d each use 2 of the 4 artifacts, so their co-occurrence is
+        # hypergeometric and symmetric about its mean 2 * 2 / 4 = 1, which is
+        # the observed count: P(X >= 1) == P(X <= 1) in exact arithmetic.
+        B = nx.Graph()
+        B.add_nodes_from("bde", bipartite=0)
+        B.add_nodes_from([1, 2, 3, 4], bipartite=1)
+        B.add_edges_from([("b", 1), ("b", 2), ("d", 1), ("d", 3), ("e", 4)])
+        B.add_edges_from([("e", 3), ("e", 2)])
+        H = nb.fixedrow(B, "bde", alpha=np.inf, signed=True)
+        assert (H["b"]["d"]["fixedrow_pvalue"], H["b"]["d"]["sign"]) == (1.0, -1)
+        # The tails do not depend on the order of the agents.
+        R = nb.fixedrow(B, "edb", alpha=np.inf, signed=True)
+        assert {frozenset(e): d for e, d in H.edges.items()} == {
+            frozenset(e): d for e, d in R.edges.items()
+        }
+
 
 class TestSDSMEdgeConstraints:
     def test_constraints_change_null(
@@ -1028,10 +1045,11 @@ def _dense_tails(method, R, **kw):
         return bp._pmf_tails(pmf, k)
     if method == "fixedrow":
         d = R.sum(axis=1)
-        return (
-            stats.hypergeom.sf(k - 1, nf, d[iu], d[ju]),
-            stats.hypergeom.cdf(k, nf, d[iu], d[ju]),
-        )
+        # Smaller degree first; a symmetric law observed at its mean is a tie.
+        lo, hi = np.minimum(d[iu], d[ju]), np.maximum(d[iu], d[ju])
+        upper = stats.hypergeom.sf(k - 1, nf, lo, hi)
+        tie = ((2 * lo == nf) | (2 * hi == nf)) & (k * nf == lo * hi)
+        return upper, np.where(tie, upper, stats.hypergeom.cdf(k, nf, lo, hi))
     if method == "fdsm":
         rng = np.random.default_rng(kw["seed"])
         exceed = np.zeros(len(iu), dtype=np.int64)

@@ -236,10 +236,14 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   alpha = 0.05, 108 positive / 86 negative -> 68 / 126; karate, 45 / 25 ->
   30 / 40. In every other model a tie needs both tails of at least 0.5
   (two-sided p-value 1), so only the ``sign`` attribute of untestable or
-  non-significant edges changes, for example ECM self-loops, edges between
-  two degree-1 nodes under the disparity filter, and 4 Davis ``fixedrow``
-  pairs. ``noise_corrected_filter`` signs by the statistic, so only a score
-  of exactly 0 is a tie (#59).
+  non-significant edges changes, for example ECM self-loops and, under the
+  disparity filter, edges between two degree-1 nodes. Ties are now equal by
+  construction rather than by floating-point rounding:
+  ``noise_corrected_filter`` signs by the statistic, so only a score of
+  exactly 0 is a tie, and ``fixedrow`` makes the two tails of a symmetric
+  hypergeometric null observed at its mean exactly equal and no longer
+  depends on the order of the two agents. Davis ``fixedrow``: all 7 such
+  pairs are now ``-1`` (6 were ``+1``) (#59).
 - ``bicm``/``sdsm``: the BiCM is now actually fitted rather than
   approximated with Chung-Lu, and p-values use exact Poisson-binomial tails
   (or RNA). SDSM-EC refits on the free cells. Davis: 3 -> 0 pairs.

@@ -135,14 +135,20 @@ decision; "our" there means the code before it.
 In a count model (MLF, ECM, SDSM, FDSM, the fixed models) the two tails
 add up to at least 1, so a tie needs both tails to be at least 0.5, and
 its two-sided p-value is 1. There the rule only sets the `sign` attribute
-of edges that no backbone keeps (4 Davis `fixedrow` pairs, ECM self-loops,
-and edges between two degree-1 nodes under the disparity filter). Seven
-Davis `fixedrow` pairs have a symmetric hypergeometric null, so their tails
-are equal in exact arithmetic. Neither implementation computes them as
-equal: rerunning R gives each pair's tails one ulp apart, and the fixture's
-15 digits cannot tell which is smaller, so the test checks their p-value
-(1) and not their sign. The noise-corrected filter signs by its statistic,
-so only a score of exactly 0 is a tie, not tails that both round to 0.5.
+of edges that no backbone keeps, such as ECM self-loops; the same holds
+for an edge between two degree-1 nodes under the disparity filter (both
+tails 1). Ties are equal by construction, not by rounding:
+
+- Seven Davis `fixedrow` pairs involve an agent with 7 of the 14 events,
+  whose hypergeometric null is symmetric about its mean, and each is
+  observed at that mean, so its tails are equal in exact arithmetic. R
+  computes each pair's tails one ulp apart and signs it by that rounding
+  (rerun with R 4.3.3; the fixture's 15 digits show the tails as equal).
+  Before #59 our tails tied for 4 of the 7, depending on the order of the
+  two agents. `fixedrow` now evaluates the law in a fixed order of the two
+  degrees and makes these tails exactly equal, so all 7 are −1.
+- The noise-corrected filter signs by its statistic, so only a score of
+  exactly 0 is a tie, not tails that both round to 0.5.
 
 **Difference (before the decision).** R's `.retain()` sets
 `upper_tail <- (p$upper < p$lower)`, so an exact tie is signed −1. Our

@@ -487,17 +487,17 @@ def test_r_fixed_models_exact(model):
     p = pair_values(S, pairs, f"{model}_pvalue")
     np.testing.assert_allclose(p, r_p, rtol=1e-10, atol=1e-15)
     sign = pair_values(S, pairs, "sign")
-    # The fixture stores 15 significant digits.  Seven fixedrow pairs (an
-    # agent with 7 of the 14 events) have a symmetric hypergeometric null
-    # centered on their count, so their tails are equal in exact arithmetic
-    # and in the fixture, but not in floating point: R 3.0.4 itself computes
-    # each of them one ulp apart and signs them by that rounding.  A tie in
-    # a count model needs both tails >= 0.5, so their p-value is 1 and no
-    # backbone at alpha <= 1 keeps them.
+    assert_signs(sign, upper, lower)
+    # Seven fixedrow pairs (an agent with 7 of the 14 events) have a
+    # symmetric hypergeometric null centered on their count, so their tails
+    # are equal in exact arithmetic, in the fixture's 15 digits, and here: a
+    # tie, signed -1.  (R 3.0.4 computes them one ulp apart and signs them by
+    # that rounding.)  A tie in a count model needs both tails >= 0.5, so
+    # their p-value is 1 and no backbone at alpha <= 1 keeps them.
     tie = upper == lower
     assert tie.sum() == {"fixedfill": 0, "fixedrow": 7}[model]
     assert np.all(p[tie] == 1.0)
-    assert_signs(sign[~tie], upper[~tie], lower[~tie])
+    assert np.all(sign[tie] == -1)
 
 
 def test_r_fixedcol_exact_vs_rna():
