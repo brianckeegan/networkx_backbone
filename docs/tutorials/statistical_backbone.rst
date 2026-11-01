@@ -106,7 +106,7 @@ assumptions::
 Multiple linkage analysis
 -------------------------
 
-Multiple linkage analysis (Van Nuffel et al., 2010) decides how many of each
+Multiple linkage analysis (Van Nuffel, 2007) decides how many of each
 node's links are *dominant*.  It sorts the node's link weights in decreasing
 order, normalizes them to shares, and compares that profile by least squares
 with ideal distributions: one link with all the weight, two equal links, three
@@ -216,10 +216,11 @@ References
   backbones: unbiased graph filtering via maximum entropy*. arXiv:1706.00230.
 - Foti, N. J., Hughes, J. M., & Rockmore, D. N. (2011). *Nonparametric
   sparsification of complex multiscale networks*. PLOS ONE, 6(2), e16431.
-- Van Nuffel, N., Saey, P., Derudder, B., Devriendt, L., & Witlox, F. (2010).
-  *Measuring hierarchical differentiation: connectivity and dominance in the
-  European urban network*. Transportation Planning and Technology, 33(4),
-  343-366.
+- Van Nuffel, N. (2007). *Determination of the number of significant flows in
+  origin-destination specific analysis: the case of commuting in Flanders*.
+  Regional Studies, 41(4), 509-524.
+- Weaver, J. C. (1954). *Crop-combination regions in the Middle West*.
+  Geographical Review, 44(2), 175-200.
 - Benjamini, Y., & Hochberg, Y. (1995). *Controlling the false discovery rate*.
   J. Royal Statistical Society B, 57(1), 289-300.
 - Benjamini, Y., & Yekutieli, D. (2001). *The control of the false discovery rate

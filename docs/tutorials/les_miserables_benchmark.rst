@@ -51,8 +51,8 @@ All counts below are after explicit filtering.
      - ``disparity_pvalue < 0.05``
      - 9
    * - :func:`~networkx_backbone.noise_corrected_filter`
-     - ``nc_score >= 2.0``
-     - 98
+     - ``nc_pvalue < 0.05``
+     - 195
    * - :func:`~networkx_backbone.marginal_likelihood_filter`
      - ``ml_pvalue < 0.05``
      - 126
@@ -63,8 +63,8 @@ All counts below are after explicit filtering.
      - ``lans_pvalue < 0.05``
      - 109
    * - :func:`~networkx_backbone.multiple_linkage_analysis`
-     - ``mla_keep`` (boolean)
-     - 109
+     - ``mla_keep`` (boolean, dominance fit)
+     - 223
    * - :func:`~networkx_backbone.global_threshold_filter`
      - ``global_threshold_keep`` (boolean)
      - 157
@@ -174,11 +174,11 @@ Reproducibility Script
 
     methods = [
         ("disparity_filter", lambda: nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05, mode="below")),
-        ("noise_corrected_filter", lambda: nb.threshold_filter(nb.noise_corrected_filter(G), "nc_score", 2.0, mode="above")),
+        ("noise_corrected_filter", lambda: nb.threshold_filter(nb.noise_corrected_filter(G), "nc_pvalue", 0.05)),
         ("marginal_likelihood_filter", lambda: nb.threshold_filter(nb.marginal_likelihood_filter(G), "ml_pvalue", 0.05, mode="below")),
         ("ecm_filter", lambda: nb.threshold_filter(nb.ecm_filter(G), "ecm_pvalue", 0.05, mode="below")),
         ("lans_filter", lambda: nb.threshold_filter(nb.lans_filter(G), "lans_pvalue", 0.05, mode="below")),
-        ("multiple_linkage_analysis(alpha=0.05)", lambda: nb.boolean_filter(nb.multiple_linkage_analysis(G, alpha=0.05), "mla_keep")),
+        ("multiple_linkage_analysis", lambda: nb.boolean_filter(nb.multiple_linkage_analysis(G), "mla_keep")),
         ("global_threshold_filter(threshold=2)", lambda: nb.boolean_filter(nb.global_threshold_filter(G, threshold=2), "global_threshold_keep")),
         ("strongest_n_ties(n=2)", lambda: nb.boolean_filter(nb.strongest_n_ties(G, n=2), "strongest_n_ties_keep")),
         ("global_sparsification(s=0.5)", lambda: nb.boolean_filter(nb.global_sparsification(G, s=0.5), "global_sparsification_keep")),

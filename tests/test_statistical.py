@@ -417,7 +417,7 @@ class TestLANS:
 
 
 # ---------------------------------------------------------------------------
-# Multiple linkage analysis -- Van Nuffel et al. (2010), dominance fitting
+# Multiple linkage analysis -- Van Nuffel (2007), dominance fitting
 # ---------------------------------------------------------------------------
 
 

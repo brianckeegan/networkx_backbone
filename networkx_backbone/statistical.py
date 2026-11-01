@@ -18,7 +18,7 @@ ecm_filter
 lans_filter
     Foti et al. (2011) -- nonparametric, empirical CDF-based.
 multiple_linkage_analysis
-    Van Nuffel et al. (2010) -- dominant links by fitting ideal distributions.
+    Van Nuffel (2007) -- dominant links by fitting ideal distributions.
 """
 
 import math
@@ -1040,7 +1040,7 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     r"""Extract a backbone using Multiple Linkage Analysis (MLA).
 
     With ``method="dominance"`` (the default) this is the multiple linkage
-    analysis of Van Nuffel et al. [1]_, which decides how many of a node's
+    analysis of Van Nuffel [1]_, which decides how many of a node's
     links are *dominant*.  For each node:
 
     1. Sort its link weights in decreasing order and divide by their sum,
@@ -1107,9 +1107,13 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     Notes
     -----
     The procedure is the least-squares comparison with ideal distributions
-    used in multiple linkage analysis, after Weaver's (1954) crop-combination
-    method.  Here the deviation is summed over the node's whole profile, so
-    links outside the dominant set count against a fit.  Ideal distributions
+    used in multiple linkage analysis, after Weaver's crop-combination
+    method [3]_.  Here the deviation is summed over the node's whole profile,
+    so links outside the dominant set count against a fit.  Weaver's original
+    measure instead averages the squared deviation over the *k* links of the
+    candidate combination only.  The exact variant used by Van Nuffel (2007)
+    has not yet been checked against the paper (see issue #10), so results
+    may differ from that paper's in borderline cases.  Ideal distributions
     that would split a group of tied weights are not considered (such a split
     never fits strictly better), so tied links are kept or dropped together and ``mla_rank`` is always the number
     of links the node keeps.  If two fits are equally good, the smaller *k*
@@ -1122,10 +1126,12 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
 
     References
     ----------
-    .. [1] Van Nuffel, N., Saey, P., Derudder, B., Devriendt, L., & Witlox, F.
-       (2010). Measuring hierarchical differentiation: connectivity and
-       dominance in the European urban network. *Transportation Planning and
-       Technology*, 33(4), 343-366. https://doi.org/10.1080/03081060.2010.494028
+    .. [1] Van Nuffel, N. (2007). Determination of the number of significant
+       flows in origin-destination specific analysis: the case of commuting in
+       Flanders. *Regional Studies*, 41(4), 509-524.
+       https://doi.org/10.1080/00343400701281808
+    .. [3] Weaver, J. C. (1954). Crop-combination regions in the Middle West.
+       *Geographical Review*, 44(2), 175-200. https://doi.org/10.2307/212355
     .. [2] Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023).
        An evaluation tool for backbone extraction techniques in weighted
        complex networks. *Scientific Reports*, 13, 17000.

@@ -216,8 +216,9 @@ Key papers behind the implemented methods:
 - Saracco, F., Di Clemente, R., Gabrielli, A., & Squartini, T. (2015). [Randomizing bipartite networks: the case of the World Trade Web](https://doi.org/10.1038/srep10595). *Scientific Reports*, 5, 10595.
 - Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). [Local graph sparsification for scalable clustering](https://doi.org/10.1145/1989323.1989399). *SIGMOD*, 721-732.
 - Serrano, M. A., Boguna, M., & Vespignani, A. (2009). [Extracting the multiscale backbone of complex weighted networks](https://doi.org/10.1073/pnas.0808904106). *PNAS*, 106(16), 6483-6488.
-- Van Nuffel, N., Saey, P., Derudder, B., Devriendt, L., & Witlox, F. (2010). [Measuring hierarchical differentiation: connectivity and dominance in the European urban network](https://doi.org/10.1080/03081060.2010.494028). *Transportation Planning and Technology*, 33(4), 343-366.
+- Van Nuffel, N. (2007). [Determination of the number of significant flows in origin-destination specific analysis: the case of commuting in Flanders](https://doi.org/10.1080/00343400701281808). *Regional Studies*, 41(4), 509-524.
 - Zhang, X., Zhang, Z., Zhao, H., Wang, Q., & Zhu, J. (2014). [Extracting the globally and locally adaptive backbone of complex networks](https://doi.org/10.1371/journal.pone.0100428). *PLoS One*, 9(6), e100428.
+- Weaver, J. C. (1954). [Crop-combination regions in the Middle West](https://doi.org/10.2307/212355). *Geographical Review*, 44(2), 175-200.
 - Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023). [An evaluation tool for backbone extraction techniques in weighted complex networks](https://doi.org/10.1038/s41598-023-42076-3). *Scientific Reports*, 13, 17000. 
 - Yassin A., Cherifi, H., Seba, H., & Togni, O. (2025). [Backbone extraction through statistical edge filtering: A comparative study](https://doi.org/10.1371/journal.pone.0316141). *PLoS One*, 20(1): e0316141.
 - Yassin A., Cherifi, H., Seba, H., & Togni, O. (2025). [Exploring weighted network backbone extraction: A comparative analysis of structural techniques](https://doi.org/10.1371/journal.pone.0322298). *PLoS One*, 20(5): e0322298.
