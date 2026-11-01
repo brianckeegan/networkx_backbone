@@ -193,5 +193,5 @@ exclude = [
     '(^|\.)(HypergraphBackbone|ValidatedHypergraph)(\.|$)',
     # describe.py internals: registry record classes and the registry tables
     # (data, not functions; documented in the module docstring).
-    '(^|\.)describe\.(Reference|Method|METHODS|ALIASES|EXCLUDED|REFERENCES)(\.|$)',
+    '(^|\.)describe\.(Reference|Method|METHODS|ALIASES|EXCLUDED|REFERENCES|SCORE_KEYS)(\.|$)',
 ]

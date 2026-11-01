@@ -33,8 +33,9 @@ link-prediction functions, which nx-parallel implements.
 
 The other functions are not dispatchable. The bipartite functions accept
 incidence matrices as well as graphs, the hypergraph functions take lists of
-hyperedges, the evaluation measures return numbers, and
-``consensus_backbone`` takes any number of graphs.
+hyperedges, the evaluation measures return numbers,
+``consensus_backbone`` takes any number of graphs, and the temporal functions
+take snapshots (several graphs) or a multigraph of events or spans.
 
 Using a backend
 ---------------
