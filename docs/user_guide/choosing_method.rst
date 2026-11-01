@@ -239,7 +239,9 @@ null models:
 
 - :func:`~networkx_backbone.disparity_filter`: Assumes each node's total
   strength is uniformly distributed across its edges. Works well for
-  heterogeneous networks with broad degree distributions.
+  heterogeneous networks with broad degree distributions. ``a=...`` tolerates
+  more (``a > 1``) or less (``a < 1``) heterogeneity, and ``a="ml"`` fits it;
+  see :doc:`weight_transforms`.
 
 - :func:`~networkx_backbone.noise_corrected_filter`: Scores each edge by its
   lift over the weight expected from its endpoints' strengths, and estimates
@@ -250,7 +252,8 @@ null models:
 
 - :func:`~networkx_backbone.marginal_likelihood_filter`: Considers both
   endpoints of each edge in a binomial null model. Treats weights as integer
-  counts.
+  counts; ``unit=`` sets the weight of one count (also on ``ecm_filter`` and
+  ``noise_corrected_filter``).
 
 - :func:`~networkx_backbone.ecm_filter`: Uses a maximum-entropy null model that
   preserves both degree and strength sequences. Most computationally expensive

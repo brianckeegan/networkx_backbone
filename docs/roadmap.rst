@@ -141,8 +141,8 @@ Correctness gaps found in review
   projection methods against Coscia & Neffke (2017).
 - **done** (`#58 <https://github.com/brianckeegan/networkx_backbone/issues/58>`_): The signed ``lans_filter`` lower tail is now
   ``#{weights < w} / k``, the mirror image of the upper tail, as in R. Its
-  two-sided p-values equal R's; only the sign of an exact tie differs (#59).
-  Les Misérables: 0 -> 86 negative links (R: 126, 40 of them ties).
+  two-sided p-values equal R's, and since #59 so do the signs of exact ties.
+  Les Misérables: 0 -> 126 negative links, as in R (40 of them ties).
 - **done** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` keeps edges tied at each node's
   cutoff together, so ``G``, ``G.copy()``, and any reordering of the same
   graph give the same backbone. ``global_sparsification`` and
@@ -151,13 +151,16 @@ Correctness gaps found in review
   (ties in weight), ``fraction_filter`` (ties in score, documented), and
   ``modularity_backbone`` (Louvain visiting order, even with a fixed seed)
   still depend on input order.
-- **planned** (`#59 <https://github.com/brianckeegan/networkx_backbone/issues/59>`_): Decide, for each convention difference from
+- **done** (`#59 <https://github.com/brianckeegan/networkx_backbone/issues/59>`_): Decide, for each convention difference from
   R ``backbone`` and ``netbone`` that the reference tests document, whether
   to keep it, match the reference, or add an option. The
   `decision note
   <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/reference-conventions.md>`__
-  measures each difference on the reference datasets and recommends a
-  choice. R-compatible options are available without changing any default:
+  measures each difference on the reference datasets and records the
+  decisions: every difference is kept and documented, except the sign of an
+  exact tie between the two tails, which now matches R (``-1``), so every
+  signed weighted backbone equals R's on the fixtures. R-compatible options
+  are available without changing any default:
   ``backbone_from_projection(missing_as_zero=False)`` and
   ``lspar(convention="r")``.
 
@@ -246,11 +249,12 @@ Methods
   a pseudocount so Sinkhorn-Knopp converges on sparse graphs, and
   ``ds_weight`` no longer depends on node insertion order when it does not
   converge.
-- **planned** (`#55 <https://github.com/brianckeegan/networkx_backbone/issues/55>`_): Relax the distributional assumptions of the
+- **done** (`#55 <https://github.com/brianckeegan/networkx_backbone/issues/55>`_): Relax the distributional assumptions of the
   statistical nulls: a ``transform_weights`` preprocessing helper with an
   invariance table, a generalized ``disparity_filter(a=...)`` share null with
   a calibration test harness, and an explicit count ``unit=`` for MLF, ECM,
-  and the noise-corrected filter.
+  and the noise-corrected filter.  Not scheduled: a continuous-weight ECM,
+  an overdispersed MLF, and user-supplied weight distributions for GloSS.
 - **planned** (`#76 <https://github.com/brianckeegan/networkx_backbone/issues/76>`_): ``fdsm`` Monte Carlo resolution
   diagnostics: warn when ``1/(trials+1)`` makes family-wise significance
   unreachable, and report the p-value's Monte Carlo uncertainty.

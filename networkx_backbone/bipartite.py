@@ -328,13 +328,16 @@ def _signed_pvalues(p_hi, p_lo):
 
     ``sign`` is ``+1`` for a significantly strong (over-represented)
     co-occurrence and ``-1`` for a significantly weak (under-represented) one.
+    As in R ``backbone`` 3.0.4 (``.retain``), it is ``+1`` only when
+    ``upper < lower``, so an exact tie ``upper == lower`` is ``-1``; this is
+    the rule of ``_combine_tails`` in ``statistical.py``.
     """
     import numpy as np
 
     p_hi = np.clip(np.asarray(p_hi, dtype=float), 0.0, 1.0)
     p_lo = np.clip(np.asarray(p_lo, dtype=float), 0.0, 1.0)
     pval = np.minimum(1.0, 2.0 * np.minimum(p_hi, p_lo))
-    sign = np.where(p_hi <= p_lo, 1, -1)
+    sign = np.where(p_hi < p_lo, 1, -1)
     return pval, sign
 
 
@@ -1848,6 +1851,7 @@ def _fixedfill_tails(inc, *, signed=False):
 
 def _fixedrow_tails(inc, *, signed=False):
     """Pair tails under the fixed-row model: hypergeometric in the degrees."""
+    import numpy as np
     from scipy import stats as sp_stats
 
     na, nf = inc.R.shape
@@ -1856,9 +1860,19 @@ def _fixedrow_tails(inc, *, signed=False):
     deg, _ = _degrees(inc.R)
 
     def hypergeom_tails(k, di, dj):
-        p_hi = sp_stats.hypergeom.sf(k - 1, nf, di, dj)
-        p_lo = sp_stats.hypergeom.cdf(k, nf, di, dj) if signed else None
-        return p_hi, p_lo
+        # The law is symmetric in the two degrees, so evaluate it in one
+        # order: the floating-point tails then do not depend on which agent
+        # comes first.
+        d_lo, d_hi = np.minimum(di, dj), np.maximum(di, dj)
+        p_hi = sp_stats.hypergeom.sf(k - 1, nf, d_lo, d_hi)
+        if not signed:
+            return p_hi, None
+        p_lo = sp_stats.hypergeom.cdf(k, nf, d_lo, d_hi)
+        # A degree of exactly nf / 2 makes the law symmetric about its mean
+        # di * dj / nf; a count at that mean has equal tails in exact
+        # arithmetic, which make a tie (sign -1) here too.
+        tie = ((2 * di == nf) | (2 * dj == nf)) & (k * nf == di * dj)
+        return p_hi, np.where(tie, p_hi, p_lo)
 
     # The tails depend only on (k, d_i, d_j).
     return lambda i, j, k: _per_distinct(hypergeom_tails, k, deg[i], deg[j], nf + 1)
@@ -2052,6 +2066,17 @@ def fixedrow(
     See Also
     --------
     fixedfill, fixedcol, sdsm, fdsm, backbone_from_projection
+
+    Notes
+    -----
+    With ``signed=True`` a pair is signed ``+1`` when its upper tail is
+    smaller than its lower tail and ``-1`` otherwise, as in R ``backbone``,
+    so a tie is ``-1``.  When ``d_i`` or ``d_j`` is half the number of
+    artifacts the hypergeometric law is symmetric about its mean
+    ``d_i d_j / n_artifacts``, and a pair observed at that mean has two
+    equal tails.  They are made exactly equal, so the pair is signed ``-1``
+    whatever the floating-point rounding (R signs such pairs by the
+    rounding).  Its two-sided p-value is 1.
 
     References
     ----------
@@ -2273,7 +2298,9 @@ def backbone_from_projection(
         ``DataFrame``'s index and columns).  Only valid with a matrix *B*.
     **kwargs
         Passed to the selected model (e.g. ``signed``, ``trials``, ``seed``,
-        ``prohibited``, ``required``, ``pvalue_method``).
+        ``prohibited``, ``required``, ``pvalue_method``).  SDSM-EC
+        constraints follow :func:`sdsm`: pairs that contradict *B* are
+        ignored with a ``RuntimeWarning``.
 
     Returns
     -------
@@ -2287,7 +2314,9 @@ def backbone_from_projection(
     ValueError
         If *method* is unknown or a matrix *B* is invalid.
     NetworkXError
-        If *B* is not bipartite or *agent_nodes* is not one side of it.
+        If *B* is not bipartite or *agent_nodes* is not one side of it, or
+        an SDSM-EC constraint names nodes that are not an ``(agent,
+        artifact)`` pair of *B* or is both required and prohibited.
     AmbiguousSolution
         If *agent_nodes* is ``None`` and *B* is disconnected without
         ``bipartite`` node attributes.
@@ -2310,7 +2339,7 @@ def backbone_from_projection(
     reproduces R's ``missing_as_zero = TRUE``.  Without *mtc* and with
     ``signed=False`` the two settings give the same backbone, because a pair
     that never co-occurs has upper-tail p-value 1.  When both tails are
-    exactly equal R signs the pair ``-1`` and networkx-backbone ``+1``.
+    exactly equal the pair is signed ``-1``, as in R.
 
     Examples
     --------
@@ -2688,7 +2717,9 @@ def backbone(G: GraphInput, method: str | None = None, **kwargs: Any) -> nx.Grap
         disparity filter, and other graphs use ``sparsify``.
     **kwargs
         Passed to the selected wrapper (e.g. ``alpha``, ``agent_nodes``,
-        ``mtc``, ``signed``, or the conversion options ``nodelist``,
+        ``mtc``, ``signed``, the SDSM-EC constraints ``prohibited`` and
+        ``required`` (contradictory pairs are ignored with a warning, see
+        :func:`sdsm`), or the conversion options ``nodelist``,
         ``directed``, ``source`` and ``target``).
 
     Returns
@@ -2823,6 +2854,64 @@ def _constraint_mask(pairs, name, a_idx, f_idx, shape):
     return mask
 
 
+_MAX_LISTED_CONSTRAINTS = 5
+
+
+def _drop_contradictory_constraints(R, req_mask, pro_mask, agents, artifacts):
+    """Drop constraints that contradict the observed incidence matrix *R*.
+
+    ``required`` cells that are not edges of *R* and ``prohibited`` cells that
+    are edges of *R* are removed from the masks, with one ``RuntimeWarning``
+    that counts and lists (up to ``_MAX_LISTED_CONSTRAINTS``) the dropped
+    pairs of each kind.  A cell in both masks raises ``NetworkXError``.
+    Returns the cleaned ``(req_mask, pro_mask)``.
+    """
+    import numpy as np
+
+    def listed(mask):
+        rows, cols = np.nonzero(mask)
+        pairs = [
+            (agents[i], artifacts[k])
+            for i, k in zip(
+                rows[:_MAX_LISTED_CONSTRAINTS], cols[:_MAX_LISTED_CONSTRAINTS]
+            )
+        ]
+        text = ", ".join(repr(p) for p in pairs)
+        if len(rows) > _MAX_LISTED_CONSTRAINTS:
+            text += ", ..."
+        return text
+
+    both = req_mask & pro_mask
+    if both.any():
+        raise nx.NetworkXError(
+            f"sdsm: {int(both.sum())} pair(s) are both required and prohibited: "
+            f"{listed(both)}."
+        )
+    bad_req = req_mask & (R == 0)
+    bad_pro = pro_mask & (R != 0)
+    parts = []
+    if bad_req.any():
+        parts.append(
+            f"{int(bad_req.sum())} required pair(s) that are not edges of B "
+            f"[{listed(bad_req)}]"
+        )
+    if bad_pro.any():
+        parts.append(
+            f"{int(bad_pro.sum())} prohibited pair(s) that are edges of B "
+            f"[{listed(bad_pro)}]"
+        )
+    if parts:
+        from networkx_backbone.statistical import _external_stacklevel
+
+        warnings.warn(
+            "sdsm: ignoring SDSM-EC constraints that contradict the data: "
+            f"{'; '.join(parts)}.",
+            RuntimeWarning,
+            stacklevel=_external_stacklevel(),
+        )
+    return req_mask & ~bad_req, pro_mask & ~bad_pro
+
+
 def _sdsm_tails(
     inc,
     *,
@@ -2837,7 +2926,10 @@ def _sdsm_tails(
     Without edge constraints the BiCM probabilities depend only on the
     degrees (:func:`_bicm_classes`), so the Poisson-binomial tails are
     computed once per pair of agent-degree classes and looked up per pair.
-    With constraints the full probability matrix is fitted.
+    With constraints the full probability matrix is fitted; constraints that
+    contradict *B* are dropped with a warning
+    (:func:`_drop_contradictory_constraints`), and if none remain the
+    unconstrained path is used.
     """
     import numpy as np
 
@@ -2853,10 +2945,10 @@ def _sdsm_tails(
         Rd = R.toarray()
         req_mask = _constraint_mask(required, "required", a_idx, f_idx, Rd.shape)
         pro_mask = _constraint_mask(prohibited, "prohibited", a_idx, f_idx, Rd.shape)
-        if (req_mask & (Rd == 0)).any():
-            raise nx.NetworkXError("required pairs must be edges of B.")
-        if (pro_mask & (Rd == 1)).any():
-            raise nx.NetworkXError("prohibited pairs must not be edges of B.")
+        req_mask, pro_mask = _drop_contradictory_constraints(
+            Rd, req_mask, pro_mask, agents, artifacts
+        )
+        constrained = bool(req_mask.any() or pro_mask.any())
 
     if na < 2 or R.nnz == 0:
         return None
@@ -3030,14 +3122,18 @@ def sdsm(
         versus significantly weak (``-1``) co-occurrences.
     prohibited : iterable of (agent, artifact) pairs or None, optional
         SDSM-EC edge constraints (Neal & Neal, 2023) [2]_: cells fixed to
-        probability 0 in the null model (edges that cannot occur).  Each pair
-        must be an absent edge of *B*.
+        probability 0 in the null model (edges that cannot occur).  Pairs
+        that are edges of *B* contradict the data and are ignored with a
+        ``RuntimeWarning``.
     required : iterable of (agent, artifact) pairs or None, optional
         SDSM-EC edge constraints: cells fixed to probability 1 in the null
-        model (edges that must occur).  Each pair must be an edge of *B*.
+        model (edges that must occur).  Pairs that are not edges of *B*
+        contradict the data and are ignored with a ``RuntimeWarning``.
         With constraints the BiCM is refitted on the unconstrained cells only,
         so expected degrees still match the observed ones.  Constraints use a
-        dense ``n_agents x n_artifacts`` probability matrix.
+        dense ``n_agents x n_artifacts`` probability matrix.  If no
+        constraint remains (none given, or all ignored), the result equals
+        the unconstrained SDSM.
     projection : {"simple", "hyper", "newman", "probs", "ycn"}, optional
         Projection weighting assigned to each returned edge (see
         :func:`bipartite_projection`).
@@ -3068,8 +3164,10 @@ def sdsm(
     Raises
     ------
     NetworkXError
-        If *B* is not bipartite, *agent_nodes* is not one side of it, or a
-        constraint is not an ``(agent, artifact)`` pair consistent with *B*.
+        If *B* is not bipartite, *agent_nodes* is not one side of it, a
+        constraint is not an ``(agent, artifact)`` pair of nodes of *B*
+        (unknown node, two nodes of the same side, or reversed order), or a
+        pair is both required and prohibited.
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
     ValueError
@@ -3079,7 +3177,10 @@ def sdsm(
     Warns
     -----
     RuntimeWarning
-        If the BiCM fit does not converge.
+        If the BiCM fit does not converge, or if constraints that contradict
+        *B* (required non-edges, prohibited edges) are ignored.  One warning
+        per call gives the number of ignored pairs of each kind and lists up
+        to five of them.
 
     See Also
     --------
@@ -3087,6 +3188,21 @@ def sdsm(
 
     Notes
     -----
+    **Contradictory constraints.**  A ``required`` pair that is not an edge
+    of *B*, or a ``prohibited`` pair that is, contradicts the observed data:
+    fixing that cell would make the null model's expected degrees differ
+    from the observed ones.  Such pairs are dropped from the constraints
+    with a warning, and the others are kept.  A pair listed as both required
+    and prohibited is an error in the constraints themselves and raises.
+    R ``backbone`` 3.0.4 has no such case: it encodes constraints in the
+    incidence matrix itself (in its SDSM-EC code a cell value of 10 is a
+    prohibited edge and 11 a required edge), so each cell is either an
+    observed 0/1 or a constraint.  R counts a 10 cell as absent and an 11
+    cell as present in the observed co-occurrences, so marking an observed
+    edge 10 (or an absent edge 11) silently overrides the data rather than
+    being ignored or flagged.
+
+
     **Comparison with R backbone.**  With ``pvalue_method="rna"`` the p-values
     equal R ``backbone::sdsm`` up to the BiCM fit (``1e-8``), except that a
     pair that never co-occurs gets the exact value 1 (R evaluates the

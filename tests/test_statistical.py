@@ -208,9 +208,12 @@ class TestNoiseCorrected:
             z = score / sdev
             expected = min(1.0, 2 * stats.norm.sf(abs(z)))
             assert H[u][v]["nc_pvalue"] == pytest.approx(expected, abs=1e-9)
-            assert H[u][v]["sign"] == (1 if z >= 0 else -1)
+            assert H[u][v]["sign"] == (1 if z > 0 else -1)
         assert H[2][3]["sign"] == 1 and H[2][3]["nc_pvalue"] < 1e-10
         assert H[0][2]["sign"] == -1
+        # Score 0 (lift exactly 1): the tails tie, so the sign is -1 as in R.
+        assert H[1][2]["nc_score"] == 0.0
+        assert (H[1][2]["nc_pvalue"], H[1][2]["sign"]) == (1.0, -1)
 
     def test_legacy_zscore_formula(self, count_graph):
         H = nb.noise_corrected_filter(count_graph, method="zscore")
@@ -344,7 +347,9 @@ class TestECM:
         count_graph.add_edge("a", "a", weight=4)
         H = nb.ecm_filter(count_graph)
         assert H["a"]["a"]["ecm_pvalue"] == 1.0
-        assert nb.ecm_filter(count_graph, signed=True)["a"]["a"]["ecm_pvalue"] == 1.0
+        loop = nb.ecm_filter(count_graph, signed=True)["a"]["a"]
+        # Untested: both tails are 1, a tie, signed -1 (#59).
+        assert (loop["ecm_pvalue"], loop["sign"]) == (1.0, -1)
 
     def test_signed_tails_from_fitted_multipliers(self, count_graph):
         # Upper tail p_ij (y_i y_j)^(w-1), lower tail 1 - p_ij (y_i y_j)^w,
@@ -369,7 +374,7 @@ class TestECM:
             assert signed[u][v]["ecm_pvalue"] == pytest.approx(
                 min(1.0, 2 * min(p_hi, p_lo)), rel=1e-6
             )
-            assert signed[u][v]["sign"] == (1 if p_hi <= p_lo else -1)
+            assert signed[u][v]["sign"] == (1 if p_hi < p_lo else -1)
 
     def test_directed_classes_are_exact(self):
         # Nodes are grouped by (k_out, s_out, k_in, s_in) (#21).  Grouping by
@@ -487,8 +492,8 @@ class TestLANS:
             ("a", "c"): (0.0, -1),
             ("b", "d"): (0.0, -1),
             # 1/3 above and 1/3 below at both b and c: an exact tie, signed
-            # +1 here (R: -1).
-            ("b", "c"): (pytest.approx(2 / 3), 1),
+            # -1 as in R (#59).
+            ("b", "c"): (pytest.approx(2 / 3), -1),
             ("a", "b"): (0.0, 1),
             ("c", "d"): (0.0, 1),
         }
@@ -512,8 +517,23 @@ class TestLANS:
         for e, d in H.edges.items():
             assert H_rev.edges[e]["lans_pvalue"] == d["lans_pvalue"]
             signs.add((d["sign"], H_rev.edges[e]["sign"]))
-        # (1, 1) is a tie: upper == lower, signed +1 both ways.
-        assert signs == {(1, -1), (-1, 1), (1, 1)}
+        # (-1, -1) is a tie: upper == lower, signed -1 both ways.
+        assert signs == {(1, -1), (-1, 1), (-1, -1)}
+
+    def test_signed_degree_one_tie_is_negative(self):
+        # The only link of a degree-1 node is both its strongest and its
+        # weakest: at that node both tails are 0, so the link's upper and
+        # lower tails are both 0.  This exact tie is signed -1, as in R
+        # backbone 3.0.4 (#59), and the signed backbone keeps it as weak.
+        G = nx.Graph()
+        G.add_weighted_edges_from([("leaf", "hub", 2), ("hub", "a", 1), ("a", "b", 1)])
+        G.add_weighted_edges_from([("hub", "c", 3), ("c", "b", 5)])
+        H = nb.lans_filter(G, signed=True)
+        assert H["leaf"]["hub"] == {"weight": 2, "lans_pvalue": 0.0, "sign": -1}
+        B = nb.backbone_from_weighted(G, method="lans", alpha=0.05, signed=True)
+        assert B["leaf"]["hub"]["sign"] == -1
+        # Not a tie: the strongest link of both of its endpoints.
+        assert (H["c"]["b"]["lans_pvalue"], H["c"]["b"]["sign"]) == (0.0, 1)
 
     @pytest.mark.parametrize("edge", [("u", "t"), ("s", "r")])
     def test_directed_signed_weak_from_either_side(self, edge):
@@ -922,8 +942,8 @@ class TestMissingAsZero:
         assert got[("b", "c")] == (pytest.approx(2 * lo_ad), -1)
         assert got[("b", "d")] == (pytest.approx(2 * lo_bd), -1)
         assert got[("b", "d")][0] == pytest.approx(0.0111048103)
-        for x in "abcd":
-            assert got[(x, "e")] == (1.0, 1)
+        for x in "abcd":  # both tails are 1: a tie, signed -1
+            assert got[(x, "e")] == (1.0, -1)
         assert len(got) == 7
         unsigned = nb.marginal_likelihood_filter(two_pairs, missing_as_zero=True)
         assert {p for p, _ in _zero_edges(unsigned, "ml_pvalue").values()} == {1.0}
@@ -1023,3 +1043,305 @@ class TestMissingAsZero:
             got = alias(two_pairs, signed=True, missing_as_zero=True)
             want = full(two_pairs, signed=True, missing_as_zero=True)
             assert nx.utils.graphs_equal(got, want)
+
+
+# ---------------------------------------------------------------------------
+# Generalized disparity null: disparity_filter(a=...)
+# ---------------------------------------------------------------------------
+
+
+def _center_star(weights):
+    """Star with center "c"; leaves have degree 1, so p-values come from "c"."""
+    G = nx.Graph()
+    G.add_weighted_edges_from(("c", i, w) for i, w in enumerate(weights))
+    return G
+
+
+def _disparity_closed_form(G, weight="weight"):
+    """The a=1 p-values exactly as networkx-backbone 0.2 computes them."""
+    s, k = dict(G.degree(weight=weight)), dict(G.degree())
+
+    def tail(w, x):
+        if k[x] <= 1:
+            return 1.0
+        return max((1.0 - min(w / s[x], 1.0)) ** (k[x] - 1), 0.0)
+
+    return {
+        (u, v): min(tail(d[weight], u), tail(d[weight], v))
+        for u, v, d in G.edges(data=True)
+    }
+
+
+class TestDisparityConcentration:
+    @pytest.mark.parametrize("a", [1, 1.0])
+    def test_a_one_is_bit_identical(self, a, les_miserables_weighted):
+        G = les_miserables_weighted
+        got = nx.get_edge_attributes(nb.disparity_filter(G, a=a), "disparity_pvalue")
+        assert got == _disparity_closed_form(G)  # exact, not approx
+        for kw in ({"signed": True}, {"signed": True, "missing_as_zero": True}):
+            assert nx.utils.graphs_equal(
+                nb.disparity_filter(G, a=a, **kw), nb.disparity_filter(G, **kw)
+            )
+        assert "disparity_a" not in nb.disparity_filter(G, a=a).graph
+
+    @pytest.mark.parametrize(
+        ("weights", "a", "expected"),
+        [
+            # k = 3, a = 1/2 (c = 2): Beta(2, 4) upper tail at x = 1/2 is
+            # 5 (1 - x)^4 - 4 (1 - x)^5 = 3/16.
+            ((2, 1, 1), 0.5, 3 / 16),
+            # k = 3, a = 2 (c = 1/2): Beta(1/2, 1) has cdf sqrt(x), so the
+            # upper tail at x = 1/4 is 1/2.
+            ((1, 1.5, 1.5), 2.0, 0.5),
+        ],
+    )
+    def test_hand_computed_values(self, weights, a, expected):
+        H = nb.disparity_filter(_center_star(weights), a=a)
+        assert H["c"][0]["disparity_pvalue"] == pytest.approx(expected, rel=1e-12)
+
+    @pytest.mark.parametrize("a", [0.3, 0.5, 2.0, 7.0])
+    def test_beta_tail(self, a, hub_star):
+        H = nb.disparity_filter(hub_star, a=a, signed=True)
+        k, x = 4, 100 / 103
+        hi = stats.beta.sf(x, 1 / a, (k - 1) / a)
+        lo = stats.beta.cdf(x, 1 / a, (k - 1) / a)
+        assert H["c"][1]["disparity_pvalue"] == pytest.approx(
+            min(1.0, 2 * min(hi, lo)), rel=1e-9
+        )
+        assert H["c"][1]["sign"] == (1 if hi <= lo else -1)
+
+    def test_close_to_one_is_close_to_closed_form(self, les_miserables_weighted):
+        G = les_miserables_weighted
+        exact = _disparity_closed_form(G)
+        near = nx.get_edge_attributes(
+            nb.disparity_filter(G, a=1 + 1e-12), "disparity_pvalue"
+        )
+        assert near == pytest.approx(exact, rel=1e-6, abs=1e-12)
+
+    def test_larger_a_gives_sparser_backbones(self, les_miserables_weighted):
+        counts = [
+            nb.threshold_filter(
+                nb.disparity_filter(les_miserables_weighted, a=a),
+                "disparity_pvalue",
+                0.05,
+            ).number_of_edges()
+            for a in (0.25, 0.5, 1.0, 2.0, 4.0)
+        ]
+        assert counts == [37, 20, 9, 5, 2]
+
+    def test_scale_invariant(self, les_miserables_weighted):
+        G = les_miserables_weighted
+        G4 = nb.transform_weights(G, lambda w: 4 * w)  # exact in floating point
+        for a in (2.0, "ml"):
+            H, H4 = nb.disparity_filter(G, a=a), nb.disparity_filter(G4, a=a)
+            assert nx.get_edge_attributes(H4, "disparity_pvalue") == pytest.approx(
+                nx.get_edge_attributes(H, "disparity_pvalue"), rel=1e-9
+            )
+
+    def test_directed_uses_out_and_in_profiles(self):
+        G = nx.DiGraph()
+        G.add_weighted_edges_from(
+            [(f"s{i}", "v", w) for i, w in enumerate([100, 1, 1, 1, 1])]
+        )
+        H = nb.disparity_filter(G, a=2.0)
+        expected = stats.beta.sf(100 / 104, 0.5, 4 / 2)
+        assert H["s0"]["v"]["disparity_pvalue"] == pytest.approx(expected, rel=1e-9)
+
+    def test_missing_as_zero_pairs_match_a_one(self, two_pairs):
+        # A weight-0 pair has upper tail 1 and lower tail 0 whatever a is.
+        base = nb.disparity_filter(two_pairs, signed=True, missing_as_zero=True)
+        for a in (0.5, 3.0, "ml"):
+            H = nb.disparity_filter(two_pairs, a=a, signed=True, missing_as_zero=True)
+            assert set(H.edges()) == set(base.edges())
+            for u, v, d in H.edges(data=True):
+                if d["weight"] == 0:
+                    assert d == base[u][v]
+
+    def test_signed_marks_strong_and_weak(self, hub_star):
+        H = nb.disparity_filter(hub_star, a=2.0, signed=True)
+        assert H["c"][1]["sign"] == 1
+        assert H["c"][2]["sign"] == -1
+
+    def test_ml_estimate_les_miserables(self, les_miserables_weighted):
+        H = nb.disparity_filter(les_miserables_weighted, a="ml")
+        a_hat = H.graph["disparity_a"]
+        assert a_hat == pytest.approx(0.525125, rel=1e-5)
+        assert nb.threshold_filter(H, "disparity_pvalue", 0.05).number_of_edges() == 19
+        # The p-values are those of the fixed a = a_hat.
+        fixed = nb.disparity_filter(les_miserables_weighted, a=a_hat)
+        assert nx.get_edge_attributes(H, "disparity_pvalue") == nx.get_edge_attributes(
+            fixed, "disparity_pvalue"
+        )
+
+    def test_ml_estimate_maximizes_the_likelihood(self, les_miserables_weighted):
+        from scipy.special import gammaln
+
+        G = les_miserables_weighted
+        a_hat = nb.disparity_filter(G, a="ml").graph["disparity_a"]
+
+        def loglik(c):
+            total = 0.0
+            for u in G:
+                ws = [d["weight"] for d in G[u].values()]
+                if len(ws) > 1:
+                    s = sum(ws)
+                    k = len(ws)
+                    total += gammaln(k * c) - k * gammaln(c)
+                    total += (c - 1) * sum(math.log(w / s) for w in ws)
+            return total
+
+        c_hat = 1 / a_hat
+        assert loglik(c_hat) > loglik(c_hat * 1.01)
+        assert loglik(c_hat) > loglik(c_hat / 1.01)
+
+    def test_ml_directed_symmetric_matches_undirected(self, les_miserables_weighted):
+        G = les_miserables_weighted
+        a_und = nb.disparity_filter(G, a="ml").graph["disparity_a"]
+        a_dir = nb.disparity_filter(nx.DiGraph(G), a="ml").graph["disparity_a"]
+        assert a_dir == pytest.approx(a_und, rel=1e-9)
+
+    def test_ml_without_informative_nodes(self):
+        G = nx.Graph()
+        G.add_edge(0, 1, weight=3.0)
+        H = nb.disparity_filter(G, a="ml")
+        assert math.isnan(H.graph["disparity_a"])
+        assert H[0][1]["disparity_pvalue"] == 1.0
+
+    def test_ml_equal_shares_warns_and_uses_bound(self):
+        # Every share is exactly 1/k: the likelihood grows without bound as
+        # the concentration c = 1/a grows.
+        G = nx.complete_graph(5)
+        nx.set_edge_attributes(G, 1.0, "weight")
+        with pytest.warns(RuntimeWarning, match="edge of the search interval"):
+            H = nb.disparity_filter(G, a="ml")
+        assert H.graph["disparity_a"] == pytest.approx(1e-4)
+
+    @pytest.mark.parametrize("a", [0, -1.0, math.nan, math.inf, "mle", None, True])
+    def test_invalid_a(self, a, hub_star):
+        with pytest.raises(ValueError, match="a must be"):
+            nb.disparity_filter(hub_star, a=a)
+
+    def test_alias_forwards_a(self, les_miserables_weighted):
+        G = les_miserables_weighted
+        assert nx.utils.graphs_equal(
+            nb.disparity(G, a="ml"), nb.disparity_filter(G, a="ml")
+        )
+
+    def test_large_strength_limit_of_polya_filter(self):
+        # polya_filter's exact beta-binomial p-value (Eq. (1)-(2) of
+        # Marcaccioli & Livan, 2019) converges to disparity_filter(a=a) as the
+        # strength grows with the shares fixed.
+        a, shares = 2.0, (4, 3, 2, 1)
+        gaps = []
+        for scale in (1, 100, 10_000):
+            G = _center_star([scale * x for x in shares])
+            p_polya = nb.polya_filter(G, a=a)["c"][0]["polya_pvalue"]
+            p_beta = nb.disparity_filter(G, a=a)["c"][0]["disparity_pvalue"]
+            gaps.append(abs(p_polya - p_beta) / p_beta)
+        assert gaps[0] > gaps[1] > gaps[2]
+        assert gaps[2] < 1e-3
+
+
+# ---------------------------------------------------------------------------
+# Count unit of the count-based nulls: unit=
+# ---------------------------------------------------------------------------
+
+_COUNT_SCORERS = [
+    (nb.marginal_likelihood_filter, "ml_pvalue", {}),
+    (nb.ecm_filter, "ecm_pvalue", {}),
+    (nb.noise_corrected_filter, "nc_pvalue", {}),
+    (nb.noise_corrected_filter, "nc_pvalue", {"method": "zscore"}),
+]
+_COUNT_IDS = ["mlf", "ecm", "nc", "nc-zscore"]
+
+
+class TestCountUnit:
+    @pytest.mark.parametrize(("scorer", "attr", "kw"), _COUNT_SCORERS, ids=_COUNT_IDS)
+    def test_default_unit_is_unchanged(self, scorer, attr, kw, les_miserables_weighted):
+        G = les_miserables_weighted
+        for extra in ({}, {"signed": True, "missing_as_zero": True}):
+            assert nx.utils.graphs_equal(
+                scorer(G, unit=1, **kw, **extra), scorer(G, **kw, **extra)
+            )
+
+    @pytest.mark.parametrize(("scorer", "attr", "kw"), _COUNT_SCORERS, ids=_COUNT_IDS)
+    @pytest.mark.parametrize("unit", [0.1, 2.5, 7])
+    def test_unit_recovers_integer_counts(
+        self, scorer, attr, kw, unit, les_miserables_weighted
+    ):
+        # Weights recorded as unit * count (with floating-point error) give
+        # the p-values of the integer counts, without a warning.
+        G = les_miserables_weighted
+        scaled = nb.transform_weights(G, lambda w: unit * w)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            got = scorer(scaled, unit=unit, signed=True, **kw)
+        want = scorer(G, signed=True, **kw)
+        for u, v, d in want.edges(data=True):
+            assert got[u][v][attr] == pytest.approx(d[attr], rel=1e-9, abs=1e-15)
+            assert got[u][v]["sign"] == d["sign"]
+
+    def test_mlf_and_ecm_unit_is_exact_after_rounding(self, les_miserables_weighted):
+        G = les_miserables_weighted
+        scaled = nb.transform_weights(G, lambda w: 0.1 * w)
+        for scorer, attr in [
+            (nb.marginal_likelihood_filter, "ml_pvalue"),
+            (nb.ecm_filter, "ecm_pvalue"),
+        ]:
+            got = nx.get_edge_attributes(scorer(scaled, unit=0.1), attr)
+            assert got == nx.get_edge_attributes(scorer(G), attr)
+
+    @pytest.mark.parametrize(
+        ("scorer", "attr", "expected"),
+        [
+            (nb.marginal_likelihood_filter, "ml_pvalue", 215),
+            (nb.ecm_filter, "ecm_pvalue", 89),
+            (nb.noise_corrected_filter, "nc_pvalue", 222),
+        ],
+    )
+    def test_results_depend_on_unit(
+        self, scorer, attr, expected, les_miserables_weighted
+    ):
+        # The Les Misérables counts quoted in the docstrings: unit=0.1 counts
+        # every weight as ten events (126, 72 and 195 edges at unit=1).
+        H = scorer(les_miserables_weighted, unit=0.1)
+        assert nb.threshold_filter(H, attr, 0.05).number_of_edges() == expected
+
+    def test_nc_score_does_not_depend_on_unit(self, les_miserables_weighted):
+        G = les_miserables_weighted
+        base = nx.get_edge_attributes(nb.noise_corrected_filter(G), "nc_score")
+        got = nx.get_edge_attributes(nb.noise_corrected_filter(G, unit=0.1), "nc_score")
+        assert got == pytest.approx(base, rel=1e-12)
+
+    @pytest.mark.parametrize(
+        ("scorer", "attr", "match"),
+        [
+            (nb.marginal_likelihood_filter, "ml_pvalue", "below 0.5 becomes 0"),
+            (nb.ecm_filter, "ecm_pvalue", "below 1.5 becomes 1"),
+            (nb.noise_corrected_filter, "nc_pvalue", "depend on unit"),
+        ],
+    )
+    def test_warns_on_non_integer_counts(self, scorer, attr, match, count_graph):
+        count_graph["a"]["c"]["weight"] = 0.4
+        with pytest.warns(UserWarning, match=match) as rec:
+            H = scorer(count_graph)
+        assert "1 of 5 weights are not integer counts" in str(rec[0].message)
+        assert any(r.filename == __file__ for r in rec)
+        if scorer is nb.marginal_likelihood_filter:
+            assert H["a"]["c"]["ml_pvalue"] == 1.0  # rounded to 0 unit edges
+        # unit=0.2 makes every weight an integer count again.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            scorer(count_graph, unit=0.2)
+
+    @pytest.mark.parametrize(("scorer", "attr", "kw"), _COUNT_SCORERS, ids=_COUNT_IDS)
+    @pytest.mark.parametrize("unit", [0, -1.0, math.nan, math.inf, True, "1"])
+    def test_invalid_unit(self, scorer, attr, kw, unit, count_graph):
+        with pytest.raises(ValueError, match="unit must be"):
+            scorer(count_graph, unit=unit, **kw)
+
+    def test_alias_forwards_unit(self, les_miserables_weighted):
+        G = les_miserables_weighted
+        assert nx.utils.graphs_equal(
+            nb.mlf(G, unit=0.5), nb.marginal_likelihood_filter(G, unit=0.5)
+        )
