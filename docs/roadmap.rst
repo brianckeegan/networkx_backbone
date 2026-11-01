@@ -110,7 +110,7 @@ breaking changes:
 - CI now runs tests on every push and pull request (Python 3.12-3.14 and a
   NetworkX-only job), along with ruff lint and format checks and doctests.
 
-Next release (0.2.0)
+Next release (0.3.0)
 --------------------
 
 Correctness gaps found in review
@@ -135,6 +135,16 @@ Correctness gaps found in review
 - **done** (`#13 <https://github.com/brianckeegan/networkx_backbone/issues/13>`_): Check ``hyper_projection``'s weighting (:math:`1/d(z)` versus
   Newman's :math:`1/(d(z)-1)`) and the arXiv identifier cited for the
   projection methods against Coscia & Neffke (2017).
+- **done** (`#58 <https://github.com/brianckeegan/networkx_backbone/issues/58>`_): The signed ``lans_filter`` lower tail is now
+  ``#{weights < w} / k``, the mirror image of the upper tail, as in R. Its
+  two-sided p-values equal R's; only the sign of an exact tie differs (#59).
+  Les Misérables: 0 -> 86 negative links (R: 126, 40 of them ties).
+- **next** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` breaks weight ties by
+  adjacency order, so ``G`` and ``G.copy()`` can give different backbones.
+  Make the result independent of node order.
+- **planned** (`#59 <https://github.com/brianckeegan/networkx_backbone/issues/59>`_): Decide, for each convention difference from
+  R ``backbone`` and ``netbone`` that the reference tests document, whether
+  to keep it, match the reference, or add an option.
 
 Validation
 ~~~~~~~~~~
@@ -142,8 +152,7 @@ Validation
 - **done** (`#14 <https://github.com/brianckeegan/networkx_backbone/issues/14>`_): Cross-implementation reference tests. P-values and backbones
   on Les Misérables, Davis Southern Women, and karate are pinned against R
   ``backbone`` 3.0.4 and ``netbone`` 0.2.3 in JSON fixtures, so the test suite
-  needs neither R nor netbone. Open follow-up: whether the signed LANS lower tail
-  should exclude the link itself, as R's does.
+  needs neither R nor netbone.
 - **done** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional "Interop" CI workflow that installs xgi, HyperNetX,
   HypergraphX, and HAT (the ``[interop]`` extra) and runs the adapter and HIF
   round-trip tests against the real libraries on pull requests and weekly.
@@ -155,9 +164,10 @@ Validation
 Release engineering
 ~~~~~~~~~~~~~~~~~~~
 
-- **next** (`#16 <https://github.com/brianckeegan/networkx_backbone/issues/16>`_): Tag ``v0.2.0``. The repository has no version tags yet, so
-  ``setuptools-scm`` falls back to ``0.0.0``. Publish to PyPI and conda-forge
-  from the existing workflows.
+- **next** (`#16 <https://github.com/brianckeegan/networkx_backbone/issues/16>`_): Release ``v0.3.0``, the first
+  release with this sprint's correctness fixes, new methods, and changes in
+  results. ``v0.2.0`` (February 2026) is tagged in git, but PyPI has
+  only 0.1.0 and a development build. Publish to PyPI and conda-forge from the existing workflows.
 - **planned** (`#18 <https://github.com/brianckeegan/networkx_backbone/issues/18>`_): Add ``py.typed`` and type annotations for the public API.
 
 Planned features
@@ -166,9 +176,12 @@ Planned features
 API and ecosystem compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- **planned** (`#19 <https://github.com/brianckeegan/networkx_backbone/issues/19>`_): NetworkX backend dispatching (``@nx._dispatchable``) so
+- **done** (`#19 <https://github.com/brianckeegan/networkx_backbone/issues/19>`_): NetworkX backend dispatching (``@nx._dispatchable``) so
   backends such as ``nx-cugraph`` and ``nx-parallel`` can accelerate the
-  shortest-path-heavy methods (salience, metric backbone, GLAB).
+  shortest-path-heavy methods (salience, metric backbone, GLAB). The
+  graph-in, graph-out functions dispatch as ``backbone_*``, the tests pass
+  under ``NETWORKX_TEST_BACKEND=nx_loopback``, and :doc:`user_guide/backends`
+  records nx-parallel timings.
 - **done** (`#20 <https://github.com/brianckeegan/networkx_backbone/issues/20>`_): Accept SciPy sparse arrays and pandas edge lists as input:
   bipartite functions take incidence matrices, and ``backbone``,
   ``backbone_from_weighted`` and ``backbone_from_unweighted`` take adjacency

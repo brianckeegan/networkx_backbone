@@ -1,7 +1,7 @@
 Changelog
 =========
 
-Unreleased (0.2.0)
+Unreleased (0.3.0)
 ------------------
 
 This release adds hypergraph backbones and the remaining Backbone 3.0
@@ -214,6 +214,16 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   links.
 - ``lans_filter`` on directed graphs also tests the target's incoming links
   (#11, contributed by @bfs2021 in #34).
+- ``lans_filter(signed=True)``: the lower tail is now ``#{weights < w} / k``,
+  the mirror image of the upper tail ``#{weights > w} / k``, as in R
+  ``backbone`` 3.0.4. It was the empirical CDF ``#{weights <= w} / k``, which
+  counts the link itself and is never below ``1 / k``, so a link could be
+  significantly weak only at a node of degree above 40 (at alpha = 0.05). The
+  two-sided p-values now equal R's; R signs an exact tie upper == lower
+  ``-1`` and ``lans_filter`` ``+1``. The one-tailed ``lans_pvalue`` is
+  unchanged. Les Misérables signed backbone at alpha = 0.05: 108 positive / 0
+  negative -> 108 positive / 86 negative (R: 68 / 126, the difference being
+  40 ties); karate: 45 / 0 -> 45 / 25 (#58).
 - ``bicm``/``sdsm``: the BiCM is now actually fitted rather than
   approximated with Chung-Lu, and p-values use exact Poisson-binomial tails
   (or RNA). SDSM-EC refits on the free cells. Davis: 3 -> 0 pairs.
@@ -256,6 +266,18 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   order.
 - Functions that used a hardcoded ``seed=42`` now default to ``seed=None``,
   following NetworkX. Pass a seed for reproducible results.
+- The graph-in, graph-out functions (statistical, structural, proximity,
+  hybrid, and unweighted methods, ``multigraph_to_weighted``, and the
+  threshold, fraction, and boolean filters) are dispatchable through
+  ``nx._dispatchable``: they accept ``backend=`` and follow
+  ``nx.config.backend_priority``, under dispatch names prefixed with
+  ``backbone_`` so they cannot clash with NetworkX's own (two would have:
+  ``adamic_adar_index`` and ``resource_allocation_index``). A new
+  :doc:`user_guide/backends` guide shows how to use backends and records
+  nx-parallel timings for the shortest-path methods. Bipartite, hypergraph,
+  measure, and conversion functions are not dispatchable, since they take
+  matrices or hyperedge lists or return numbers. The ``RuntimeWarning`` of
+  ``ecm_filter`` and ``polya_filter`` now points at the caller's line (#19).
 
 **Performance**
 
@@ -319,6 +341,10 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   doctests on Python 3.12-3.14, a job pinned to the oldest supported
   versions, and a NetworkX-only job that checks the optional dependencies
   stay optional. Test coverage is 97%.
+- A CI job (and a step in the oldest-versions job) runs the tests and
+  doctests under NetworkX's dispatch test harness,
+  ``NETWORKX_TEST_BACKEND=nx_loopback``, which checks that every dispatchable
+  call gives the same result through a backend as without one (#19).
 - An "Interop" workflow (pull requests, weekly, and on demand) installs
   ``.[interop,test]`` and runs ``pytest -m interop``: round trips of
   hyperedges, weights, and node labels through the real xgi, HyperNetX,
@@ -335,6 +361,20 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   al., 2009; Lindner et al., 2015); the docs version is taken from the package
   metadata.
 
+
+Version 0.2.0 (2026-02-14)
+--------------------------
+
+Tagged ``v0.2.0`` in git. PyPI has 0.1.0 and a development build
+(``0.2.0.post1.dev9``), but no 0.2.0 release.
+
+- New :mod:`~networkx_backbone.visualization` module:
+  :func:`~networkx_backbone.graph_difference`,
+  :func:`~networkx_backbone.compare_graphs`, and
+  :func:`~networkx_backbone.save_graph_comparison` draw an original graph
+  and its backbone side by side.
+- A Sphinx-Gallery visual comparison gallery and score-then-filter examples
+  in the documentation.
 
 Version 0.1.0 (Initial Release)
 --------------------------------

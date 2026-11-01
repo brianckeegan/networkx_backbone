@@ -27,10 +27,12 @@ gloss_filter
 
 import math
 import warnings
+from bisect import bisect_left
 
 import networkx as nx
 from networkx.utils import not_implemented_for
 
+from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
 
 __all__ = [
@@ -126,22 +128,23 @@ def _external_stacklevel():
     """``warnings.warn`` stacklevel of the first frame outside this package.
 
     Frame 1 (the caller of this helper) is stacklevel 1.  Frames in
-    networkx-backbone and in NetworkX's decorator machinery are skipped, so
-    the warning points at the user's call whether they called a scorer
-    directly or through a wrapper such as ``backbone_from_weighted``.
+    networkx-backbone and in NetworkX's decorator and backend-dispatch
+    machinery are skipped, so the warning points at the user's call whether
+    they called a scorer directly or through a wrapper such as
+    ``backbone_from_weighted``.
     """
     import os
     import sys
 
     package_dir = os.path.dirname(os.path.abspath(__file__))
-    decorators_file = nx.utils.decorators.__file__
+    nx_files = {nx.utils.decorators.__file__, nx.utils.backends.__file__}
     frame = sys._getframe(1)
     level = 1
     while frame is not None:
         filename = frame.f_code.co_filename
         if not (
             filename.startswith(package_dir)
-            or filename == decorators_file
+            or filename in nx_files
             or "argmap" in filename
         ):
             break
@@ -206,6 +209,7 @@ def _add_zero_edges(H, dyads, weight, tails, pvalue_attr, signed):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def disparity_filter(G, weight="weight", signed=False, missing_as_zero=False, a=1.0):
     r"""Compute disparity filter p-values for each edge.
 
@@ -568,6 +572,7 @@ def _disparity_ml_a(G, weight):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def noise_corrected_filter(
     G, weight="weight", method="bayesian", signed=False, missing_as_zero=False, unit=1
 ):
@@ -913,6 +918,7 @@ def _noise_corrected_zscore(G, H, weight, signed, dyads, unit=1):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def marginal_likelihood_filter(
     G, weight="weight", signed=False, missing_as_zero=False, unit=1
 ):
@@ -1085,6 +1091,7 @@ def marginal_likelihood_filter(
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def ecm_filter(
     G,
     weight="weight",
@@ -1281,7 +1288,7 @@ def ecm_filter(
             f"ecm_filter: the ECM solver did not converge (largest relative "
             f"error {err:.2e} > tol={tol:g}); p-values may be inaccurate.",
             RuntimeWarning,
-            stacklevel=2,
+            stacklevel=_external_stacklevel(),
         )
 
     def tails(i, j, w):
@@ -1755,6 +1762,7 @@ def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
     r"""Compute LANS (Locally Adaptive Network Sparsification) p-values.
 
@@ -1814,24 +1822,30 @@ def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
 
     Notes
     -----
+    **Signed test.**  With ``signed=True`` the upper tail is
+    ``#{weights > w} / k`` and the lower tail is its mirror image,
+    ``#{weights < w} / k``; neither counts the link itself.  Each is the
+    minimum over the two sides of the link, and the two-sided p-value is
+    ``min(1, 2 min(upper, lower))``.  The weakest link of a node therefore
+    gets a lower tail of 0, just as its strongest link gets an upper tail of
+    0.  When the two tails are equal (for example the only link of a
+    degree-1 node, where both are 0) the link is signed ``+1``.
+
     **Comparison with R backbone.**  The one-tailed p-values equal R
-    ``backbone::lans`` and netbone ``lans``.  For ``signed=True`` R's lower tail
-    is the mirror image of the upper tail, ``#{weights < w} / k``, so the weakest
-    link of every node gets 0.  Here it is the empirical CDF
-    ``#{weights <= w} / k``, which counts the link itself, so it is at least
-    ``1 / k`` and a link is significantly weak only when ``1 / k < alpha / 2``.
-    When both tails are 0 (for example the only link of a degree-1 node) R
-    signs the link ``-1`` and this function ``+1``.  On Les Misérables at
-    alpha = 0.05 R's signed backbone has 68 positive and 126 negative links
-    (40 of them such ties); this one has 108 positive and none negative.  The
-    two tails here are not symmetric (the upper one excludes the link, the
-    lower one includes it), which may be worth revisiting.
+    ``backbone::lans`` and netbone ``lans``.  With ``signed=True`` the
+    two-sided p-values equal R's, and so do the signs except at an exact tie
+    upper == lower, which R signs ``-1`` and this function ``+1``.  On Les
+    Misérables at alpha = 0.05 R's signed backbone has 68 positive and 126
+    negative links, 40 of the negative ones such ties; this one has the same
+    194 links, 108 positive and 86 negative.  (Earlier versions used the
+    empirical CDF ``#{weights <= w} / k`` as the lower tail, which counts the
+    link itself, and this backbone had no negative links.)
 
     **Absent pairs** (``missing_as_zero=True``).  As in R, each node's
     empirical CDF is built from its existing links only; weight-0 pairs do
     not enter it, so the p-values of existing edges are unchanged.  A weight
     of 0 is below every link of a node, so an absent pair has upper tail 1
-    and lower tail :math:`F(0) = 0`: with ``signed=True`` every absent pair
+    and lower tail ``#{weights < 0} / k = 0``: with ``signed=True`` every absent pair
     gets a two-sided p-value of 0 and ``sign`` -1, as in R.  A pair with an
     endpoint that has no links (for a directed pair ``(u, v)``: *u* has no
     out-links or *v* no in-links) has no empirical CDF to compare against;
@@ -1871,8 +1885,14 @@ def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
     def tails(u, v, w):
         ecdf_u = _empirical_cdf(w, out_weights[u])
         ecdf_v = _empirical_cdf(w, in_weights[v])
+        # The lower tail #{weights < w} / k mirrors the upper tail
+        # #{weights > w} / k = 1 - F(w); neither counts the link itself.
+        # Both are written as 1 - (fraction) so that equal counts give
+        # bitwise-equal tails, and an exact tie is always signed +1.
+        geq_u = _fraction_at_least(w, out_weights[u])
+        geq_v = _fraction_at_least(w, in_weights[v])
         # OR rule: strong/weak if significant from either side of the edge.
-        return 1.0 - max(ecdf_u, ecdf_v), min(ecdf_u, ecdf_v)
+        return 1.0 - max(ecdf_u, ecdf_v), 1.0 - max(geq_u, geq_v)
 
     dyads = _absent_dyads(G, "lans_filter") if missing_as_zero else []
 
@@ -1893,6 +1913,7 @@ def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def multiple_linkage_analysis(
     G, alpha=0.05, weight="weight", method="dominance", deviation="cod"
 ):
@@ -1923,7 +1944,7 @@ def multiple_linkage_analysis(
         The squared deviation summed over the whole profile,
         :math:`D_k = \sum_{r=1}^{n} (p_r - t^{(k)}_r)^2`, so links outside
         the dominant set count against a fit.  The smallest value wins.
-        This was the default in the development versions of 0.2.0.
+        This was the default in the development versions of 0.3.0.
     ``"weaver"``
         The mean squared deviation over the *k* links of the candidate set
         only, :math:`V_k = \frac{1}{k} \sum_{r=1}^{k} (p_r - 1/k)^2`, the
@@ -2178,12 +2199,19 @@ def _empirical_cdf(w, sorted_weights):
     return lo / n
 
 
+def _fraction_at_least(w, sorted_weights):
+    """Fraction ``#{weights >= w} / k`` of a sorted list (0 if it is empty)."""
+    n = len(sorted_weights)
+    return (n - bisect_left(sorted_weights, w)) / n if n else 0.0
+
+
 # =====================================================================
 # 7. Polya filter -- Marcaccioli & Livan (2019)
 # =====================================================================
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def polya_filter(G, weight="weight", a=None, approximate=None):
     r"""Compute Pólya filter p-values for each edge.
 
@@ -2501,7 +2529,7 @@ def _polya_ml_estimate(rows):
             "polya_filter: the likelihood of a is still increasing at "
             f"a = {grid[-1]:g}; using that value.",
             RuntimeWarning,
-            stacklevel=3,
+            stacklevel=_external_stacklevel(),
         )
         return float(grid[-1])
     if i == 0:
@@ -2532,6 +2560,7 @@ def _polya_ml_estimate(rows):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def gloss_filter(G, weight="weight", resolution=None):
     r"""Compute Global Statistical Significance (GloSS) p-values for each edge.
 

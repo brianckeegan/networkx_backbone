@@ -12,6 +12,7 @@ import warnings
 import networkx as nx
 from networkx.utils import not_implemented_for
 
+from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
 
 __all__ = [
@@ -128,6 +129,7 @@ def _adjust(p, method_l):
     return out
 
 
+@_dispatchable(edge_attrs="weight")
 def multigraph_to_weighted(G, weight="weight", edge_type_attr=None, aggregate="count"):
     """Convert a MultiGraph/MultiDiGraph into a weighted simple graph.
 
@@ -239,6 +241,7 @@ def multigraph_to_weighted(G, weight="weight", edge_type_attr=None, aggregate="c
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def transform_weights(G, transformer, weight="weight", out=None):
     """Return a copy of *G* with transformed edge weights.
 
@@ -531,6 +534,7 @@ def _is_score(val):
     return val is not None and not (isinstance(val, float) and math.isnan(val))
 
 
+@_dispatchable
 def threshold_filter(
     G,
     score,
@@ -647,6 +651,7 @@ def threshold_filter(
         raise ValueError(f"filter_on must be 'edges' or 'nodes', got {filter_on!r}")
 
 
+@_dispatchable
 def fraction_filter(G, score, fraction, ascending=True, filter_on="edges"):
     """Retain the top or bottom fraction of edges or nodes by score.
 
@@ -717,6 +722,7 @@ def fraction_filter(G, score, fraction, ascending=True, filter_on="edges"):
         raise ValueError(f"filter_on must be 'edges' or 'nodes', got {filter_on!r}")
 
 
+@_dispatchable
 def boolean_filter(G, score):
     """Retain edges whose boolean score attribute is truthy.
 

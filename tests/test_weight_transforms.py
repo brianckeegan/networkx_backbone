@@ -291,7 +291,10 @@ class TestTransformWeights:
         np = pytest.importorskip("numpy")
         t = Doubler()
         H = nb.transform_weights(small, t)
-        assert len(t.calls) == 1
+        # NetworkX's dispatch test harness (NETWORKX_TEST_BACKEND) runs the
+        # function a second time to compare backends.
+        testing = getattr(nx.utils.backends._dispatchable, "_is_testing", False)
+        assert len(t.calls) == (2 if testing else 1)
         X = t.calls[0]
         assert X.shape == (3, 1)
         assert X.ravel().tolist() == [d["weight"] for *_, d in small.edges(data=True)]
@@ -358,10 +361,15 @@ class TestTransformWeights:
         assert rec[0].filename == __file__
 
     def test_equal_weights_given_different_values_warns(self, small):
+        np = pytest.importorskip("numpy")
+
+        class RowNumber:
+            def fit_transform(self, X):
+                return np.arange(len(X), dtype=float) + 1
+
         small["b"]["c"]["weight"] = 4.0  # ties with a-b
-        values = iter([1.0, 2.0, 3.0])
         with pytest.warns(UserWarning, match="equal weights get different values"):
-            nb.transform_weights(small, lambda w: next(values))
+            nb.transform_weights(small, RowNumber())
 
     @pytest.mark.parametrize("bad", [None, "heavy", math.nan, math.inf, True])
     def test_invalid_weights(self, bad, small):

@@ -12,3 +12,4 @@ These guides explain how to use ``networkx-backbone`` effectively.
    weight_transforms
    evaluation
    complexity
+   backends
