@@ -18,6 +18,10 @@ keeps. The temporal backbone methods themselves are planned (see the
 
 .. autofunction:: convert_temporal
 
+.. rubric:: Collapsing to a static graph
+
+.. autofunction:: flatten_temporal
+
 .. rubric:: Binning events and spans into snapshots
 
 .. autofunction:: snapshots_from_events
