@@ -143,9 +143,14 @@ Correctness gaps found in review
   ``#{weights < w} / k``, the mirror image of the upper tail, as in R. Its
   two-sided p-values equal R's; only the sign of an exact tie differs (#59).
   Les Misérables: 0 -> 86 negative links (R: 126, 40 of them ties).
-- **next** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` breaks weight ties by
-  adjacency order, so ``G`` and ``G.copy()`` can give different backbones.
-  Make the result independent of node order.
+- **done** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` keeps edges tied at each node's
+  cutoff together, so ``G``, ``G.copy()``, and any reordering of the same
+  graph give the same backbone. ``global_sparsification`` and
+  ``edge_betweenness_filter`` no longer depend on edge orientation.
+  ``planar_maximally_filtered_graph`` and ``maximum_spanning_tree_backbone``
+  (ties in weight), ``fraction_filter`` (ties in score, documented), and
+  ``modularity_backbone`` (Louvain visiting order, even with a fixed seed)
+  still depend on input order.
 - **planned** (`#59 <https://github.com/brianckeegan/networkx_backbone/issues/59>`_): Decide, for each convention difference from
   R ``backbone`` and ``netbone`` that the reference tests document, whether
   to keep it, match the reference, or add an option.
@@ -240,14 +245,6 @@ Methods
   invariance table, a generalized ``disparity_filter(a=...)`` share null with
   a calibration test harness, and an explicit count ``unit=`` for MLF, ECM,
   and the noise-corrected filter.
-- **done** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` keeps edges tied at each node's
-  cutoff together, so ``G``, ``G.copy()``, and any reordering of the same
-  graph give the same backbone. ``global_sparsification`` and
-  ``edge_betweenness_filter`` no longer depend on edge orientation.
-  ``planar_maximally_filtered_graph`` and ``maximum_spanning_tree_backbone``
-  (ties in weight), ``fraction_filter`` (ties in score, documented), and
-  ``modularity_backbone`` (Louvain visiting order, even with a fixed seed)
-  still depend on input order.
 - **planned** (`#76 <https://github.com/brianckeegan/networkx_backbone/issues/76>`_): ``fdsm`` Monte Carlo resolution
   diagnostics: warn when ``1/(trials+1)`` makes family-wise significance
   unreachable, and report the p-value's Monte Carlo uncertainty.
