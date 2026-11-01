@@ -93,17 +93,17 @@ def test_disparity_uniform_null_is_calibrated():
     _assert_uniform(_pvalues(nb.disparity_filter(G), tests), "disparity a=1")
 
 
-@pytest.mark.parametrize(("shape", "direction"), [(0.3, "liberal"), (3.0, "strict")])
-def test_disparity_uniform_null_is_miscalibrated_otherwise(shape, direction):
+def test_disparity_uniform_null_is_miscalibrated_otherwise():
     # Negative control: Gamma(0.3) weights are more heterogeneous than the
     # uniform null allows, so it rejects too often; Gamma(3) weights are more
     # even, so it rejects too rarely.  The harness must see both.
-    rng = np.random.default_rng(2)
-    G, tests = _stars(rng, _gamma(rng, shape))
-    p = _pvalues(nb.disparity_filter(G), tests)
-    assert stats.kstest(p, "uniform").pvalue < 1e-6
-    rate = np.mean(p <= 0.05)
-    assert rate > 0.08 if direction == "liberal" else rate < 0.02
+    for shape, direction in [(0.3, "liberal"), (3.0, "strict")]:
+        rng = np.random.default_rng(2)  # each case draws the same as on its own
+        G, tests = _stars(rng, _gamma(rng, shape))
+        p = _pvalues(nb.disparity_filter(G), tests)
+        assert stats.kstest(p, "uniform").pvalue < 1e-6, shape
+        rate = np.mean(p <= 0.05)
+        assert rate > 0.08 if direction == "liberal" else rate < 0.02, shape
 
 
 # ---------------------------------------------------------------------------
@@ -111,14 +111,14 @@ def test_disparity_uniform_null_is_miscalibrated_otherwise(shape, direction):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("shape", [0.3, 3.0])
-def test_disparity_concentration_null_is_calibrated(shape):
+def test_disparity_concentration_null_is_calibrated():
     # i.i.d. Gamma(c) weights (any scale) give symmetric Dirichlet(c) shares,
     # the null of disparity_filter(a=1/c).
-    rng = np.random.default_rng(3)
-    G, tests = _stars(rng, _gamma(rng, shape))
-    H = nb.disparity_filter(G, a=1 / shape)
-    _assert_uniform(_pvalues(H, tests), f"disparity a={1 / shape:g}")
+    for shape in (0.3, 3.0):
+        rng = np.random.default_rng(3)  # each case draws the same as on its own
+        G, tests = _stars(rng, _gamma(rng, shape))
+        H = nb.disparity_filter(G, a=1 / shape)
+        _assert_uniform(_pvalues(H, tests), f"disparity a={1 / shape:g}")
 
 
 def test_disparity_concentration_null_is_calibrated_directed():
@@ -130,15 +130,16 @@ def test_disparity_concentration_null_is_calibrated_directed():
     _assert_uniform(_pvalues(H, tests), "directed disparity a=2")
 
 
-@pytest.mark.parametrize("shape", [0.3, 1.0, 3.0])
-def test_disparity_fitted_a_is_calibrated(shape):
+def test_disparity_fitted_a_is_calibrated():
     # a="ml" fits one parameter to all stars and then tests the same weights;
     # with thousands of profiles the reuse of the data is negligible.
-    rng = np.random.default_rng(5)
-    G, tests = _stars(rng, _gamma(rng, shape))
-    H = nb.disparity_filter(G, a="ml")
-    assert H.graph["disparity_a"] == pytest.approx(1 / shape, rel=0.05)
-    _assert_uniform(_pvalues(H, tests), f"disparity a='ml' (true a={1 / shape:g})")
+    for shape in (0.3, 1.0, 3.0):
+        rng = np.random.default_rng(5)  # each case draws the same as on its own
+        G, tests = _stars(rng, _gamma(rng, shape))
+        H = nb.disparity_filter(G, a="ml")
+        assert H.graph["disparity_a"] == pytest.approx(1 / shape, rel=0.05), shape
+        what = f"disparity a='ml' (true a={1 / shape:g})"
+        _assert_uniform(_pvalues(H, tests), what)
 
 
 def test_disparity_fitted_a_is_calibrated_on_random_graphs():

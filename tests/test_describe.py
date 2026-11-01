@@ -247,17 +247,15 @@ def test_disparity_concentration_is_described():
     )
 
 
-@pytest.mark.parametrize(
-    "name", ["marginal_likelihood_filter", "ecm_filter", "noise_corrected_filter"]
-)
-def test_count_unit_is_described(name):
-    text = nb.describe_backbone(name, alpha=0.05, unit=0.25)
-    assert (
-        "Edge weights were converted to counts in units of unit = 0.25 "
-        "(count = weight / unit) before testing."
-    ) in text
-    assert "Other parameters" not in text
-    assert nb.describe_backbone(name, unit=1) == nb.describe_backbone(name)
+def test_count_unit_is_described():
+    for name in ("marginal_likelihood_filter", "ecm_filter", "noise_corrected_filter"):
+        text = nb.describe_backbone(name, alpha=0.05, unit=0.25)
+        assert (
+            "Edge weights were converted to counts in units of unit = 0.25 "
+            "(count = weight / unit) before testing."
+        ) in text, name
+        assert "Other parameters" not in text, name
+        assert nb.describe_backbone(name, unit=1) == nb.describe_backbone(name), name
     # Other methods list unit like any other parameter.
     assert "Other parameters: unit=2." in nb.describe_backbone("lans_filter", unit=2)
 
