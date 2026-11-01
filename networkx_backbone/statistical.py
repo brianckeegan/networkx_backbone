@@ -27,6 +27,7 @@ gloss_filter
 
 import math
 import warnings
+from bisect import bisect_left
 
 import networkx as nx
 from networkx.utils import not_implemented_for
@@ -1489,24 +1490,30 @@ def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
 
     Notes
     -----
+    **Signed test.**  With ``signed=True`` the upper tail is
+    ``#{weights > w} / k`` and the lower tail is its mirror image,
+    ``#{weights < w} / k``; neither counts the link itself.  Each is the
+    minimum over the two sides of the link, and the two-sided p-value is
+    ``min(1, 2 min(upper, lower))``.  The weakest link of a node therefore
+    gets a lower tail of 0, just as its strongest link gets an upper tail of
+    0.  When the two tails are equal (for example the only link of a
+    degree-1 node, where both are 0) the link is signed ``+1``.
+
     **Comparison with R backbone.**  The one-tailed p-values equal R
-    ``backbone::lans`` and netbone ``lans``.  For ``signed=True`` R's lower tail
-    is the mirror image of the upper tail, ``#{weights < w} / k``, so the weakest
-    link of every node gets 0.  Here it is the empirical CDF
-    ``#{weights <= w} / k``, which counts the link itself, so it is at least
-    ``1 / k`` and a link is significantly weak only when ``1 / k < alpha / 2``.
-    When both tails are 0 (for example the only link of a degree-1 node) R
-    signs the link ``-1`` and this function ``+1``.  On Les Misérables at
-    alpha = 0.05 R's signed backbone has 68 positive and 126 negative links
-    (40 of them such ties); this one has 108 positive and none negative.  The
-    two tails here are not symmetric (the upper one excludes the link, the
-    lower one includes it), which may be worth revisiting.
+    ``backbone::lans`` and netbone ``lans``.  With ``signed=True`` the
+    two-sided p-values equal R's, and so do the signs except at an exact tie
+    upper == lower, which R signs ``-1`` and this function ``+1``.  On Les
+    Misérables at alpha = 0.05 R's signed backbone has 68 positive and 126
+    negative links, 40 of the negative ones such ties; this one has the same
+    194 links, 108 positive and 86 negative.  (Earlier versions used the
+    empirical CDF ``#{weights <= w} / k`` as the lower tail, which counts the
+    link itself, and this backbone had no negative links.)
 
     **Absent pairs** (``missing_as_zero=True``).  As in R, each node's
     empirical CDF is built from its existing links only; weight-0 pairs do
     not enter it, so the p-values of existing edges are unchanged.  A weight
     of 0 is below every link of a node, so an absent pair has upper tail 1
-    and lower tail :math:`F(0) = 0`: with ``signed=True`` every absent pair
+    and lower tail ``#{weights < 0} / k = 0``: with ``signed=True`` every absent pair
     gets a two-sided p-value of 0 and ``sign`` -1, as in R.  A pair with an
     endpoint that has no links (for a directed pair ``(u, v)``: *u* has no
     out-links or *v* no in-links) has no empirical CDF to compare against;
@@ -1546,8 +1553,14 @@ def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
     def tails(u, v, w):
         ecdf_u = _empirical_cdf(w, out_weights[u])
         ecdf_v = _empirical_cdf(w, in_weights[v])
+        # The lower tail #{weights < w} / k mirrors the upper tail
+        # #{weights > w} / k = 1 - F(w); neither counts the link itself.
+        # Both are written as 1 - (fraction) so that equal counts give
+        # bitwise-equal tails, and an exact tie is always signed +1.
+        geq_u = _fraction_at_least(w, out_weights[u])
+        geq_v = _fraction_at_least(w, in_weights[v])
         # OR rule: strong/weak if significant from either side of the edge.
-        return 1.0 - max(ecdf_u, ecdf_v), min(ecdf_u, ecdf_v)
+        return 1.0 - max(ecdf_u, ecdf_v), 1.0 - max(geq_u, geq_v)
 
     dyads = _absent_dyads(G, "lans_filter") if missing_as_zero else []
 
@@ -1851,6 +1864,12 @@ def _empirical_cdf(w, sorted_weights):
         else:
             hi = mid
     return lo / n
+
+
+def _fraction_at_least(w, sorted_weights):
+    """Fraction ``#{weights >= w} / k`` of a sorted list (0 if it is empty)."""
+    n = len(sorted_weights)
+    return (n - bisect_left(sorted_weights, w)) / n if n else 0.0
 
 
 # =====================================================================
