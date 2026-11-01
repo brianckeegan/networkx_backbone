@@ -174,6 +174,7 @@ REGISTRY = [
     # --- bipartite projections (Davis Southern Women) ------------------------
     Spec(nb.simple_projection, B, {"weight": NONNEG}),
     Spec(nb.hyper_projection, B, {"weight": NONNEG}),
+    Spec(nb.hyper_projection, B, {"weight": NONNEG}, kwargs={"newman": True}),
     Spec(nb.probs_projection, B, {"weight": NONNEG}),
     Spec(nb.ycn_projection, B, {"weight": NONNEG}),
     Spec(nb.bipartite_projection, B, {"weight": NONNEG}),
