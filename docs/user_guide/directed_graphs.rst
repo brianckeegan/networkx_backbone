@@ -20,6 +20,9 @@ The following methods support both directed and undirected graphs:
     :func:`~networkx_backbone.global_threshold_filter`,
     :func:`~networkx_backbone.strongest_n_ties`
 
+**Hybrid methods**:
+    :func:`~networkx_backbone.glab_filter`
+
 **Proximity methods** (all 12):
     All proximity scoring functions work with directed graphs.
 
@@ -46,7 +49,6 @@ graph:
 - :func:`~networkx_backbone.modularity_backbone`
 - :func:`~networkx_backbone.planar_maximally_filtered_graph`
 - :func:`~networkx_backbone.maximum_spanning_tree_backbone`
-- :func:`~networkx_backbone.glab_filter`
 - :func:`~networkx_backbone.sparsify`
 - :func:`~networkx_backbone.lspar`
 - :func:`~networkx_backbone.local_degree`
@@ -57,6 +59,13 @@ Behavior differences
 For statistical methods on directed graphs, the p-value computation uses the
 out-degree and out-strength of the source node. For proximity methods on
 directed graphs, neighborhoods are defined using successors.
+
+:func:`~networkx_backbone.glab_filter` follows Section 2.3 of Zhang et al.
+(2014): each link *(i, j)* gets an *out-importance* from the shortest paths
+that leave *i* through it (null model on the out-degree of *i*) and an
+*in-importance* from the shortest paths that reach *j* through it (null
+model on the in-degree of *j*); ``glab_pvalue`` is the smaller of the two.
+On a symmetric directed graph this equals the undirected p-value.
 
 Example
 -------
