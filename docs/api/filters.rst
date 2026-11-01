@@ -21,3 +21,5 @@ Complexity classes are provided in each function docstring.
 .. autofunction:: consensus_backbone
 
 .. autofunction:: adjust_pvalues
+
+.. autofunction:: transform_weights

@@ -104,6 +104,10 @@ REGISTRY = [
     # --- statistical -------------------------------------------------------
     Spec(nb.disparity_filter, W, {"disparity_pvalue": P}, directed=True,
          bad_weights=STATISTICAL_BAD),
+    Spec(nb.disparity_filter, W, {"disparity_pvalue": P}, kwargs={"a": 2.0},
+         directed=True, bad_weights=STATISTICAL_BAD),
+    Spec(nb.disparity_filter, W, {"disparity_pvalue": P}, kwargs={"a": "ml"},
+         directed=True, bad_weights=STATISTICAL_BAD),
     Spec(nb.noise_corrected_filter, W,
          {"nc_score": (-1.0, 1.0), "nc_sdev": NONNEG, "nc_pvalue": P},
          directed=True, bad_weights=STATISTICAL_BAD),

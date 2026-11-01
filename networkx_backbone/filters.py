@@ -6,8 +6,11 @@ these functions extract the final subgraph.
 """
 
 import math
+import numbers
+import warnings
 
 import networkx as nx
+from networkx.utils import not_implemented_for
 
 from networkx_backbone._docstrings import append_complexity_docstrings
 
@@ -18,6 +21,7 @@ __all__ = [
     "boolean_filter",
     "consensus_backbone",
     "adjust_pvalues",
+    "transform_weights",
 ]
 
 
@@ -232,6 +236,266 @@ def multigraph_to_weighted(G, weight="weight", edge_type_attr=None, aggregate="c
         H.add_edge(u, v, **out_data)
 
     return H
+
+
+@not_implemented_for("multigraph")
+def transform_weights(G, transformer, weight="weight", out=None):
+    """Return a copy of *G* with transformed edge weights.
+
+    Applies *transformer* to the edge weights before scoring, for example a
+    log, power, or Box-Cox transform.  Transforming weights changes the
+    hypothesis a statistical method tests: the disparity filter applied to
+    ``log1p(w)`` tests whether the *log*-weights' shares are uniform, not
+    whether the weights' shares are.  Some methods give the same result for
+    every increasing transform, some only for rescaling, and some for
+    neither; see :doc:`/user_guide/weight_transforms`.
+
+    Parameters
+    ----------
+    G : networkx.Graph or networkx.DiGraph
+        A weighted graph.  Every edge needs a finite, real *weight*.
+    transformer : callable or object with ``fit_transform`` or ``transform``
+        Either an object with a scikit-learn style ``fit_transform`` method
+        (or only ``transform``, for one that is already fitted), which is
+        called once with the weights as a column of shape ``(m, 1)`` in
+        ``G.edges`` order and must return ``m`` values; or a plain callable
+        such as :func:`math.log1p` or ``numpy.sqrt``, which is called on each
+        weight in turn.  scikit-learn is not needed: any object with these
+        methods works, and a plain callable needs neither NumPy nor
+        scikit-learn.
+    weight : string, optional (default="weight")
+        Edge attribute holding the weights to transform.
+    out : string or None, optional (default=None)
+        Edge attribute that receives the transformed weights.  ``None``
+        overwrites *weight*; another name keeps the original weights.
+
+    Returns
+    -------
+    H : graph
+        A copy of *G* (same type) with the transformed weights in *out*.  The
+        neighbor order of every node is the same as in *G*, so methods that
+        break ties by neighbor order behave as on *G*.  The transform is
+        appended to the list ``H.graph["weight_transforms"]`` as a dict with
+        keys ``"transform"`` (a description of *transformer*), ``"weight"``
+        and ``"out"``; :func:`~networkx_backbone.describe_backbone` reports
+        it.
+
+    Raises
+    ------
+    NetworkXError
+        If an edge has a missing, non-numeric, or non-finite weight.
+    NetworkXNotImplemented
+        If *G* is a multigraph.  Collapse parallel edges first with
+        :func:`~networkx_backbone.multigraph_to_weighted`.
+    TypeError
+        If *transformer* is neither callable nor has ``fit_transform`` or
+        ``transform``.
+    ValueError
+        If the transformer returns the wrong number of values, a non-finite
+        value, or the same value for every edge although the weights differ
+        (for example scikit-learn's ``Normalizer``, which scales each row,
+        maps a column of weights to all ones).
+
+    Warns
+    -----
+    UserWarning
+        If the transform does not preserve the order of the weights (a larger
+        weight gets a smaller value, or equal weights get different values),
+        or if it maps different weights to the same value.  Methods that only
+        use the ranks of the weights change in either case.
+
+    See Also
+    --------
+    marginal_likelihood_filter : Count models take ``unit=`` for a change of
+        unit instead of a transform.
+
+    Notes
+    -----
+    The transformed weights are not checked for positivity; the statistical
+    scorers reject non-positive weights themselves.  Transforms that center
+    or standardize (``StandardScaler``, ``PowerTransformer`` with its default
+    ``standardize=True``, ``QuantileTransformer`` with a normal output)
+    produce negative weights.
+
+    Count-based null models (:func:`~networkx_backbone.marginal_likelihood_filter`,
+    :func:`~networkx_backbone.ecm_filter`,
+    :func:`~networkx_backbone.noise_corrected_filter`,
+    :func:`~networkx_backbone.polya_filter`) treat weights as numbers of
+    events, which a continuous transform does not preserve, and binning
+    (for example ``KBinsDiscretizer``) gives ordinal labels, not counts.  To
+    change the size of one count use their ``unit=`` argument instead.
+
+    Examples
+    --------
+    >>> import math
+    >>> import networkx as nx
+    >>> from networkx_backbone import disparity_filter, transform_weights
+    >>> G = nx.les_miserables_graph()
+    >>> H = transform_weights(G, math.log1p)
+    >>> round(H["Valjean"]["Javert"]["weight"], 4)
+    2.8904
+    >>> H.graph["weight_transforms"]
+    [{'transform': 'math.log1p', 'weight': 'weight', 'out': 'weight'}]
+    >>> scored = disparity_filter(H)
+
+    Any object with a scikit-learn style ``fit_transform`` works, such as a
+    Box-Cox power transform without standardization:
+
+    >>> from sklearn.preprocessing import PowerTransformer  # doctest: +SKIP
+    >>> pt = PowerTransformer(method="box-cox", standardize=False)  # doctest: +SKIP
+    >>> H = transform_weights(G, pt, out="boxcox")  # doctest: +SKIP
+    """
+    if hasattr(transformer, "fit_transform"):
+        how = "fit_transform"
+    elif hasattr(transformer, "transform"):
+        how = "transform"
+    elif callable(transformer):
+        how = None
+    else:
+        raise TypeError(
+            "transformer must be callable or have a fit_transform or transform "
+            f"method, got {type(transformer).__name__}."
+        )
+    out = weight if out is None else out
+
+    H = _copy_keep_order(G)
+    edges = list(H.edges(data=True))
+    ws = []
+    for u, v, data in edges:
+        w = data.get(weight)
+        if (
+            isinstance(w, bool)
+            or not isinstance(w, numbers.Real)
+            or not math.isfinite(w)
+        ):
+            raise nx.NetworkXError(
+                f"Edge ({u}, {v}) has a missing, non-numeric, or non-finite "
+                f"{weight!r} attribute: {w!r}."
+            )
+        ws.append(w)
+
+    if ws:
+        if how is None:
+            ys = [float(transformer(w)) for w in ws]
+        else:
+            ys = _apply_array_transformer(transformer, how, ws)
+        _check_transformed(ws, ys)
+        for (_, _, data), y in zip(edges, ys):
+            data[out] = y
+
+    record = {"transform": _transformer_name(transformer), "weight": weight, "out": out}
+    H.graph["weight_transforms"] = [*G.graph.get("weight_transforms", []), record]
+    return H
+
+
+def _copy_keep_order(G):
+    """Copy of a simple graph with every node's neighbor order unchanged.
+
+    ``G.copy()`` re-adds the edges, which can reorder neighbors; methods that
+    break weight ties by neighbor order would then differ on the copy.  Node
+    and edge attribute dicts are new, their values shared, as in ``G.copy()``.
+    """
+    H = G.__class__()
+    H.graph.update(G.graph)
+    H.add_nodes_from((n, d.copy()) for n, d in G.nodes(data=True))
+    edge_data = {}
+    if G.is_directed():
+        for u, nbrs in G._succ.items():
+            for v, d in nbrs.items():
+                edge_data[u, v] = H._succ[u][v] = d.copy()
+        for v, nbrs in G._pred.items():
+            for u in nbrs:
+                H._pred[v][u] = edge_data[u, v]
+    else:
+        for u, nbrs in G._adj.items():
+            for v, d in nbrs.items():
+                # An undirected edge has one data dict, shared by both ends.
+                data = edge_data.get((v, u))
+                if data is None:
+                    data = edge_data[u, v] = d.copy()
+                H._adj[u][v] = data
+    return H
+
+
+def _apply_array_transformer(transformer, how, ws):
+    """Run ``fit_transform`` or ``transform`` on the ``(m, 1)`` weight column."""
+    import numpy as np
+
+    X = np.asarray(ws, dtype=float).reshape(-1, 1)
+    Y = getattr(transformer, how)(X)
+    if hasattr(Y, "toarray"):  # sparse output
+        Y = Y.toarray()
+    Y = np.asarray(Y, dtype=float)
+    if Y.shape not in ((len(ws),), (len(ws), 1)):
+        raise ValueError(
+            f"transformer.{how} returned shape {Y.shape}; expected "
+            f"({len(ws)}, 1) or ({len(ws)},), one value per edge."
+        )
+    return Y.reshape(-1).tolist()
+
+
+def _check_transformed(ws, ys):
+    """Reject non-finite or degenerate output; warn on order changes."""
+    from networkx_backbone.statistical import _external_stacklevel
+
+    if not all(math.isfinite(y) for y in ys):
+        raise ValueError("The transformed weights contain NaN or infinite values.")
+    if len(set(ys)) == 1 and len(set(ws)) > 1:
+        raise ValueError(
+            f"The transformer maps every weight to {ys[0]!r}, although the "
+            "weights differ (scikit-learn's Normalizer does this to a single "
+            "column)."
+        )
+    reversed_order = new_ties = False
+    running_max = -math.inf
+    pairs = sorted(zip(ws, ys))
+    i = 0
+    while i < len(pairs):
+        j = i
+        while j < len(pairs) and pairs[j][0] == pairs[i][0]:
+            j += 1
+        lo, hi = pairs[i][1], pairs[j - 1][1]  # sorted by y within equal w
+        if lo != hi or lo < running_max:
+            reversed_order = True
+        elif lo == running_max:
+            new_ties = True
+        running_max = max(running_max, hi)
+        i = j
+    if reversed_order:
+        warnings.warn(
+            "transform_weights: the transform does not preserve the order of "
+            "the weights (a larger weight gets a smaller value, or equal "
+            "weights get different values), so rank-based methods such as "
+            "lans_filter or maximum_spanning_tree_backbone will change too.",
+            UserWarning,
+            stacklevel=_external_stacklevel(),
+        )
+    elif new_ties:
+        warnings.warn(
+            "transform_weights: the transform maps different weights to the "
+            "same value, creating ties; rank-based methods such as lans_filter "
+            "or strongest_n_ties may change.",
+            UserWarning,
+            stacklevel=_external_stacklevel(),
+        )
+
+
+def _transformer_name(transformer):
+    """Readable description of a transformer for ``H.graph`` and reports."""
+    if hasattr(transformer, "fit_transform") or hasattr(transformer, "transform"):
+        return repr(transformer)
+    name = getattr(transformer, "__qualname__", None) or getattr(
+        transformer, "__name__", None
+    )
+    if not isinstance(name, str):
+        return repr(transformer)
+    if "<" in name:
+        # A lambda or a function defined inside another: "<lambda>" or "g".
+        return getattr(transformer, "__name__", name)
+    module = getattr(transformer, "__module__", None)
+    if isinstance(module, str) and module != "builtins":
+        return f"{module}.{name}"
+    return name
 
 
 def _empty_like(G, nodes=True):
@@ -574,6 +838,11 @@ _COMPLEXITY = {
         "time": "O(km)",
         "space": "O(m)",
         "notes": "k=number of input backbones, m=edges per backbone.",
+    },
+    "transform_weights": {
+        "time": "O(n + m log m)",
+        "space": "O(n + m)",
+        "notes": "Plus the transformer's own cost; the sort checks the order.",
     },
 }
 

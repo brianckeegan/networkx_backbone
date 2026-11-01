@@ -9,5 +9,6 @@ These guides explain how to use ``networkx-backbone`` effectively.
    workflow
    choosing_method
    directed_graphs
+   weight_transforms
    evaluation
    complexity
