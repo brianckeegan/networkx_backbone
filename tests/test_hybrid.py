@@ -11,6 +11,11 @@ import pytest
 from networkx_backbone import glab_filter
 
 
+def _out_star(n):
+    """Directed star with edges hub -> leaf (nx.star_graph rejects DiGraph on networkx < 3.5)."""
+    return nx.DiGraph((0, i) for i in range(1, n + 1))
+
+
 class TestGLABPaperEquations:
     """Known answers from Zhang et al. (2014), Eqs. 1 and 4."""
 
@@ -112,7 +117,7 @@ class TestGLABDirected:
     def test_out_star_uses_out_involvement(self, c):
         # The hub has out-degree 3 and I_out = 1/3 for each spoke; leaves
         # have in-degree 1, so only SI^(out) = (2/3) ** (2 ** c) applies.
-        H = glab_filter(nx.star_graph(3, create_using=nx.DiGraph), weight=None, c=c)
+        H = glab_filter(_out_star(3), weight=None, c=c)
         assert H.number_of_edges() == 3
         for *_, p in H.edges(data="glab_pvalue"):
             assert p == pytest.approx((2 / 3) ** (2**c))
@@ -120,7 +125,7 @@ class TestGLABDirected:
     @pytest.mark.parametrize("c", [0.0, 0.5, 1.0])
     def test_in_star_uses_in_involvement(self, c):
         # Leaves -> hub: the hub has in-degree 3 and I_in = 1/3 per spoke.
-        G = nx.star_graph(3, create_using=nx.DiGraph).reverse()
+        G = _out_star(3).reverse()
         H = glab_filter(G, weight=None, c=c)
         assert all(v == 0 for _, v in H.edges())
         for *_, p in H.edges(data="glab_pvalue"):

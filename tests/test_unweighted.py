@@ -332,7 +332,8 @@ class TestSparsifyOptions:
         for u, v in G.edges():
             G[u][v]["w"] = rng.randint(0, 2)
         badness = {frozenset(e): w for *e, w in G.edges(data="w")}
-        trees = nx.SpanningTreeIterator(G, weight="w", minimum=True)
+        # iter() is required on networkx < 3.5, where __iter__ sets up state.
+        trees = iter(nx.SpanningTreeIterator(G, weight="w", minimum=True))
         first = next(trees)
         best = first.size(weight="w")
         union = {frozenset(e) for e in first.edges()}
