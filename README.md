@@ -119,8 +119,24 @@ scored = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
 backbone = nb.threshold_filter(scored, "sdsm_pvalue", 0.05, mode="below")
 ```
 
-Projection weights follow the simple/hyper/ProbS/YCN formulations described in
-[Coscia & Neffke (2017)](https://arxiv.org/abs/1906.09081).
+Projection weights follow the simple/hyper/ProbS/YCN formulations compared by
+[Coscia & Rossi (2019)](https://doi.org/10.1145/3341161.3342862)
+([arXiv:1906.09081](https://arxiv.org/abs/1906.09081)). Their "hyperbolic"
+weight is `1/d(z)` per shared artifact; pass `hyper_projection(..., newman=True)`
+(or `projection="newman"`) for Newman's (2001) `1/(d(z) - 1)` collaboration
+weight, which matches `nx.bipartite.collaboration_weighted_projected_graph`.
+
+Every bipartite function also takes an agents x artifacts incidence matrix
+(NumPy, SciPy sparse or pandas) instead of a graph, as R `backbone` does.
+The incidence stays sparse and pairs are scored in blocks of agent rows:
+
+```python
+import scipy.sparse as sp
+
+M = sp.random_array((20_000, 5_000), density=0.01, format="csr")
+M.data[:] = 1
+backbone = nb.backbone_from_projection(M, method="sdsm", alpha=0.01)
+```
 
 ### Hypergraph backbones
 
@@ -199,7 +215,7 @@ sphinx-build -b html docs docs/_build/html
 Key papers behind the implemented methods:
 
 - Coscia, M. & Neffke, F. M. (2017). [Network backboning with noisy data](https://doi.ieeecomputersociety.org/10.1109/ICDE.2017.100). *Proc. IEEE ICDE*, 425-436.
-- Coscia, M. & Neffke, F. M. (2017). [Network backboning with noisy data (arXiv:1906.09081)](https://arxiv.org/abs/1906.09081).
+- Coscia, M. & Rossi, L. (2019). [The impact of projection and backboning on network topologies](https://doi.org/10.1145/3341161.3342862). *Proc. IEEE/ACM ASONAM*. [arXiv:1906.09081](https://arxiv.org/abs/1906.09081).
 - Dianati, N. (2016). [Unwinding the hairball graph: Pruning algorithms for weighted complex networks](https://doi.org/10.1103/PhysRevE.93.012304). *Physical Review E*, 93, 012304.
 - Foti, N. J., Hughes, J. M., & Rockmore, D. N. (2011). [Nonparametric sparsification of complex multiscale networks](https://doi.org/10.1371/journal.pone.0016431). *PLoS One*, 6(2), e16431.
 - Girvan, M., & Newman, M. E. J. (2002). [Community structure in social and biological networks](https://doi.org/10.1073/pnas.122653799). *PNAS*, 99(12), 7821-7826.
@@ -208,6 +224,7 @@ Key papers behind the implemented methods:
 - Grady, D., Thiemann, C., & Brockmann, D. (2012). [Robust classification of salient links in complex networks](https://doi.org/10.1038/ncomms1847). *Nature Communications*, 3, 864.
 - Hamann, M., Lindner, G., Meyerhenke, H., Staudt, C. L., and Wagner, D. (2016). [Structure-Preserving Sparsification Methods for Social Networks](https://doi.org/10.1007/s13278-016-0332-2). Social Network Analysis and Mining, 6, 22.
 - Simas, T., Correia, R. B., & Rocha, L. M. (2021). [The distance backbone of complex networks](https://doi.org/10.1093/comnet/cnab021). *J. Complex Networks*, 9(6), cnab021.
+- Newman, M. E. J. (2001). [Scientific collaboration networks. II. Shortest paths, weighted networks, and centrality](https://doi.org/10.1103/PhysRevE.64.016132). *Physical Review E*, 64, 016132.
 - Neal, Z. P. (2014). [The backbone of bipartite projections](https://doi.org/10.1016/j.socnet.2014.06.001). *Social Networks*, 39, 84-97.
 - Neal, Z. P., Domagalski, R., & Sagan, B. (2021). [Comparing alternatives to the fixed degree sequence model for extracting the backbone of bipartite projections](https://doi.org/10.1038/s41598-021-03238-3). *Scientific Reports*, 11, 23929.
 - Neal, Z. P. (2022). [backbone: An R package to extract network backbones](https://doi.org/10.1371/journal.pone.0269137). *PLoS One*, 17(5), e0269137.
@@ -217,7 +234,9 @@ Key papers behind the implemented methods:
 - Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). [Local graph sparsification for scalable clustering](https://doi.org/10.1145/1989323.1989399). *SIGMOD*, 721-732.
 - Serrano, M. A., Boguna, M., & Vespignani, A. (2009). [Extracting the multiscale backbone of complex weighted networks](https://doi.org/10.1073/pnas.0808904106). *PNAS*, 106(16), 6483-6488.
 - Van Nuffel, N., Saey, P., Derudder, B., Devriendt, L., & Witlox, F. (2010). [Measuring hierarchical differentiation: connectivity and dominance in the European urban network](https://doi.org/10.1080/03081060.2010.494028). *Transportation Planning and Technology*, 33(4), 343-366.
+- Yildirim, M. A., & Coscia, M. (2014). [Using random walks to generate associations between objects](https://doi.org/10.1371/journal.pone.0104813). *PLoS One*, 9(8), e104813.
 - Zhang, X., Zhang, Z., Zhao, H., Wang, Q., & Zhu, J. (2014). [Extracting the globally and locally adaptive backbone of complex networks](https://doi.org/10.1371/journal.pone.0100428). *PLoS One*, 9(6), e100428.
+- Zhou, T., Ren, J., Medo, M., & Zhang, Y.-C. (2007). [Bipartite network projection and personal recommendation](https://doi.org/10.1103/PhysRevE.76.046115). *Physical Review E*, 76, 046115.
 - Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023). [An evaluation tool for backbone extraction techniques in weighted complex networks](https://doi.org/10.1038/s41598-023-42076-3). *Scientific Reports*, 13, 17000. 
 - Yassin A., Cherifi, H., Seba, H., & Togni, O. (2025). [Backbone extraction through statistical edge filtering: A comparative study](https://doi.org/10.1371/journal.pone.0316141). *PLoS One*, 20(1): e0316141.
 - Yassin A., Cherifi, H., Seba, H., & Togni, O. (2025). [Exploring weighted network backbone extraction: A comparative analysis of structural techniques](https://doi.org/10.1371/journal.pone.0322298). *PLoS One*, 20(5): e0322298.
