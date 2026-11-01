@@ -2,8 +2,11 @@
 
 Backbone extraction algorithms for complex networks, built on [NetworkX](https://networkx.org/).
 
-This library provides about 90 functions across 12 modules for extracting backbone
-structures from weighted, unweighted, and higher-order (hypergraph) networks.
+This library provides about 110 functions across 14 modules for extracting backbone
+structures from weighted, unweighted, bipartite, temporal, and higher-order
+(hypergraph) networks. The public API is type-annotated (`py.typed`), and the
+graph-in, graph-out functions dispatch to NetworkX backends such as
+`nx-parallel`.
 
 Full documentation: https://www.brianckeegan.com/networkx_backbone/
 
@@ -40,7 +43,8 @@ pip install -e ".[full]"
 | **hypergraph_io** | Hypergraph ingestion and interoperability | `hypergraph_to_bipartite`, `read_hif`, `write_hif`, `from_xgi`/`to_xgi`, `from_hypernetx`/`to_hypernetx`, `from_hypergraphx`/`to_hypergraphx`, `from_hat`/`to_hat` |
 | **unweighted** | Sparsification for unweighted graphs | `sparsify`, `lspar`, `local_degree` |
 | **convert** | Array and data-frame input | `to_graph` (NumPy/SciPy sparse adjacency matrices, pandas edge lists) |
-| **filters** | Post-hoc filtering utilities | `multigraph_to_weighted`, `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone` |
+| **filters** | Post-hoc filtering and preprocessing | `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone`, `adjust_pvalues`, `multigraph_to_weighted`, `transform_weights` |
+| **temporal** | Temporal networks: snapshots, events, and spans | `temporal_form`, `convert_temporal`, `flatten_temporal`, `snapshots_from_events`, `snapshots_from_spans`, `events_from_snapshots`, `spans_from_snapshots`, `from_event_table`, `to_event_table` |
 | **measures** | Evaluation and comparison | `node_fraction`, `edge_fraction`, `weight_fraction`, `reachability`, `ks_degree`, `ks_weight`, `compare_backbones` |
 | **visualization** | Graph comparison plotting | `graph_difference`, `compare_graphs`, `save_graph_comparison` |
 | **describe** | Methods text and citations | `describe_backbone` |
@@ -193,6 +197,23 @@ nb.write_hif(H, "graph.hif")                    # HIF interchange (xgi/HNX/HGX/H
 edges = nb.from_xgi(xgi_hypergraph)             # xgi / hypernetx / hypergraphx / hat
 ```
 
+### Temporal networks
+
+A network observed over time can be a dict of snapshots, a `MultiGraph` of
+timestamped events, or a `MultiGraph` of spans with `start`/`end`. The temporal
+module converts between the three forms and collapses any of them into one
+static weighted graph for the methods above:
+
+```python
+M = nb.from_event_table(df)                       # pandas: source, target, time
+weekly = nb.snapshots_from_events(M, freq="7D")   # bin events into snapshots
+H = nb.flatten_temporal(M, aggregate="count")     # one weighted edge per pair
+backbone = nb.threshold_filter(nb.disparity_filter(H), "disparity_pvalue", 0.05)
+```
+
+Temporal backbone methods (observation fraction, persistence, backbone
+stability, Kalman smoothing, and a persistence HMM) are on the roadmap.
+
 ### Comparing multiple methods
 
 ```python
@@ -207,6 +228,8 @@ results = nb.compare_backbones(G, backbones)
 
 - **Required**: Python >= 3.12, `networkx >= 3.4` (version floors match NetworkX's own)
 - **Optional**: `numpy >= 2.2`, `scipy >= 1.15` (`[full]`: some statistical methods, bipartite null models, SVH/SVC, `doubly_stochastic_filter`, `local_path_index`, KS measures) and `matplotlib >= 3.10` (`[viz]`: visualization helpers and the docs gallery). Calling a function whose optional dependency is missing raises `ImportError`; the pure-Python methods work with NetworkX alone.
+- **pandas (optional, lazily imported)**: data-frame input (`to_graph`, bipartite incidence tables), pandas event tables (`from_event_table`, `to_event_table`), and frequency strings such as `freq="1D"` in the temporal module. Install it separately (`pip install pandas`). `transform_weights` accepts scikit-learn transformers by duck typing, so scikit-learn is never required.
+- **Backends (optional)**: install a NetworkX backend such as `nx-parallel` and pass `backend="parallel"` (see the backends user-guide page).
 - **Hypergraph interop (optional, lazily imported)**: `xgi >= 0.9.1`, `hypernetx >= 2.3.10`, `hypergraphx >= 1.7.7`, `HypergraphAnalysisToolbox >= 1.1.18` (extras `[xgi]`, `[hypernetx]`, `[hypergraphx]`, `[hat]`, or all four with `[interop]`)
 
 ## Testing

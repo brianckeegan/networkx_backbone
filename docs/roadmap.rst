@@ -179,6 +179,33 @@ Validation
   in the docs build so missing Parameters, Returns, or Examples sections fail
   CI.
 
+Documentation, tutorials, and figures
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Longer, narrative documentation with figures, tracked in
+`#96 <https://github.com/brianckeegan/networkx_backbone/issues/96>`_. Each tutorial is executed when the docs are built, so its
+numbers and figures cannot drift from the code, and uses one colorblind-safe
+figure style.
+
+- **next** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
+  on the API pages, whose images date from 0.2.0 and show pre-fix results
+  (the ECM image keeps nearly every edge), and generate it at build time so
+  it cannot go stale.
+- **next** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
+  backbone, end to end (why a backbone, scoring vs filtering, choosing alpha
+  and corrections, comparing, validating, reporting).
+- **next** (`#90 <https://github.com/brianckeegan/networkx_backbone/issues/90>`_): Narrative tutorial: the statistical null models
+  side by side, including generalized nulls and signed backbones.
+- **next** (`#91 <https://github.com/brianckeegan/networkx_backbone/issues/91>`_): Narrative tutorial: structural and proximity
+  backbones, and when topology-based guarantees beat significance tests.
+- **next** (`#92 <https://github.com/brianckeegan/networkx_backbone/issues/92>`_): Narrative tutorial: bipartite projections and
+  their backbones.
+- **next** (`#93 <https://github.com/brianckeegan/networkx_backbone/issues/93>`_): Narrative tutorial: hypergraph backbones.
+- **next** (`#94 <https://github.com/brianckeegan/networkx_backbone/issues/94>`_): Narrative tutorial: temporal backbones, from
+  snapshots to smoothing.
+- **next** (`#95 <https://github.com/brianckeegan/networkx_backbone/issues/95>`_): Narrative guides: coming from R ``backbone`` or
+  ``netbone``, and scaling up to large networks.
+
 Release engineering
 ~~~~~~~~~~~~~~~~~~~
 

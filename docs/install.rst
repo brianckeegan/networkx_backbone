@@ -31,6 +31,17 @@ Matplotlib::
 Calling a function whose optional dependency is missing raises
 :class:`ImportError`; everything else keeps working with NetworkX alone.
 
+pandas is optional and imported only when used: for data-frame input to
+:func:`~networkx_backbone.to_graph` and the bipartite functions, for the event
+tables of :func:`~networkx_backbone.from_event_table` and
+:func:`~networkx_backbone.to_event_table`, and for frequency strings such as
+``freq="1D"`` in the temporal module. Install it separately::
+
+    pip install pandas
+
+:func:`~networkx_backbone.transform_weights` accepts scikit-learn transformers
+by duck typing, so scikit-learn is never required.
+
 Hypergraph interoperability
 ---------------------------
 
@@ -141,3 +152,6 @@ exactly, along with the latest releases.
    * - Matplotlib
      - >= 3.10
      - Optional (for ``[viz]``)
+   * - pandas
+     - >= 2.3
+     - Optional (data-frame input, event tables, frequency strings)

@@ -4,11 +4,17 @@ Changelog
 Unreleased (0.3.0)
 ------------------
 
-This release adds hypergraph backbones and the remaining Backbone 3.0
-features. It also fixes many correctness problems found in a full code review
-that checked every method against its paper. **Several methods now return
-different results**; see *Changes in results* below. Open work is tracked in
-the :doc:`roadmap` and in GitHub issues.
+This release adds hypergraph backbones, the remaining Backbone 3.0 features,
+the Pólya and GloSS filters, generalized null models and weight transforms,
+and a new ``temporal`` module for networks observed over time (conversions
+between snapshots, events, and spans, and collapsing them to a static
+weighted graph). The public API is now type-annotated and dispatches to
+NetworkX backends. It also fixes many correctness problems found in a full
+code review that checked every method against its paper, and checks p-values
+and backbones against R ``backbone`` 3.0.4 and netbone, which they now match
+(signed backbones included) except where the documented conventions differ.
+**Several methods now return different results**; see *Changes in results*
+below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
 
 **Supported versions (breaking)**
 
