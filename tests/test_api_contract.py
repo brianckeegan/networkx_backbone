@@ -205,6 +205,8 @@ REGISTRY = [
          kwargs={"method": "disparity_filter"}),
     Spec(nb.weight_trend, TM, {"weight_mean": NONNEG, "weight_std": NONNEG,
                                "weight_cv": NONNEG, "weight_slope": ANY}),
+    Spec(nb.kalman_backbone, TM, {"kalman_pvalue": P, "kalman_score": ANY},
+         kwargs={"method": "disparity_filter", "q": 0.5, "n_sim": 99, "seed": 0}),
 ]  # fmt: skip
 
 IDS = [spec.name for spec in REGISTRY]

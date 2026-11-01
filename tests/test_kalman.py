@@ -1,10 +1,19 @@
-"""Tests for the numerical core of ``kalman_backbone`` (issue #72)."""
+"""Tests for ``kalman_backbone`` (issue #72) and its numerical core.
 
+The array-level tests check ``networkx_backbone._kalman``; the last three
+check the graph-level function in ``networkx_backbone.temporal``.  The API
+contract is checked in tests/test_api_contract.py.
+"""
+
+import warnings
+
+import networkx as nx
 import pytest
 
 np = pytest.importorskip("numpy")
 stats = pytest.importorskip("scipy.stats")
 
+import networkx_backbone as nb  # noqa: E402
 from networkx_backbone import _kalman as kal  # noqa: E402
 from networkx_backbone.statistical import _combine_tails  # noqa: E402
 
@@ -75,6 +84,11 @@ def test_summary_null_calibration():
             assert stats.kstest(p, "uniform").pvalue > 1e-3, mode
             assert 0.035 < np.mean(p < 0.05) < 0.065
             assert p.min() >= 1 / 20001
+    # Beyond the Monte Carlo floor the Bonferroni bound refines the p-value.
+    Y = np.array([[0.0, 9.0, 0.0], [0.5, 0.2, 0.1]])
+    stat, p = kal.max_score_test(Y, 1e6, n_sim=99, seed=0)
+    assert p[0] == pytest.approx(3 * stats.norm.sf(stat[0])) and p[0] < 1 / 100
+    assert p[1] > 0.1
 
 
 def test_limits_stouffer_and_identity():
@@ -206,6 +220,13 @@ def test_pit_on_discrete_pvalues():
     mid = kal.probit_scores(p, p_strict=p_strict)  # pit="mid"
     assert abs(mid.mean()) < 0.03 < abs(raw.mean())
     assert mid.var() < 1  # conservative after smoothing
+    # Raw discrete p-values keep the smoothed tests valid but conservative:
+    # the smoothing weights are nonnegative.
+    P = null.sf(null.rvs((4000, 20), random_state=rng) - 1)
+    res = kal.kalman_scores(kal.probit_scores(P), 0.1)
+    _, p_sum = kal.max_score_test(kal.probit_scores(P), 0.1, n_sim=999, seed=0)
+    for pv in (res.pvalue[:, 10], p_sum):
+        assert np.mean(pv < 0.05) < 0.04
     out = kal.discrete_pit([np.nan, 0.4], [np.nan, 0.1], pit="random", seed=0)
     assert np.isnan(out[0]) and 0.1 <= out[1] <= 0.4
 
@@ -249,3 +270,162 @@ def test_input_validation():
     for call in bad:
         with pytest.raises(ValueError):
             call()
+
+
+# ---------------------------------------------------------------------------
+# Graph level: kalman_backbone and kalman_snapshots
+# ---------------------------------------------------------------------------
+
+
+def _karate_snapshots(n_steps=8, seed=0):
+    """Weighted karate snapshots; node 33 joins at step 2, edges flicker."""
+    rng = np.random.default_rng(seed)
+    G = nx.karate_club_graph()
+    S = {}
+    for t in range(n_steps):
+        S[t] = nx.Graph()
+        S[t].add_nodes_from(n for n in G if t >= 2 or n != 33)
+        for u, v in G.edges:
+            if u in S[t] and v in S[t] and rng.random() < 0.8:
+                S[t].add_edge(u, v, weight=float(1 + rng.poisson(2.0)))
+    return S
+
+
+def test_kalman_backbone_matches_the_array_core():
+    S = _karate_snapshots()
+    times = list(S)
+    for mode in MODES:
+        H = nb.kalman_backbone(S, "disparity", mode=mode, half_life=2, seed=1)
+        ends = list(H.edges)
+        # By hand: score every eligible pair, an absent one as weight 0.
+        P = np.full((len(ends), len(times)), np.nan)
+        for k, t in enumerate(times):
+            D = nb.disparity_filter(S[t], missing_as_zero=True)
+            for j, (u, v) in enumerate(ends):
+                if D.has_edge(u, v):
+                    P[j, k] = D[u][v]["disparity_pvalue"]
+        Y = kal.probit_scores(P * (2 - P))  # the Šidák correction
+        q = kal.half_life_to_q(2)
+        res = kal.kalman_scores(Y, q, mode=mode)
+        stat, p_sum = kal.max_score_test(Y, q, mode=mode, n_sim=9999, seed=1)
+        for j, (u, v) in enumerate(ends):
+            d = H[u][v]
+            eligible = [t for t in times if u in S[t] and v in S[t]]
+            if mode == "filter":
+                eligible = [t for t in eligible if not np.isnan(res.pvalue[j, t])]
+            assert list(d["kalman_pvalues"]) == eligible
+            assert d["kalman_n_obs"] == np.sum(~np.isnan(P[j]))
+            np.testing.assert_allclose(
+                [d["kalman_pvalues"][t] for t in eligible], res.pvalue[j, eligible]
+            )
+            np.testing.assert_allclose(
+                [d["kalman_levels"][t] for t in eligible], res.level[j, eligible]
+            )
+            assert d["kalman_pvalue"] == pytest.approx(p_sum[j])
+            assert d["kalman_score"] == pytest.approx(stat[j])
+            assert set(d["kalman_innovations"]) < set(eligible)
+        assert len(H[32][33]["kalman_pvalues"]) == len(times) - 2  # joins late
+        meta = H.graph["temporal"]
+        assert meta["method"] == "kalman_backbone" and meta["n_steps"] == 8
+        fit = meta["kalman"]
+        assert fit["q"] == pytest.approx(q) and fit["half_life"] == pytest.approx(2)
+        assert (fit["q_source"], fit["absent"], fit["mode"]) == (
+            "half_life",
+            "zero",
+            mode,
+        )
+    # kalman_snapshots: one graph per step holding that step's values.
+    steps = nb.kalman_snapshots(H)
+    assert list(steps) == times
+    assert set(steps[0]) <= set(S[0]) and 33 not in steps[1]
+    d = steps[4][32][33]
+    assert d["kalman_pvalue"] == H[32][33]["kalman_pvalues"][4]
+    assert d["kalman_level"] == H[32][33]["kalman_levels"][4]
+    with pytest.raises(nx.NetworkXError, match="kalman_backbone"):
+        nb.kalman_snapshots(nb.observation_fraction(S))
+
+
+def test_kalman_backbone_q_steps_and_describe():
+    S = _karate_snapshots(6)
+    H = nb.kalman_backbone(S, nb.disparity_filter, n_sim=99, seed=0)
+    fit = H.graph["temporal"]["kalman"]
+    assert fit["q_source"] == "likelihood" and 1e-6 <= fit["q"] <= 1e3
+    assert fit["half_life"] == pytest.approx(kal.q_to_half_life(fit["q"]))
+    Hq = nb.kalman_backbone(S, "disparity", q=fit["q"], n_sim=99, seed=0)
+    assert Hq.graph["temporal"]["kalman"]["loglik"] == pytest.approx(fit["loglik"])
+    assert Hq.edges[0, 1]["kalman_pvalues"] == pytest.approx(
+        H.edges[0, 1]["kalman_pvalues"]
+    )
+    # Unequal snapshot times scale q by the gap (in units of the smallest);
+    # binned events are equally spaced steps.
+    U = dict(zip([0, 1, 2, 4, 8, 9], S.values()))
+    HU = nb.kalman_backbone(U, "disparity", q=0.3, n_sim=99, seed=0)
+    assert HU.graph["temporal"]["kalman"]["step_unit"] == 1
+    assert HU.edges[0, 1]["kalman_pvalues"] != pytest.approx(
+        nb.kalman_backbone(S, "disparity", q=0.3, n_sim=99, seed=0).edges[0, 1][
+            "kalman_pvalues"
+        ]
+    )
+    E = nb.events_from_snapshots({10 * t: G for t, G in S.items()})
+    HE = nb.kalman_backbone(E, "disparity", freq=10, q=0.3, n_sim=99, seed=0)
+    assert HE.graph["temporal"]["kalman"]["step_unit"] is None
+    assert HE.graph["temporal"]["input_form"] == "events"
+    B = nb.threshold_filter(H, "kalman_pvalue", 0.05)
+    text = nb.describe_backbone("kalman_backbone", original=H, backbone=B, alpha=0.05)
+    for phrase in (
+        "Kalman smoothing of per-step edge significance (Kalman, 1960; Rauch",
+        "6 time steps, given as snapshots",
+        "scored with the disparity filter (Serrano et al., 2009).",
+        "estimated by maximum pooled likelihood",
+        "simulated null distribution",
+    ):
+        assert phrase in text, phrase
+
+
+def test_kalman_backbone_scorers_and_errors():
+    S = _karate_snapshots(5)
+    # A normal-model test gives the same one-sided scores signed or not.
+    one = nb.kalman_backbone(S, "noise_corrected_filter", q=0.3, n_sim=99, seed=0)
+    two = nb.kalman_backbone(
+        S, "noise_corrected_filter", q=0.3, n_sim=99, seed=0, signed=True
+    )
+    for u, v in [(0, 1), (32, 33)]:
+        assert one[u][v]["kalman_pvalues"] == pytest.approx(
+            two[u][v]["kalman_pvalues"], abs=1e-8
+        )
+    # glab_filter cannot score absent edges: they become unknown, with a warning.
+    with pytest.warns(UserWarning, match="treated as unknown"):
+        H = nb.kalman_backbone(S, "glab_filter", q=0.3, n_sim=99, seed=0)
+    assert H.graph["temporal"]["kalman"]["absent"] == "unknown"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        H = nb.kalman_backbone(
+            S, "disparity", q=0.3, n_sim=99, seed=0, missing_as_zero=False
+        )
+    assert H.graph["temporal"]["kalman"]["absent"] == "unknown"
+    # Discrete p-values are refused unless used raw (valid, conservative).
+    with pytest.raises(ValueError, match="discrete p-values"):
+        nb.kalman_backbone(S, "lans_filter", q=0.3)
+    H = nb.kalman_backbone(S, "lans_filter", q=0.3, discrete="raw", n_sim=99)
+    assert 0 <= H.edges[0, 1]["kalman_pvalue"] <= 1
+    # Without the Šidák correction the disparity p-values are smaller.
+    raw = nb.kalman_backbone(S, "disparity", q=0.3, sidak=False, n_sim=99, seed=0)
+    sid = nb.kalman_backbone(S, "disparity", q=0.3, n_sim=99, seed=0)
+    assert raw.edges[0, 1]["kalman_pvalues"][2] < sid.edges[0, 1]["kalman_pvalues"][2]
+    bad = [
+        ({"method": "disparity", "signed": True, "q": 0.3}, "combine two endpoints"),
+        ({"method": "disparity", "q": 0.3, "half_life": 2}, "not both"),
+        ({"method": "disparity", "mode": "both"}, "mode"),
+        ({"method": "disparity", "discrete": "mid"}, "discrete"),
+        ({"method": "disparity", "n_sim": 0}, "n_sim"),
+        ({"method": "disparity", "q": -1}, "q must"),
+        ({"method": "disparity", "half_life": 0}, "half_life"),
+        ({"method": "high_salience_skeleton"}, "not one"),
+        ({"method": "sdsm"}, "bipartite"),
+    ]
+    for kwargs, match in bad:
+        with pytest.raises(ValueError, match=match):
+            nb.kalman_backbone(S, **kwargs)
+    # q cannot be estimated when no edge is scored twice.
+    with pytest.raises(ValueError, match="pass q= or half_life="):
+        nb.kalman_backbone([nx.Graph(S[0].edges(data=True))], "disparity")

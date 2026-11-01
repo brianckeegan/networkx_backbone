@@ -170,4 +170,6 @@ __all__ = [
     "persistence",
     "backbone_stability",
     "weight_trend",
+    "kalman_backbone",
+    "kalman_snapshots",
 ]

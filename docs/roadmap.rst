@@ -314,8 +314,9 @@ the method proposals are in the `temporal backbones proposal
   and pathpy adapters.
 - **idea** (`#71 <https://github.com/brianckeegan/networkx_backbone/issues/71>`_): Null-model significance tests for the simple
   filters.
-- **planned** (`#72 <https://github.com/brianckeegan/networkx_backbone/issues/72>`_): ``kalman_backbone``: Kalman smoothing of
-  per-step edge significance, tested against an exact null.
+- **done** (`#72 <https://github.com/brianckeegan/networkx_backbone/issues/72>`_): ``kalman_backbone``: Kalman smoothing of
+  per-step edge significance, tested against an exact null, with an
+  edge-level test across steps and ``kalman_snapshots`` for per-step graphs.
 - **planned** (`#73 <https://github.com/brianckeegan/networkx_backbone/issues/73>`_): ``edge_persistence_hmm``: a two-state hidden
   Markov model for persistent edge activity.
 - **idea** (`#74 <https://github.com/brianckeegan/networkx_backbone/issues/74>`_): ``wavelet_denoise``: wavelet shrinkage of

@@ -54,7 +54,7 @@ True
 
 from __future__ import annotations
 
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 __all__: list[str] = []
 
@@ -228,11 +228,11 @@ def _process_variance(q, times, T):
 class _Gains(NamedTuple):
     """Gains and variances of the filter and smoother (independent of ``y``)."""
 
-    K: object  # filter gain K_t (0 at unknown steps)
-    omk: object  # 1 − K_t, computed without cancellation
-    Pf: object  # filtered variance P_t (inf before the first observation)
-    G: object  # smoother gain G_t = P_t / P_{t+1|t}, shape (n, T − 1)
-    omg: object  # 1 − G_t
+    K: Any  # filter gain K_t (0 at unknown steps)
+    omk: Any  # 1 − K_t, computed without cancellation
+    Pf: Any  # filtered variance P_t (inf before the first observation)
+    G: Any  # smoother gain G_t = P_t / P_{t+1|t}, shape (n, T − 1)
+    omg: Any  # 1 − G_t
 
 
 def _gains(observed, qdt):
@@ -368,12 +368,12 @@ class KalmanResult(NamedTuple):
         fitted model, not under the null.
     """
 
-    level: object
-    level_sd: object
-    null_sd: object
-    score: object
-    pvalue: object
-    innovation: object
+    level: Any
+    level_sd: Any
+    null_sd: Any
+    score: Any
+    pvalue: Any
+    innovation: Any
 
 
 def kalman_scores(Y, q, *, times=None, mode="smoother"):
@@ -620,7 +620,14 @@ def max_score_test(Y, q, *, times=None, mode="smoother", n_sim=9999, seed=None):
     from ``n_sim`` null series (iid N(0, 1) at the observed steps).  The same
     base draws are reused for every pattern (common random numbers).  The
     p-value is the Monte Carlo ``(1 + #{null ≥ stat}) / (1 + n_sim)``, which is
-    valid (never anti-conservative) and cannot go below ``1/(n_sim + 1)``.
+    valid (never anti-conservative).  When no null series reaches the
+    statistic, so that the Monte Carlo p-value sits at its floor
+    ``1/(n_sim + 1)``, the p-value is refined by the Bonferroni bound
+    ``n_t · (1 − Φ(stat))`` over the ``n_t`` steps with a score, if that is
+    smaller.  The result stays valid: below the floor only the Bonferroni
+    bound can reject, and at or above it only the Monte Carlo p-value can.
+    This keeps corrections across many edges (which need p-values far below
+    ``1/(n_sim + 1)``) attainable.
     Edges with the same pattern share one simulated null, so their p-values
     share its Monte Carlo error: at ``n_sim=9999`` the realized level of a
     0.05 test is within about ±0.004 (two standard errors) of 0.05.  The cost
@@ -646,7 +653,7 @@ def max_score_test(Y, q, *, times=None, mode="smoother", n_sim=9999, seed=None):
     stat : numpy.ndarray
         ``max_t score_t`` per edge (NaN for an edge with no observed step).
     pvalue : numpy.ndarray
-        Monte Carlo p-value per edge (NaN for an edge with no observed step).
+        p-value per edge (NaN for an edge with no observed step).
 
     Examples
     --------
@@ -658,6 +665,7 @@ def max_score_test(Y, q, *, times=None, mode="smoother", n_sim=9999, seed=None):
     True
     """
     import numpy as np
+    from scipy.stats import norm
 
     Y, observed, qdt = _check_inputs(Y, q, times, mode)
     n_sim = int(n_sim)
@@ -679,6 +687,10 @@ def max_score_test(Y, q, *, times=None, mode="smoother", n_sim=9999, seed=None):
         rows = np.flatnonzero(inverse == k)
         n_ge = n_sim - np.searchsorted(null, stat[rows], side="left")
         pvalue[rows] = (1.0 + n_ge) / (1.0 + n_sim)
+    n_steps = (~np.isnan(score)).sum(axis=1)
+    bonferroni = np.minimum(1.0, n_steps * norm.sf(stat))
+    floor = pvalue == 1.0 / (1.0 + n_sim)
+    pvalue[floor] = np.minimum(pvalue[floor], bonferroni[floor])
     return stat, pvalue
 
 
