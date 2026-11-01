@@ -240,6 +240,24 @@ class TestECM:
 
 
 class TestLANS:
+    def test_directed_heavy_edge_significant_from_target_side(self):
+        # Five sources each send one link to ``v``; the heavy edge is the
+        # strongest incoming link of ``v`` and must get p = 0 from v's side
+        # (#11, contributed in #34).
+        G = nx.DiGraph()
+        for i, w in enumerate([100, 1, 1, 1, 1]):
+            G.add_edge(f"s{i}", "v", weight=w)
+        H = nb.lans_filter(G)
+        assert H["s0"]["v"]["lans_pvalue"] == 0.0
+
+    def test_directed_uses_target_in_edges_not_only_source_out_edges(self):
+        # Edge (u, v1) is mid-ranked among u's out-edges (source-side eCDF =
+        # 0.5) but is the strongest incoming link of v1, which drives p to 0.
+        G = nx.DiGraph()
+        G.add_weighted_edges_from([("u", "v1", 100), ("u", "w1", 200), ("x", "v1", 1)])
+        H = nb.lans_filter(G)
+        assert H["u"]["v1"]["lans_pvalue"] == 0.0
+
     def test_empirical_cdf(self, count_graph):
         H = nb.lans_filter(count_graph)
         # Edge c-d: at c weights are [1, 2, 3] -> F(3) = 1; at d [1, 3] -> 1.

@@ -74,8 +74,9 @@ Correctness gaps found in review and not yet fixed
 - **next** (`#10 <https://github.com/brianckeegan/networkx_backbone/issues/10>`_): ``multiple_linkage_analysis`` currently thresholds LANS p-values
   (the netbone convention). Implement the dominance-fitting procedure of
   Van Nuffel et al. (2010) and keep the netbone behavior behind an option.
-- **next** (`#11 <https://github.com/brianckeegan/networkx_backbone/issues/11>`_): Directed ``lans_filter`` only uses the source's out-links. Also
-  test the target's in-links, as ``disparity_filter`` now does.
+- **done** (`#11 <https://github.com/brianckeegan/networkx_backbone/issues/11>`_, contributed in
+  `#34 <https://github.com/brianckeegan/networkx_backbone/pull/34>`_): Directed ``lans_filter`` now also tests the
+  target's in-links.
 - **planned** (`#12 <https://github.com/brianckeegan/networkx_backbone/issues/12>`_): A directed GLAB variant, using the out- and in-involvement of
   Zhang et al. (2014), Section 2.3.
 - **next** (`#13 <https://github.com/brianckeegan/networkx_backbone/issues/13>`_): Check ``hyper_projection``'s weighting (:math:`1/d(z)` versus

@@ -46,6 +46,8 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   betweenness. Les Misérables: 5 -> 56 edges.
 - ``disparity_filter`` on directed graphs also tests the target's incoming
   links.
+- ``lans_filter`` on directed graphs also tests the target's incoming links
+  (#11, contributed by @bfs2021 in #34).
 - ``bicm``/``sdsm``: the BiCM is now actually fitted rather than
   approximated with Chung-Lu, and p-values use exact Poisson-binomial tails
   (or RNA). SDSM-EC refits on the free cells. Davis: 3 -> 0 pairs.
