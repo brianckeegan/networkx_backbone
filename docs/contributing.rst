@@ -35,7 +35,7 @@ the result against plain NetworkX (see :doc:`user_guide/backends`)::
 
     NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules networkx_backbone tests
 
-Continuous integration (``.github/workflows/tests.yml``) runs lint, the test
+Continuous integration (``.github/workflows/tests.yml``) runs lint, mypy, the test
 suite on Python 3.12-3.14, a job pinned to the oldest supported versions, the
 suite under ``nx_loopback``, and the minimal-dependency smoke tests on every
 push and pull request.
@@ -163,6 +163,19 @@ stack:
   SciPy sparse, or pandas incidence matrices) use the module's own check,
   which raises the same exception for graph input, because
   ``not_implemented_for`` assumes a graph argument.
+- Annotate public functions (the package ships ``py.typed``). Start each
+  module with ``from __future__ import annotations`` and import NumPy, SciPy,
+  pandas, and Matplotlib types only under ``if TYPE_CHECKING:``, so the core
+  package still imports with only NetworkX installed. Shared aliases (``Seed``,
+  ``GraphInput``, ``Hyperedges``, ...) live in ``networkx_backbone._typing``;
+  import ``not_implemented_for`` and ``py_random_state`` from there too. They
+  are NetworkX's own decorators, typed so that they keep the decorated
+  function's signature (``_dispatchable`` is typed the same way, and also
+  accepts ``backend=...``). Check with mypy (non-strict, configured in
+  ``pyproject.toml``; the ``typing`` extra pins mypy and ``types-networkx``)::
+
+      mypy networkx_backbone
+
 - Name score attributes ``<method>_pvalue``, ``<method>_score``, or
   ``<method>_keep`` so they compose with the filters in
   :mod:`networkx_backbone.filters`.

@@ -168,7 +168,8 @@ Release engineering
   release with this sprint's correctness fixes, new methods, and changes in
   results. ``v0.2.0`` (February 2026) is tagged in git, but PyPI has
   only 0.1.0 and a development build. Publish to PyPI and conda-forge from the existing workflows.
-- **planned** (`#18 <https://github.com/brianckeegan/networkx_backbone/issues/18>`_): Add ``py.typed`` and type annotations for the public API.
+- **done** (`#18 <https://github.com/brianckeegan/networkx_backbone/issues/18>`_): Add ``py.typed`` and type annotations for the public API,
+  checked by a non-strict mypy CI job.
 
 Planned features
 ----------------
@@ -236,6 +237,14 @@ Methods
   a calibration test harness, and an explicit count ``unit=`` for MLF, ECM,
   and the noise-corrected filter.  Not scheduled: a continuous-weight ECM,
   an overdispersed MLF, and user-supplied weight distributions for GloSS.
+- **done** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` keeps edges tied at each node's
+  cutoff together, so ``G``, ``G.copy()``, and any reordering of the same
+  graph give the same backbone. ``global_sparsification`` and
+  ``edge_betweenness_filter`` no longer depend on edge orientation.
+  ``planar_maximally_filtered_graph`` and ``maximum_spanning_tree_backbone``
+  (ties in weight), ``fraction_filter`` (ties in score, documented), and
+  ``modularity_backbone`` (Louvain visiting order, even with a fixed seed)
+  still depend on input order.
 
 Documentation
 ~~~~~~~~~~~~~

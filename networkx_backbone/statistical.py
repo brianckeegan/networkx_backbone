@@ -25,15 +25,21 @@ gloss_filter
     Radicchi et al. (2011) -- global null with the empirical weight distribution.
 """
 
+from __future__ import annotations
+
 import math
 import warnings
 from bisect import bisect_left
+from typing import TYPE_CHECKING
 
 import networkx as nx
-from networkx.utils import not_implemented_for
 
 from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
+from networkx_backbone._typing import not_implemented_for
+
+if TYPE_CHECKING:
+    from collections.abc import Hashable
 
 __all__ = [
     "disparity_filter",
@@ -210,7 +216,13 @@ def _add_zero_edges(H, dyads, weight, tails, pvalue_attr, signed):
 
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
-def disparity_filter(G, weight="weight", signed=False, missing_as_zero=False, a=1.0):
+def disparity_filter(
+    G: nx.Graph,
+    weight: str = "weight",
+    signed: bool = False,
+    missing_as_zero: bool = False,
+    a: float | str = 1.0,
+) -> nx.Graph:
     r"""Compute disparity filter p-values for each edge.
 
     The disparity filter [1]_ tests whether an edge's weight is
@@ -409,31 +421,32 @@ def disparity_filter(G, weight="weight", signed=False, missing_as_zero=False, a=
             ok = False
         if not ok:
             raise ValueError(f"a must be 'ml' or a finite number > 0, got {a!r}.")
-        a = float(a)
 
     H = G.copy()
     _validate_weights(H, weight)
 
     if G.is_directed():
-        s_out = dict(G.out_degree(weight=weight))
-        k_out = dict(G.out_degree())
-        s_in = dict(G.in_degree(weight=weight))
-        k_in = dict(G.in_degree())
+        s_out = dict(G.out_degree(weight=weight))  # type: ignore[attr-defined]
+        k_out = dict(G.out_degree())  # type: ignore[attr-defined]
+        s_in = dict(G.in_degree(weight=weight))  # type: ignore[attr-defined]
+        k_in = dict(G.in_degree())  # type: ignore[attr-defined]
     else:
         s_out = s_in = dict(G.degree(weight=weight))
         k_out = k_in = dict(G.degree())
 
     if a == "ml":
-        a = _disparity_ml_a(G, weight)
-        H.graph["disparity_a"] = a
-    if a == 1.0:
+        a_value = _disparity_ml_a(G, weight)
+        H.graph["disparity_a"] = a_value
+    else:
+        a_value = float(a)
+    if a_value == 1.0:
         node_tails = _disparity_node_tails
     else:
         tests = set()
         for u, v, data in G.edges(data=True):
             tests.add((data[weight], s_out[u], k_out[u]))
             tests.add((data[weight], s_in[v], k_in[v]))
-        table = _disparity_beta_tails(tests, 1.0 / a)
+        table = _disparity_beta_tails(tests, 1.0 / a_value)
 
         def node_tails(w, s, k):
             return table[(w, s, k)]
@@ -574,8 +587,13 @@ def _disparity_ml_a(G, weight):
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
 def noise_corrected_filter(
-    G, weight="weight", method="bayesian", signed=False, missing_as_zero=False, unit=1
-):
+    G: nx.Graph,
+    weight: str = "weight",
+    method: str = "bayesian",
+    signed: bool = False,
+    missing_as_zero: bool = False,
+    unit: float = 1,
+) -> nx.Graph:
     r"""Compute noise-corrected (NC) edge scores (Coscia & Neffke, 2017).
 
     The noise-corrected backbone [1]_ asks whether an edge carries more weight
@@ -794,7 +812,8 @@ def noise_corrected_filter(
 
     # Row and column sums of the (symmetric, for undirected graphs) weight
     # matrix, counting each undirected non-loop edge in both directions.
-    s_out, s_in = {}, {}
+    s_out: dict[Hashable, float] = {}
+    s_in: dict[Hashable, float] = {}
     total = 0.0
     for u, v, d in G.edges(data=True):
         w = _as_count(d[weight], unit)
@@ -920,8 +939,12 @@ def _noise_corrected_zscore(G, H, weight, signed, dyads, unit=1):
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
 def marginal_likelihood_filter(
-    G, weight="weight", signed=False, missing_as_zero=False, unit=1
-):
+    G: nx.Graph,
+    weight: str = "weight",
+    signed: bool = False,
+    missing_as_zero: bool = False,
+    unit: float = 1,
+) -> nx.Graph:
     r"""Compute marginal likelihood p-values for each edge.
 
     The marginal likelihood filter [1]_ treats an integer edge weight as a
@@ -1047,7 +1070,8 @@ def marginal_likelihood_filter(
         "becomes 0 (p-value 1).",
     )
     # Strengths of the rounded (integer) weights.
-    s_out, s_in = {}, {}
+    s_out: dict[Hashable, int] = {}
+    s_in: dict[Hashable, int] = {}
     T = 0
     for u, v, d in G.edges(data=True):
         w = round(_as_count(d[weight], unit))
@@ -1093,14 +1117,14 @@ def marginal_likelihood_filter(
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
 def ecm_filter(
-    G,
-    weight="weight",
-    max_iter=1000,
-    tol=1e-6,
-    signed=False,
-    missing_as_zero=False,
-    unit=1,
-):
+    G: nx.Graph,
+    weight: str = "weight",
+    max_iter: int = 1000,
+    tol: float = 1e-6,
+    signed: bool = False,
+    missing_as_zero: bool = False,
+    unit: float = 1,
+) -> nx.Graph:
     r"""Compute ECM (Enhanced Configuration Model) p-values.
 
     The ECM [1]_ is the maximum-entropy ensemble of integer-weighted graphs
@@ -1763,7 +1787,12 @@ def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
 
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
-def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
+def lans_filter(
+    G: nx.Graph,
+    weight: str = "weight",
+    signed: bool = False,
+    missing_as_zero: bool = False,
+) -> nx.Graph:
     r"""Compute LANS (Locally Adaptive Network Sparsification) p-values.
 
     LANS [1]_ is a nonparametric method that makes no distributional
@@ -1875,8 +1904,8 @@ def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
         out_weights = {}
         in_weights = {}
         for u in G.nodes():
-            out_weights[u] = sorted(d[weight] for _, _, d in G.out_edges(u, data=True))
-            in_weights[u] = sorted(d[weight] for _, _, d in G.in_edges(u, data=True))
+            out_weights[u] = sorted(d[weight] for _, _, d in G.out_edges(u, data=True))  # type: ignore[attr-defined]
+            in_weights[u] = sorted(d[weight] for _, _, d in G.in_edges(u, data=True))  # type: ignore[attr-defined]
     else:
         out_weights = in_weights = {
             u: sorted(G[u][v][weight] for v in G[u]) for u in G.nodes()
@@ -1915,8 +1944,12 @@ def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
 def multiple_linkage_analysis(
-    G, alpha=0.05, weight="weight", method="dominance", deviation="cod"
-):
+    G: nx.Graph,
+    alpha: float = 0.05,
+    weight: str = "weight",
+    method: str = "dominance",
+    deviation: str = "cod",
+) -> nx.Graph:
     r"""Extract a backbone using Multiple Linkage Analysis (MLA).
 
     With ``method="dominance"`` (the default) this is the multiple linkage
@@ -2120,7 +2153,7 @@ def multiple_linkage_analysis(
     H = G.copy()
     _validate_weights(H, weight)
 
-    neighbors = G.succ if G.is_directed() else G.adj
+    neighbors = G.succ if G.is_directed() else G.adj  # type: ignore[attr-defined]
     others = G.number_of_nodes() - 1
     cutoff = {}
     for node in G:
@@ -2212,7 +2245,12 @@ def _fraction_at_least(w, sorted_weights):
 
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
-def polya_filter(G, weight="weight", a=None, approximate=None):
+def polya_filter(
+    G: nx.Graph,
+    weight: str = "weight",
+    a: float | None = None,
+    approximate: bool | None = None,
+) -> nx.Graph:
     r"""Compute Pólya filter p-values for each edge.
 
     The Pólya filter [1]_ tests each edge's weight against a null model in
@@ -2400,8 +2438,9 @@ def polya_filter(G, weight="weight", a=None, approximate=None):
 
     # Two tests per edge: (k, s) of the endpoint the test is run from.
     directed = G.is_directed()
-    k_u, k_v = (G.out_degree, G.in_degree) if directed else (G.degree, G.degree)
-    s_u, s_v = {}, {}
+    k_u, k_v = (G.out_degree, G.in_degree) if directed else (G.degree, G.degree)  # type: ignore[attr-defined]
+    s_u: dict[Hashable, float] = {}
+    s_v: dict[Hashable, float] = {}
     for u, v, d in H.edges(data=True):
         w = num(d[weight])
         s_u[u] = s_u.get(u, 0) + w
@@ -2561,7 +2600,9 @@ def _polya_ml_estimate(rows):
 
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
-def gloss_filter(G, weight="weight", resolution=None):
+def gloss_filter(
+    G: nx.Graph, weight: str = "weight", resolution: float | None = None
+) -> nx.Graph:
     r"""Compute Global Statistical Significance (GloSS) p-values for each edge.
 
     The GloSS filter [1]_ tests every edge weight against a *global* null
@@ -2815,21 +2856,38 @@ def _gloss_lookup(log_f, idx):
     return np.where(ok, log_f[np.clip(idx, 0, len(log_f) - 1)], -np.inf)
 
 
-def disparity(G, weight="weight", signed=False, missing_as_zero=False, a=1.0):
+def disparity(
+    G: nx.Graph,
+    weight: str = "weight",
+    signed: bool = False,
+    missing_as_zero: bool = False,
+    a: float | str = 1.0,
+) -> nx.Graph:
     """Alias for :func:`disparity_filter`."""
     return disparity_filter(
         G, weight=weight, signed=signed, missing_as_zero=missing_as_zero, a=a
     )
 
 
-def mlf(G, weight="weight", signed=False, missing_as_zero=False, unit=1):
+def mlf(
+    G: nx.Graph,
+    weight: str = "weight",
+    signed: bool = False,
+    missing_as_zero: bool = False,
+    unit: float = 1,
+) -> nx.Graph:
     """Alias for :func:`marginal_likelihood_filter`."""
     return marginal_likelihood_filter(
         G, weight=weight, signed=signed, missing_as_zero=missing_as_zero, unit=unit
     )
 
 
-def lans(G, weight="weight", signed=False, missing_as_zero=False):
+def lans(
+    G: nx.Graph,
+    weight: str = "weight",
+    signed: bool = False,
+    missing_as_zero: bool = False,
+) -> nx.Graph:
     """Alias for :func:`lans_filter`."""
     return lans_filter(G, weight=weight, signed=signed, missing_as_zero=missing_as_zero)
 

@@ -5,15 +5,22 @@ After a backbone method annotates edges (or nodes) with scores or p-values,
 these functions extract the final subgraph.
 """
 
+from __future__ import annotations
+
 import math
 import numbers
 import warnings
+from typing import TYPE_CHECKING
 
 import networkx as nx
-from networkx.utils import not_implemented_for
 
 from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
+from networkx_backbone._typing import not_implemented_for
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Hashable, Iterable
+    from typing import Any
 
 __all__ = [
     "multigraph_to_weighted",
@@ -29,7 +36,7 @@ __all__ = [
 _MTC_METHODS = ("none", "bonferroni", "holm", "hochberg", "bh", "fdr", "by")
 
 
-def adjust_pvalues(pvalues, method="bh"):
+def adjust_pvalues(pvalues: Iterable[float], method: str = "bh") -> list[float]:
     """Apply a multiple-testing correction to a collection of p-values.
 
     Reproduces R's ``p.adjust`` for the methods used by Neal's *Backbone 3.0*
@@ -130,7 +137,12 @@ def _adjust(p, method_l):
 
 
 @_dispatchable(edge_attrs="weight")
-def multigraph_to_weighted(G, weight="weight", edge_type_attr=None, aggregate="count"):
+def multigraph_to_weighted(
+    G: nx.Graph,
+    weight: str = "weight",
+    edge_type_attr: str | None = None,
+    aggregate: str = "count",
+) -> nx.Graph:
     """Convert a MultiGraph/MultiDiGraph into a weighted simple graph.
 
     Parallel edges between the same node pair are collapsed into a single
@@ -191,7 +203,7 @@ def multigraph_to_weighted(G, weight="weight", edge_type_attr=None, aggregate="c
     >>> multigraph_to_weighted(M, aggregate="sum")[0][1]["weight"]
     30
     """
-    combiners = {
+    combiners: dict[str, Callable[[list[Any]], Any]] = {
         "sum": sum,
         "max": max,
         "min": min,
@@ -212,14 +224,14 @@ def multigraph_to_weighted(G, weight="weight", edge_type_attr=None, aggregate="c
     H.graph.update(G.graph)
     H.add_nodes_from(G.nodes(data=True))
 
-    grouped = {}
-    for u, v, _, data in G.edges(keys=True, data=True):
+    grouped: dict[tuple[Hashable, Hashable], list[dict[str, Any]]] = {}
+    for u, v, _, data in G.edges(keys=True, data=True):  # type: ignore[call-overload]
         key = (u, v)
         grouped.setdefault(key, []).append(data)
 
     for (u, v), edge_datas in grouped.items():
         edge_count = len(edge_datas)
-        out_data = {"edge_count": edge_count}
+        out_data: dict[str, Any] = {"edge_count": edge_count}
 
         if aggregate != "count":
             out_data[weight] = combiners[aggregate](
@@ -242,7 +254,9 @@ def multigraph_to_weighted(G, weight="weight", edge_type_attr=None, aggregate="c
 
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
-def transform_weights(G, transformer, weight="weight", out=None):
+def transform_weights(
+    G: nx.Graph, transformer: Any, weight: str = "weight", out: str | None = None
+) -> nx.Graph:
     """Return a copy of *G* with transformed edge weights.
 
     Applies *transformer* to the edge weights before scoring, for example a
@@ -536,14 +550,14 @@ def _is_score(val):
 
 @_dispatchable
 def threshold_filter(
-    G,
-    score,
-    threshold,
-    mode="below",
-    filter_on="edges",
-    include_all_nodes=True,
-    mtc="none",
-):
+    G: nx.Graph,
+    score: str,
+    threshold: float,
+    mode: str = "below",
+    filter_on: str = "edges",
+    include_all_nodes: bool = True,
+    mtc: str = "none",
+) -> nx.Graph:
     """Retain edges or nodes whose score passes a threshold test.
 
     Parameters
@@ -652,7 +666,13 @@ def threshold_filter(
 
 
 @_dispatchable
-def fraction_filter(G, score, fraction, ascending=True, filter_on="edges"):
+def fraction_filter(
+    G: nx.Graph,
+    score: str,
+    fraction: float,
+    ascending: bool = True,
+    filter_on: str = "edges",
+) -> nx.Graph:
     """Retain the top or bottom fraction of edges or nodes by score.
 
     Parameters
@@ -723,7 +743,7 @@ def fraction_filter(G, score, fraction, ascending=True, filter_on="edges"):
 
 
 @_dispatchable
-def boolean_filter(G, score):
+def boolean_filter(G: nx.Graph, score: str) -> nx.Graph:
     """Retain edges whose boolean score attribute is truthy.
 
     Parameters
@@ -762,7 +782,7 @@ def boolean_filter(G, score):
     return H
 
 
-def consensus_backbone(*backbones):
+def consensus_backbone(*backbones: nx.Graph) -> nx.Graph:
     """Return the intersection of multiple backbone graphs.
 
     An edge is in the consensus backbone if and only if it appears in

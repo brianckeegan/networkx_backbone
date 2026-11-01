@@ -14,15 +14,22 @@ local_degree
     Local Degree (Lindner et al. 2015) -- keep edges to high-degree neighbors.
 """
 
+from __future__ import annotations
+
 import math
 from bisect import bisect_right
 from itertools import groupby
 from operator import itemgetter
-
-from networkx.utils import not_implemented_for, py_random_state
+from typing import TYPE_CHECKING
 
 from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
+from networkx_backbone._typing import not_implemented_for, py_random_state
+
+if TYPE_CHECKING:
+    import networkx as nx
+
+    from networkx_backbone._typing import PySeed
 
 __all__ = ["sparsify", "lspar", "local_degree"]
 
@@ -36,8 +43,14 @@ _FILTERS = ("degree", "threshold")
 @py_random_state("seed")
 @_dispatchable
 def sparsify(
-    G, escore="jaccard", normalize="rank", filter="degree", s=0.5, umst=False, seed=None
-):
+    G: nx.Graph,
+    escore: str = "jaccard",
+    normalize: str | None = "rank",
+    filter: str = "degree",
+    s: float = 0.5,
+    umst: bool = False,
+    seed: PySeed = None,
+) -> nx.Graph:
     r"""Sparsify an unweighted graph using a score-normalize-filter pipeline.
 
     Follows the four-step pipeline from Neal (2022) [1]_:
@@ -168,7 +181,7 @@ def sparsify(
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
 @_dispatchable
-def lspar(G, s=0.5):
+def lspar(G: nx.Graph, s: float = 0.5) -> nx.Graph:
     r"""Compute the Local Sparsification (L-Spar) backbone.
 
     Every node *u* ranks its incident edges by the Jaccard similarity of
@@ -236,7 +249,7 @@ def lspar(G, s=0.5):
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
 @_dispatchable
-def local_degree(G, s=0.3):
+def local_degree(G: nx.Graph, s: float = 0.3) -> nx.Graph:
     r"""Compute the Local Degree backbone.
 
     Every node *u* ranks its neighbors by their degree (highest first)

@@ -11,20 +11,22 @@ glab_filter
     degree-dependent null model.
 """
 
+from __future__ import annotations
+
 import math
 
 import networkx as nx
-from networkx.utils import not_implemented_for
 
 from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
+from networkx_backbone._typing import not_implemented_for
 
 __all__ = ["glab_filter"]
 
 
 @not_implemented_for("multigraph")
 @_dispatchable(edge_attrs="weight")
-def glab_filter(G, weight="weight", c=0.5):
+def glab_filter(G: nx.Graph, weight: str | None = "weight", c: float = 0.5) -> nx.Graph:
     r"""Compute GLAB (Globally and Locally Adaptive Backbone) p-values.
 
     The GLAB method [1]_ (called GLANB in the paper) combines global and local
@@ -158,13 +160,13 @@ def glab_filter(G, weight="weight", c=0.5):
             return 1.0 / data[weight]
 
     else:
-        length = None
+        length = None  # type: ignore[assignment]
 
     if G.is_directed():
         # SI^(out)_ij from i's out-links; SI^(in)_ij from j's in-links, i.e.
         # j's out-links in the reversed graph (stored there as (j, i)).
-        si_out = _node_importance(G, dict(G.out_degree()), length, c)
-        si_in = _node_importance(G.reverse(copy=False), dict(G.in_degree()), length, c)
+        si_out = _node_importance(G, dict(G.out_degree()), length, c)  # type: ignore[attr-defined]
+        si_in = _node_importance(G.reverse(copy=False), dict(G.in_degree()), length, c)  # type: ignore[attr-defined]
         for u, v, data in H.edges(data=True):
             values = [
                 d[key] for d, key in ((si_out, (u, v)), (si_in, (v, u))) if key in d

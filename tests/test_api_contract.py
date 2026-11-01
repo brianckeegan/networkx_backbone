@@ -64,7 +64,8 @@ class Spec:
         Accepts directed graphs; otherwise must raise NetworkXNotImplemented.
     order_invariant
         Scores do not depend on node/edge insertion order (false when ties
-        are broken by input order).
+        are broken by input order).  Checked by comparing *G* with a copy
+        built in reverse node and edge order, with every edge flipped.
     label_ties
         Ties are broken by node label, so relabeling may change which tied
         edge is kept.
@@ -131,14 +132,13 @@ REGISTRY = [
     # --- structural --------------------------------------------------------
     Spec(nb.global_threshold_filter, W, keep=("global_threshold_keep",),
          kwargs={"threshold": 2.0}, directed=True),
-    Spec(nb.strongest_n_ties, W, keep=("strongest_n_ties_keep",), directed=True,
-         order_invariant=False),
+    Spec(nb.strongest_n_ties, W, keep=("strongest_n_ties_keep",), directed=True),
     Spec(nb.global_sparsification, W, keep=("global_sparsification_keep",),
-         directed=True, order_invariant=False),
+         directed=True, label_ties=True),
     Spec(nb.primary_linkage_analysis, W, keep=("primary_linkage_keep",),
          directed=True, label_ties=True),
     Spec(nb.edge_betweenness_filter, W, {"edge_betweenness": P},
-         keep=("edge_betweenness_keep",), directed=True, order_invariant=False),
+         keep=("edge_betweenness_keep",), directed=True, label_ties=True),
     Spec(nb.node_degree_filter, W, keep=("node_degree_keep",),
          node_attrs=("node_degree_keep",), directed=True),
     Spec(nb.high_salience_skeleton, W, {"salience": P}, bad_weights=POSITIVE_BAD),
@@ -146,7 +146,6 @@ REGISTRY = [
     Spec(nb.ultrametric_backbone, W, keep=("ultrametric_keep",),
          bad_weights=POSITIVE_BAD),
     Spec(nb.doubly_stochastic_filter, W, {"ds_weight": P}, keep=("ds_keep",),
-         order_invariant=False,
          bad_weights=NONNEGATIVE_BAD),
     Spec(nb.h_backbone, W, {"h_bridge": NONNEG}, keep=("h_backbone_keep",),
          bad_weights=_NON_NUMERIC),
