@@ -134,8 +134,9 @@ required edge.
 `networkx-backbone`'s `sdsm` now accepts `prohibited`/`required` as iterables of
 `(agent, artifact)` pairs and fixes those cells' null probability to 0/1 before
 the Poisson-binomial test. Defaults (`None`) leave behavior unchanged; unknown
-nodes are ignored; constraints compose with `signed` and are forwarded by
-`backbone_from_projection`.
+nodes raise `NetworkXError`; pairs that contradict the data (required
+non-edges, prohibited edges) are ignored with a `RuntimeWarning`; constraints
+compose with `signed` and are forwarded by `backbone_from_projection`.
 
 ### 4.4 Narrative (`narrative`) — parked
 
