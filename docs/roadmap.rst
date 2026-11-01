@@ -272,16 +272,14 @@ the method proposals are in the `temporal backbones proposal
 <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/temporal-backbones.md>`_;
 `#78 <https://github.com/brianckeegan/networkx_backbone/issues/78>`_ tracks the work.
 
-- **planned** (`#67 <https://github.com/brianckeegan/networkx_backbone/issues/67>`_): Foundation: the three input forms, binning
+- **done** (`#67 <https://github.com/brianckeegan/networkx_backbone/issues/67>`_): Foundation: the three input forms, binning
   with ``freq=``, the node-presence rule (an absent edge is zero only when both
-  endpoints are present), and the scored-static-graph output. Done so far: the
-  three forms, ``temporal_form``, binning, lossless conversions between
-  the forms, and ``flatten_temporal`` (collapse to a static weighted graph).
-  Remaining: presence and eligibility arrays, the output
-  conventions, and the API-contract ``kind="temporal"``.
-- **planned** (`#68 <https://github.com/brianckeegan/networkx_backbone/issues/68>`_): ``observation_fraction`` and ``persistence``
+  endpoints are present), and the scored-static-graph output: ``temporal_form``,
+  lossless conversions between the forms, ``flatten_temporal``, the shared
+  presence and eligibility masks, and the API-contract ``kind="temporal"``.
+- **done** (`#68 <https://github.com/brianckeegan/networkx_backbone/issues/68>`_): ``observation_fraction`` and ``persistence``
   (runs of consecutive observed steps).
-- **planned** (`#69 <https://github.com/brianckeegan/networkx_backbone/issues/69>`_): ``backbone_stability`` (how often any static
+- **done** (`#69 <https://github.com/brianckeegan/networkx_backbone/issues/69>`_): ``backbone_stability`` (how often any static
   scorer keeps an edge across steps) and ``weight_trend``.
 - **planned** (`#70 <https://github.com/brianckeegan/networkx_backbone/issues/70>`_): Interop with pandas event tables, DyNetX,
   teneto, and pathpy. Done so far: pandas event tables

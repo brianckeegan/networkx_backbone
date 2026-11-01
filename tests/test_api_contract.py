@@ -52,8 +52,9 @@ class Spec:
 
     kind
         ``"weighted"`` (Les Misérables), ``"unweighted"`` (Les Misérables
-        without weights) or ``"bipartite"`` (Davis Southern Women; called as
-        ``func(B, agent_nodes, **kwargs)``).
+        without weights), ``"bipartite"`` (Davis Southern Women; called as
+        ``func(B, agent_nodes, **kwargs)``) or ``"temporal"`` (called on
+        snapshots of Les Misérables, see :func:`_check_temporal_scorer`).
     scores
         Numeric edge attributes added to every edge, mapped to ``(lo, hi)``.
     keep
@@ -99,7 +100,7 @@ class Spec:
         return self.func(G, *args, **self.kwargs)
 
 
-W, U, B = "weighted", "unweighted", "bipartite"
+W, U, B, TM = "weighted", "unweighted", "bipartite", "temporal"
 
 REGISTRY = [
     # --- statistical -------------------------------------------------------
@@ -195,6 +196,15 @@ REGISTRY = [
     Spec(nb.fixedcol, B, {"fixedcol_pvalue": P, "weight": NONNEG}),
     Spec(nb.backbone_from_projection, B, {"fixedrow_pvalue": P, "weight": NONNEG},
          kwargs={"method": "fixedrow"}),
+    # --- temporal (snapshots of Les Misérables) ------------------------------
+    Spec(nb.observation_fraction, TM,
+         {"obs_fraction": P, "n_obs": NONNEG, "n_eligible": NONNEG}),
+    Spec(nb.persistence, TM, {"persistence": P, "max_run": NONNEG,
+                              "mean_run": NONNEG, "n_runs": NONNEG}),
+    Spec(nb.backbone_stability, TM, {"stability": P, "n_kept": NONNEG},
+         kwargs={"method": "disparity_filter"}),
+    Spec(nb.weight_trend, TM, {"weight_mean": NONNEG, "weight_std": NONNEG,
+                               "weight_cv": NONNEG, "weight_slope": ANY}),
 ]  # fmt: skip
 
 IDS = [spec.name for spec in REGISTRY]
@@ -210,6 +220,7 @@ FIXTURES = {
     W: ("les_miserables_weighted",),
     U: ("les_miserables_unweighted",),
     B: ("davis_southern_women_graph", "davis_women_nodes"),
+    TM: ("les_miserables_weighted",),
 }
 
 
@@ -381,6 +392,43 @@ def _check_bipartite_scorer(spec, Bg, women):
             spec(cls(small), ["a", "b", "c"])
 
 
+def _check_temporal_scorer(spec, G):
+    """Snapshot k of G lacks every third edge from the k-th; all nodes present.
+
+    Every edge is then eligible in all three steps and observed in two, so
+    no score is NaN.
+    """
+    name = spec.name
+    edges = list(G.edges(data=True))
+    S = {}
+    for k in range(3):
+        S[k] = G.__class__()
+        S[k].add_nodes_from(G.nodes(data=True))
+        S[k].add_edges_from(e for i, e in enumerate(edges) if i % 3 != k)
+    before = {t: _snapshot(g) for t, g in S.items()}
+    H = spec(S)
+    assert {t: _snapshot(g) for t, g in S.items()} == before, f"{name}: mutated"
+    _check_scored_graph(spec, nx.Graph(), H, nodes=G, edges=_edge_set(G))
+    scores = _scores(spec, H)
+    reverse = {t: _reversed(S[t]) for t in reversed(S)}
+    for other, what in ((reverse, "in reverse order"), (list(S.values()), "as a list")):
+        _assert_same_scores(spec, scores, _scores(spec, spec(other)), what)
+
+    _, labels = _mixed_labels(G)
+    HM = spec({t: nx.relabel_nodes(g, labels) for t, g in S.items()})
+    relabeled = {frozenset(labels[n] for n in e): x for e, x in scores.items()}
+    _assert_same_scores(spec, relabeled, _scores(spec, HM), "with mixed labels")
+
+    D = {t: nx.DiGraph(g) for t, g in S.items()}
+    HD = spec(D)
+    _check_scored_graph(spec, nx.DiGraph(), HD, nodes=G, edges=_edge_set(nx.DiGraph(G)))
+
+    with pytest.raises(nx.NetworkXNotImplemented):
+        spec({**S, 1: nx.MultiGraph(S[1])})
+    HE = spec([nx.empty_graph(3), nx.Graph()])
+    assert set(HE) == {0, 1, 2} and HE.number_of_edges() == 0
+
+
 # Les Misérables has leaves, so it cannot be scaled to a doubly stochastic matrix.
 @pytest.mark.filterwarnings("ignore:doubly_stochastic_filter:RuntimeWarning")
 @pytest.mark.parametrize("spec", REGISTRY, ids=IDS)
@@ -388,6 +436,8 @@ def test_contract(spec, request):
     inputs = [request.getfixturevalue(name) for name in FIXTURES[spec.kind]]
     if spec.kind == B:
         _check_bipartite_scorer(spec, *inputs)
+    elif spec.kind == TM:
+        _check_temporal_scorer(spec, *inputs)
     else:
         _check_graph_scorer(spec, *inputs)
 

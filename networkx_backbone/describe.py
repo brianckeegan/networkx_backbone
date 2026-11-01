@@ -24,14 +24,14 @@ own *References* sections).  The coverage policy is:
   backbones, result classes, and the temporal-network format conversions
   of ``temporal`` (that module also holds the temporal backbone methods, so
   it is not a helper module).
+- The helper modules ``filters``, ``measures``, ``hypergraph_io``,
+  ``visualization``, ``describe`` and ``convert`` are not methods and are
+  skipped.
 
 :data:`SCORE_KEYS` maps each static weighted or unweighted method to the
 edge attribute a cut uses (its p-value, score or ``*_keep`` flag);
 :func:`~networkx_backbone.backbone_stability` reads it to apply the same cut
 to every snapshot.
-- The helper modules ``filters``, ``measures``, ``hypergraph_io``,
-  ``visualization``, ``describe`` and ``convert`` are not methods and are
-  skipped.
 
 The test suite checks that every public name falls in one of these groups, so
 a new method cannot be added without a registry entry.

@@ -197,6 +197,36 @@ the :doc:`roadmap` and in GitHub issues.
 - :func:`~networkx_backbone.from_event_table` and
   :func:`~networkx_backbone.to_event_table` read and write pandas event (or
   span) tables, keeping duplicate rows as separate events (#70, pandas part).
+- Temporal backbone scores, descriptive (no p-values), for any of the three
+  forms (events and spans are binned with ``freq=``). Each returns one static
+  graph, the union of the observed edges with score attributes and
+  ``H.graph["temporal"]`` (method, input form, step times, ``n_steps``,
+  ``freq``, ``origin``, parameters), so ``threshold_filter`` and the other
+  filters apply. They count only an edge's *eligible* steps, those in which
+  both endpoints are present: an absent edge is an observed zero there and
+  unknown elsewhere, so a node that joins late is not penalized (#67).
+
+  - :func:`~networkx_backbone.observation_fraction`: ``obs_fraction``,
+    ``n_obs``, ``n_eligible``, ``first_obs``, ``last_obs``; ``weight=`` and
+    ``min_weight=`` count only heavier observations (#68).
+  - :func:`~networkx_backbone.persistence`: ``max_run``, ``mean_run``,
+    ``n_runs`` and ``persistence``, the share of observed steps whose next
+    eligible step is also observed; ``ineligible="break"`` lets unknown steps
+    end a run (#68).
+  - :func:`~networkx_backbone.backbone_stability`: runs any static method
+    (``disparity_filter``, ``lans_filter``, ...) on every step with the same
+    cut and adds ``stability`` (``n_kept / n_eligible``), ``n_kept``,
+    ``n_eligible``, ``first_kept``, ``last_kept``. The cut's attribute comes
+    from the new ``describe.SCORE_KEYS`` registry (#69).
+  - :func:`~networkx_backbone.weight_trend` (needs numpy): ``weight_mean``,
+    ``weight_std``, ``weight_cv``, ``weight_slope`` per step (and
+    ``weight_slope_time`` per unit of numeric time), with an optional,
+    descriptive slope p-value (SciPy) (#69).
+
+  All but ``weight_trend`` work with NetworkX alone. ``describe_backbone``
+  describes them, including the number of steps and the binning. New tutorial:
+  :doc:`tutorials/temporal_backbones`; :ref:`temporal-eligibility` explains
+  the eligible steps.
 
 *Reporting and documentation*
 
