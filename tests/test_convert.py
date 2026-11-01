@@ -8,6 +8,20 @@ import networkx_backbone as nb
 
 sp = pytest.importorskip("scipy.sparse")
 
+
+def _nx_type(G):
+    """``type(G)``, mapping a backend's graph subclass to its NetworkX class.
+
+    Under ``NETWORKX_TEST_BACKEND=nx_loopback`` with NetworkX 3.4, the
+    NetworkX constructors that ``to_graph`` calls return the loopback
+    backend's subclass of ``nx.Graph``/``nx.DiGraph``.
+    """
+    cls = type(G)
+    if getattr(cls, "__networkx_backend__", "networkx") != "networkx":
+        cls = cls.__base__
+    return cls
+
+
 # Scorers whose output does not depend on node or edge insertion order (see
 # ``order_invariant`` in tests/test_api_contract.py), so a graph rebuilt from
 # its adjacency matrix must give bit-identical scores.  ``h_backbone`` is left
@@ -92,7 +106,7 @@ def _matrices(G):
 def test_to_graph_round_trips_adjacency(les_mis, kind):
     A = _matrices(les_mis)[kind]
     G = nb.to_graph(A, nodelist=list(les_mis))
-    assert type(G) is nx.Graph
+    assert _nx_type(G) is nx.Graph
     assert list(G) == list(les_mis)
     assert dict(G.edges) == dict(les_mis.edges)
 
@@ -115,7 +129,7 @@ def test_to_graph_directed():
     A = np.array([[0, 1, 0], [3, 0, 2], [0, 0, 0]])
     for M in (A, sp.csr_array(A)):
         D = nb.to_graph(M, directed=True, nodelist="xyz")
-        assert type(D) is nx.DiGraph
+        assert _nx_type(D) is nx.DiGraph
         assert sorted(D.edges(data="weight")) == [
             ("x", "y", 1),
             ("y", "x", 3),
@@ -216,7 +230,7 @@ def test_to_graph_edgelist_column_names(pd):
 def test_to_graph_directed_edgelist(pd):
     df = pd.DataFrame({"source": [1, 2], "target": [2, 1], "weight": [1.0, 5.0]})
     D = nb.to_graph(df, directed=True)
-    assert type(D) is nx.DiGraph
+    assert _nx_type(D) is nx.DiGraph
     assert D[2][1]["weight"] == 5.0
     with pytest.raises(ValueError, match=r"1 duplicate row.*node pair"):
         nb.to_graph(df)

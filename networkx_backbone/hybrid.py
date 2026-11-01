@@ -16,12 +16,14 @@ import math
 import networkx as nx
 from networkx.utils import not_implemented_for
 
+from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
 
 __all__ = ["glab_filter"]
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def glab_filter(G, weight="weight", c=0.5):
     r"""Compute GLAB (Globally and Locally Adaptive Backbone) p-values.
 
