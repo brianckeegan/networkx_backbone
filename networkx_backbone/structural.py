@@ -44,6 +44,7 @@ import warnings
 import networkx as nx
 from networkx.utils import not_implemented_for
 
+from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
 
 __all__ = [
@@ -117,19 +118,19 @@ def _check_weights(G, weight, func_name, sign=None):
 def _caller_stacklevel():
     """``warnings.warn`` stacklevel pointing at the user's call site.
 
-    Skips the NetworkX decorator (argmap) frames that wrap the public
-    function; their number differs between the first and later calls.
+    Skips the NetworkX decorator (argmap) and backend-dispatch frames that
+    wrap the public function; their number differs between the first and
+    later calls.
     """
     import sys
 
-    decorators_file = nx.utils.decorators.__file__
+    nx_files = {nx.utils.decorators.__file__, nx.utils.backends.__file__}
     # Frame 0 is this helper and frame 1 the public function, which is
     # stacklevel 1 for its ``warnings.warn`` call; frame 2 is stacklevel 2.
     frame = sys._getframe(2)
     level = 2
     while frame is not None and (
-        frame.f_code.co_filename == decorators_file
-        or "argmap" in frame.f_code.co_filename
+        frame.f_code.co_filename in nx_files or "argmap" in frame.f_code.co_filename
     ):
         frame = frame.f_back
         level += 1
@@ -164,6 +165,7 @@ def _mark_kept_edges(H, keep_edges, attr):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def global_threshold_filter(G, threshold, weight="weight"):
     """Score edges against a global weight threshold.
 
@@ -220,6 +222,7 @@ def global_threshold_filter(G, threshold, weight="weight"):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def strongest_n_ties(G, n=1, weight="weight"):
     """Score edges by strongest-*n* membership per node.
 
@@ -290,6 +293,7 @@ def strongest_n_ties(G, n=1, weight="weight"):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def global_sparsification(G, s=0.5, weight="weight"):
     """Score edges by global top-fraction membership.
 
@@ -370,6 +374,7 @@ def global_sparsification(G, s=0.5, weight="weight"):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def primary_linkage_analysis(G, weight="weight"):
     """Score edges by primary-linkage membership.
 
@@ -447,6 +452,7 @@ def primary_linkage_analysis(G, weight="weight"):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def edge_betweenness_filter(G, s=0.5, weight="weight"):
     """Score edges by edge betweenness and top-fraction membership.
 
@@ -530,6 +536,7 @@ def edge_betweenness_filter(G, s=0.5, weight="weight"):
 
 
 @not_implemented_for("multigraph")
+@_dispatchable
 def node_degree_filter(G, min_degree=1):
     """Score nodes and edges by a minimum node-degree criterion.
 
@@ -588,6 +595,7 @@ def node_degree_filter(G, min_degree=1):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def high_salience_skeleton(G, weight="weight"):
     """Compute edge salience from shortest-path tree participation.
 
@@ -681,6 +689,7 @@ def high_salience_skeleton(G, weight="weight"):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def metric_backbone(G, weight="weight"):
     """Extract the metric backbone using sum-of-distances shortest paths.
 
@@ -735,6 +744,7 @@ def metric_backbone(G, weight="weight"):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def ultrametric_backbone(G, weight="weight"):
     """Extract the ultrametric backbone using max-distance (minimax) paths.
 
@@ -836,6 +846,7 @@ def _distance_backbone(G, weight="weight", ultrametric=False):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def doubly_stochastic_filter(
     G, weight="weight", max_iter=1000, tol=1e-8, smoothing=0.0
 ):
@@ -1169,6 +1180,7 @@ def _mark_ds_connectivity_stage(H, tol):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def h_backbone(G, weight="weight"):
     r"""Extract the h-backbone of a weighted graph.
 
@@ -1267,6 +1279,7 @@ def h_backbone(G, weight="weight"):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def modularity_backbone(G, weight="weight", seed=None):
     """Compute the modularity vitality index for each node.
 
@@ -1352,6 +1365,7 @@ def modularity_backbone(G, weight="weight", seed=None):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def planar_maximally_filtered_graph(G, weight="weight"):
     """Construct the Planar Maximally Filtered Graph (PMFG).
 
@@ -1426,6 +1440,7 @@ def planar_maximally_filtered_graph(G, weight="weight"):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable(edge_attrs="weight")
 def maximum_spanning_tree_backbone(G, weight="weight"):
     """Extract the maximum spanning tree as a backbone.
 

@@ -3,11 +3,18 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import os
 import sys
 import tomllib
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path
+
+# As in NetworkX's own docs build: render dispatchable functions as the plain
+# functions they wrap, without the ``backend=None, **backend_kwargs`` keywords
+# the dispatcher adds (docs/user_guide/backends.rst documents those).  Must be
+# set before NetworkX is imported.
+os.environ["_NETWORKX_BUILDING_DOCS_"] = "True"
 
 # Ensure local package imports resolve during docs builds.
 ROOT = Path(__file__).resolve().parents[1]
