@@ -137,8 +137,8 @@ Correctness gaps found in review
   projection methods against Coscia & Neffke (2017).
 - **done** (`#58 <https://github.com/brianckeegan/networkx_backbone/issues/58>`_): The signed ``lans_filter`` lower tail is now
   ``#{weights < w} / k``, the mirror image of the upper tail, as in R. Its
-  two-sided p-values equal R's; only the sign of an exact tie differs (#59).
-  Les Misérables: 0 -> 86 negative links (R: 126, 40 of them ties).
+  two-sided p-values equal R's, and since #59 so do the signs of exact ties.
+  Les Misérables: 0 -> 126 negative links, as in R (40 of them ties).
 - **next** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` breaks weight ties by
   adjacency order, so ``G`` and ``G.copy()`` can give different backbones.
   Make the result independent of node order.

@@ -314,13 +314,16 @@ def _signed_pvalues(p_hi, p_lo):
 
     ``sign`` is ``+1`` for a significantly strong (over-represented)
     co-occurrence and ``-1`` for a significantly weak (under-represented) one.
+    As in R ``backbone`` 3.0.4 (``.retain``), it is ``+1`` only when
+    ``upper < lower``, so an exact tie ``upper == lower`` is ``-1``; this is
+    the rule of ``_combine_tails`` in ``statistical.py``.
     """
     import numpy as np
 
     p_hi = np.clip(np.asarray(p_hi, dtype=float), 0.0, 1.0)
     p_lo = np.clip(np.asarray(p_lo, dtype=float), 0.0, 1.0)
     pval = np.minimum(1.0, 2.0 * np.minimum(p_hi, p_lo))
-    sign = np.where(p_hi <= p_lo, 1, -1)
+    sign = np.where(p_hi < p_lo, 1, -1)
     return pval, sign
 
 
@@ -2228,8 +2231,8 @@ def backbone_from_projection(
     ``missing_as_zero = FALSE``) counts only co-occurring pairs, so its
     correction is less strict when some pairs never meet.  Likewise, with
     ``signed=True`` a pair that never co-occurs can be significantly weak here
-    but is never tested by R.  When both tails are exactly equal R signs the
-    pair ``-1`` and networkx-backbone ``+1``.
+    but is never tested by R.  When both tails are exactly equal the pair is
+    signed ``-1``, as in R.
 
     Examples
     --------

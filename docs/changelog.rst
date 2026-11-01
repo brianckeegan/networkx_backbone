@@ -203,11 +203,28 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   ``backbone`` 3.0.4. It was the empirical CDF ``#{weights <= w} / k``, which
   counts the link itself and is never below ``1 / k``, so a link could be
   significantly weak only at a node of degree above 40 (at alpha = 0.05). The
-  two-sided p-values now equal R's; R signs an exact tie upper == lower
-  ``-1`` and ``lans_filter`` ``+1``. The one-tailed ``lans_pvalue`` is
+  two-sided p-values now equal R's. The one-tailed ``lans_pvalue`` is
   unchanged. Les Misérables signed backbone at alpha = 0.05: 108 positive / 0
   negative -> 108 positive / 86 negative (R: 68 / 126, the difference being
-  40 ties); karate: 45 / 0 -> 45 / 25 (#58).
+  40 ties, whose sign the next entry matches); karate: 45 / 0 -> 45 / 25
+  (#58).
+- Signed backbones sign an edge whose upper and lower tail p-values are
+  exactly equal ``-1``, as R ``backbone`` 3.0.4 does (its ``.retain`` takes
+  ``upper < lower`` as positive, in both its weighted and bipartite models);
+  it was ``+1``. The rule is the same for every signed scorer
+  (``disparity_filter``, ``marginal_likelihood_filter``, ``lans_filter``,
+  ``ecm_filter``, ``noise_corrected_filter``, ``sdsm``, ``fdsm``,
+  ``fixedfill``, ``fixedrow``, ``fixedcol`` and the ``backbone_from_*``
+  wrappers). Two-sided p-values do not change. Only LANS ties are
+  significant on the reference data, so only LANS backbones change, and its
+  signed backbones now equal R's for every ``mtc``: Les Misérables at
+  alpha = 0.05, 108 positive / 86 negative -> 68 / 126; karate, 45 / 25 ->
+  30 / 40. In every other model a tie needs both tails of at least 0.5
+  (two-sided p-value 1), so only the ``sign`` attribute of untestable or
+  non-significant edges changes, for example ECM self-loops, edges between
+  two degree-1 nodes under the disparity filter, and 4 Davis ``fixedrow``
+  pairs. ``noise_corrected_filter`` signs by the statistic, so only a score
+  of exactly 0 is a tie (#59).
 - ``bicm``/``sdsm``: the BiCM is now actually fitted rather than
   approximated with Chung-Lu, and p-values use exact Poisson-binomial tails
   (or RNA). SDSM-EC refits on the free cells. Davis: 3 -> 0 pairs.

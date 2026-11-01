@@ -782,6 +782,23 @@ class TestSignedProjections:
             (u, v): d["sign"] for u, v, d in b.edges(data=True)
         }
 
+    @pytest.mark.parametrize("model", ["fixedrow", "fdsm"])
+    def test_tied_tails_are_signed_negative(self, model):
+        # Agent a uses every artifact, so its co-occurrence with any agent is
+        # that agent's degree under the null as well: both tails are exactly
+        # 1 (fdsm: every sample is >= and <= the observed count).  A tie
+        # upper == lower is signed -1, as in R backbone (#59).
+        B = nx.Graph()
+        B.add_nodes_from("abc", bipartite=0)
+        B.add_nodes_from([1, 2, 3, 4], bipartite=1)
+        B.add_edges_from([("a", 1), ("a", 2), ("a", 3), ("a", 4)])
+        B.add_edges_from([("b", 1), ("b", 2), ("c", 3)])
+        kw = {"trials": 50, "seed": 1} if model == "fdsm" else {}
+        H = getattr(nb, model)(B, "abc", alpha=np.inf, signed=True, **kw)
+        for other in "bc":
+            assert H["a"][other][f"{model}_pvalue"] == 1.0
+            assert H["a"][other]["sign"] == -1
+
 
 class TestSDSMEdgeConstraints:
     def test_constraints_change_null(
