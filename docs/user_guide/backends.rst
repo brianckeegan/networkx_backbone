@@ -21,8 +21,8 @@ dispatchable, as NetworkX's own algorithms are:
   ``h_backbone``, ``maximum_spanning_tree_backbone``, ...);
 - proximity scores, ``glab_filter``, and the unweighted sparsifiers
   (``sparsify``, ``lspar``, ``local_degree``);
-- ``multigraph_to_weighted``, ``threshold_filter``, ``fraction_filter``, and
-  ``boolean_filter``.
+- ``multigraph_to_weighted``, ``threshold_filter``, ``fraction_filter``,
+  ``boolean_filter``, and ``transform_weights``.
 
 These functions accept the ``backend=`` keyword and follow
 ``nx.config.backend_priority``. They are registered under the dispatch name

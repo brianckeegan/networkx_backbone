@@ -61,6 +61,16 @@ backbone can contain pairs that interact significantly less than expected
 (Backbone 3.0's ``missing_as_zero``).  The result then has one edge per tested
 node pair, which takes :math:`O(n^2)` memory.
 
+Each null model assumes something about the weights.  The disparity filter
+assumes that a node's weight shares are uniform spacings, which holds for
+independent exponential weights; ``disparity_filter(a=...)`` relaxes this to
+a one-parameter family whose ``a`` can be fitted (``a="ml"``).  The marginal
+likelihood, ECM, and noise-corrected filters treat weights as counts of
+events, so their results depend on the unit, which ``unit=`` sets.
+:func:`~networkx_backbone.transform_weights` applies a log, power, or other
+transform before scoring.  :doc:`user_guide/weight_transforms` lists which
+methods a rescaling or an increasing transform leaves unchanged.
+
 Structural methods
 ^^^^^^^^^^^^^^^^^^
 

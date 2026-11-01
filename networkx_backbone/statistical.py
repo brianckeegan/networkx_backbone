@@ -74,6 +74,39 @@ def _validate_weights(G, weight):
             )
 
 
+def _validate_unit(unit):
+    """Check the ``unit=`` argument of the count-based scorers."""
+    try:
+        ok = not isinstance(unit, bool) and 0 < unit < math.inf
+    except TypeError:
+        ok = False
+    if not ok:
+        raise ValueError(f"unit must be a finite number > 0, got {unit!r}.")
+
+
+def _as_count(w, unit):
+    """Weight *w* in counts of *unit*; the weight itself when ``unit == 1``."""
+    return w if unit == 1 else w / unit
+
+
+def _warn_non_integer_counts(G, weight, unit, func_name, consequence):
+    """Warn once if some ``weight / unit`` is not an integer (to within 1e-9)."""
+    bad = [
+        n
+        for n in (_as_count(d[weight], unit) for _, _, d in G.edges(data=True))
+        if abs(n - round(n)) > 1e-9
+    ]
+    if bad:
+        warnings.warn(
+            f"{func_name}: {len(bad)} of {G.number_of_edges()} weights are not "
+            f"integer counts in units of unit={unit!r} (for example "
+            f"{bad[0]:g}); {consequence} Set unit= to the weight of one "
+            "count.",
+            UserWarning,
+            stacklevel=_external_stacklevel(),
+        )
+
+
 def _combine_tails(p_hi, p_lo, z=None):
     """Combine upper/lower-tail p-values into a two-sided p-value and a sign.
 
@@ -201,6 +234,7 @@ def disparity_filter(
     weight: str = "weight",
     signed: bool = False,
     missing_as_zero: bool = False,
+    a: float | str = 1.0,
 ) -> nx.Graph:
     r"""Compute disparity filter p-values for each edge.
 
@@ -213,6 +247,10 @@ def disparity_filter(
     probability of observing a normalized weight >= p_uv is::
 
         alpha_uv = (1.0 - p_uv) ** (k_u - 1)
+
+    With ``a != 1`` the uniform null is generalized to a symmetric Dirichlet
+    null with concentration :math:`1/a` (see Notes); ``a=1`` is the filter
+    of [1]_.
 
     For an undirected edge the p-value is the *minimum* of the values
     computed from each endpoint.  For a directed edge (u, v) the test is run
@@ -236,6 +274,14 @@ def disparity_filter(
         in the R backbone package (version 3.0).  Tested pairs are added to
         the result as edges with ``weight`` 0.  Meant for ``signed=True``;
         see Notes.
+    a : float or "ml", optional (default=1.0)
+        Heterogeneity parameter of the null model, ``a > 0``.  Under the
+        null a node's weight shares follow a symmetric Dirichlet
+        distribution with concentration :math:`1/a`.  ``a=1`` is the
+        uniform null of [1]_ and is computed in pure Python; other values
+        need SciPy.  Values above 1 tolerate more heterogeneous weights than
+        the uniform null.  ``"ml"`` fits *a* by maximum likelihood and
+        stores it in ``H.graph["disparity_a"]`` (see Notes).
 
     Returns
     -------
@@ -243,6 +289,9 @@ def disparity_filter(
         A copy of *G* (same type) with ``"disparity_pvalue"`` added as an
         edge attribute (and ``"sign"`` when ``signed=True``).  With
         ``missing_as_zero=True`` it also has the tested weight-0 edges.
+        With ``a="ml"``, ``H.graph["disparity_a"]`` holds the estimate of
+        *a* (``nan`` if no endpoint has degree above 1, in which case every
+        p-value is 1).
 
     Raises
     ------
@@ -251,16 +300,22 @@ def disparity_filter(
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
         :func:`~networkx_backbone.multigraph_to_weighted`.
+    ValueError
+        If *a* is not ``"ml"`` or a finite number greater than 0.
 
     Warns
     -----
     RuntimeWarning
-        If ``missing_as_zero=True`` would add more than one million edges.
+        If ``missing_as_zero=True`` would add more than one million edges,
+        or if the maximum-likelihood estimate of *a* lies at the edge of the
+        search interval :math:`[10^{-4}, 10^{4}]`.
 
     See Also
     --------
     threshold_filter : Keep edges whose p-value is below a threshold.
     marginal_likelihood_filter : Null model that uses both endpoints jointly.
+    polya_filter : Integer-weight urn null whose large-strength limit is this
+        filter with the same *a*.
 
     Notes
     -----
@@ -269,6 +324,63 @@ def disparity_filter(
     ``signed=True`` it contributes 1 to both tails, so an edge between two
     degree-1 nodes has equal tails; as in R, an edge whose upper and lower
     tails are equal is signed ``-1``.
+
+    **Generalized null** (``a != 1``).  The uniform null of [1]_ places the
+    :math:`k - 1` cut points of a node's strength uniformly at random, so a
+    single share :math:`x = w / s` is Beta(1, *k* - 1) distributed.  With
+    :math:`c = 1/a`, the shares are instead taken to be symmetric Dirichlet
+    with concentration *c*, so a single share is Beta(:math:`c`,
+    :math:`(k-1)c`) and the upper-tail p-value is the regularized incomplete
+    beta function
+
+    .. math::
+
+        P(X \geq x) = I_{1 - x}\big((k - 1)c,\; c\big),
+
+    which equals :math:`(1 - x)^{k - 1}` at ``a=1``.  Equivalently, the
+    node's weights are independent Gamma(:math:`c`, :math:`\theta`)
+    variables conditioned on their sum, the node's strength; :math:`\theta`
+    cancels, so the p-values still depend only on the shares and do not
+    change when all weights are multiplied by a constant.  Exponential
+    weights (:math:`c = 1`) give the uniform null.  Only this symmetric
+    family is offered: links of the same node are exchangeable under the
+    null, so every share has mean :math:`1/k`.
+
+    The beta-binomial null of :func:`~networkx_backbone.polya_filter`
+    (Eq. (1) of Marcaccioli & Livan, 2019, with shape parameters
+    :math:`1/a` and :math:`(k-1)/a`) converges to this Beta distribution
+    when the strength *s* grows with the share *w/s* held fixed, so these
+    p-values are the large-strength limit of ``polya_filter``'s exact
+    p-values with the same *a* (the tests check this numerically).  At
+    ``a=1`` they also equal the approximation ``polya_filter`` uses for
+    non-integer weights (its Eq. (6)); for other *a* that approximation
+    differs from the Beta tail unless :math:`wk/(sa)` is large.
+
+    **Fitting a** (``a="ml"``).  The concentration *c* maximizes the
+    composite log-likelihood of the symmetric Dirichlet over the share
+    profile of every node with degree :math:`k_i \geq 2`,
+
+    .. math::
+
+        \ell(c) = \sum_i \Big[\ln\Gamma(k_i c) - k_i \ln\Gamma(c)
+        + (c - 1) \sum_j \ln \frac{w_{ij}}{s_i}\Big],
+
+    which is concave in *c*; the root of its derivative is found with
+    Brent's method, and ``H.graph["disparity_a"]`` is :math:`1/\hat c`.
+    For a directed graph the sum runs over the out-link profiles and the
+    in-link profiles, the two profiles each edge is tested against.
+    Weight-0 pairs added by ``missing_as_zero=True`` are not used.  The
+    estimate uses the same weights it then tests; with one parameter fitted
+    to many links the per-endpoint p-values stay close to uniform in
+    simulations (``tests/test_calibration.py``), but the backbone is no
+    longer a fixed-*a* test, so report the estimate with the result.
+
+    **Combining the endpoints.**  Each endpoint test is calibrated under
+    its null model, but the edge p-value is the smaller of the two
+    endpoint p-values, so the share of edges below a threshold
+    :math:`\alpha` is larger than :math:`\alpha` even when the null model
+    holds: about 0.08 at :math:`\alpha = 0.05` on 8-regular graphs with
+    independent exponential weights (``tests/test_calibration.py``).
 
     **Comparison with R backbone.**  The one-tailed p-values equal R
     ``backbone::disparity`` and netbone ``disparity``.  For ``signed=True`` R
@@ -306,9 +418,26 @@ def disparity_filter(
     >>> G = nx.les_miserables_graph()
     >>> H = disparity_filter(G)
     >>> backbone = threshold_filter(H, "disparity_pvalue", 0.05, mode="below")
-    >>> backbone.number_of_edges() <= H.number_of_edges()
-    True
+    >>> backbone.number_of_edges()
+    9
+
+    Fitting *a* shows that Les Misérables' weight shares are more even than
+    the uniform null expects (:math:`\hat a < 1`), which keeps more edges:
+
+    >>> H = disparity_filter(G, a="ml")
+    >>> round(H.graph["disparity_a"], 3)
+    0.525
+    >>> threshold_filter(H, "disparity_pvalue", 0.05).number_of_edges()
+    19
     """
+    if a != "ml":
+        try:
+            ok = not isinstance(a, bool | str) and 0.0 < float(a) < math.inf
+        except (TypeError, ValueError):
+            ok = False
+        if not ok:
+            raise ValueError(f"a must be 'ml' or a finite number > 0, got {a!r}.")
+
     H = G.copy()
     _validate_weights(H, weight)
 
@@ -321,9 +450,32 @@ def disparity_filter(
         s_out = s_in = dict(G.degree(weight=weight))
         k_out = k_in = dict(G.degree())
 
+    if a == "ml":
+        a_value = _disparity_ml_a(G, weight)
+        H.graph["disparity_a"] = a_value
+    else:
+        a_value = float(a)
+    if a_value == 1.0:
+        node_tails = _disparity_node_tails
+    else:
+        tests = set()
+        for u, v, data in G.edges(data=True):
+            tests.add((data[weight], s_out[u], k_out[u]))
+            tests.add((data[weight], s_in[v], k_in[v]))
+        table = _disparity_beta_tails(tests, 1.0 / a_value)
+
+        def node_tails(w, s, k):
+            return table[(w, s, k)]
+
     def tails(u, v, w):
-        hi_u, lo_u = _disparity_node_tails(w, s_out[u], k_out[u])
-        hi_v, lo_v = _disparity_node_tails(w, s_in[v], k_in[v])
+        if w == 0:
+            # missing_as_zero: from an endpoint of degree >= 2 a share of 0
+            # has upper tail 1 and lower tail 0 for every a.
+            hi_u, lo_u = (1.0, 1.0) if k_out[u] <= 1 else (1.0, 0.0)
+            hi_v, lo_v = (1.0, 1.0) if k_in[v] <= 1 else (1.0, 0.0)
+            return min(hi_u, hi_v), min(lo_u, lo_v)
+        hi_u, lo_u = node_tails(w, s_out[u], k_out[u])
+        hi_v, lo_v = node_tails(w, s_in[v], k_in[v])
         # OR rule: strong/weak if significant from either endpoint.
         return min(hi_u, hi_v), min(lo_u, lo_v)
 
@@ -358,6 +510,91 @@ def _disparity_node_tails(w, s, k):
     return p_hi, max(1.0 - p_hi, 0.0)
 
 
+def _disparity_beta_tails(tests, c):
+    """Upper and lower Beta(c, (k-1)c) tails for every ``(w, s, k)`` test.
+
+    Returns ``{(w, s, k): (p_hi, p_lo)}``; endpoints of degree at most 1 get
+    ``(1.0, 1.0)``.  One vectorized ``betainc`` call covers all tests.
+    """
+    table = {t: (1.0, 1.0) for t in tests if t[2] <= 1}
+    todo = [t for t in tests if t[2] > 1]
+    if not todo:
+        return table
+    import numpy as np
+    from scipy.special import betainc
+
+    w, s, k = (np.array(col, dtype=float) for col in zip(*todo))
+    x = np.minimum(w / s, 1.0)
+    p_hi = betainc((k - 1.0) * c, c, 1.0 - x)
+    p_lo = betainc(c, (k - 1.0) * c, x)
+    for t, hi, lo in zip(todo, p_hi.tolist(), p_lo.tolist()):
+        table[t] = (min(max(hi, 0.0), 1.0), min(max(lo, 0.0), 1.0))
+    return table
+
+
+def _disparity_profiles(G, weight):
+    """``(k, sum_j log(w_j / s))`` for every share profile with ``k >= 2``.
+
+    An undirected node's profile holds the weights of its links (a self-loop
+    twice, as in ``G.degree``); a directed graph contributes the out-link
+    profile and the in-link profile of every node.
+    """
+    profiles = {}
+    for u, v, d in G.edges(data=True):
+        w = d[weight]
+        profiles.setdefault(("out", u), []).append(w)
+        side = "in" if G.is_directed() else "out"
+        profiles.setdefault((side, v), []).append(w)
+    rows = []
+    for ws in profiles.values():
+        if len(ws) < 2:
+            continue
+        log_s = math.log(math.fsum(ws))
+        rows.append((len(ws), math.fsum(math.log(w) - log_s for w in ws)))
+    return rows
+
+
+# Search interval of the maximum-likelihood a (and of c = 1/a).
+_DISPARITY_A_BOUNDS = (1e-4, 1e4)
+
+
+def _disparity_ml_a(G, weight):
+    """Maximum-likelihood *a* of the symmetric Dirichlet share null.
+
+    Maximizes the composite log-likelihood over every share profile with at
+    least two links (see the Notes of :func:`disparity_filter`).  Returns
+    ``nan`` when there is no such profile.
+    """
+    rows = _disparity_profiles(G, weight)
+    if not rows:
+        return math.nan
+    import numpy as np
+    from scipy.optimize import brentq
+    from scipy.special import digamma
+
+    k, log_shares = (np.array(col, dtype=float) for col in zip(*rows))
+
+    def score(t):
+        # d ell / dc at c = exp(t); decreasing in c because ell is concave.
+        c = math.exp(t)
+        return float(np.sum(k * (digamma(k * c) - digamma(c)) + log_shares))
+
+    lo, hi = (math.log(b) for b in _DISPARITY_A_BOUNDS)
+    if score(hi) >= 0.0 or score(lo) <= 0.0:
+        # The maximum is at c >= 1e4 (shares at least as even as 1/k) or at
+        # c <= 1e-4; use the bound.
+        c = math.exp(hi) if score(hi) >= 0.0 else math.exp(lo)
+        warnings.warn(
+            "disparity_filter: the maximum-likelihood a is at the edge of the "
+            f"search interval [{_DISPARITY_A_BOUNDS[0]:g}, "
+            f"{_DISPARITY_A_BOUNDS[1]:g}]; using a = {1.0 / c:g}.",
+            RuntimeWarning,
+            stacklevel=_external_stacklevel(),
+        )
+        return 1.0 / c
+    return 1.0 / math.exp(brentq(score, lo, hi, xtol=1e-12, rtol=1e-12))
+
+
 # =====================================================================
 # 2. Noise-corrected filter -- Coscia & Neffke (2017)
 # =====================================================================
@@ -371,6 +608,7 @@ def noise_corrected_filter(
     method: str = "bayesian",
     signed: bool = False,
     missing_as_zero: bool = False,
+    unit: float = 1,
 ) -> nx.Graph:
     r"""Compute noise-corrected (NC) edge scores (Coscia & Neffke, 2017).
 
@@ -430,6 +668,10 @@ def noise_corrected_filter(
         ``missing_as_zero=TRUE`` in the R backbone package (version 3.0),
         which has no noise-corrected model.  Meant for ``signed=True``;
         see Notes.
+    unit : float, optional (default=1)
+        Weight of one count: the model is applied to the counts
+        ``weight / unit``.  The p-values depend on it (see Notes); the
+        default uses the weights themselves as counts.
 
     Returns
     -------
@@ -446,10 +688,14 @@ def noise_corrected_filter(
     NetworkXNotImplemented
         If *G* is a multigraph.
     ValueError
-        If *method* is not ``"bayesian"`` or ``"zscore"``.
+        If *method* is not ``"bayesian"`` or ``"zscore"``, or *unit* is not
+        a finite number greater than 0.
 
     Warns
     -----
+    UserWarning
+        If a count ``weight / unit`` is not an integer.  The counts are used
+        as they are, not rounded.
     RuntimeWarning
         If ``missing_as_zero=True`` would add more than one million edges.
 
@@ -507,6 +753,15 @@ def noise_corrected_filter(
     (a self-loop is a single diagonal entry, counted once).  The score is
     symmetric in *i* and *j*.
 
+    **Count unit.**  The model counts unit interactions: :math:`n_{..}` is
+    a number of binomial trials.  With ``unit=u`` every :math:`n_{ij}` is
+    ``weight / u``, so the same network recorded in other units (for example
+    minutes instead of hours) gives different p-values; on Les Misérables,
+    ``unit=0.1`` (each weight counted as ten interactions) keeps 222 edges
+    at ``nc_pvalue < 0.05`` instead of 195.  Choose the weight of one
+    observed event.  The Bayesian ``nc_score`` does not depend on the unit;
+    ``nc_sdev`` does.
+
     **Legacy z-score.**  ``method="zscore"`` returns
     :math:`z = (w - W p) / \sqrt{W p (1 - p)}` with
     :math:`p = s_u s_v / W^2`, where *W* counts each undirected edge once but
@@ -553,6 +808,7 @@ def noise_corrected_filter(
     """
     if method not in ("bayesian", "zscore"):
         raise ValueError(f"method must be 'bayesian' or 'zscore', got {method!r}")
+    _validate_unit(unit)
 
     H = G.copy()
     _validate_weights(H, weight)
@@ -560,10 +816,17 @@ def noise_corrected_filter(
     if G.number_of_edges() == 0:
         return H
 
+    _warn_non_integer_counts(
+        G,
+        weight,
+        unit,
+        "noise_corrected_filter",
+        "the model treats weights as counts, so its results depend on unit.",
+    )
     dyads = _absent_dyads(G, "noise_corrected_filter") if missing_as_zero else []
 
     if method == "zscore":
-        _noise_corrected_zscore(G, H, weight, signed, dyads)
+        _noise_corrected_zscore(G, H, weight, signed, dyads, unit)
         return H
 
     # Row and column sums of the (symmetric, for undirected graphs) weight
@@ -572,7 +835,7 @@ def noise_corrected_filter(
     s_in: dict[Hashable, float] = {}
     total = 0.0
     for u, v, d in G.edges(data=True):
-        w = d[weight]
+        w = _as_count(d[weight], unit)
         s_out[u] = s_out.get(u, 0.0) + w
         s_in[v] = s_in.get(v, 0.0) + w
         total += w
@@ -593,7 +856,7 @@ def noise_corrected_filter(
         return (*_normal_tails(z), {"nc_score": score, "nc_sdev": sdev}, z)
 
     for u, v, data in H.edges(data=True):
-        p_hi, p_lo, extra, z = tails(data[weight], s_out[u], s_in[v])
+        p_hi, p_lo, extra, z = tails(_as_count(data[weight], unit), s_out[u], s_in[v])
         data.update(extra)
         if signed:
             data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo, z)
@@ -644,18 +907,22 @@ def _normal_tails(z):
     return 0.5 * math.erfc(z / math.sqrt(2.0)), 0.5 * math.erfc(-z / math.sqrt(2.0))
 
 
-def _noise_corrected_zscore(G, H, weight, signed, dyads):
+def _noise_corrected_zscore(G, H, weight, signed, dyads, unit=1):
     """Legacy binomial z-score (networkx-backbone <= 0.2), written into *H*.
 
-    *dyads* are absent pairs to score as weight-0 edges (``missing_as_zero``).
+    *dyads* are absent pairs to score as weight-0 edges (``missing_as_zero``);
+    weights are divided by *unit*.
     """
-    W = sum(d[weight] for _, _, d in G.edges(data=True))
+    W = sum(_as_count(d[weight], unit) for _, _, d in G.edges(data=True))
     if G.is_directed():
         s_out = dict(G.out_degree(weight=weight))
         s_in = dict(G.in_degree(weight=weight))
     else:
         s_out = dict(G.degree(weight=weight))
         s_in = s_out
+    if unit != 1:
+        s_out = {node: s / unit for node, s in s_out.items()}
+        s_in = {node: s / unit for node, s in s_in.items()}
 
     def tails(w, s_u, s_v):
         p_ij = (s_u * s_v) / (W * W)
@@ -667,7 +934,7 @@ def _noise_corrected_zscore(G, H, weight, signed, dyads):
         return (*_normal_tails(z), {"nc_score": z}, z)
 
     for u, v, data in H.edges(data=True):
-        p_hi, p_lo, extra, z = tails(data[weight], s_out[u], s_in[v])
+        p_hi, p_lo, extra, z = tails(_as_count(data[weight], unit), s_out[u], s_in[v])
         data.update(extra)
         if signed:
             data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo, z)
@@ -695,6 +962,7 @@ def marginal_likelihood_filter(
     weight: str = "weight",
     signed: bool = False,
     missing_as_zero: bool = False,
+    unit: float = 1,
 ) -> nx.Graph:
     r"""Compute marginal likelihood p-values for each edge.
 
@@ -716,8 +984,8 @@ def marginal_likelihood_filter(
     Parameters
     ----------
     G : networkx.Graph or networkx.DiGraph
-        A NetworkX graph.  Weights are rounded to the nearest integer, so the
-        method is meant for count data.
+        A NetworkX graph.  The counts ``weight / unit`` are rounded to the
+        nearest integer, so the method is meant for count data.
     weight : string, optional (default="weight")
         Edge attribute key for weights.  All weights must be positive.
     signed : bool, optional (default=False)
@@ -729,6 +997,10 @@ def marginal_likelihood_filter(
         in the R backbone package (version 3.0).  Tested pairs are added to
         the result as edges with ``weight`` 0.  Meant for ``signed=True``;
         see Notes.
+    unit : float, optional (default=1)
+        Weight of one unit edge: the model is applied to the counts
+        ``round(weight / unit)``.  The p-values depend on it (see Notes);
+        the default uses the weights themselves as counts.
 
     Returns
     -------
@@ -742,9 +1014,15 @@ def marginal_likelihood_filter(
         If any edge has a non-positive, non-finite, or missing weight.
     NetworkXNotImplemented
         If *G* is a multigraph.
+    ValueError
+        If *unit* is not a finite number greater than 0.
 
     Warns
     -----
+    UserWarning
+        If a count ``weight / unit`` is not an integer, so that rounding
+        changes it.  A count below 0.5 rounds to 0: the edge then adds
+        nothing to *T* or the strengths and gets p-value 1.
     RuntimeWarning
         If ``missing_as_zero=True`` would add more than one million edges.
 
@@ -758,6 +1036,14 @@ def marginal_likelihood_filter(
     The p-values, one-tailed and signed, equal R ``backbone::mlf`` and netbone's
     marginal likelihood filter on Les Misérables and karate
     (``tests/test_reference_implementations.py``).
+
+    **Count unit.**  [1]_ assumes positive integer weights, each a number of
+    unit edges.  The counts are ``round(weight / unit)``, so p-values change
+    with the unit the weights are recorded in: on Les Misérables,
+    ``unit=0.1`` (each weight counted as ten unit edges) keeps 215 edges at
+    ``ml_pvalue < 0.05`` instead of 126.  Choose the weight of one observed
+    event.  With ``unit=u`` the result for weights ``u * n`` equals the
+    result for integer weights *n*.
 
     **Absent pairs** (``missing_as_zero=True``).  *T* and the strengths are
     computed from the existing edges only, so the null model of every
@@ -787,18 +1073,27 @@ def marginal_likelihood_filter(
     """
     from scipy import stats as sp_stats
 
+    _validate_unit(unit)
     H = G.copy()
     _validate_weights(H, weight)
 
     if G.number_of_edges() == 0:
         return H
 
+    _warn_non_integer_counts(
+        G,
+        weight,
+        unit,
+        "marginal_likelihood_filter",
+        "they are rounded to the nearest integer, and a count below 0.5 "
+        "becomes 0 (p-value 1).",
+    )
     # Strengths of the rounded (integer) weights.
     s_out: dict[Hashable, int] = {}
     s_in: dict[Hashable, int] = {}
     T = 0
     for u, v, d in G.edges(data=True):
-        w = round(d[weight])
+        w = round(_as_count(d[weight], unit))
         T += w
         s_out[u] = s_out.get(u, 0) + w
         s_in[v] = s_in.get(v, 0) + w
@@ -819,7 +1114,7 @@ def marginal_likelihood_filter(
         return 1.0, 1.0
 
     for u, v, data in H.edges(data=True):
-        p_hi, p_lo = tails(u, v, round(data[weight]))
+        p_hi, p_lo = tails(u, v, round(_as_count(data[weight], unit)))
         if signed:
             data["ml_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
         else:
@@ -847,6 +1142,7 @@ def ecm_filter(
     tol: float = 1e-6,
     signed: bool = False,
     missing_as_zero: bool = False,
+    unit: float = 1,
 ) -> nx.Graph:
     r"""Compute ECM (Enhanced Configuration Model) p-values.
 
@@ -873,8 +1169,8 @@ def ecm_filter(
     Parameters
     ----------
     G : networkx.Graph or networkx.DiGraph
-        A NetworkX graph.  Weights are rounded to the nearest integer, so the
-        method is meant for count data.
+        A NetworkX graph.  The counts ``weight / unit`` are rounded to the
+        nearest integer (at least 1), so the method is meant for count data.
     weight : string, optional (default="weight")
         Edge attribute key for weights.  All weights must be positive.
     max_iter : int, optional (default=1000)
@@ -893,6 +1189,10 @@ def ecm_filter(
         result as edges with ``weight`` 0.  This mirrors
         ``missing_as_zero=TRUE`` in the R backbone package (version 3.0),
         which has no ECM model.  Meant for ``signed=True``; see Notes.
+    unit : float, optional (default=1)
+        Weight of one count: the model is applied to the counts
+        ``max(round(weight / unit), 1)``.  The p-values depend on it (see
+        Notes); the default uses the weights themselves as counts.
 
     Returns
     -------
@@ -907,9 +1207,15 @@ def ecm_filter(
         If any edge has a non-positive, non-finite, or missing weight.
     NetworkXNotImplemented
         If *G* is a multigraph.
+    ValueError
+        If *unit* is not a finite number greater than 0.
 
     Warns
     -----
+    UserWarning
+        If a count ``weight / unit`` is not an integer, so that rounding
+        changes it.  A count below 1.5 becomes 1, since every existing link
+        has weight at least 1 in the ECM.
     RuntimeWarning
         If the solver does not reproduce the degree and strength sequences to
         within ``tol``, or if ``missing_as_zero=True`` would add more than
@@ -924,6 +1230,13 @@ def ecm_filter(
     Self-loops are ignored when fitting the null model and get a p-value
     of 1; with ``signed=True`` both of their tails are 1, a tie, so their
     ``sign`` is -1 (see :func:`lans_filter` for the tie rule).
+
+    **Count unit.**  [1]_ assumes integer weights.  The counts are
+    ``max(round(weight / unit), 1)``, so p-values change with the unit the
+    weights are recorded in: on Les Misérables, ``unit=0.1`` keeps 89 edges
+    at ``ecm_pvalue < 0.05`` instead of 72.  Choose the weight of one
+    observed event.  With ``unit=u`` the result for weights ``u * n``
+    equals the result for integer weights *n*.
 
     Nodes with the same degree and strength (for directed graphs, the same
     out- and in-degree and strength) have the same multipliers, so the
@@ -972,6 +1285,7 @@ def ecm_filter(
     """
     import numpy as np
 
+    _validate_unit(unit)
     H = G.copy()
     _validate_weights(H, weight)
 
@@ -985,6 +1299,13 @@ def ecm_filter(
                 data["ecm_pvalue"] = 1.0
         return H
 
+    _warn_non_integer_counts(
+        G,
+        weight,
+        unit,
+        "ecm_filter",
+        "they are rounded to the nearest integer, and a count below 1.5 becomes 1.",
+    )
     dyads = _absent_dyads(G, "ecm_filter") if missing_as_zero else []
     idx = {v: i for i, v in enumerate(nodes)}
     k_out = np.zeros(n)
@@ -994,7 +1315,7 @@ def ecm_filter(
     for u, v, d in G.edges(data=True):
         if u == v:
             continue
-        w = max(round(d[weight]), 1)
+        w = max(round(_as_count(d[weight], unit)), 1)
         i, j = idx[u], idx[v]
         k_out[i] += 1
         s_out[i] += w
@@ -1046,7 +1367,8 @@ def ecm_filter(
             else:
                 data["ecm_pvalue"] = 1.0
             continue
-        p_hi, p_lo = tails(idx[u], idx[v], max(round(data[weight]), 1))
+        count = max(round(_as_count(data[weight], unit)), 1)
+        p_hi, p_lo = tails(idx[u], idx[v], count)
         if signed:
             data["ecm_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
         else:
@@ -2565,10 +2887,11 @@ def disparity(
     weight: str = "weight",
     signed: bool = False,
     missing_as_zero: bool = False,
+    a: float | str = 1.0,
 ) -> nx.Graph:
     """Alias for :func:`disparity_filter`."""
     return disparity_filter(
-        G, weight=weight, signed=signed, missing_as_zero=missing_as_zero
+        G, weight=weight, signed=signed, missing_as_zero=missing_as_zero, a=a
     )
 
 
@@ -2577,10 +2900,11 @@ def mlf(
     weight: str = "weight",
     signed: bool = False,
     missing_as_zero: bool = False,
+    unit: float = 1,
 ) -> nx.Graph:
     """Alias for :func:`marginal_likelihood_filter`."""
     return marginal_likelihood_filter(
-        G, weight=weight, signed=signed, missing_as_zero=missing_as_zero
+        G, weight=weight, signed=signed, missing_as_zero=missing_as_zero, unit=unit
     )
 
 
@@ -2598,7 +2922,11 @@ _COMPLEXITY = {
     "disparity_filter": {
         "time": "O(n + m)",
         "space": "O(n + m)",
-        "notes": "n=|V|, m=|E|. missing_as_zero=True adds O(n^2) time and space.",
+        "notes": (
+            "n=|V|, m=|E|. a != 1 adds one incomplete beta function per "
+            "distinct endpoint test; a='ml' adds O(n) per likelihood "
+            "evaluation. missing_as_zero=True adds O(n^2) time and space."
+        ),
     },
     "noise_corrected_filter": {
         "time": "O(n + m)",
