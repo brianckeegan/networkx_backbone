@@ -11,6 +11,11 @@
     "environment_type": "virtualenv",
     "install_timeout": 600,
     "show_commit_url": "https://github.com/brianckeegan/networkx_backbone/commit/",
+    // Build only networkx-backbone's wheel; the default also builds the
+    // dependencies' wheels, and asv then cannot tell which one to install.
+    "build_command": [
+        "python -m pip wheel --no-deps -w {build_cache_dir} {build_dir}"
+    ],
     "matrix": {
         "req": {
             "networkx": [""],
