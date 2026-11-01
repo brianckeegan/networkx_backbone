@@ -40,6 +40,14 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
   citations for a backbone, in text, Markdown, or BibTeX; the counterpart of
   Backbone 3.0's ``narrative`` (#23). It is backed by one method-to-BibTeX
   registry that covers every public scorer, and a test enforces that coverage.
+- New :func:`~networkx_backbone.gloss_filter`, the GloSS filter of Radicchi,
+  Ramasco & Fortunato (2011). It tests each edge weight against a global null
+  model that keeps the topology and draws weights from the network's own
+  weight distribution, conditioning on both endpoints' degrees and strengths,
+  and adds ``gloss_pvalue``. The p-values of the paper's Eq. (4) are computed
+  exactly (integer weights) by direct convolution, stable at any degree;
+  directed graphs use out- and in-degrees and strengths. Les Misérables: 3
+  edges at alpha = 0.05 (#43).
 - Added ``CITATION.cff``.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
@@ -78,6 +86,14 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
   hyperbolic weight, :math:`1/d(z)`, is unchanged and follows Coscia & Rossi
   (2019). Projection citations are corrected to Coscia & Rossi (2019,
   arXiv:1906.09081) (#13).
+- New :func:`~networkx_backbone.polya_filter`: the Pólya urn filter of
+  Marcaccioli & Livan (2019), adding ``polya_pvalue``. The null model is the
+  beta-binomial urn of Eqs. (1)-(2), tested from both endpoints (out- and
+  in-links for directed graphs). By default the reinforcement parameter ``a``
+  is the maximum-likelihood estimate of the paper's Supplementary Note 5,
+  stored in ``H.graph["polya_a"]``; non-integer weights use the paper's
+  large-strength approximation, Eq. (6). Les Misérables: ``a`` = 0.340 and
+  12 edges at ``polya_pvalue < 0.05`` (#42).
 - ``glab_filter`` now supports directed graphs using the out- and
   in-involvement of Zhang et al. (2014), Section 2.3 (#12). On a symmetric
   ``DiGraph`` it gives the undirected p-values.
@@ -131,6 +147,9 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - ``multiple_linkage_analysis`` now fits each node's sorted weights to ideal
   dominance distributions by default (``method="dominance"``; Van Nuffel,
   2007, after Weaver, 1954) and adds ``mla_rank``. The previous LANS
+  threshold is ``method="lans"``. Les Misérables: 109 ->
+  223 edges (#10; the exact deviation measure is still to be checked against
+  the 2007 paper).
   threshold, which netbone uses, is ``method="lans"``. The fit is the
   coefficient of determination over the zero-padded profile, as restated by
   Van Nuffel, Derudder & Witlox (2010), whose Table 1 the tests reproduce; a
@@ -215,6 +234,18 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   0.36 s); MDL ``"node"`` optimizer with a lazy heap (m = 2000: 8.3 s ->
   0.47 s); vectorized SVC p-values.
 
+- ``ecm_filter`` fits the ECM over classes of nodes with the same degree and
+  strength (out- and in-degree and strength for directed graphs), which is
+  exact. Pair sums are computed in chunks, and the dense Newton polish is
+  replaced by damped Newton steps (Newton-CG for large problems). On a
+  2,000-node Barabási-Albert graph the fit drops from about 90 s and 600 MB
+  to under 2 s and 50 MB; 20,000 nodes take about 16 s and 300 MB (about
+  90 s for a directed version, which has 10,660 classes). The fit
+  now also converges on directed graphs where the old solver stopped short,
+  and nodes whose links all have weight 1 get the exact :math:`y_i = 0`.
+  P-values on Les Misérables agree with the old solver to about 1e-8
+  (#21).
+
 **Infrastructure and documentation**
 
 - Docstrings are validated by the Sphinx build and by a new ``numpydoc lint``
@@ -227,6 +258,25 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 - An asv benchmark suite in ``benchmarks/`` covers the statistical, bipartite,
   MDL and SVH/SVC hypergraph, and shortest-path methods. It comes with a
   ``benchmark`` extra and a manually triggered Benchmarks workflow (#22).
+- Cross-implementation reference tests (``tests/test_reference_implementations.py``)
+  compare p-values and backbones with R ``backbone`` 3.0.4 and netbone 0.2.3
+  on Les Misérables, the karate club, and Davis Southern Women, using JSON
+  fixtures written by ``scripts/make_reference_fixtures.R`` and
+  ``scripts/make_netbone_fixtures.py`` (no R or netbone needed to run them).
+  Disparity, MLF, LANS (one-tailed), BiCM, SDSM (RNA), fixed fill, fixed row,
+  ``p.adjust``, local degree, metric and ultrametric backbones match exactly.
+  SDSM on Davis finds no significant pair at alpha = 0.05 in R either
+  (smallest p-value 0.097 in R, 0.088 here with the exact tail), and FDSM finds
+  the same 5 pairs. Documented differences: signed disparity and LANS lower
+  tails, ``lspar`` conventions, ``global`` threshold strictness, ``mtc``
+  counting non-co-occurring pairs, R's logistic-regression SDSM-EC fit, and
+  netbone's noise-corrected total, GLAB
+  and salience tie handling, h-bridge, and MLA. R's ``fdsm`` default draws
+  samples with too few curveball trades on Davis, which biases its p-values
+  upward by up to about 0.03 (#14).
+- The ``multiple_linkage_analysis`` documentation no longer says
+  ``method="lans"`` reproduces netbone: netbone 0.2.3's ``mlam`` is a
+  correlation-based fit that neither method reproduces (#14).
 
 - CI on every push and pull request: ruff lint and format checks, tests and
   doctests on Python 3.12-3.14, a job pinned to the oldest supported

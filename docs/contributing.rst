@@ -69,6 +69,46 @@ tests pin the edge count each case keeps, and the docs build renders the table
 from it. When a method's count changes on purpose, update ``EXPECTED_EDGES`` in
 ``tests/test_les_miserables.py``; the docs follow automatically.
 
+Reference implementations
+-------------------------
+
+``tests/test_reference_implementations.py`` compares p-values and backbones
+with R `backbone <https://cran.r-project.org/package=backbone>`_ and
+`netbone <https://gitlab.liris.cnrs.fr/coregraphie/netbone>`_ on Les
+Misérables, the karate club, and Davis Southern Women.  It reads JSON
+fixtures in ``tests/fixtures/``, so neither R nor netbone is needed to run
+the tests, and CI does not install them.  Where networkx-backbone
+intentionally differs from a reference, the test checks the documented
+relationship and the method's docstring Notes explain the difference.
+
+Regenerate the fixtures when a reference implementation releases a new
+version, or when you add a comparison.  Both generators read the same
+CSV files, which are exported from the datasets that ship with NetworkX::
+
+    python scripts/export_reference_inputs.py   # tests/fixtures/reference_inputs/*.csv
+
+R ``backbone`` (3.0 or later; the fixture records the R and package
+versions used)::
+
+    Rscript -e 'install.packages(c("backbone", "jsonlite"))'
+    Rscript scripts/make_reference_fixtures.R   # tests/fixtures/r_backbone.json
+
+The R script seeds the random number generator, so FDSM results are
+reproducible for a given R and ``backbone`` version.
+
+netbone pins old dependencies (NumPy 1.26, NetworkX 2.8, SciPy 1.13, JAX
+0.4), so install it in its own Python 3.12 environment and run the script
+with that interpreter from the repository root::
+
+    python3.12 -m venv /tmp/netbone-env
+    /tmp/netbone-env/bin/pip install netbone==0.2.3
+    /tmp/netbone-env/bin/python -I scripts/make_netbone_fixtures.py   # tests/fixtures/netbone.json
+
+netbone's ECM solver is not bit-for-bit reproducible, so its p-values can
+change by about ``1e-5`` between runs; the test allows for that.  After
+regenerating, run the reference tests and review every change in the
+fixtures with ``git diff``.
+
 Building documentation
 -----------------------
 

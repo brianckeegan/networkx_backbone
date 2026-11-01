@@ -11,6 +11,7 @@ SCORERS = [
     "disparity_filter",
     "noise_corrected_filter",
     "marginal_likelihood_filter",
+    "ecm_filter",
     "lans_filter",
     "multiple_linkage_analysis",
 ]
@@ -33,18 +34,22 @@ class StatisticalScorers:
 
 
 class ECMFilter:
-    """``ecm_filter`` on a 500-node graph (1491 edges).
+    """``ecm_filter`` on a 20,000-node graph (59,991 edges).
 
-    The maximum-entropy fit is far costlier than the closed-form scorers: about
-    6 s at 500 nodes and over 100 s at 2000, too slow to repeat in a suite.
+    The fit runs over the 1,695 distinct (degree, strength) classes rather
+    than the nodes (#21).  Before that, the fit took over 100 s at 2,000
+    nodes; one sample is enough at this size.
     """
 
     timeout = 300
+    number = 1
+    repeat = 1
+    warmup_time = 0
 
     def setup(self):
         if not hasattr(nb, "ecm_filter"):
             raise NotImplementedError
-        self.G = weighted_graph(500)
+        self.G = weighted_graph(20000)
 
     def time_ecm_filter(self):
         nb.ecm_filter(self.G)

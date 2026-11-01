@@ -196,10 +196,23 @@ REFERENCES = _refs(
         "entropy", eprint="1706.00230",
     ),
     Reference(
+        "marcaccioli2019", "article", ("Marcaccioli, R.", "Livan, G."), 2019,
+        "A Pólya urn approach to information filtering in complex networks",
+        "Nature Communications", "10", pages="745",
+        doi="10.1038/s41467-019-08667-3",
+    ),
+    Reference(
         "foti2011", "article",
         ("Foti, N. J.", "Hughes, J. M.", "Rockmore, D. N."), 2011,
         "Nonparametric sparsification of complex multiscale networks",
         "PLoS ONE", "6", "2", "e16431", doi="10.1371/journal.pone.0016431",
+    ),
+    Reference(
+        "radicchi2011", "article",
+        ("Radicchi, F.", "Ramasco, J. J.", "Fortunato, S."), 2011,
+        "Information filtering in complex weighted networks",
+        "Physical Review E", "83", "4", "046101",
+        doi="10.1103/PhysRevE.83.046101",
     ),
     Reference(
         "vannuffel2007", "article", ("Van Nuffel, N.",), 2007,
@@ -531,6 +544,22 @@ METHODS = {
         "the node's sorted link weights to ideal distributions of one, two, "
         "three, ... equally strong links, and keeps those links",
         ("vannuffel2007", "vannuffel2010", "weaver1954", "yassin2023"),
+    ),
+    "polya_filter": Method(
+        "the Pólya filter",
+        "which tests each edge's weight against a null model in which each "
+        "node distributes its strength over its edges through a "
+        "self-reinforcing Pólya urn process (a beta-binomial distribution "
+        "with reinforcement parameter a)",
+        ("marcaccioli2019",), test=True,
+    ),
+    "gloss_filter": Method(
+        "the global statistical significance (GloSS) filter",
+        "which tests each edge's weight against a global null model that keeps "
+        "the topology fixed and draws every edge weight independently from the "
+        "network's empirical weight distribution, conditioning on the degrees "
+        "and strengths of the edge's endpoints",
+        ("radicchi2011",), test=True,
     ),
     # --- structural --------------------------------------------------------
     "global_threshold_filter": Method(
