@@ -199,6 +199,16 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   links.
 - ``lans_filter`` on directed graphs also tests the target's incoming links
   (#11, contributed by @bfs2021 in #34).
+- ``lans_filter(signed=True)``: the lower tail is now ``#{weights < w} / k``,
+  the mirror image of the upper tail ``#{weights > w} / k``, as in R
+  ``backbone`` 3.0.4. It was the empirical CDF ``#{weights <= w} / k``, which
+  counts the link itself and is never below ``1 / k``, so a link could be
+  significantly weak only at a node of degree above 40 (at alpha = 0.05). The
+  two-sided p-values now equal R's; R signs an exact tie upper == lower
+  ``-1`` and ``lans_filter`` ``+1``. The one-tailed ``lans_pvalue`` is
+  unchanged. Les Misérables signed backbone at alpha = 0.05: 108 positive / 0
+  negative -> 108 positive / 86 negative (R: 68 / 126, the difference being
+  40 ties); karate: 45 / 0 -> 45 / 25 (#58).
 - ``bicm``/``sdsm``: the BiCM is now actually fitted rather than
   approximated with Chung-Lu, and p-values use exact Poisson-binomial tails
   (or RNA). SDSM-EC refits on the free cells. Davis: 3 -> 0 pairs.
