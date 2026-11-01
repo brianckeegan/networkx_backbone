@@ -74,6 +74,19 @@ def _edge_key(G, u, v):
     return (u, v) if ku <= kv else (v, u)
 
 
+def _str_tie_key(G, u, v):
+    """Return the string form of an edge's endpoints for breaking ties.
+
+    For undirected graphs the pair is sorted, so the key does not depend on
+    the orientation in which the edge happens to be stored (which follows
+    node insertion order).
+    """
+    su, sv = str(u), str(v)
+    if G.is_directed() or su >= sv:
+        return (su, sv)
+    return (sv, su)
+
+
 def _check_weights(G, weight, func_name, sign=None):
     """Validate that every edge carries a numeric *weight*.
 
@@ -228,7 +241,8 @@ def strongest_n_ties(G, n=1, weight="weight"):
     """Score edges by strongest-*n* membership per node.
 
     For each node, select the *n* incident edges with the largest
-    *weight* value.  An edge is kept if *either* endpoint selects it
+    *weight* value, together with every edge tied with the *n*-th
+    largest.  An edge is kept if *either* endpoint selects it
     (OR semantics).  For directed graphs the selection is based on
     out-edges.
 
@@ -257,30 +271,45 @@ def strongest_n_ties(G, n=1, weight="weight"):
 
     Notes
     -----
-    Ties in weight are broken by neighbor iteration order, so exactly
-    *n* edges are selected per node (fewer if the node has fewer edges).
+    Ties are kept together: a node selects every edge whose weight is at
+    least its *n*-th largest weight, so it can select more than *n* edges
+    when several are tied at that cutoff (and selects all of its edges if
+    it has *n* or fewer).  No tie is broken, so the result depends only on
+    the weights and not on the order in which nodes or edges were added
+    (``G`` and ``G.copy()`` give the same backbone).  This is the rule
+    :func:`~networkx_backbone.lspar` and
+    :func:`~networkx_backbone.local_degree` use for ties at their per-node
+    cutoff.  On an unweighted graph every edge ties, so every edge is kept.
+
     Edges without a *weight* attribute count as weight 0.
 
     Examples
     --------
     >>> import networkx as nx
     >>> from networkx_backbone import boolean_filter, strongest_n_ties
-    >>> G = nx.les_miserables_graph()
+    >>> G = nx.Graph()
+    >>> G.add_weighted_edges_from([("a", "b", 3), ("a", "c", 2), ("a", "d", 2), ("c", "d", 1)])
     >>> H = strongest_n_ties(G, n=1)
-    >>> backbone = boolean_filter(H, "strongest_n_ties_keep")
-    >>> backbone.number_of_edges() <= H.number_of_edges()
-    True
+    >>> sorted(boolean_filter(H, "strongest_n_ties_keep").edges())
+    [('a', 'b'), ('a', 'c'), ('a', 'd')]
+
+    Node ``"a"`` keeps only ``("a", "b")``; ``"c"`` and ``"d"`` each keep
+    their edge to ``"a"``, the heavier of their two.  With ``n=2``, ``"a"``
+    keeps both of its weight-2 edges, which tie for second place.
     """
     if n < 1:
         raise ValueError("n must be >= 1")
 
     kept_edges = set()
     # G[u] holds the successors for directed graphs and the neighbors
-    # otherwise.  Sort on the weight only so that mixed-type node labels
-    # are never compared.
+    # otherwise.  Only weights are compared, so mixed-type node labels are
+    # never compared and adjacency order cannot affect the result.
     for u in G.nodes():
         nbrs = [(data.get(weight, 0), v) for v, data in G[u].items()]
-        for _, v in heapq.nlargest(n, nbrs, key=lambda x: x[0]):
+        if len(nbrs) > n:
+            cutoff = heapq.nlargest(n, (w for w, _ in nbrs))[-1]
+            nbrs = [(w, v) for w, v in nbrs if w >= cutoff]
+        for _, v in nbrs:
             kept_edges.add(_edge_key(G, u, v))
 
     H = G.copy()
@@ -333,7 +362,10 @@ def global_sparsification(G, s=0.5, weight="weight"):
     that baseline, score the edges with
     :func:`~networkx_backbone.jaccard_backbone` and pass
     ``weight="jaccard"``.  Ties are broken by the string form of the
-    endpoints; edges without a *weight* attribute count as weight 0.
+    endpoints, taken in sorted order for undirected graphs so the result
+    does not depend on how each edge is stored (which follows node
+    insertion order).  Edges without a *weight* attribute count as
+    weight 0.
 
     References
     ----------
@@ -361,7 +393,7 @@ def global_sparsification(G, s=0.5, weight="weight"):
     keep = max(1, math.ceil(s * m))
     ranked_edges = sorted(
         G.edges(data=True),
-        key=lambda x: (x[2].get(weight, 0.0), str(x[0]), str(x[1])),
+        key=lambda x: (x[2].get(weight, 0.0), *_str_tie_key(G, x[0], x[1])),
         reverse=True,
     )
     keep_edges = {_edge_key(G, u, v) for u, v, _ in ranked_edges[:keep]}
@@ -484,7 +516,10 @@ def edge_betweenness_filter(G, s=0.5, weight="weight"):
     Notes
     -----
     If no edge has a *weight* attribute, hop-count shortest paths are
-    used.  Edges with non-positive weight get infinite distance.
+    used.  Edges with non-positive weight get infinite distance.  The top
+    ``ceil(s * m)`` edges are kept; ties in betweenness are broken by the
+    string form of the endpoints, taken in sorted order for undirected
+    graphs so the result does not depend on how each edge is stored.
 
     References
     ----------
@@ -523,7 +558,7 @@ def edge_betweenness_filter(G, s=0.5, weight="weight"):
     keep = max(1, math.ceil(s * m)) if m > 0 else 0
     ranked_edges = sorted(
         scored.edges(data=True),
-        key=lambda x: (x[2]["edge_betweenness"], str(x[0]), str(x[1])),
+        key=lambda x: (x[2]["edge_betweenness"], *_str_tie_key(scored, x[0], x[1])),
         reverse=True,
     )
     keep_edges = {_edge_key(scored, u, v) for u, v, _ in ranked_edges[:keep]}
