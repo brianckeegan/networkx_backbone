@@ -65,6 +65,28 @@ spans no longer fit it (a time that is not a recorded snapshot time, or two
 edges of one node pair in one snapshot), it is ignored and the input is
 binned as usual.  The other directions aggregate and are lossy; each
 function's Notes say what is kept.
+
+**Temporal backbone scores.** :func:`~networkx_backbone.observation_fraction`,
+:func:`~networkx_backbone.persistence`,
+:func:`~networkx_backbone.backbone_stability` and
+:func:`~networkx_backbone.weight_trend` take any of the three forms (events
+and spans are binned first, with ``freq=``) and score every edge over the
+resulting steps.  An edge's **eligible** steps are those in which both of its
+endpoints are present.  In an eligible step an absent edge is an observed
+zero (weight 0); in any other step the edge is unknown and is not counted, so
+an edge whose endpoint joins late is scored only from the step it joins.
+Each scorer returns one static graph: the
+:func:`~networkx_backbone.flatten_temporal` of the steps (a
+:class:`~networkx.Graph`, or :class:`~networkx.DiGraph` for directed input,
+with every node of every step and its attributes from the latest step it is
+in), restricted to the observed edges, which carry their score attributes.
+``H.graph["temporal"]`` records the method, the
+input form, the step ``times``, ``n_steps``, ``freq``, ``origin`` and the
+parameters.  The usual filters then apply, as in
+``threshold_filter(H, "obs_fraction", 0.5, mode="above")``.  The scores are
+descriptive: they come without p-values.  All but
+:func:`~networkx_backbone.weight_trend` work with NetworkX alone (numpy, when
+installed, vectorizes them).
 """
 
 from __future__ import annotations
@@ -84,6 +106,8 @@ from networkx_backbone.convert import _is_dataframe
 from networkx_backbone.filters import multigraph_to_weighted
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import pandas as pd
 
     from networkx_backbone._typing import Frequency, Snapshots, TemporalNetwork
@@ -100,6 +124,10 @@ __all__ = [
     "spans_from_events",
     "from_event_table",
     "to_event_table",
+    "observation_fraction",
+    "persistence",
+    "backbone_stability",
+    "weight_trend",
 ]
 
 #: Graph attribute holding the snapshot record of a converted multigraph.
@@ -1779,6 +1807,1030 @@ def to_event_table(
     return pd.DataFrame(rows, columns=[source, target, *fixed, *order])
 
 
+# ---------------------------------------------------------------------------
+# Temporal backbone scores: shared machinery
+# ---------------------------------------------------------------------------
+#
+# Every scorer below works in three stages:
+#
+# 1. ``_steps`` normalizes any input form into T snapshots in time order (the
+#    conversions above do the binning), so presence is simply "the node is in
+#    the step's graph".
+# 2. ``_Table`` indexes the edges ever present and builds, over the T steps,
+#    a per-edge *present* mask, an *eligible* mask (both endpoints present)
+#    and, when asked, a weight series (0 where eligible but absent).  The masks
+#    are numpy boolean arrays when numpy is installed and lists of lists of
+#    bools otherwise; each scorer that has a pure-Python path implements both.
+# 3. ``_scored_graph`` builds the output from ``flatten_temporal`` of the
+#    steps: the union of observed edges with the score attributes, and
+#    ``H.graph["temporal"]``.
+
+
+def _numpy():
+    """numpy, or None when it is not installed."""
+    try:
+        import numpy as np
+    except ImportError:
+        return None
+    return np
+
+
+def _require_numpy(what):
+    np = _numpy()
+    if np is None:
+        raise ImportError(
+            f"{what} requires numpy; install it with `pip install numpy`."
+        )
+    return np
+
+
+class _Steps:
+    """A temporal network as T snapshots in time order.
+
+    ``times[k]`` is the time of step *k*, ``graphs[k]`` its snapshot and
+    ``presence[k]`` the nodes present in it: the snapshot's nodes, isolated
+    or not (after binning, the nodes with an event or span in the step).
+    """
+
+    def __init__(self, form, times, graphs, directed, freq, origin):
+        self.form = form
+        self.times = times
+        self.graphs = graphs
+        self.directed = directed
+        self.freq = freq
+        self.origin = origin
+
+    @property
+    def presence(self):
+        return [set(G) for G in self.graphs]
+
+
+def _steps(T, *, freq, origin, time, start, end, weight, aggregate):
+    """Normalize snapshots, events or spans into a :class:`_Steps`."""
+    form = temporal_form(T, time=time, start=start, end=end)
+    if form == "snapshots":
+        if freq is not None or origin is not None:
+            raise ValueError(
+                "freq= and origin= bin events and spans; snapshots are already "
+                "steps (pass a dict {time: graph} to give them times)."
+            )
+        items, _ = _snapshots(T)
+        directed = items[0][1].is_directed()
+    else:
+        convert = snapshots_from_events if form == "events" else snapshots_from_spans
+        names = {"time": time} if form == "events" else {"start": start, "end": end}
+        S = convert(
+            T, **names, freq=freq, origin=origin, weight=weight, aggregate=aggregate
+        )
+        items = list(S.items())
+        directed = T.is_directed()
+        if not items:
+            raise ValueError(f"The {form} input has no edges, so it has no steps.")
+    return _Steps(
+        form, [t for t, _ in items], [G for _, G in items], directed, freq, origin
+    )
+
+
+def _weight_value(d, weight, u, v, t):
+    """A numeric edge weight; a missing weight counts as 1."""
+    x = d.get(weight, 1)
+    if isinstance(x, bool) or not isinstance(x, Real) or x != x:
+        raise nx.NetworkXError(
+            f"Edge ({u!r}, {v!r}) at time {t!r} has a non-numeric or NaN "
+            f"{weight!r} attribute: {x!r}."
+        )
+    return float(x)
+
+
+class _Table:
+    """Per-edge masks and weight series over the T steps.
+
+    ``ends[j]`` is edge *j* as first seen; ``at[k]`` lists the edges present
+    in step *k*.  ``present`` and ``eligible`` are ``m x T`` boolean masks
+    (numpy arrays, or lists of lists without numpy); ``weights`` (only when
+    *weight* is given) holds each edge's weight in the steps it is present
+    and 0 elsewhere.
+    """
+
+    def __init__(
+        self, steps: _Steps, weight: str | None = None, use_numpy: bool = True
+    ) -> None:
+        self.steps = steps
+        self.np = _numpy() if use_numpy else None
+        graphs = steps.graphs
+        n_steps = len(graphs)
+        nodes: dict[Any, int] = {}
+        presence = [[nodes.setdefault(n, len(nodes)) for n in G] for G in graphs]
+        self.index: dict[Any, int] = {}
+        self.ends: list[tuple[Any, Any]] = []
+        self.at: list[list[int]] = []
+        wts: list[list[float]] = []
+        for k, G in enumerate(graphs):
+            js = []
+            ws = []
+            for u, v, d in G.edges(data=True):
+                key = _pair(u, v, steps.directed)
+                j = self.index.get(key)
+                if j is None:
+                    j = self.index[key] = len(self.ends)
+                    self.ends.append((u, v))
+                js.append(j)
+                if weight is not None:
+                    ws.append(_weight_value(d, weight, u, v, steps.times[k]))
+            self.at.append(js)
+            wts.append(ws)
+        m = len(self.ends)
+        ends = [(nodes[u], nodes[v]) for u, v in self.ends]
+        np = self.np
+        if np is not None:
+            P = np.zeros((len(nodes), n_steps), dtype=bool)
+            for k, idx in enumerate(presence):
+                P[idx, k] = True
+            uv = np.array(ends, dtype=np.intp).reshape(m, 2)
+            self.eligible = P[uv[:, 0]] & P[uv[:, 1]]
+            self.present = self.mask(self.at)
+            if weight is not None:
+                self.weights = np.zeros((m, n_steps))
+                for k, (js, ws) in enumerate(zip(self.at, wts)):
+                    self.weights[js, k] = ws
+        else:
+            sets = [set(idx) for idx in presence]
+            self.eligible = [[u in s and v in s for s in sets] for u, v in ends]
+            self.present = self.mask(self.at)
+            if weight is not None:
+                self.weights = [[0.0] * n_steps for _ in range(m)]
+                for k, (js, ws) in enumerate(zip(self.at, wts)):
+                    for j, w in zip(js, ws):
+                        self.weights[j][k] = w
+
+    def mask(self, at):
+        """An ``m x T`` mask that is True for the edges ``at[k]`` of step k."""
+        m, n_steps = len(self.ends), len(self.at)
+        if self.np is not None:
+            M = self.np.zeros((m, n_steps), dtype=bool)
+            for k, js in enumerate(at):
+                M[list(js), k] = True
+            return M
+        rows = [[False] * n_steps for _ in range(m)]
+        for k, js in enumerate(at):
+            for j in js:
+                rows[j][k] = True
+        return rows
+
+    def above(self, min_weight):
+        """The present mask restricted to weights above *min_weight*."""
+        if self.np is not None:
+            return self.present & (self.weights > min_weight)
+        return [
+            [p and w > min_weight for p, w in zip(prow, wrow)]
+            for prow, wrow in zip(self.present, self.weights)
+        ]
+
+
+def _counts(table, mask):
+    """Per edge: steps in *mask*, eligible steps, first and last mask step."""
+    np = table.np
+    if np is not None:
+        n = mask.sum(axis=1)
+        n_steps = mask.shape[1]
+        first = np.where(n > 0, mask.argmax(axis=1), -1)
+        last = np.where(n > 0, n_steps - 1 - mask[:, ::-1].argmax(axis=1), -1)
+        n_elig = table.eligible.sum(axis=1)
+        return n.tolist(), n_elig.tolist(), first.tolist(), last.tolist()
+    n, n_elig, first, last = [], [], [], []
+    for row, erow in zip(mask, table.eligible):
+        ks = [k for k, x in enumerate(row) if x]
+        n.append(len(ks))
+        n_elig.append(sum(erow))
+        first.append(ks[0] if ks else -1)
+        last.append(ks[-1] if ks else -1)
+    return n, n_elig, first, last
+
+
+def _runs(table, mask, skip):
+    """Per edge: number of runs, longest run, and the stay-active share.
+
+    A run is a maximal sequence of consecutive steps in *mask*.  With *skip*,
+    consecutive means consecutive among the edge's eligible steps (ineligible
+    steps are passed over); otherwise among all steps.
+    """
+    np = table.np
+    if np is not None:
+        m, n_steps = mask.shape
+        ks = np.arange(n_steps)
+        elig = table.eligible if skip else np.ones_like(mask)
+        # Index of each step's previous and next eligible step (-1 / T: none).
+        last = np.maximum.accumulate(np.where(elig, ks, -1), axis=1)
+        prev = np.concatenate([np.full((m, 1), -1), last[:, :-1]], axis=1)
+        later = np.where(elig, ks, n_steps)[:, ::-1]
+        first_after = np.minimum.accumulate(later, axis=1)[:, ::-1]
+        nxt = np.concatenate([first_after[:, 1:], np.full((m, 1), n_steps)], axis=1)
+        # Column T is always False, so index -1 and T both read "not in mask".
+        padded = np.concatenate([mask, np.zeros((m, 1), dtype=bool)], axis=1)
+        rows = np.arange(m)[:, None]
+        starts = mask & ~padded[rows, prev]
+        n_runs = starts.sum(axis=1)
+        stays = (mask & padded[rows, nxt]).sum(axis=1)
+        moves = (mask & (nxt < n_steps)).sum(axis=1)
+        run_of_cell = np.cumsum(starts.ravel()) - 1
+        lengths = np.bincount(run_of_cell[mask.ravel()], minlength=int(n_runs.sum()))
+        max_run = np.zeros(m, dtype=np.intp)
+        np.maximum.at(max_run, np.nonzero(starts)[0], lengths)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            share = np.where(moves > 0, stays / np.maximum(moves, 1), np.nan)
+        return n_runs.tolist(), max_run.tolist(), share.tolist()
+    n_runs, max_run, share = [], [], []
+    for row, erow in zip(mask, table.eligible):
+        seq = [x for x, e in zip(row, erow) if e or not skip]
+        runs, cur = [], 0
+        for x in seq:
+            if x:
+                cur += 1
+            elif cur:
+                runs.append(cur)
+                cur = 0
+        if cur:
+            runs.append(cur)
+        moves = sum(1 for x in seq[:-1] if x)
+        stays = sum(1 for a, b in pairwise(seq) if a and b)
+        n_runs.append(len(runs))
+        max_run.append(max(runs, default=0))
+        share.append(stays / moves if moves else float("nan"))
+    return n_runs, max_run, share
+
+
+def _scored_graph(table, keep, attrs, method, parameters, weight):
+    """The union of the edges *keep*, with their score attributes.
+
+    The union comes from :func:`flatten_temporal` of the steps, so nodes,
+    node and graph attributes, and each edge's summed *weight*, ``n_obs``,
+    ``first`` and ``last`` follow its conventions; edge *j* (``keep[j]``
+    true) then gets ``attrs[j]``, and the other edges are removed.
+    """
+    steps = table.steps
+    H = flatten_temporal(dict(zip(steps.times, steps.graphs)), weight=weight)
+    for j, (u, v) in enumerate(table.ends):
+        if keep[j]:
+            H.edges[u, v].update(attrs[j])
+        else:
+            H.remove_edge(u, v)
+    H.graph[RECORD] = {
+        "method": method,
+        "input_form": steps.form,
+        "times": list(steps.times),
+        "n_steps": len(steps.times),
+        "freq": steps.freq,
+        "origin": steps.origin,
+        "parameters": parameters,
+    }
+    return H
+
+
+def _time(steps, k):
+    return steps.times[k] if k >= 0 else None
+
+
+# ---------------------------------------------------------------------------
+# Temporal backbone scores: public API
+# ---------------------------------------------------------------------------
+
+
+def observation_fraction(
+    T: TemporalNetwork,
+    *,
+    weight: str | None = None,
+    min_weight: float = 0,
+    freq: Frequency | None = None,
+    origin: Any = None,
+    time: str = "time",
+    start: str = "start",
+    end: str = "end",
+    aggregate: str = "sum",
+) -> nx.Graph:
+    """Score each edge by the share of its eligible steps in which it is observed.
+
+    An edge's *eligible* steps are those in which both of its endpoints are
+    present.  In an eligible step the edge is either observed or an observed
+    zero; in the other steps it is unknown and not counted.
+
+    Parameters
+    ----------
+    T : dict, list, MultiGraph or MultiDiGraph
+        A temporal network: snapshots (a dict ``{time: graph}`` or a list of
+        graphs), or a multigraph of events or spans (see
+        :mod:`networkx_backbone.temporal`).
+    weight : str or None, optional (default=None)
+        If given, an edge counts as observed only when its *weight* is above
+        *min_weight* (a missing weight counts as 1).  ``None`` counts every
+        edge present in a step.
+    min_weight : float, optional (default=0)
+        The weight an observed edge must exceed when *weight* is given.
+    freq : number, timedelta, str or None, optional (default=None)
+        Step width for binning events or spans into snapshots, as in
+        :func:`snapshots_from_events`: a number for numeric times, a
+        :class:`datetime.timedelta` or a pandas frequency string such as
+        ``"1D"`` (pandas only) for datetimes.  ``None`` makes one step per
+        distinct time.  Snapshots are already steps, so *freq* must be
+        ``None`` for them.
+    origin : time or None, optional (default=None)
+        Start of the first bin (default: the earliest time); with *freq*
+        only.
+    time : str, optional (default="time")
+        Edge attribute holding an event's time.
+    start, end : str, optional (default="start", "end")
+        Edge attributes holding a span's start and end.
+    aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
+        How the weights of a node pair's events or spans in one bin combine
+        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+
+    Returns
+    -------
+    H : Graph or DiGraph
+        The union of the edges observed in any step, with the attributes
+        :func:`flatten_temporal` gives them over the steps (the summed
+        *weight*, ``n_obs``, ``first``, ``last``, and the attributes all
+        their observations share), plus
+
+        - ``obs_fraction``: ``n_obs / n_eligible``;
+        - ``n_obs``: the number of steps in which the edge is observed
+          (replacing the count of :func:`flatten_temporal`, which also
+          counts the steps where the weight is at most *min_weight*);
+        - ``n_eligible``: the number of steps in which both endpoints are
+          present;
+        - ``first_obs``, ``last_obs``: the times of the first and last
+          observation.
+
+        Nodes are every node present in any step, with their attributes from
+        the latest step they are in, and graph attributes come from the
+        latest step.  ``H.graph["temporal"]`` records the
+        method, the input form, the step times, ``n_steps``, *freq*,
+        *origin* and the parameters.
+
+    Raises
+    ------
+    NetworkXNotImplemented
+        If a snapshot is a multigraph.
+    NetworkXError
+        If *weight* is given and a weight is not numeric, or *T* is not a
+        temporal network.
+    ValueError
+        If *freq* or *origin* is given with snapshots, or the input has no
+        steps.
+
+    See Also
+    --------
+    persistence : Tell steady edges from intermittent ones.
+    threshold_filter : Keep the edges above a chosen fraction.
+
+    Notes
+    -----
+    A node is present in a snapshot if it is in that graph, isolated or not;
+    after binning events or spans, a node is present in a step only if it
+    has an event or span there.  So an edge whose endpoint joins late is
+    scored only on the steps after it joins.
+
+    Examples
+    --------
+    Node ``"c"`` joins at time 3, so the edge ``("b", "c")`` has two eligible
+    steps and is observed in both; ``("a", "b")`` is absent at time 4 while
+    both endpoints are present, an observed zero:
+
+    >>> import networkx as nx
+    >>> import networkx_backbone as nb
+    >>> S = {
+    ...     1: nx.Graph([("a", "b")]),
+    ...     2: nx.Graph([("a", "b")]),
+    ...     3: nx.Graph([("a", "b"), ("b", "c")]),
+    ...     4: nx.Graph([("b", "c"), ("a", "z")]),
+    ... }
+    >>> H = nb.observation_fraction(S)
+    >>> H["a"]["b"]  # doctest: +NORMALIZE_WHITESPACE
+    {'weight': 3, 'n_obs': 3, 'first': 1, 'last': 3, 'obs_fraction': 0.75,
+     'n_eligible': 4, 'first_obs': 1, 'last_obs': 3}
+    >>> H["b"]["c"]["obs_fraction"]
+    1.0
+    >>> B = nb.threshold_filter(H, "obs_fraction", 0.8, mode="above")
+    >>> sorted(tuple(sorted(e)) for e in B.edges)
+    [('a', 'z'), ('b', 'c')]
+    """
+    steps = _steps(
+        T,
+        freq=freq,
+        origin=origin,
+        time=time,
+        start=start,
+        end=end,
+        weight=weight or "weight",
+        aggregate=aggregate,
+    )
+    table = _Table(steps, weight)
+    observed = table.present if weight is None else table.above(min_weight)
+    n, n_elig, first, last = _counts(table, observed)
+    attrs = [
+        {
+            "obs_fraction": a / b,
+            "n_obs": a,
+            "n_eligible": b,
+            "first_obs": _time(steps, f),
+            "last_obs": _time(steps, z),
+        }
+        if a
+        else {}
+        for a, b, f, z in zip(n, n_elig, first, last)
+    ]
+    parameters = {"weight": weight, "min_weight": min_weight, "aggregate": aggregate}
+    return _scored_graph(
+        table, n, attrs, "observation_fraction", parameters, weight or "weight"
+    )
+
+
+def persistence(
+    T: TemporalNetwork,
+    *,
+    weight: str | None = None,
+    min_weight: float = 0,
+    ineligible: Literal["skip", "break"] = "skip",
+    freq: Frequency | None = None,
+    origin: Any = None,
+    time: str = "time",
+    start: str = "start",
+    end: str = "end",
+    aggregate: str = "sum",
+) -> nx.Graph:
+    """Score each edge by its runs of consecutive observed steps.
+
+    A run is a maximal sequence of consecutive eligible steps (both
+    endpoints present) in which the edge is observed.  An edge seen in steps
+    1-10 has one run of 10; an edge seen in 10 scattered steps has many short
+    runs, although both have the same :func:`observation_fraction`.
+
+    Parameters
+    ----------
+    T : dict, list, MultiGraph or MultiDiGraph
+        A temporal network: snapshots (a dict ``{time: graph}`` or a list of
+        graphs), or a multigraph of events or spans (see
+        :mod:`networkx_backbone.temporal`).
+    weight : str or None, optional (default=None)
+        If given, an edge counts as observed only when its *weight* is above
+        *min_weight* (a missing weight counts as 1).
+    min_weight : float, optional (default=0)
+        The weight an observed edge must exceed when *weight* is given.
+    ineligible : {"skip", "break"}, optional (default="skip")
+        How steps in which an endpoint is absent (unknown for the edge)
+        count.  ``"skip"`` passes over them: they neither break nor extend a
+        run, and a step's *next* step is the next eligible one.
+        ``"break"`` treats them as unobserved, so they end a run, and a
+        step's next step is simply the following step.
+    freq : number, timedelta, str or None, optional (default=None)
+        Step width for binning events or spans into snapshots, as in
+        :func:`snapshots_from_events`: a number for numeric times, a
+        :class:`datetime.timedelta` or a pandas frequency string such as
+        ``"1D"`` (pandas only) for datetimes.  ``None`` makes one step per
+        distinct time.  Snapshots are already steps, so *freq* must be
+        ``None`` for them.
+    origin : time or None, optional (default=None)
+        Start of the first bin (default: the earliest time); with *freq*
+        only.
+    time : str, optional (default="time")
+        Edge attribute holding an event's time.
+    start, end : str, optional (default="start", "end")
+        Edge attributes holding a span's start and end.
+    aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
+        How the weights of a node pair's events or spans in one bin combine
+        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+
+    Returns
+    -------
+    H : Graph or DiGraph
+        The union of the edges observed in any step, with the attributes
+        :func:`flatten_temporal` gives them over the steps (the summed
+        *weight*, ``n_obs``, ``first``, ``last``, and the attributes all
+        their observations share), plus
+
+        - ``max_run``: the length of the longest run, in steps;
+        - ``mean_run``: the mean run length;
+        - ``n_runs``: the number of runs;
+        - ``persistence``: the share of the edge's observed steps whose next
+          step is also observed, an empirical "stays active" probability.
+          Observed steps without a next step (the edge's last eligible step,
+          or the last step) are left out; ``persistence`` is NaN when no
+          observed step has a next step.
+
+        Nodes and ``H.graph["temporal"]`` are as in
+        :func:`observation_fraction`.
+
+    Raises
+    ------
+    NetworkXNotImplemented
+        If a snapshot is a multigraph.
+    NetworkXError
+        If *weight* is given and a weight is not numeric, or *T* is not a
+        temporal network.
+    ValueError
+        If *ineligible* is unknown, *freq* or *origin* is given with
+        snapshots, or the input has no steps.
+
+    See Also
+    --------
+    observation_fraction : How often, rather than how steadily.
+
+    Examples
+    --------
+    ``("a", "b")`` is observed, absent, and observed again; ``"c"`` is absent
+    at time 2, so ``("b", "c")`` is unknown there and its run is not broken:
+
+    >>> import networkx as nx
+    >>> import networkx_backbone as nb
+    >>> S = {
+    ...     1: nx.Graph([("a", "b"), ("b", "c")]),
+    ...     2: nx.Graph([("a", "b")]),
+    ...     3: nx.Graph([("b", "c"), ("a", "z")]),
+    ...     4: nx.Graph([("a", "b"), ("b", "c")]),
+    ... }
+    >>> H = nb.persistence(S)
+    >>> scores = ("max_run", "mean_run", "n_runs", "persistence")
+    >>> {a: H["a"]["b"][a] for a in scores}
+    {'max_run': 2, 'mean_run': 1.5, 'n_runs': 2, 'persistence': 0.5}
+    >>> {a: H["b"]["c"][a] for a in scores}
+    {'max_run': 3, 'mean_run': 3.0, 'n_runs': 1, 'persistence': 1.0}
+
+    With ``ineligible="break"`` the unknown step ends the run:
+
+    >>> nb.persistence(S, ineligible="break")["b"]["c"]["max_run"]
+    2
+    """
+    if ineligible not in ("skip", "break"):
+        raise ValueError(f"ineligible must be 'skip' or 'break'; got {ineligible!r}.")
+    steps = _steps(
+        T,
+        freq=freq,
+        origin=origin,
+        time=time,
+        start=start,
+        end=end,
+        weight=weight or "weight",
+        aggregate=aggregate,
+    )
+    table = _Table(steps, weight)
+    observed = table.present if weight is None else table.above(min_weight)
+    n = _counts(table, observed)[0]
+    n_runs, max_run, share = _runs(table, observed, ineligible == "skip")
+    attrs = [
+        {"max_run": r, "mean_run": a / k, "n_runs": k, "persistence": p} if a else {}
+        for a, k, r, p in zip(n, n_runs, max_run, share)
+    ]
+    parameters = {
+        "weight": weight,
+        "min_weight": min_weight,
+        "ineligible": ineligible,
+        "aggregate": aggregate,
+    }
+    return _scored_graph(table, n, attrs, "persistence", parameters, weight or "weight")
+
+
+def _resolve_scorer(method, key):
+    """``(name, function, score key)`` for a static backbone method."""
+    import networkx_backbone as nb
+    from networkx_backbone.describe import METHODS, SCORE_KEYS, _resolve
+
+    if isinstance(method, str):
+        name, entry = _resolve(method)
+        func = getattr(nb, name)
+    elif callable(method):
+        func = method
+        base = getattr(method, "func", method)  # look through functools.partial
+        name = getattr(base, "__name__", repr(method))
+        try:
+            name, entry = _resolve(name)
+        except ValueError:
+            entry = None
+    else:
+        raise TypeError(f"method must be a function or its name; got {method!r}.")
+    if entry is not None and entry.kind not in ("weighted", "unweighted"):
+        raise ValueError(
+            f"backbone_stability runs a static backbone method on each "
+            f"snapshot; {name!r} is a {entry.kind} method."
+        )
+    if key is None:
+        key = SCORE_KEYS.get(name)
+        if key is None:
+            known = "is not in" if name not in METHODS else "has no score key in"
+            raise ValueError(
+                f"{name!r} {known} the describe registry; pass key=, the edge "
+                "attribute to cut on (a p-value, a score or a *_keep flag)."
+            )
+    return name, func, key
+
+
+def backbone_stability(
+    T: TemporalNetwork,
+    method: str | Callable[..., nx.Graph],
+    *,
+    key: str | None = None,
+    threshold: float | None = None,
+    mode: Literal["below", "above"] | None = None,
+    mtc: str | None = None,
+    sign: Literal[1, -1] | None = 1,
+    freq: Frequency | None = None,
+    origin: Any = None,
+    time: str = "time",
+    start: str = "start",
+    end: str = "end",
+    aggregate: str = "sum",
+    **method_kwargs: Any,
+) -> nx.Graph:
+    """Score each edge by how often a static backbone keeps it across steps.
+
+    Runs a backbone method (any static scorer, such as
+    :func:`~networkx_backbone.disparity_filter`) on every snapshot, applies
+    the same cut in every step, and counts the steps in which each edge is
+    kept: a temporal consensus backbone.  Where
+    :func:`~networkx_backbone.consensus_backbone` intersects methods, this
+    aggregates one method over time.
+
+    Parameters
+    ----------
+    T : dict, list, MultiGraph or MultiDiGraph
+        A temporal network: snapshots (a dict ``{time: graph}`` or a list of
+        graphs), or a multigraph of events or spans (see
+        :mod:`networkx_backbone.temporal`).
+    method : str or callable
+        The backbone method, as a function or by name (``"disparity_filter"``
+        or an alias such as ``"disparity"``).  It is called as
+        ``method(G_t, **method_kwargs)`` on each snapshot.
+    key : str or None, optional (default=None)
+        The edge attribute to cut on.  ``None`` looks the method up in
+        ``networkx_backbone.describe.SCORE_KEYS`` (``"disparity_pvalue"``
+        for the disparity filter, ``"mst_keep"`` for the maximum spanning
+        tree, ...); a function outside the registry needs *key*.
+    threshold : float or None, optional (default=None)
+        The cut for a numeric *key*, applied with
+        :func:`~networkx_backbone.threshold_filter` in every step.  ``None``
+        means 0.05 for a p-value (a key ending in ``_pvalue``) and is an
+        error for other scores.  Not used with a ``*_keep`` flag, which is
+        applied with :func:`~networkx_backbone.boolean_filter`.
+    mode : {"below", "above"} or None, optional (default=None)
+        As in :func:`~networkx_backbone.threshold_filter`.  ``None`` means
+        ``"below"`` for a p-value and ``"above"`` for other scores.
+    mtc : str or None, optional (default=None)
+        Multiple-testing correction applied within each step (see
+        :func:`~networkx_backbone.adjust_pvalues`); p-values only.
+    sign : {1, -1} or None, optional (default=1)
+        For signed scorers (``signed=True``, which add a ``sign``
+        attribute): keep only the significantly strong (``1``) or weak
+        (``-1``) edges, or both (``None``).  Ignored for edges without a
+        ``sign`` attribute.
+    freq : number, timedelta, str or None, optional (default=None)
+        Step width for binning events or spans into snapshots, as in
+        :func:`snapshots_from_events`: a number for numeric times, a
+        :class:`datetime.timedelta` or a pandas frequency string such as
+        ``"1D"`` (pandas only) for datetimes.  ``None`` makes one step per
+        distinct time.  Snapshots are already steps, so *freq* must be
+        ``None`` for them.
+    origin : time or None, optional (default=None)
+        Start of the first bin (default: the earliest time); with *freq*
+        only.
+    time : str, optional (default="time")
+        Edge attribute holding an event's time.
+    start, end : str, optional (default="start", "end")
+        Edge attributes holding a span's start and end.
+    aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
+        How the weights of a node pair's events or spans in one bin combine
+        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+    **method_kwargs
+        Passed to *method* in every step.  A ``weight`` entry also names the
+        attribute that binning combines.
+
+    Returns
+    -------
+    H : Graph or DiGraph
+        The union of the edges present in any step, with the attributes
+        :func:`flatten_temporal` gives them over the steps (the summed
+        *weight*, ``n_obs``, ``first``, ``last``, and the attributes all
+        their observations share), plus
+
+        - ``stability``: ``n_kept / n_eligible``;
+        - ``n_kept``: the number of steps in which the backbone keeps the
+          edge;
+        - ``n_eligible``: the number of steps in which both endpoints are
+          present (an absent edge in such a step counts as not kept);
+        - ``first_kept``, ``last_kept``: the times of the first and last
+          step that keeps it (``None`` if none does).
+
+        Nodes and ``H.graph["temporal"]`` are as in
+        :func:`observation_fraction`.
+
+    Raises
+    ------
+    ValueError
+        If *method* is not a static weighted or unweighted method, *key* is
+        needed but not given, *threshold*, *mode* or *mtc* do not fit *key*,
+        *sign* is unknown or needs a signed scorer, *freq* or *origin* is
+        given with snapshots, or the input has no steps.
+    NetworkXError
+        If *method* gives an edge of a snapshot a NaN *key* (common on very
+        small snapshots), or gives no edge a *key*.
+    NetworkXNotImplemented
+        If a snapshot is a multigraph, or *method* does not support the
+        snapshots' graph type.
+
+    See Also
+    --------
+    consensus_backbone : Intersect the backbones of several methods.
+    observation_fraction : The same share for presence instead of the
+        backbone.
+
+    Notes
+    -----
+    Snapshots without edges are not scored.  Only edges present in a
+    snapshot can be kept in it, even if *method* scores absent pairs too.
+    An exception raised by *method* propagates with a note naming the
+    snapshot.  To pass *method* an argument named like one of this
+    function's own (``threshold`` of
+    :func:`~networkx_backbone.global_threshold_filter`, for example), bind
+    it with :func:`functools.partial`; the score key is still looked up.
+
+    Examples
+    --------
+    Keep the edges that the disparity filter (at ``alpha = 0.05``) keeps in
+    at least half of their eligible steps:
+
+    >>> import networkx as nx
+    >>> import networkx_backbone as nb
+    >>> G = nx.les_miserables_graph()
+    >>> S = {}
+    >>> for t in range(4):
+    ...     S[t] = G.copy()
+    ...     for i, (u, v, d) in enumerate(S[t].edges(data=True)):
+    ...         d["weight"] += (i + t) % 3  # a little noise in every step
+    >>> H = nb.backbone_stability(S, nb.disparity_filter, threshold=0.05)
+    >>> H["Valjean"]["Javert"]["n_eligible"]
+    4
+    >>> B = nb.threshold_filter(H, "stability", 0.5, mode="above")
+    >>> B.number_of_edges() < G.number_of_edges()
+    True
+    """
+    name, func, key = _resolve_scorer(method, key)
+    flag = key.endswith("_keep")
+    if flag:
+        if threshold is not None or mode is not None or mtc not in (None, "none"):
+            raise ValueError(
+                f"{key!r} is a keep flag; threshold=, mode= and mtc= do not apply."
+            )
+    pvalue = key.endswith("_pvalue")
+    if threshold is None and not flag and not pvalue:
+        raise ValueError(f"{key!r} is not a p-value; pass threshold= (and mode=).")
+    cut = 0.05 if threshold is None else threshold
+    side = mode or ("below" if pvalue else "above")
+    if sign not in (1, -1, None):
+        raise ValueError(f"sign must be 1, -1 or None; got {sign!r}.")
+    from networkx_backbone.filters import boolean_filter, threshold_filter
+
+    steps = _steps(
+        T,
+        freq=freq,
+        origin=origin,
+        time=time,
+        start=start,
+        end=end,
+        weight=method_kwargs.get("weight", "weight"),
+        aggregate=aggregate,
+    )
+    table = _Table(steps)
+    kept_at: list[list[int]] = []
+    for t, G in zip(steps.times, steps.graphs):
+        kept_at.append([])
+        if G.number_of_edges() == 0:
+            continue
+        try:
+            scored = func(G, **method_kwargs)
+        except Exception as err:
+            err.add_note(
+                f"Raised by {name} on the snapshot at time {t!r} "
+                f"({G.number_of_nodes()} nodes, {G.number_of_edges()} edges)."
+            )
+            raise
+        values = [d.get(key) for _, _, d in scored.edges(data=True)]
+        if not any(x is not None for x in values):
+            raise nx.NetworkXError(
+                f"{name} gave no edge a {key!r} attribute in the snapshot at "
+                f"time {t!r}; pass key=, the attribute to cut on."
+            )
+        if any(x != x for x in values if x is not None):
+            raise nx.NetworkXError(
+                f"{name} gave a NaN {key!r} in the snapshot at time {t!r} "
+                f"({G.number_of_nodes()} nodes, {G.number_of_edges()} edges); "
+                "the snapshot may be too small for the method."
+            )
+        signs = [d.get("sign") for _, _, d in scored.edges(data=True)]
+        if sign == -1 and all(s is None for s in signs):
+            raise ValueError(
+                f"sign=-1 keeps significantly weak edges, but {name} added no "
+                "sign attribute; pass signed=True if the method has it."
+            )
+        if flag:
+            kept = boolean_filter(scored, key)
+        else:
+            kept = threshold_filter(scored, key, cut, mode=side, mtc=mtc or "none")
+        for u, v, d in kept.edges(data=True):
+            if sign is not None and d.get("sign", sign) != sign:
+                continue
+            if G.has_edge(u, v):
+                kept_at[-1].append(table.index[_pair(u, v, steps.directed)])
+    n, n_elig, first, last = _counts(table, table.mask(kept_at))
+    attrs = [
+        {
+            "stability": a / b,
+            "n_kept": a,
+            "n_eligible": b,
+            "first_kept": _time(steps, f),
+            "last_kept": _time(steps, z),
+        }
+        for a, b, f, z in zip(n, n_elig, first, last)
+    ]
+    parameters = {
+        "method": name,
+        "key": key,
+        "threshold": None if flag else cut,
+        "mode": None if flag else side,
+        "mtc": mtc,
+        "sign": sign,
+        "aggregate": aggregate,
+        **method_kwargs,
+    }
+    keep = [True] * len(table.ends)
+    weight = method_kwargs.get("weight", "weight")
+    return _scored_graph(table, keep, attrs, "backbone_stability", parameters, weight)
+
+
+def weight_trend(
+    T: TemporalNetwork,
+    *,
+    weight: str = "weight",
+    pvalue: bool = False,
+    freq: Frequency | None = None,
+    origin: Any = None,
+    time: str = "time",
+    start: str = "start",
+    end: str = "end",
+    aggregate: str = "sum",
+) -> nx.Graph:
+    """Summarize each edge's weight series: level, variability and trend.
+
+    Each edge's series runs over its eligible steps (both endpoints present),
+    with weight 0 in the eligible steps in which the edge is absent.
+
+    Parameters
+    ----------
+    T : dict, list, MultiGraph or MultiDiGraph
+        A temporal network: snapshots (a dict ``{time: graph}`` or a list of
+        graphs), or a multigraph of events or spans (see
+        :mod:`networkx_backbone.temporal`).
+    weight : str, optional (default="weight")
+        Edge attribute holding the weight; a missing weight counts as 1.
+    pvalue : bool, optional (default=False)
+        Also report ``weight_slope_pvalue``, the two-sided p-value of the
+        ordinary least-squares t-test of the slope (needs SciPy).  It is
+        descriptive only: weights over time are autocorrelated, which the
+        test ignores, so the p-value is usually too small.
+    freq : number, timedelta, str or None, optional (default=None)
+        Step width for binning events or spans into snapshots, as in
+        :func:`snapshots_from_events`: a number for numeric times, a
+        :class:`datetime.timedelta` or a pandas frequency string such as
+        ``"1D"`` (pandas only) for datetimes.  ``None`` makes one step per
+        distinct time.  Snapshots are already steps, so *freq* must be
+        ``None`` for them.
+    origin : time or None, optional (default=None)
+        Start of the first bin (default: the earliest time); with *freq*
+        only.
+    time : str, optional (default="time")
+        Edge attribute holding an event's time.
+    start, end : str, optional (default="start", "end")
+        Edge attributes holding a span's start and end.
+    aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
+        How the weights of a node pair's events or spans in one bin combine
+        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+
+    Returns
+    -------
+    H : Graph or DiGraph
+        The union of the edges present in any step, with the attributes
+        :func:`flatten_temporal` gives them over the steps (the summed
+        *weight*, ``n_obs``, ``first``, ``last``, and the attributes all
+        their observations share), plus
+
+        - ``weight_mean``, ``weight_std``: the mean and the population
+          standard deviation (``ddof=0``, as :func:`numpy.std`) of the
+          series;
+        - ``weight_cv``: ``weight_std / weight_mean``, NaN when the mean is
+          0;
+        - ``weight_slope``: the least-squares slope of the series against
+          the step number (0, 1, ..., in step units), NaN with fewer than 2
+          eligible steps;
+        - ``weight_slope_time`` (numeric times only): the slope against the
+          times themselves, in weight per unit of time;
+        - ``weight_slope_pvalue`` (with *pvalue*): NaN with fewer than 3
+          eligible steps.
+
+        Nodes and ``H.graph["temporal"]`` are as in
+        :func:`observation_fraction`.
+
+    Raises
+    ------
+    ImportError
+        If numpy (or, with *pvalue*, SciPy) is not installed.
+    NetworkXError
+        If a weight is not numeric or NaN, or *T* is not a temporal network.
+    NetworkXNotImplemented
+        If a snapshot is a multigraph.
+    ValueError
+        If *freq* or *origin* is given with snapshots, or the input has no
+        steps.
+
+    See Also
+    --------
+    observation_fraction : How often each edge is observed.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> import networkx_backbone as nb
+    >>> S = [nx.Graph() for _ in range(4)]
+    >>> for t, w in enumerate([1, 2, 3, 6]):
+    ...     S[t].add_edge("a", "b", weight=w)
+    >>> S[2].add_edge("b", "c", weight=4)
+    >>> H = nb.weight_trend(S)
+    >>> H["a"]["b"]["weight_mean"], H["a"]["b"]["weight_slope"]
+    (3.0, 1.6)
+
+    ``"c"`` is present only at step 2, so its edge has one eligible step and
+    no slope:
+
+    >>> H["b"]["c"]["weight_std"], H["b"]["c"]["weight_slope"]
+    (0.0, nan)
+    """
+    np = _require_numpy("weight_trend")
+    steps = _steps(
+        T,
+        freq=freq,
+        origin=origin,
+        time=time,
+        start=start,
+        end=end,
+        weight=weight,
+        aggregate=aggregate,
+    )
+    table = _Table(steps, weight)
+    elig = table.eligible
+    n = elig.sum(axis=1)
+    W = np.where(elig, table.weights, 0.0)
+    mean = W.sum(axis=1) / n
+    dev = np.where(elig, table.weights - mean[:, None], 0.0)
+    std = np.sqrt((dev**2).sum(axis=1) / n)
+
+    def slope(x):
+        xm = (elig * x).sum(axis=1) / n
+        dx = np.where(elig, x - xm[:, None], 0.0)
+        sxx = (dx**2).sum(axis=1)
+        sxy = (dx * dev).sum(axis=1)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return np.where(sxx > 0, sxy / sxx, np.nan), sxx, sxy
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        cv = np.where(mean != 0, std / mean, np.nan)
+    b, sxx, sxy = slope(np.arange(len(steps.times), dtype=float))
+    columns = {
+        "weight_mean": mean,
+        "weight_std": std,
+        "weight_cv": cv,
+        "weight_slope": b,
+    }
+    if all(isinstance(t, Real) and not isinstance(t, bool) for t in steps.times):
+        columns["weight_slope_time"] = slope(np.asarray(steps.times, dtype=float))[0]
+    if pvalue:
+        try:
+            from scipy import stats
+        except ImportError as err:
+            raise ImportError(
+                "weight_trend(pvalue=True) requires SciPy; install it with "
+                "`pip install scipy`."
+            ) from err
+        df = n - 2
+        rss = np.maximum((dev**2).sum(axis=1) - np.nan_to_num(b) * sxy, 0.0)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            se = np.sqrt(rss / df / sxx)
+            tstat = b / se
+        p = 2 * stats.t.sf(np.abs(tstat), np.maximum(df, 1))
+        p = np.where(se == 0, np.where(b == 0, 1.0, 0.0), p)
+        columns["weight_slope_pvalue"] = np.where(df > 0, p, np.nan)
+    lists = {a: c.tolist() for a, c in columns.items()}
+    m = len(table.ends)
+    attrs = [{a: lists[a][j] for a in lists} for j in range(m)]
+    parameters = {"weight": weight, "pvalue": pvalue, "aggregate": aggregate}
+    keep = [True] * m
+    return _scored_graph(table, keep, attrs, "weight_trend", parameters, weight)
+
+
 _COMPLEXITY = {
     "temporal_form": {
         "time": "O(m + S log S)",
@@ -1825,6 +2877,26 @@ _COMPLEXITY = {
         "time": "O(m log m)",
         "space": "O(m)",
         "notes": "Snapshots are first converted to events.",
+    },
+    "observation_fraction": {
+        "time": "O(n_S + m_S + m T)",
+        "space": "O(n T + m T)",
+        "notes": "T steps, m distinct edges; plus binning for events and spans.",
+    },
+    "persistence": {
+        "time": "O(n_S + m_S + m T)",
+        "space": "O(n T + m T)",
+        "notes": "T steps, m distinct edges; plus binning for events and spans.",
+    },
+    "backbone_stability": {
+        "time": "O(n_S + m_S + m T) plus T runs of the method",
+        "space": "O(n T + m T)",
+        "notes": "T steps, m distinct edges; plus binning for events and spans.",
+    },
+    "weight_trend": {
+        "time": "O(n_S + m_S + m T)",
+        "space": "O(n T + m T)",
+        "notes": "T steps, m distinct edges; plus binning for events and spans.",
     },
 }
 

@@ -436,6 +436,22 @@ Temporal
      - ``O(n + m + S log S)``
      - ``O(n + m)``
      - m observations (snapshot edges, events or spans), S snapshots.
+   * - ``backbone_stability``
+     - ``O(n_S + m_S + m T) plus T runs of the method``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges; plus binning for events and spans.
+   * - ``observation_fraction``
+     - ``O(n_S + m_S + m T)``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges; plus binning for events and spans.
+   * - ``persistence``
+     - ``O(n_S + m_S + m T)``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges; plus binning for events and spans.
+   * - ``weight_trend``
+     - ``O(n_S + m_S + m T)``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges; plus binning for events and spans.
    * - ``from_event_table``
      - ``O(r)``
      - ``O(r)``
