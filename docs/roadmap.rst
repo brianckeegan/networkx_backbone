@@ -151,9 +151,10 @@ Methods
   statistical and structural comparisons. The package covers 13 of the 15
   methods; see the `coverage table
   <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/yassin-2025-coverage.md>`__.
-- **idea**: The Pólya urn filter (Marcaccioli & Livan, 2019), missing per
-  the #29 survey. Its null model is unlike any method here, and Yassin et
-  al. (2025) found it best preserves the weight distribution.
+- **done** (`#42 <https://github.com/brianckeegan/networkx_backbone/issues/42>`_): The Pólya urn filter (Marcaccioli & Livan, 2019),
+  missing per the #29 survey, as :func:`~networkx_backbone.polya_filter`.
+  Its null model is unlike any method here, and Yassin et al. (2025) found
+  it best preserves the weight distribution.
 - **idea**: The GloSS filter (Radicchi et al., 2011), missing per the #29
   survey. It is a global null with weights shuffled over the fixed topology;
   lower priority.

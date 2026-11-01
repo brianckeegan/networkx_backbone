@@ -19,6 +19,8 @@ lans_filter
     Foti et al. (2011) -- nonparametric, empirical CDF-based.
 multiple_linkage_analysis
     Van Nuffel (2007) -- dominant links by fitting ideal distributions.
+polya_filter
+    Marcaccioli & Livan (2019) -- Polya urn (beta-binomial) null model.
 """
 
 import math
@@ -36,6 +38,7 @@ __all__ = [
     "ecm_filter",
     "lans_filter",
     "multiple_linkage_analysis",
+    "polya_filter",
     # Short alias names
     "disparity",
     "mlf",
@@ -1571,6 +1574,354 @@ def _empirical_cdf(w, sorted_weights):
     return lo / n
 
 
+# =====================================================================
+# 7. Polya filter -- Marcaccioli & Livan (2019)
+# =====================================================================
+
+
+@not_implemented_for("multigraph")
+def polya_filter(G, weight="weight", a=None, approximate=None):
+    r"""Compute Pólya filter p-values for each edge.
+
+    The Pólya filter [1]_ tests each edge's weight against a null model in
+    which a node hands out its strength over its links through a Pólya urn,
+    a self-reinforcing process: every unit of weight placed on a link makes
+    the next unit more likely to land on the same link.  The reinforcement
+    parameter *a* sets how much heterogeneity the null model tolerates.
+
+    From the viewpoint of a node with degree *k* and strength *s*, the
+    weight of one of its links follows a beta-binomial distribution with
+    *s* draws and shape parameters :math:`1/a` and :math:`(k-1)/a`
+    (Eq. (1) of [1]_):
+
+    .. math::
+
+        P(w \mid k, s, a) = \binom{s}{w}
+        \frac{B\left(\frac{1}{a} + w, \frac{k-1}{a} + s - w\right)}
+        {B\left(\frac{1}{a}, \frac{k-1}{a}\right)},
+
+    which is the Pólya urn that starts with one red ball and *k* - 1 black
+    balls and adds *a* balls of the drawn colour after each of the *s*
+    draws.  The p-value is the upper tail (Eq. (2) of [1]_)
+
+    .. math::
+
+        \pi_P(w \mid k, s, a) = 1 - \sum_{x=0}^{w-1} P(x \mid k, s, a).
+
+    At ``a=0`` the urn draws with simple replacement and the null is the
+    binomial distribution with *s* trials and success probability *1/k*.
+
+    Each edge is tested from both of its endpoints and ``polya_pvalue`` is
+    the smaller of the two p-values: [1]_ keeps a link when at least one of
+    its p-values is significant.  For a directed edge (u, v) the two tests
+    use the out-degree and out-strength of *u* and the in-degree and
+    in-strength of *v* (Supplementary Note 2 of [1]_).
+
+    Parameters
+    ----------
+    G : networkx.Graph or networkx.DiGraph
+        A NetworkX graph.
+    weight : string, optional (default="weight")
+        Edge attribute key for weights.  All weights must be positive.
+        Integer weights (counts) are tested exactly; see *approximate*.
+    a : float or None, optional (default=None)
+        Reinforcement parameter, ``a >= 0``.  ``a=1`` is close to the
+        disparity filter, larger values give sparser backbones.  If ``None``,
+        *a* is set to its maximum-likelihood estimate :math:`a_{ML}`
+        (Supplementary Note 5 of [1]_), which needs integer weights.
+    approximate : bool or None, optional (default=None)
+        If ``False``, compute the exact p-values of Eq. (2), which needs
+        integer weights.  If ``True``, use the large-strength approximation
+        of Eq. (6) of [1]_, which needs ``a > 0``.  If ``None``, use the exact
+        p-values when every weight is an integer and Eq. (6) otherwise, as
+        [1]_ prescribes for non-integer weights.
+
+    Returns
+    -------
+    H : graph
+        A copy of *G* (same type) with a ``"polya_pvalue"`` edge attribute.
+        ``H.graph["polya_a"]`` holds the value of *a* used (the estimate
+        when ``a=None``; ``nan`` if no endpoint has degree above 1, in
+        which case every p-value is 1 whatever *a* is).
+
+    Raises
+    ------
+    NetworkXError
+        If any edge has a non-positive, non-finite, or missing weight, or if
+        a weight is not an integer when ``approximate=False`` or ``a=None``.
+    NetworkXNotImplemented
+        If *G* is a multigraph.
+    ValueError
+        If *a* is negative or not finite, if *approximate* is not ``None``,
+        ``True`` or ``False``, or if ``approximate=True`` with ``a=0``.
+
+    See Also
+    --------
+    disparity_filter : Large-strength limit of the Pólya filter at ``a=1``.
+    threshold_filter : Keep edges whose p-value is below a threshold.
+
+    Notes
+    -----
+    **Choosing a.**  [1]_ gives three criteria: sweeping *a* until the
+    backbone reaches a target sparsity (backbones shrink monotonically as
+    *a* grows, Eq. (3)), maximum likelihood, and a salience-based optimum.
+    The default is the maximum-likelihood one, the only one that needs no
+    further choice.  It maximizes the log-likelihood of Eq. (15) in the
+    Supplementary Information of [1]_,
+
+    .. math::
+
+        \mathcal{L}(a) = \sum_{i,j} \log P(w_{ij} \mid k_i, s_i, a),
+
+    over :math:`a \in [0, \infty)`, summing over every link from each of its
+    endpoints.  The maximum is bracketed on a log-spaced grid from
+    :math:`10^{-4}` to :math:`10^{4}` and refined by solving the score
+    equation (16) of the Supplementary Information with Brent's method.  An
+    endpoint of degree 1 contributes nothing to the likelihood
+    (:math:`P = 1`).  For a directed graph Eq. (15) is applied as written to
+    the non-symmetric weight matrix, that is with out-degrees and
+    out-strengths; [1]_ does not spell out the directed likelihood.
+
+    **Non-integer weights.**  Eq. (1) is defined for integer weights only.
+    For other weights [1]_ uses the approximation, valid for
+    :math:`s \gg k/a` and :math:`w \gg 1`,
+
+    .. math::
+
+        \pi_P(w \mid k, s, a) \approx \frac{1}{\Gamma(1/a)}
+        \left(1 - \frac{w}{s}\right)^{(k-1)/a}
+        \left(\frac{w k}{s a}\right)^{1/a - 1},
+
+    which tests the rate of interaction *w/s* rather than the weight itself.
+    At ``a=1`` it equals the disparity filter p-value
+    :math:`(1 - w/s)^{k-1}` (Eq. (8)).  The approximation can exceed 1 for
+    small *w*; such values are clipped to 1.
+
+    **Degree-1 endpoints.**  An endpoint of degree 1 holds all of its
+    strength on the one link, so its p-value is 1 and the edge is tested
+    from the other endpoint only, as [1]_ prescribes.
+
+    **Multiple testing.**  [1]_ applies a Bonferroni correction over
+    :math:`L = 2m` tests for *m* undirected links, i.e. it keeps a link when
+    ``polya_pvalue < alpha / (2 * m)``.  ``threshold_filter(..., mtc=...)``
+    corrects over the *m* edge p-values instead.
+
+    [1]_ defines only this upper-tail test, so there is no ``signed``
+    variant.
+
+    References
+    ----------
+    .. [1] Marcaccioli, R., & Livan, G. (2019). A Pólya urn approach to
+       information filtering in complex networks. *Nature Communications*,
+       10, 745. https://doi.org/10.1038/s41467-019-08667-3
+
+    Examples
+    --------
+    The toy network of Fig. 1 of [1]_: node A has degree 3 and strength 4,
+    and its link to B has weight 2.  At ``a=1`` the p-value is 6/15.
+
+    >>> import networkx as nx
+    >>> from networkx_backbone import polya_filter, threshold_filter
+    >>> G = nx.Graph()
+    >>> G.add_weighted_edges_from([("A", "B", 2), ("A", "C", 1), ("A", "D", 1)])
+    >>> H = polya_filter(G, a=1)
+    >>> round(H["A"]["B"]["polya_pvalue"], 12)
+    0.4
+
+    With ``a=None`` the reinforcement parameter is fitted by maximum
+    likelihood:
+
+    >>> G = nx.les_miserables_graph()
+    >>> H = polya_filter(G)
+    >>> round(H.graph["polya_a"], 4)
+    0.3397
+    >>> backbone = threshold_filter(H, "polya_pvalue", 0.05, mode="below")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
+    """
+    if approximate not in (None, True, False):
+        raise ValueError(
+            f"approximate must be None, True or False, got {approximate!r}."
+        )
+    if a is not None:
+        a = float(a)
+        if not (0.0 <= a < math.inf):
+            raise ValueError(f"a must be a finite number >= 0, got {a!r}.")
+
+    H = G.copy()
+    _validate_weights(H, weight)
+    integer = all(float(d[weight]).is_integer() for _, _, d in H.edges(data=True))
+    if approximate is None:
+        approximate = not integer
+    if not integer and (approximate is False or a is None):
+        why = "approximate=False" if approximate is False else "a=None"
+        raise nx.NetworkXError(
+            f"polya_filter with {why} needs integer weights (Eq. (1) of "
+            "Marcaccioli & Livan, 2019, is defined for counts); pass a "
+            "value for a and approximate=None or True."
+        )
+    if approximate and a == 0.0:
+        raise ValueError("approximate=True (Eq. (6)) needs a > 0.")
+
+    def num(w):
+        return int(w) if integer else float(w)
+
+    # Two tests per edge: (k, s) of the endpoint the test is run from.
+    directed = G.is_directed()
+    k_u, k_v = (G.out_degree, G.in_degree) if directed else (G.degree, G.degree)
+    s_u, s_v = {}, {}
+    for u, v, d in H.edges(data=True):
+        w = num(d[weight])
+        s_u[u] = s_u.get(u, 0) + w
+        s_v[v] = s_v.get(v, 0) + w
+    if not directed:
+        for node, val in s_v.items():
+            s_u[node] = s_u.get(node, 0) + val
+        s_v = s_u
+    tests = [
+        (
+            (num(d[weight]), k_u[u], s_u[u]),
+            (num(d[weight]), k_v[v], s_v[v]),
+        )
+        for u, v, d in H.edges(data=True)
+    ]
+
+    if a is None:
+        # Eq. (15) sums over the rows of the weight matrix: both endpoints of
+        # an undirected link, the source (out-) side of a directed one.
+        rows = [t for pair in tests for t in (pair if not directed else pair[:1])]
+        a = _polya_ml_estimate([t for t in rows if t[1] > 1])
+        if approximate and a == 0.0:
+            raise ValueError(
+                "The maximum-likelihood estimate of a is 0, where "
+                "approximate=True (Eq. (6)) is undefined; use approximate=False."
+            )
+    H.graph["polya_a"] = a
+
+    informative = {t for pair in tests for t in pair if t[1] > 1}
+    if approximate:
+        pvalue = {t: _polya_approx_pvalue(*t, a) for t in informative}
+    else:
+        pvalue = _polya_exact_pvalues(informative, a)
+
+    for (t_u, t_v), (_, _, data) in zip(tests, H.edges(data=True), strict=True):
+        data["polya_pvalue"] = min(pvalue.get(t_u, 1.0), pvalue.get(t_v, 1.0))
+    return H
+
+
+def _polya_logpmf(x, k, s, a):
+    """Log of Eq. (1) of Marcaccioli & Livan (2019) at array *x*; binomial at a=0."""
+    import numpy as np
+    from scipy.special import betaln, gammaln
+
+    log_binom = gammaln(s + 1) - gammaln(x + 1) - gammaln(s - x + 1)
+    if a == 0:
+        return log_binom + x * np.log(1.0 / k) + (s - x) * np.log1p(-1.0 / k)
+    alpha, beta = 1.0 / a, (k - 1) / a
+    return log_binom + betaln(alpha + x, beta + s - x) - betaln(alpha, beta)
+
+
+def _polya_exact_pvalues(tests, a):
+    """Eq. (2) for every ``(w, k, s)`` test, one tail sum per distinct (k, s)."""
+    import numpy as np
+
+    by_node = {}
+    for w, k, s in tests:
+        by_node.setdefault((k, s), []).append(w)
+    pvalue = {}
+    for (k, s), ws in by_node.items():
+        w_min = min(ws)
+        logpmf = _polya_logpmf(np.arange(w_min, s + 1, dtype=float), k, s, a)
+        # Upper tail P(X >= w) summed from the smallest terms up, in logs.
+        log_tail = np.logaddexp.accumulate(logpmf[::-1])[::-1]
+        for w in ws:
+            pvalue[(w, k, s)] = min(float(np.exp(log_tail[w - w_min])), 1.0)
+    return pvalue
+
+
+def _polya_approx_pvalue(w, k, s, a):
+    """Eq. (6) of Marcaccioli & Livan (2019), clipped to [0, 1]."""
+    from scipy.special import gammaln
+
+    if w >= s:
+        return 0.0
+    log_p = (
+        -gammaln(1.0 / a)
+        + (k - 1) / a * math.log1p(-w / s)
+        + (1.0 / a - 1.0) * math.log(w * k / (s * a))
+    )
+    return min(math.exp(log_p), 1.0)
+
+
+def _polya_ml_estimate(rows):
+    """Maximum-likelihood *a* (Supplementary Note 5 of Marcaccioli & Livan, 2019).
+
+    *rows* are the ``(w, k, s)`` terms of Eq. (15) with ``k > 1``.  Returns
+    ``nan`` when there are none (the likelihood does not depend on *a*).
+    """
+    import numpy as np
+    from scipy.optimize import brentq, minimize_scalar
+    from scipy.special import betaln, digamma
+
+    if not rows:
+        return math.nan
+    # Distinct terms in sorted order: the sums do not depend on edge order.
+    terms, counts = np.unique(np.array(rows, dtype=float), axis=0, return_counts=True)
+    w, k, s = terms.T
+
+    def loglik(a):
+        # Eq. (15) without the binomial coefficient, which does not depend on a.
+        if a == 0:
+            ll = w * np.log(1.0 / k) + (s - w) * np.log1p(-1.0 / k)
+        else:
+            ll = betaln(1 / a + w, (k - 1) / a + s - w) - betaln(1 / a, (k - 1) / a)
+        return float(np.dot(counts, ll))
+
+    def score(a):
+        # Left-hand side of Eq. (16), which equals a**2 * dL/da.
+        lhs = (
+            -(k - 1) * digamma((k + a * s - a * w - 1) / a)
+            + k * digamma(k / a + s)
+            + (k - 1) * digamma((k - 1) / a)
+            - k * digamma(k / a)
+            - digamma(w + 1 / a)
+            + digamma(1 / a)
+        )
+        return float(np.dot(counts, lhs))
+
+    grid = np.logspace(-4, 4, 81)
+    values = [loglik(x) for x in grid]
+    i = int(np.argmax(values))
+    if i == len(grid) - 1:
+        warnings.warn(
+            "polya_filter: the likelihood of a is still increasing at "
+            f"a = {grid[-1]:g}; using that value.",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+        return float(grid[-1])
+    if i == 0:
+        # Maximum in [0, 1e-4]: compare the a = 0 (binomial) end with the
+        # best interior point.
+        res = minimize_scalar(
+            lambda x: -loglik(x),
+            bounds=(0.0, grid[1]),
+            method="bounded",
+            options={"xatol": 1e-12},
+        )
+        return 0.0 if loglik(0.0) >= -res.fun else float(res.x)
+    lo, hi = grid[i - 1], grid[i + 1]
+    if score(lo) > 0 > score(hi):
+        return float(brentq(score, lo, hi, xtol=1e-14, rtol=1e-12))
+    res = minimize_scalar(
+        lambda t: -loglik(math.exp(t)),
+        bounds=(math.log(lo), math.log(hi)),
+        method="bounded",
+        options={"xatol": 1e-12},
+    )
+    return float(math.exp(res.x))
+
+
 def disparity(G, weight="weight", signed=False, missing_as_zero=False):
     """Alias for :func:`disparity_filter`."""
     return disparity_filter(
@@ -1620,6 +1971,12 @@ _COMPLEXITY = {
         "time": "O(m log n)",
         "space": "O(n + m)",
         "notes": "Dominated by sorting each node's link weights (or lans_filter).",
+    },
+    "polya_filter": {
+        "time": "O(n + m + S)",
+        "space": "O(n + m + s_max)",
+        "notes": "S=sum of distinct node strengths (exact tails); "
+        "a=None adds O(m) per likelihood evaluation.",
     },
     "disparity": {
         "time": "O(n + m)",
