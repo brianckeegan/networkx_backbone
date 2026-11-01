@@ -190,7 +190,8 @@ figure style.
 - **next** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
   on the API pages, whose images date from 0.2.0 and show pre-fix results
   (the ECM image keeps nearly every edge), and generate it at build time so
-  it cannot go stale.
+  it cannot go stale. Done so far: the shared figure style
+  (``docs/_figures/style.py``) that the gallery, examples, and tutorials use.
 - **next** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
   backbone, end to end (why a backbone, scoring vs filtering, choosing alpha
   and corrections, comparing, validating, reporting).
@@ -333,6 +334,3 @@ Documentation
   Sphinx-Gallery example, so its edge counts cannot go stale.
 - **done** (`#56 <https://github.com/brianckeegan/networkx_backbone/pull/56>`_): Generate the "Roadmap at a glance" figures and
   table on this page from the roadmap itself on every docs build.
-- **next** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
-  images and stop them going stale. Done so far: a shared figure style
-  (``docs/_figures/style.py``) for the gallery, examples, and tutorials.
