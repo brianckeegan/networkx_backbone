@@ -6,6 +6,7 @@ mixed labels, no input mutation) is covered by ``test_api_contract.py``.
 
 import itertools
 import math
+import os
 import random
 
 import networkx as nx
@@ -177,9 +178,23 @@ class TestSparsifyOptions:
         assert scores(7) == scores(7)
         assert scores(7) != scores(8)
         assert scores(random.Random(3)) == scores(random.Random(3))
-        np = pytest.importorskip("numpy")
-        assert scores(np.random.default_rng(5)) == scores(np.random.default_rng(5))
         assert all(0.0 <= v < 1.0 for v in scores(None).values())
+
+    @pytest.mark.skipif(
+        bool(os.environ.get("NETWORKX_TEST_BACKEND")),
+        reason="the dispatch test harness runs sparsify twice, and both runs "
+        "draw from the one NumPy generator that py_random_state wraps",
+    )
+    def test_numpy_seed_reproducible(self, karate):
+        np = pytest.importorskip("numpy")
+
+        def scores(seed):
+            H = sparsify(
+                karate, escore="random", filter="threshold", normalize=None, seed=seed
+            )
+            return dict(nx.get_edge_attributes(H, "sparsify_score"))
+
+        assert scores(np.random.default_rng(5)) == scores(np.random.default_rng(5))
 
     def test_quadrangles_known_answer(self):
         H = sparsify(

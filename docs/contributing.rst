@@ -29,9 +29,16 @@ which numpy, scipy, and matplotlib cannot be imported. If you add a method that
 needs an optional dependency, import it inside the function (not at module
 level) so ``import networkx_backbone`` keeps working with NetworkX alone.
 
+Run the suite under NetworkX's backend-dispatch test harness, which sends
+every dispatchable call through the ``nx_loopback`` test backend and checks
+the result against plain NetworkX (see :doc:`user_guide/backends`)::
+
+    NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules networkx_backbone tests
+
 Continuous integration (``.github/workflows/tests.yml``) runs lint, the test
-suite on Python 3.12-3.14, a job pinned to the oldest supported versions, and
-the minimal-dependency smoke tests on every push and pull request.
+suite on Python 3.12-3.14, a job pinned to the oldest supported versions, the
+suite under ``nx_loopback``, and the minimal-dependency smoke tests on every
+push and pull request.
 
 Benchmarks
 ----------
@@ -141,6 +148,10 @@ stack:
 
 - Take a graph ``G`` as the first argument, return a new graph, and never
   mutate the input.
+- Decorate a new function that takes a graph and returns a new graph with
+  ``networkx_backbone._dispatch._dispatchable`` (``edge_attrs="weight"`` if it
+  reads edge weights), innermost, below ``not_implemented_for`` and
+  ``py_random_state`` as in NetworkX, and add it to ``tests/test_dispatch.py``.
 - Name edge-weight parameters ``weight`` and random-state parameters ``seed``;
   accept ``None``, an ``int``, or a NumPy ``Generator``/``RandomState``, as
   NetworkX does.
@@ -180,7 +191,7 @@ settings:
    for this GitHub repository.
 2. Use the workflow filename ``publish-to-PyPI.yml`` and environment name
    ``pypi``.
-3. Create and push a version tag (for example ``v0.2.0``) and then publish a
+3. Create and push a version tag (for example ``v0.3.0``) and then publish a
    GitHub Release from that tag; the workflow will run tests, build
    distributions, verify them with ``twine check``, and publish to PyPI using
    that tag as the package version.

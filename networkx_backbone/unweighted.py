@@ -21,6 +21,7 @@ from operator import itemgetter
 
 from networkx.utils import not_implemented_for, py_random_state
 
+from networkx_backbone._dispatch import _dispatchable
 from networkx_backbone._docstrings import append_complexity_docstrings
 
 __all__ = ["sparsify", "lspar", "local_degree"]
@@ -33,6 +34,7 @@ _FILTERS = ("degree", "threshold")
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
 @py_random_state("seed")
+@_dispatchable
 def sparsify(
     G, escore="jaccard", normalize="rank", filter="degree", s=0.5, umst=False, seed=None
 ):
@@ -165,6 +167,7 @@ def sparsify(
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable
 def lspar(G, s=0.5, *, convention="satuluri"):
     r"""Compute the Local Sparsification (L-Spar) backbone.
 
@@ -264,6 +267,7 @@ def lspar(G, s=0.5, *, convention="satuluri"):
 
 @not_implemented_for("directed")
 @not_implemented_for("multigraph")
+@_dispatchable
 def local_degree(G, s=0.3):
     r"""Compute the Local Degree backbone.
 
