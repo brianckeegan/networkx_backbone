@@ -10,6 +10,13 @@ that checked every method against its paper. **Several methods now return
 different results**; see *Changes in results* below. Remaining review findings
 are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 
+**Supported versions (breaking)**
+
+- Requires **Python 3.12 or newer** and **NetworkX 3.4 or newer**, matching
+  NetworkX's own support window. The optional dependency minimums now match
+  NetworkX's too: NumPy 2.2, SciPy 1.15, Matplotlib 3.10. A CI job tests
+  these minimums exactly.
+
 **New features**
 
 - Hypergraph module: the parameter-free MDL hypergraph backbone (Kirkley et
@@ -100,8 +107,9 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 **Infrastructure and documentation**
 
 - CI on every push and pull request: ruff lint and format checks, tests and
-  doctests on Python 3.10-3.14, and a NetworkX-3.0-only job that checks the
-  optional dependencies stay optional. Test coverage is 97%.
+  doctests on Python 3.12-3.14, a job pinned to the oldest supported
+  versions, and a NetworkX-only job that checks the optional dependencies
+  stay optional. Test coverage is 97%.
 - New :doc:`roadmap`; full numpydoc sections for the bipartite, hypergraph,
   and structural APIs; corrected citations (Van Nuffel et al., 2010; Lü et
   al., 2009; Lindner et al., 2015); the docs version is taken from the package

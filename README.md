@@ -163,8 +163,8 @@ results = nb.compare_backbones(G, backbones)
 
 ## Dependencies
 
-- **Required**: `networkx >= 3.0`
-- **Optional**: `numpy >= 1.23`, `scipy >= 1.9` (`[full]`: some statistical methods, bipartite null models, SVH/SVC, `doubly_stochastic_filter`, `local_path_index`, KS measures) and `matplotlib >= 3.7` (`[viz]`: visualization helpers and the docs gallery). Calling a function whose optional dependency is missing raises `ImportError`; the pure-Python methods work with NetworkX alone.
+- **Required**: Python >= 3.12, `networkx >= 3.4` (version floors match NetworkX's own)
+- **Optional**: `numpy >= 2.2`, `scipy >= 1.15` (`[full]`: some statistical methods, bipartite null models, SVH/SVC, `doubly_stochastic_filter`, `local_path_index`, KS measures) and `matplotlib >= 3.10` (`[viz]`: visualization helpers and the docs gallery). Calling a function whose optional dependency is missing raises `ImportError`; the pure-Python methods work with NetworkX alone.
 - **Hypergraph interop (optional, lazily imported)**: `xgi`, `hypernetx`, `hypergraphx`, `Hypergraph-Analysis-Toolbox`
 
 ## Testing

@@ -64,6 +64,10 @@ Run the test suite (including docstring examples) to verify the installation::
 Requirements
 ------------
 
+Supported versions follow NetworkX's: Python 3.12 or newer, and the same
+minimum versions of NumPy, SciPy, and Matplotlib. CI tests these minimums
+exactly, along with the latest releases.
+
 .. list-table::
    :header-rows: 1
    :widths: 30 20 50
@@ -72,17 +76,17 @@ Requirements
      - Version
      - Status
    * - Python
-     - >= 3.10
+     - >= 3.12
      - Required
    * - NetworkX
-     - >= 3.0
+     - >= 3.4
      - Required
    * - NumPy
-     - >= 1.23
+     - >= 2.2
      - Optional (for ``[full]``)
    * - SciPy
-     - >= 1.9
+     - >= 1.15
      - Optional (for ``[full]``)
    * - Matplotlib
-     - >= 3.7
+     - >= 3.10
      - Optional (for ``[viz]``)

@@ -30,8 +30,8 @@ needs an optional dependency, import it inside the function (not at module
 level) so ``import networkx_backbone`` keeps working with NetworkX alone.
 
 Continuous integration (``.github/workflows/tests.yml``) runs lint, the test
-suite on Python 3.10-3.14, and the minimal-dependency smoke tests on every push
-and pull request.
+suite on Python 3.12-3.14, a job pinned to the oldest supported versions, and
+the minimal-dependency smoke tests on every push and pull request.
 
 Building documentation
 -----------------------

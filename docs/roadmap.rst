@@ -57,7 +57,7 @@ breaking changes:
 - Shared conventions: every scorer rejects multigraphs, rejects NaN or
   infinite weights, works with node labels of mixed types, and preserves
   graph, node, and edge attributes through the filters.
-- CI now runs tests on every push and pull request (Python 3.10-3.14 and a
+- CI now runs tests on every push and pull request (Python 3.12-3.14 and a
   NetworkX-only job), along with ruff lint and format checks and doctests.
 
 Next release (0.2.0)
