@@ -16,17 +16,46 @@ every dispatch name carries the ``backbone_`` prefix:
 that implements one of our functions registers it under that name.
 """
 
+from __future__ import annotations
+
 from functools import partial
+from typing import TYPE_CHECKING, Any, overload
 
 import networkx as nx
 
-__all__ = []
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from networkx_backbone._typing import Dispatchable, DispatchDecorator
+
+__all__: list[str] = []
 
 #: Prefix of every dispatch name registered by this package.
 DISPATCH_PREFIX = "backbone_"
 
 
-def _dispatchable(func=None, *, edge_attrs=None, node_attrs=None):
+# The overloads tell type checkers that the decorated function keeps its
+# signature and also accepts ``backend=...`` (see ``_typing.Dispatchable``).
+@overload
+def _dispatchable[**P, R](
+    func: Callable[P, R],
+    *,
+    edge_attrs: str | dict[str, Any] | None = ...,
+    node_attrs: str | dict[str, Any] | None = ...,
+) -> Dispatchable[P, R]: ...
+@overload
+def _dispatchable(
+    func: None = ...,
+    *,
+    edge_attrs: str | dict[str, Any] | None = ...,
+    node_attrs: str | dict[str, Any] | None = ...,
+) -> DispatchDecorator: ...
+def _dispatchable(
+    func: Callable[..., Any] | None = None,
+    *,
+    edge_attrs: str | dict[str, Any] | None = None,
+    node_attrs: str | dict[str, Any] | None = None,
+) -> Any:
     """Make *func* dispatchable to NetworkX backends.
 
     Parameters

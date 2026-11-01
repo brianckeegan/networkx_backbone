@@ -147,6 +147,20 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   the symmetric scaling :math:`\sqrt{D_{uv} D_{vu}}`, which equals the doubly
   stochastic limit whenever the iteration converges. On Les Misérables (no
   convergence) ``ds_keep`` now keeps 187 of 254 edges instead of 220 (#54).
+- ``strongest_n_ties`` keeps ties together: each node selects every edge
+  whose weight is at least its *n*-th largest weight, so a node can select
+  more than *n* edges. Before, ties at the cutoff were broken by adjacency
+  order, so ``G`` and ``G.copy()`` could give different backbones (on Les
+  Misérables at ``n=2`` they differed in 23 edges). The result now depends only
+  on the weights, as for ``lspar``/``local_degree``; on an unweighted graph
+  every edge is kept. Les Misérables: 69 -> 108 edges (``n=1``), 113 -> 146
+  (``n=2``), 146 -> 165 (``n=3``) (#60).
+- ``global_sparsification`` and ``edge_betweenness_filter`` break ties by the
+  sorted string form of an undirected edge's endpoints, so the result no
+  longer depends on how each edge is stored (which follows node insertion
+  order). Edge counts are unchanged; on Les Misérables at ``s=0.5``, 5
+  (global sparsification) and 6 (edge betweenness) of the 127 kept edges
+  swap for other edges tied with them (#60).
 - ``noise_corrected_filter`` now implements the published Bayesian
   noise-corrected backbone (Coscia & Neffke, 2017). Its scores and standard
   deviations match the authors' reference code exactly. ``nc_score`` is the
@@ -273,6 +287,21 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Infrastructure and documentation**
 
+- The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
+  result classes have type annotations, and the package ships a ``py.typed``
+  marker (PEP 561), so mypy and pyright check calls into it. Functions whose
+  return type depends on a flag (``bicm(return_labels=...)``,
+  ``read_hif``/``from_*`` with ``return_weights=...``,
+  ``compare_graphs(return_diff=...)``) have overloads. The decorators
+  (``not_implemented_for``, ``py_random_state``, the backend dispatcher) are
+  typed so they keep each signature, and dispatchable functions also accept
+  ``backend=...``. NumPy, SciPy, pandas,
+  and Matplotlib types are imported only for type checking, so the core
+  package still needs only NetworkX at runtime. A new CI job runs
+  non-strict mypy with the ``types-networkx`` stubs; the new ``typing`` extra
+  pins both. The API pages keep plain signatures
+  (``autodoc_typehints = "none"``); the docstrings still give the types. No
+  behavior changes (#18).
 - The roadmap page opens with a "Roadmap at a glance" section: a stacked bar
   chart of item status per section, a network map of sections and their items
   colored by status, and the same counts as a table. ``scripts/roadmap_figures.py``

@@ -36,7 +36,7 @@ EXPECTED_EDGES = {
     "polya_filter": 12,
     "gloss_filter": 3,
     "global_threshold_filter(threshold=2)": 157,
-    "strongest_n_ties(n=2)": 113,
+    "strongest_n_ties(n=2)": 146,
     "global_sparsification(s=0.5)": 127,
     "primary_linkage_analysis": 69,
     "edge_betweenness_filter(s=0.5)": 127,

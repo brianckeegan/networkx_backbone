@@ -33,16 +33,27 @@ input type and are never imported by :func:`~networkx_backbone.to_graph` for
 graph input.
 """
 
+from __future__ import annotations
+
 import sys
+from typing import TYPE_CHECKING
 
 import networkx as nx
 
 from networkx_backbone._docstrings import append_complexity_docstrings
 
+if TYPE_CHECKING:
+    from collections.abc import Hashable, Sequence
+    from typing import TypeGuard
+
+    import pandas as pd
+
+    from networkx_backbone._typing import GraphInput
+
 __all__ = ["to_graph"]
 
 
-def _is_dataframe(data):
+def _is_dataframe(data: object) -> TypeGuard[pd.DataFrame]:
     """Return True for a pandas ``DataFrame`` without importing pandas."""
     pd = sys.modules.get("pandas")
     return pd is not None and isinstance(data, pd.DataFrame)
@@ -153,14 +164,14 @@ def _from_edgelist(df, source, target, directed, weight):
 
 
 def to_graph(
-    data,
+    data: GraphInput,
     *,
-    nodelist=None,
-    directed=False,
-    source="source",
-    target="target",
-    weight="weight",
-):
+    nodelist: Sequence[Hashable] | None = None,
+    directed: bool = False,
+    source: str = "source",
+    target: str = "target",
+    weight: str | None = "weight",
+) -> nx.Graph:
     """Return a NetworkX graph for a graph, adjacency matrix or edge list.
 
     Uses NetworkX's own converters:

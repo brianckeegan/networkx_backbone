@@ -30,12 +30,22 @@ The test suite checks that every public name falls in one of these groups, so
 a new method cannot be added without a registry entry.
 """
 
+from __future__ import annotations
+
 import inspect
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
+from typing import TYPE_CHECKING
 
 import networkx as nx
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from typing import Any
+
+    from networkx_backbone._typing import Hyperedges
+    from networkx_backbone.hypergraph import HypergraphBackbone, ValidatedHypergraph
 
 __all__ = ["describe_backbone"]
 
@@ -568,7 +578,8 @@ METHODS = {
     ),
     "strongest_n_ties": Method(
         "the strongest-n-ties rule",
-        "which keeps, for every node, its n heaviest edges",
+        "which keeps, for every node, its n heaviest edges together with "
+        "any edges tied with the n-th heaviest",
     ),
     "global_sparsification": Method(
         "global sparsification",
@@ -1023,16 +1034,20 @@ def _sign_sentence(backbone):
 
 
 def describe_backbone(
-    method,
+    method: str | Callable[..., Any],
     *,
-    alpha=None,
-    mtc="none",
-    signed=False,
-    original=None,
-    backbone=None,
-    style="text",
-    **params,
-):
+    alpha: float | None = None,
+    mtc: str = "none",
+    signed: bool = False,
+    original: nx.Graph | Hyperedges | None = None,
+    backbone: nx.Graph
+    | Hyperedges
+    | HypergraphBackbone
+    | ValidatedHypergraph
+    | None = None,
+    style: str = "text",
+    **params: Any,
+) -> str:
     """Write a methods paragraph and citations for a backbone.
 
     The counterpart of the ``narrative`` option of Neal's *Backbone 3.0*:
@@ -1240,10 +1255,12 @@ def describe_backbone(
     )
 
     refs = [REFERENCES[k] for k in keys]
-    listed = [(r.authors[0], r.year, r.text(markdown=md)) for r in refs]
-    listed.append(("Keegan, B. C.", 0, _package_text(version, md)))
-    listed.sort(key=lambda t: (t[0].lower(), t[1]))
+    entries = [(r.authors[0], r.year, r.text(markdown=md)) for r in refs]
+    entries.append(("Keegan, B. C.", 0, _package_text(version, md)))
+    entries.sort(key=lambda t: (t[0].lower(), t[1]))
     if md:
-        reflist = "\n".join(f"- {t}" for *_, t in listed)
+        reflist = "\n".join(f"- {t}" for *_, t in entries)
         return " ".join(sentences) + "\n\n**References**\n\n" + reflist
-    return " ".join(sentences) + "\n\nReferences\n\n" + "\n".join(t for *_, t in listed)
+    return (
+        " ".join(sentences) + "\n\nReferences\n\n" + "\n".join(t for *_, t in entries)
+    )
