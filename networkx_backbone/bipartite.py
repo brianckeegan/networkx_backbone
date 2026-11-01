@@ -636,7 +636,7 @@ def simple_projection(
 
         w_{uv} = |\Gamma(u) \cap \Gamma(v)|
 
-    This equals :func:`networkx.bipartite.weighted_projected_graph`.
+    This equals :func:`~networkx.algorithms.bipartite.projection.weighted_projected_graph`.
 
     Parameters
     ----------
@@ -732,7 +732,7 @@ def hyper_projection(
         w_{uv} = \sum_{z \in \Gamma(u) \cap \Gamma(v)} \frac{1}{d(z) - 1}
 
     Pass ``newman=True`` for that variant; it equals
-    :func:`networkx.bipartite.collaboration_weighted_projected_graph`.  The
+    :func:`~networkx.algorithms.bipartite.projection.collaboration_weighted_projected_graph`.  The
     two weightings coincide only up to a constant when every artifact has the
     same degree, so they can rank pairs differently.
 
