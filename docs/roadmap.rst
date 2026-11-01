@@ -5,7 +5,9 @@ This page tracks where ``networkx-backbone`` is headed: what was finished
 recently, known gaps against the cited methods, and planned features. It
 consolidates the design notes in ``docs/design/`` (the
 `Backbone 3.0 coverage evaluation
-<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/backbone-3.0-coverage.md>`_
+<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/backbone-3.0-coverage.md>`_,
+the `Yassin et al. (2025) coverage evaluation
+<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/yassin-2025-coverage.md>`_,
 and the `hypergraph backboning proposal
 <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/hypergraph-backboning.md>`_).
 Each open item links to its GitHub issue; `#31 <https://github.com/brianckeegan/networkx_backbone/issues/31>`_ tracks them all.
@@ -140,8 +142,20 @@ Methods
   filter, for parity with the other scorers' ``signed=True``.
 - **idea** (`#26 <https://github.com/brianckeegan/networkx_backbone/issues/26>`_): A ``missing_as_zero`` toggle for weighted inputs (Backbone 3.0),
   for testing absent dyads.
-- **idea** (`#29 <https://github.com/brianckeegan/networkx_backbone/issues/29>`_): Further methods from the Yassin et al. (2025)
-  structural and statistical comparisons that are not covered yet.
+- **done** (`#29 <https://github.com/brianckeegan/networkx_backbone/issues/29>`_): Survey the methods in the Yassin et al. (2025)
+  statistical and structural comparisons. The package covers 13 of the 15
+  methods; see the `coverage table
+  <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/yassin-2025-coverage.md>`__.
+- **idea**: The Pólya urn filter (Marcaccioli & Livan, 2019), missing per
+  the #29 survey. Its null model is unlike any method here, and Yassin et
+  al. (2025) found it best preserves the weight distribution.
+- **idea**: The GloSS filter (Radicchi et al., 2011), missing per the #29
+  survey. It is a global null with weights shuffled over the fixed topology;
+  lower priority.
+- **idea**: The connectivity stage of Slater's (2009) doubly stochastic
+  backbone (add edges by ``ds_weight`` until the backbone is connected). This
+  is the variant Yassin et al. (2025) evaluate; ``doubly_stochastic_filter``
+  returns only the scores.
 
 Documentation
 ~~~~~~~~~~~~~

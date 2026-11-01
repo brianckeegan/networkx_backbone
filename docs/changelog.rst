@@ -167,6 +167,10 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   doctests on Python 3.12-3.14, a job pinned to the oldest supported
   versions, and a NetworkX-only job that checks the optional dependencies
   stay optional. Test coverage is 97%.
+- A coverage evaluation of the 15 methods compared by Yassin et al. (2025)
+  (``docs/design/yassin-2025-coverage.md``). The package covers 13 of them;
+  the Pólya urn and GloSS filters are missing. The evaluation also notes where
+  the covered methods behave differently from ``netbone`` (#29).
 - New :doc:`roadmap`; full numpydoc sections for the bipartite, hypergraph,
   and structural APIs; corrected citations (Van Nuffel, 2007; Lü et
   al., 2009; Lindner et al., 2015); the docs version is taken from the package
