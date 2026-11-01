@@ -8,8 +8,12 @@ consolidates the design notes in ``docs/design/`` (the
 <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/backbone-3.0-coverage.md>`_,
 the `Yassin et al. (2025) coverage evaluation
 <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/yassin-2025-coverage.md>`_,
-and the `hypergraph backboning proposal
-<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/hypergraph-backboning.md>`_).
+the `hypergraph backboning proposal
+<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/hypergraph-backboning.md>`_,
+the `generalized null distributions report
+<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/generalized-nulls.md>`_,
+and the `temporal backbones proposal
+<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/temporal-backbones.md>`_).
 Each open item links to its GitHub issue; `#31 <https://github.com/brianckeegan/networkx_backbone/issues/31>`_ tracks them all.
 Contributions are welcome. Please comment on an issue before starting one
 of the larger items.
@@ -139,9 +143,14 @@ Correctness gaps found in review
   ``#{weights < w} / k``, the mirror image of the upper tail, as in R. Its
   two-sided p-values equal R's; only the sign of an exact tie differs (#59).
   Les Misérables: 0 -> 86 negative links (R: 126, 40 of them ties).
-- **next** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` breaks weight ties by
-  adjacency order, so ``G`` and ``G.copy()`` can give different backbones.
-  Make the result independent of node order.
+- **done** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` keeps edges tied at each node's
+  cutoff together, so ``G``, ``G.copy()``, and any reordering of the same
+  graph give the same backbone. ``global_sparsification`` and
+  ``edge_betweenness_filter`` no longer depend on edge orientation.
+  ``planar_maximally_filtered_graph`` and ``maximum_spanning_tree_backbone``
+  (ties in weight), ``fraction_filter`` (ties in score, documented), and
+  ``modularity_backbone`` (Louvain visiting order, even with a fixed seed)
+  still depend on input order.
 - **planned** (`#59 <https://github.com/brianckeegan/networkx_backbone/issues/59>`_): Decide, for each convention difference from
   R ``backbone`` and ``netbone`` that the reference tests document, whether
   to keep it, match the reference, or add an option. The
@@ -243,14 +252,42 @@ Methods
   a calibration test harness, and an explicit count ``unit=`` for MLF, ECM,
   and the noise-corrected filter.  Not scheduled: a continuous-weight ECM,
   an overdispersed MLF, and user-supplied weight distributions for GloSS.
-- **done** (`#60 <https://github.com/brianckeegan/networkx_backbone/issues/60>`_): ``strongest_n_ties`` keeps edges tied at each node's
-  cutoff together, so ``G``, ``G.copy()``, and any reordering of the same
-  graph give the same backbone. ``global_sparsification`` and
-  ``edge_betweenness_filter`` no longer depend on edge orientation.
-  ``planar_maximally_filtered_graph`` and ``maximum_spanning_tree_backbone``
-  (ties in weight), ``fraction_filter`` (ties in score, documented), and
-  ``modularity_backbone`` (Louvain visiting order, even with a fixed seed)
-  still depend on input order.
+- **planned** (`#76 <https://github.com/brianckeegan/networkx_backbone/issues/76>`_): ``fdsm`` Monte Carlo resolution
+  diagnostics: warn when ``1/(trials+1)`` makes family-wise significance
+  unreachable, and report the p-value's Monte Carlo uncertainty.
+- **idea** (`#77 <https://github.com/brianckeegan/networkx_backbone/issues/77>`_): ``fdsm(refine="splitting")``: adaptive multilevel
+  splitting for p-values below the Monte Carlo floor.
+
+Temporal backbones
+~~~~~~~~~~~~~~~~~~
+
+A new top-level module, ``networkx_backbone.temporal``, for filtering networks
+observed over time. It accepts snapshots (a list or dict of graphs),
+timestamped events, and time spans equally, bins events and spans into steps,
+and returns one scored static graph, so the usual filters apply. The design and
+the method proposals are in the `temporal backbones proposal
+<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/temporal-backbones.md>`_;
+`#78 <https://github.com/brianckeegan/networkx_backbone/issues/78>`_ tracks the work.
+
+- **planned** (`#67 <https://github.com/brianckeegan/networkx_backbone/issues/67>`_): Foundation: the three input forms, binning
+  with ``freq=``, the node-presence rule (an absent edge is zero only when both
+  endpoints are present), and the scored-static-graph output.
+- **planned** (`#68 <https://github.com/brianckeegan/networkx_backbone/issues/68>`_): ``observation_fraction`` and ``persistence``
+  (runs of consecutive observed steps).
+- **planned** (`#69 <https://github.com/brianckeegan/networkx_backbone/issues/69>`_): ``backbone_stability`` (how often any static
+  scorer keeps an edge across steps) and ``weight_trend``.
+- **planned** (`#70 <https://github.com/brianckeegan/networkx_backbone/issues/70>`_): Interop with pandas event tables, DyNetX,
+  teneto, and pathpy.
+- **idea** (`#71 <https://github.com/brianckeegan/networkx_backbone/issues/71>`_): Null-model significance tests for the simple
+  filters.
+- **planned** (`#72 <https://github.com/brianckeegan/networkx_backbone/issues/72>`_): ``kalman_backbone``: Kalman smoothing of
+  per-step edge significance, tested against an exact null.
+- **planned** (`#73 <https://github.com/brianckeegan/networkx_backbone/issues/73>`_): ``edge_persistence_hmm``: a two-state hidden
+  Markov model for persistent edge activity.
+- **idea** (`#74 <https://github.com/brianckeegan/networkx_backbone/issues/74>`_): ``wavelet_denoise``: wavelet shrinkage of
+  edge-weight time series before backboning.
+- **idea** (`#75 <https://github.com/brianckeegan/networkx_backbone/issues/75>`_): ``poisson_lift_filter``: a Gamma-Poisson
+  state-space filter for count weights.
 
 Documentation
 ~~~~~~~~~~~~~
