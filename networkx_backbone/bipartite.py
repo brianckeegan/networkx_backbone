@@ -1101,6 +1101,7 @@ def _score_pairs(
     projection_directed=False,
     projection_max_iter=1000,
     projection_tol=1e-12,
+    missing_as_zero=True,
 ):
     """Score every agent pair and return the (thresholded) backbone graph.
 
@@ -1112,7 +1113,9 @@ def _score_pairs(
     (after the correction *mtc*, which needs every p-value) is ``< alpha``
     become edges; each edge stores the unadjusted p-value, the ``"sign"``
     when *signed*, and the *projection* weight (0.0 for non-co-occurring
-    pairs).
+    pairs).  With ``missing_as_zero=False`` (only used with ``alpha``) pairs
+    that never co-occur are not tests: they are left out of the correction
+    *mtc* and never become edges.
     """
     import numpy as np
 
@@ -1166,6 +1169,8 @@ def _score_pairs(
             r, c, counts, pval, sign = score_block(start, stop)
             if alpha is not None:
                 keep = pval < alpha
+                if not missing_as_zero:
+                    keep &= counts[r, c] > 0
                 r, c, pval = r[keep], c[keep], pval[keep]
                 sign = sign[keep] if signed else None
             add_edges(start, stop, r, c, pval, sign, counts)
@@ -1173,12 +1178,17 @@ def _score_pairs(
 
     # Multiple-testing correction needs all p-values before thresholding.
     blocks = list(_row_blocks(n))
-    pvals, signs = [], []
+    pvals, signs, tested = [], [], []
     for start, stop in blocks:
-        _, _, _, pval, sign = score_block(start, stop)
+        r, c, counts, pval, sign = score_block(start, stop)
         pvals.append(pval)
         signs.append(sign)
-    keep_all = _adjust_array(np.concatenate(pvals), mtc) < alpha
+        tested.append(
+            np.ones(len(pval), dtype=bool) if missing_as_zero else counts[r, c] > 0
+        )
+    tested = np.concatenate(tested)
+    keep_all = np.zeros(len(tested), dtype=bool)
+    keep_all[tested] = _adjust_array(np.concatenate(pvals)[tested], mtc) < alpha
     offset = 0
     for (start, stop), pval, sign in zip(blocks, pvals, signs):
         keep = keep_all[offset : offset + len(pval)]
@@ -2202,6 +2212,7 @@ def backbone_from_projection(
     projection_tol: float = 1e-12,
     mtc: str = "none",
     *,
+    missing_as_zero: bool = True,
     agent_labels: Sequence[Hashable] | None = None,
     artifact_labels: Sequence[Hashable] | None = None,
     **kwargs: Any,
@@ -2210,7 +2221,8 @@ def backbone_from_projection(
 
     Mirrors ``backbone::backbone_from_projection`` in R: the selected null
     model scores every agent pair, the optional multiple-testing correction
-    *mtc* is applied across all pairs, and the pairs with (adjusted) p-value
+    *mtc* is applied across all tested pairs (every pair unless
+    ``missing_as_zero=False``), and the pairs with (adjusted) p-value
     ``< alpha`` are returned.  The result is thresholded the same way for
     every *method*.  Pairs are scored in blocks of agent rows and only the
     significant ones become edges, so memory stays bounded for large
@@ -2246,7 +2258,16 @@ def backbone_from_projection(
     mtc : string, optional (default="none")
         Multiple-testing correction (see
         :func:`~networkx_backbone.adjust_pvalues`) applied to the p-values
-        of all agent pairs before thresholding.
+        of all tested agent pairs before thresholding.
+    missing_as_zero : bool, optional (default=True)
+        If ``True``, every agent pair is tested, including pairs that never
+        co-occur (co-occurrence 0).  If ``False``, as with R
+        ``backbone_from_projection`` (whose default is
+        ``missing_as_zero = FALSE``), pairs that never co-occur are not
+        tested: they do not count toward the *mtc* correction and are never
+        retained, not even as significantly weak pairs with
+        ``signed=True``.  The p-values of the tested pairs are the same
+        either way.  See Notes.
     agent_labels, artifact_labels : sequence or None, optional
         Row and column labels of a matrix *B* (default ``0, 1, ...``, or a
         ``DataFrame``'s index and columns).  Only valid with a matrix *B*.
@@ -2279,13 +2300,17 @@ def backbone_from_projection(
 
     Notes
     -----
-    With *mtc*, every agent pair counts as a test, including pairs that never
-    co-occur; R ``backbone_from_projection`` (with its default
-    ``missing_as_zero = FALSE``) counts only co-occurring pairs, so its
-    correction is less strict when some pairs never meet.  Likewise, with
-    ``signed=True`` a pair that never co-occurs can be significantly weak here
-    but is never tested by R.  When both tails are exactly equal R signs the
-    pair ``-1`` and networkx-backbone ``+1``.
+    By default (``missing_as_zero=True``) every agent pair counts as a test
+    for *mtc*, including pairs that never co-occur; R
+    ``backbone_from_projection`` with its default ``missing_as_zero = FALSE``
+    counts only co-occurring pairs, so its correction is less strict when
+    some pairs never meet.  Likewise, with ``signed=True`` a pair that never
+    co-occurs can be significantly weak here but is never tested by R.
+    ``missing_as_zero=False`` reproduces R's default; ``missing_as_zero=True``
+    reproduces R's ``missing_as_zero = TRUE``.  Without *mtc* and with
+    ``signed=False`` the two settings give the same backbone, because a pair
+    that never co-occurs has upper-tail p-value 1.  When both tails are
+    exactly equal R signs the pair ``-1`` and networkx-backbone ``+1``.
 
     Examples
     --------
@@ -2306,6 +2331,16 @@ def backbone_from_projection(
     ... )
     >>> sorted(H2.edges()) == sorted(H.edges())
     True
+
+    With ``missing_as_zero=False`` only the pairs that co-occur count toward
+    the Bonferroni correction, as in R:
+
+    >>> all_pairs = backbone_from_projection(B, method="fixedfill", alpha=0.06, mtc="bonferroni")
+    >>> cooccurring = backbone_from_projection(
+    ...     B, method="fixedfill", alpha=0.06, mtc="bonferroni", missing_as_zero=False
+    ... )
+    >>> all_pairs.number_of_edges(), cooccurring.number_of_edges()
+    (0, 1)
     """
     builders = {
         "sdsm": _sdsm_tails,
@@ -2334,6 +2369,7 @@ def backbone_from_projection(
         projection_directed=projection_directed,
         projection_max_iter=projection_max_iter,
         projection_tol=projection_tol,
+        missing_as_zero=missing_as_zero,
     )
 
 
