@@ -116,6 +116,12 @@ def glab_filter(G, weight="weight", c=0.5):
     :math:`I_{ji}`, so both directions of each link get the undirected
     p-value.
 
+    **Comparison with netbone.**  netbone's ``glanb`` counts shortest paths:
+    a target reached by *g* tied paths weighs *g* times in the involvement,
+    whose denominator is the total number of paths.  Here every reachable
+    target weighs the same, as in the formula above.  The two agree when no
+    shortest paths tie.
+
     References
     ----------
     .. [1] Zhang, X., Zhang, Z., Zhao, H., Wang, Q., & Zhu, J. (2014).

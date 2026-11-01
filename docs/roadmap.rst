@@ -87,10 +87,12 @@ Correctness gaps found in review and not yet fixed
 Validation
 ~~~~~~~~~~
 
-- **next** (`#14 <https://github.com/brianckeegan/networkx_backbone/issues/14>`_): Cross-implementation reference tests. Pin p-values on shared
-  datasets (Les Misérables, Davis Southern Women, karate) against R
-  ``backbone`` 3.0 and ``netbone``, stored as small JSON fixtures so the test
-  suite needs neither R nor netbone.
+- **done** (`#14 <https://github.com/brianckeegan/networkx_backbone/issues/14>`_): Cross-implementation reference tests. P-values and backbones
+  on Les Misérables, Davis Southern Women, and karate are pinned against R
+  ``backbone`` 3.0.4 and ``netbone`` 0.2.3 in JSON fixtures, so the test suite
+  needs neither R nor netbone. Open follow-ups: whether the signed LANS lower
+  tail should exclude the link itself, as R's does, and whether to add
+  Slater's connectivity stage to ``doubly_stochastic_filter``.
 - **next** (`#15 <https://github.com/brianckeegan/networkx_backbone/issues/15>`_): An optional CI job that installs xgi, HyperNetX, HypergraphX, and
   HAT and runs the adapter round-trip tests against the real libraries; they
   currently run only against stubs.

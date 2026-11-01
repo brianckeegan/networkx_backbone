@@ -192,6 +192,12 @@ def global_threshold_filter(G, threshold, weight="weight"):
         If *G* is a multigraph.  Collapse parallel edges first with
         :func:`~networkx_backbone.multigraph_to_weighted`.
 
+    Notes
+    -----
+    R ``backbone_from_weighted(model = "global", parameter = t)`` keeps edges
+    with weight strictly greater than *t*; this function keeps
+    ``weight >= threshold``.
+
     Examples
     --------
     >>> import networkx as nx
@@ -624,6 +630,11 @@ def high_salience_skeleton(G, weight="weight"):
     saliences sum to ``n - 1``.  Exact ties are detected with
     floating-point equality of path lengths.
 
+    netbone's ``high_salience_skeleton`` credits the one path Dijkstra returns
+    instead of splitting the credit, so the two agree exactly on edges never
+    involved in a tie and otherwise differ by at most the tied share (up to
+    0.43 on the karate club, whose integer weights produce many ties).
+
     References
     ----------
     .. [1] Grady, D., Thiemann, C., & Brockmann, D. (2012). Robust
@@ -873,6 +884,12 @@ def doubly_stochastic_filter(G, weight="weight", max_iter=1000, tol=1e-8):
     -----
     Isolated nodes (all-zero rows) are ignored when checking convergence.
 
+    This function computes only the scaled weights.  Slater's second stage,
+    which netbone's ``doubly_stochastic`` implements, adds edges in decreasing
+    order of scaled weight until the backbone is connected; it is not
+    implemented here.  netbone also scales a one-directional pivot of the edge
+    list with ``1e-4`` added to every cell, so its scores are not comparable.
+
     References
     ----------
     .. [1] Slater, P. B. (2009). A two-stage algorithm for extracting
@@ -1004,6 +1021,10 @@ def h_backbone(G, weight="weight"):
     would otherwise contain every edge); likewise an h-bridge of 0
     contributes no edges.  Bridge values are compared with a relative
     tolerance of ``1e-9``.
+
+    netbone's ``h_backbone`` computes the edge betweenness with the *weights*
+    as distances (so heavy edges count as long) and rounds the bridge value to
+    three decimals, so its h-bridge part differs; the h-strength part agrees.
 
     References
     ----------

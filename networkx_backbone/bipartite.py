@@ -2091,6 +2091,12 @@ def fixedcol(
     --------
     fixedfill, fixedrow, sdsm, fdsm, backbone_from_projection
 
+    Notes
+    -----
+    The tail is the exact Poisson-binomial one; R ``backbone::fixedcol`` uses the
+    refined normal approximation, which differs by up to 0.008 on Davis
+    Southern Women.  ``fixedfill`` and ``fixedrow`` equal R to rounding error.
+
     References
     ----------
     .. [1] Neal, Z. P., Domagalski, R., & Sagan, B. (2021). Comparing
@@ -2214,6 +2220,16 @@ def backbone_from_projection(
     See Also
     --------
     sdsm, fdsm, fixedfill, fixedrow, fixedcol, backbone
+
+    Notes
+    -----
+    With *mtc*, every agent pair counts as a test, including pairs that never
+    co-occur; R ``backbone_from_projection`` (with its default
+    ``missing_as_zero = FALSE``) counts only co-occurring pairs, so its
+    correction is less strict when some pairs never meet.  Likewise, with
+    ``signed=True`` a pair that never co-occurs can be significantly weak here
+    but is never tested by R.  When both tails are exactly equal R signs the
+    pair ``-1`` and networkx-backbone ``+1``.
 
     Examples
     --------
@@ -2815,6 +2831,21 @@ def sdsm(
     --------
     bicm, fdsm, backbone_from_projection
 
+    Notes
+    -----
+    **Comparison with R backbone.**  With ``pvalue_method="rna"`` the p-values
+    equal R ``backbone::sdsm`` up to the BiCM fit (``1e-8``), except that a
+    pair that never co-occurs gets the exact value 1 (R evaluates the
+    approximation there, but only when ``missing_as_zero = TRUE``).  The
+    default uses the exact tail when it is cheap, as on Davis Southern Women
+    (14 events), where it differs from R's approximation by up to 0.017: the
+    smallest p-value is 0.088 (R: 0.097), and neither finds a significant
+    pair at alpha = 0.05.  With edge constraints R estimates the
+    probabilities of the unconstrained cells by a logistic regression on the
+    row and column sums instead of refitting the BiCM, so its expected
+    degrees are not exactly the observed ones; on Davis with a few
+    constraints the p-values differ by up to 0.09.
+
     References
     ----------
     .. [1] Neal, Z. P. (2014). The backbone of bipartite projections:
@@ -2961,6 +2992,16 @@ def fdsm(
     See Also
     --------
     fastball, sdsm, backbone_from_projection
+
+    Notes
+    -----
+    **Comparison with R backbone.**  R ``backbone::fdsm`` draws every sample
+    independently with ``fastball()`` from the observed matrix, using 5 trades
+    per row of the smaller side, and reports ``count / trials``.  On Davis
+    Southern Women that is 70 trades per sample, too few to forget the
+    observed matrix, and its p-values are biased upward by up to about 0.03;
+    with 100 trades per row R's p-values match these within Monte Carlo
+    error.  Both find the same 5 significant pairs at alpha = 0.05.
 
     References
     ----------

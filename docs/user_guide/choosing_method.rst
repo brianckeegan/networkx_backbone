@@ -253,4 +253,4 @@ null models:
   distributions and keeps the links of the best fit (``mla_keep``, with the
   number per node in ``mla_rank``). There is no significance level, and every
   node keeps at least its strongest link. ``method="lans"`` thresholds LANS
-  p-values instead, as netbone does.
+  p-values instead, as version 0.2 did.
