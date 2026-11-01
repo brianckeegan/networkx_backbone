@@ -162,6 +162,50 @@ the matching converter with your keyword arguments:
 >>> list(B)
 [0, 2]
 
+Collapsing to a static weighted graph
+-------------------------------------
+
+:func:`~networkx_backbone.flatten_temporal` collapses any of the three forms
+into one ordinary graph, with one edge per node pair, so every static
+backbone method applies to it. Each edge's ``weight`` combines the weights of
+the pair's observations (a missing weight counts as 1), ``n_obs`` counts the
+observations, and ``first`` and ``last`` record when the pair was first and
+last seen. Isolated nodes in the snapshots are kept:
+
+>>> H = nb.flatten_temporal(S)
+>>> sorted(H.edges(data=True))
+[('ann', 'bob', {'weight': 2, 'n_obs': 2, 'first': 0, 'last': 1}), ('bob', 'cat', {'weight': 2, 'n_obs': 2, 'first': 1, 'last': 3})]
+>>> sorted(H)
+['ann', 'bob', 'cat', 'dan']
+
+``aggregate=`` chooses how the weights combine (``"sum"``, ``"count"``,
+``"mean"``, ``"max"`` or ``"min"``):
+
+>>> sorted(nb.flatten_temporal(E).edges(data="weight"))
+[('ann', 'bob', 4), ('bob', 'cat', 1)]
+>>> sorted(nb.flatten_temporal(E, aggregate="count").edges(data="weight"))
+[('ann', 'bob', 2), ('bob', 'cat', 1)]
+
+For spans, ``aggregate="duration"`` weights each pair by how long it is in
+contact (overlapping spans are not counted twice), and every span edge also
+gets ``active_time``. ``window=(t0, t1)`` keeps only the half-open interval
+``[t0, t1)``, clipping spans to it:
+
+>>> sorted(nb.flatten_temporal(P, aggregate="duration").edges(data="weight"))
+[('ann', 'bob', 2), ('bob', 'cat', 3)]
+>>> sorted(nb.flatten_temporal(P, aggregate="duration", window=(1, 3)).edges(data="weight"))
+[('ann', 'bob', 1), ('bob', 'cat', 2)]
+
+To count the steps in which a pair interacts rather than its events, bin
+first and then flatten:
+
+>>> sorted(nb.flatten_temporal(nb.snapshots_from_events(E, freq=1, origin=0)).edges(data="n_obs"))
+[('ann', 'bob', 2), ('bob', 'cat', 1)]
+
+The flattened graph keeps no order beyond ``first``, ``last`` and
+``active_time``; the temporal filters on the :doc:`../roadmap` score edges by
+how they behave over time instead.
+
 Datetimes and pandas
 --------------------
 
@@ -218,6 +262,11 @@ What each conversion keeps
      - Onsets (default), or the bins each span overlaps (``freq=``); other
        attributes, nodes and graph attributes
      - Durations (default) or times within a bin (``freq=``)
+   * - ``flatten_temporal``
+     - One edge per pair: combined ``weight``, ``n_obs``, ``first``,
+       ``last`` (and ``active_time`` for spans), shared attributes; nodes
+       (isolated too, without a window) and graph attributes
+     - The order and timing of observations, unshared attributes
    * - ``from_event_table`` / ``to_event_table``
      - Endpoints, times, ends, weights and edge attributes
      - Node and graph attributes, isolated nodes, the

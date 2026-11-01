@@ -96,7 +96,7 @@ from collections.abc import Mapping, Sequence
 from datetime import timedelta
 from itertools import pairwise
 from numbers import Real
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import networkx as nx
 
@@ -114,6 +114,7 @@ if TYPE_CHECKING:
 __all__ = [
     "temporal_form",
     "convert_temporal",
+    "flatten_temporal",
     "snapshots_from_events",
     "snapshots_from_spans",
     "events_from_snapshots",
@@ -1348,6 +1349,265 @@ def convert_temporal(
     return result
 
 
+def _window_bounds(window):
+    """``(t0, t1)`` of a half-open window; either end may be None (open)."""
+    if window is None:
+        return None, None
+    if (
+        isinstance(window, (str, bytes))
+        or not isinstance(window, Sequence)
+        or len(window) != 2
+    ):
+        raise TypeError(f"window must be a pair (t0, t1); got {window!r}.")
+    t0, t1 = window
+    if t0 is not None and t1 is not None:
+        try:
+            empty = not t0 < t1
+        except TypeError as err:
+            raise TypeError(
+                f"The window bounds {t0!r} and {t1!r} cannot be compared."
+            ) from err
+        if empty:
+            raise ValueError(f"window=({t0!r}, {t1!r}) is empty: t0 must be < t1.")
+    return t0, t1
+
+
+def _in_window(t, t0, t1):
+    try:
+        return (t0 is None or t >= t0) and (t1 is None or t < t1)
+    except TypeError as err:
+        raise TypeError(
+            f"The time {t!r} cannot be compared with the window bounds."
+        ) from err
+
+
+def _union_length(intervals):
+    """Total length of the union of ``[s, e)`` intervals (any time type)."""
+    total = None
+    cur_s = cur_e = None
+    for s, e in sorted(intervals, key=lambda iv: iv[0]):
+        if cur_e is not None and s <= cur_e:
+            if e > cur_e:
+                cur_e = e
+            continue
+        if cur_e is not None:
+            total = cur_e - cur_s if total is None else total + (cur_e - cur_s)
+        cur_s, cur_e = s, e
+    if cur_e is not None:
+        total = cur_e - cur_s if total is None else total + (cur_e - cur_s)
+    return total
+
+
+def flatten_temporal(
+    T: TemporalNetwork,
+    weight: str = "weight",
+    aggregate: str = "sum",
+    window: tuple[Any, Any] | None = None,
+    time: str = "time",
+    start: str = "start",
+    end: str = "end",
+) -> nx.Graph:
+    """Collapse a temporal network into one static weighted graph.
+
+    Every observation of a node pair (an edge in a snapshot, an event, or a
+    span) is combined into a single edge whose ``weight`` aggregates the
+    observations' weights, and which records how often and when the pair
+    was observed.  The result is an ordinary :class:`~networkx.Graph` or
+    :class:`~networkx.DiGraph`, so any static backbone method applies to it.
+
+    Parameters
+    ----------
+    T : dict, list, MultiGraph or MultiDiGraph
+        Snapshots, events, or spans (see :func:`temporal_form`).
+    weight : str, optional (default="weight")
+        Edge attribute holding each observation's weight; a missing weight
+        counts as 1.  The aggregated value is stored under the same name.
+    aggregate : {"sum", "count", "max", "min", "mean", "duration"}, optional
+        How the observations' weights combine, as in
+        :func:`~networkx_backbone.multigraph_to_weighted`; ``"count"`` gives
+        the number of observations.  ``"duration"`` (spans only) gives the
+        total time the pair is in contact: the length of the union of its
+        spans within *window*, so overlapping spans are not counted twice.
+        Default ``"sum"``.
+    window : tuple (t0, t1) or None, optional (default=None)
+        Keep only what happens in the half-open interval ``[t0, t1)``; either
+        bound may be ``None`` for an open end.  Snapshots and events are kept
+        when their time falls in the window; spans are clipped to it (a span
+        with ``start == end`` is kept when its start falls in the window).
+    time : str, optional (default="time")
+        Edge attribute holding an event's time.
+    start, end : str, optional (default="start", "end")
+        Edge attributes holding a span's start and end.
+
+    Returns
+    -------
+    H : Graph or DiGraph
+        One edge per node pair observed in the window, with:
+
+        - *weight*: the aggregated weight;
+        - ``n_obs``: the number of observations (snapshots containing the
+          edge, events, or spans);
+        - ``first`` and ``last``: the earliest and latest observation times
+          (for spans, the earliest clipped start and the latest clipped end);
+        - ``active_time`` (spans only): the length of the union of the pair's
+          clipped spans;
+        - the attributes that all of the pair's observations share.
+
+        Nodes are those present in the window, with their attributes
+        (from the latest snapshot that holds them, or from *T*); without a
+        window every node of *T* is kept, including isolated nodes.  The
+        graph attributes come from the latest snapshot in the window (or from
+        *T*), and ``H.graph["temporal"]`` records the input form, *aggregate*,
+        *window*, and the first and last observation times.
+
+    Raises
+    ------
+    ValueError
+        If *aggregate* is unknown, ``"duration"`` is used with snapshots or
+        events, or *window* is empty.
+    TypeError
+        If *window* is not a pair, or times cannot be compared with it.
+    NetworkXError
+        If *T* is not a temporal network (see :func:`temporal_form`).
+
+    See Also
+    --------
+    convert_temporal, multigraph_to_weighted, snapshots_from_events
+
+    Notes
+    -----
+    To collapse at a coarser resolution, bin first and then flatten: for
+    example ``flatten_temporal(snapshots_from_events(M, freq=7))`` counts the
+    weeks in which a pair interacts, where ``flatten_temporal(M,
+    aggregate="count")`` counts its events.
+
+    The result drops the order and timing of the observations beyond
+    ``first``, ``last`` and ``active_time``; use the temporal filters to score
+    edges by how they behave over time.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> from networkx_backbone import flatten_temporal
+    >>> G1 = nx.Graph([("a", "b", {"weight": 2}), ("b", "c", {"weight": 1})])
+    >>> G2 = nx.Graph([("a", "b", {"weight": 3})])
+    >>> H = flatten_temporal({0: G1, 1: G2})
+    >>> H["a"]["b"]
+    {'weight': 5, 'n_obs': 2, 'first': 0, 'last': 1}
+    >>> flatten_temporal({0: G1, 1: G2}, aggregate="mean")["a"]["b"]["weight"]
+    2.5
+
+    Spans can be weighted by how long the pair is in contact:
+
+    >>> M = nx.MultiGraph()
+    >>> M.add_edges_from([("a", "b", {"start": 0, "end": 4.5}),
+    ...                   ("a", "b", {"start": 9, "end": 9.5})])
+    [0, 1]
+    >>> H = flatten_temporal(M, aggregate="duration")
+    >>> H["a"]["b"]["weight"], H["a"]["b"]["n_obs"]
+    (5.0, 2)
+    >>> flatten_temporal(M, aggregate="duration", window=(2, 10))["a"]["b"]["weight"]
+    3.0
+    """
+    if aggregate not in (*_AGGREGATES, "duration"):
+        raise ValueError(
+            f"aggregate must be one of "
+            f"{', '.join(map(repr, (*_AGGREGATES, 'duration')))}; got {aggregate!r}."
+        )
+    t0, t1 = _window_bounds(window)
+    form = temporal_form(T, time=time, start=start, end=end)
+    if aggregate == "duration" and form != "spans":
+        raise ValueError(
+            f"aggregate='duration' needs spans (edges with {start!r} and "
+            f"{end!r}); the input is {form}."
+        )
+    windowed = window is not None
+
+    # (u, v, data, first, last, interval or None) per observation in the window.
+    obs: list[tuple[Any, Any, dict, Any, Any, tuple[Any, Any] | None]] = []
+    nodes: dict[Any, dict] = {}
+    if form == "snapshots":
+        items, _ = _snapshots(T)
+        items = [(t, G) for t, G in items if _in_window(t, t0, t1)]
+        directed = (
+            items[0][1].is_directed() if items else _snapshots(T)[0][0][1].is_directed()
+        )
+        for t, G in items:
+            for n, a in G.nodes(data=True):
+                nodes[n] = a
+            obs.extend((u, v, d, t, t, None) for u, v, d in G.edges(data=True))
+        graph_attrs = dict(items[-1][1].graph) if items else {}
+        drop: set[str] = set()
+    else:
+        M = cast(nx.MultiGraph, T)
+        directed = M.is_directed()
+        graph_attrs = {k: x for k, x in M.graph.items() if k != RECORD}
+        if form == "events":
+            drop = {time}
+            for u, v, d, t in _read_edges(M, [(time, "time")], "events"):
+                if _in_window(t, t0, t1):
+                    obs.append((u, v, d, t, t, None))
+        else:
+            drop = {start, end}
+            for u, v, d, s, e in _read_edges(
+                M, [(start, "start"), (end, "end")], "spans"
+            ):
+                cs = s if t0 is None or s >= t0 else t0
+                ce = e if t1 is None or e <= t1 else t1
+                if s == e:
+                    keep = _in_window(s, t0, t1)
+                    cs = ce = s
+                else:
+                    keep = cs < ce
+                if keep:
+                    obs.append((u, v, d, cs, ce, (cs, ce)))
+        if windowed:
+            for u, v, *_ in obs:
+                nodes[u] = M.nodes[u]
+                nodes[v] = M.nodes[v]
+        else:
+            nodes = dict(M.nodes(data=True))
+
+    groups: dict[Any, tuple[Any, Any, list]] = {}
+    for row in obs:
+        u, v = row[0], row[1]
+        groups.setdefault(_pair(u, v, directed), (u, v, []))[2].append(row)
+    keys = list(groups)
+    attrs = _aggregate(
+        [[row[2] for row in groups[k][2]] for k in keys],
+        drop | {"n_obs", "first", "last", "active_time"},
+        weight,
+        "sum" if aggregate == "duration" else aggregate,
+    )
+
+    H: nx.Graph = nx.DiGraph() if directed else nx.Graph()
+    H.graph.update(graph_attrs)
+    H.add_nodes_from((n, dict(a)) for n, a in nodes.items())
+    first_all = last_all = None
+    for k, a in zip(keys, attrs):
+        u, v, rows = groups[k]
+        a["n_obs"] = a.pop("edge_count")
+        a["first"] = min(row[3] for row in rows)
+        a["last"] = max(row[4] for row in rows)
+        if form == "spans":
+            a["active_time"] = _union_length([row[5] for row in rows])
+            if aggregate == "duration":
+                a[weight] = a["active_time"]
+        H.add_edge(u, v, **a)
+        if first_all is None or a["first"] < first_all:
+            first_all = a["first"]
+        if last_all is None or a["last"] > last_all:
+            last_all = a["last"]
+    H.graph[RECORD] = {
+        "flattened_from": form,
+        "aggregate": aggregate,
+        "window": window,
+        "first": first_all,
+        "last": last_all,
+    }
+    return H
+
+
 def from_event_table(
     df: pd.DataFrame,
     source: str = "source",
@@ -2558,6 +2818,11 @@ _COMPLEXITY = {
     "convert_temporal": {
         "time": "that of the converter",
         "space": "that of the converter",
+    },
+    "flatten_temporal": {
+        "time": "O(n + m + S log S)",
+        "space": "O(n + m)",
+        "notes": "m observations (snapshot edges, events or spans), S snapshots.",
     },
     "snapshots_from_events": {
         "time": "O(n + m log m + B)",
