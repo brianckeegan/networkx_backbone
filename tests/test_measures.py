@@ -16,25 +16,17 @@ from networkx_backbone import (
 )
 
 
-def test_node_fraction():
+def test_fraction_measures(weighted_triangle):
     G = nx.path_graph(4)
     assert node_fraction(G, G) == 1.0
     assert node_fraction(G, nx.path_graph(3)) == 0.75
-
-
-def test_edge_fraction():
     G = nx.complete_graph(4)  # 6 edges
     assert edge_fraction(G, G) == 1.0
     assert edge_fraction(G, nx.path_graph(4)) == 0.5  # 3 edges
-
-
-def test_weight_fraction(weighted_triangle):
     H = nx.Graph()
     H.add_weighted_edges_from([(0, 1, 3.0)])
     assert weight_fraction(weighted_triangle, H) == 0.5
-
-
-def test_empty_graph_measures():
+    # Empty graphs.
     E = nx.Graph()
     assert edge_fraction(E, E) == 0.0
     assert node_fraction(E, E) == 0.0
@@ -46,22 +38,16 @@ def test_ks_identical_graphs_is_zero(weighted_triangle):
     assert ks_weight(weighted_triangle, weighted_triangle) == 0.0
 
 
-class TestReachability:
-    def test_undirected(self):
-        assert reachability(nx.path_graph(4)) == 1.0
-        assert reachability(nx.empty_graph(3)) == 0.0
-        assert reachability(nx.empty_graph(1)) == 1.0
-
-    def test_directed_path(self):
-        assert reachability(nx.DiGraph([(0, 1), (1, 2)])) == pytest.approx(0.5)
-
-    def test_directed_cycle(self):
-        assert reachability(nx.cycle_graph(4, create_using=nx.DiGraph)) == 1.0
-
-    def test_directed_dag_between_cycles(self):
-        # SCC {0,1} -> SCC {2,3}: 2*1 + 2*1 within, 2*2 across = 8 of 12.
-        G = nx.DiGraph([(0, 1), (1, 0), (2, 3), (3, 2), (1, 2)])
-        assert reachability(G) == pytest.approx(8 / 12)
+def test_reachability():
+    assert reachability(nx.path_graph(4)) == 1.0
+    assert reachability(nx.empty_graph(3)) == 0.0
+    assert reachability(nx.empty_graph(1)) == 1.0
+    # Directed: a path, a cycle, and two cycles joined by one edge, where
+    # SCC {0,1} -> SCC {2,3} gives 2*1 + 2*1 within, 2*2 across = 8 of 12.
+    assert reachability(nx.DiGraph([(0, 1), (1, 2)])) == pytest.approx(0.5)
+    assert reachability(nx.cycle_graph(4, create_using=nx.DiGraph)) == 1.0
+    G = nx.DiGraph([(0, 1), (1, 0), (2, 3), (3, 2), (1, 2)])
+    assert reachability(G) == pytest.approx(8 / 12)
 
 
 class TestCompareBackbones:

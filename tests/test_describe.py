@@ -36,7 +36,7 @@ def _ascii(text):
 # ---------------------------------------------------------------------------
 
 
-def test_every_public_scorer_has_a_registry_entry():
+def test_registry_matches_public_api():
     # A new public method must be described (or explicitly excluded).
     missing = [
         name
@@ -49,20 +49,18 @@ def test_every_public_scorer_has_a_registry_entry():
     assert not missing, (
         f"add these to networkx_backbone.describe.METHODS (or EXCLUDED): {missing}"
     )
-
-
-def test_registry_names_are_public():
+    # Every registry name is public, and none lives in a helper module.
     public = set(nb.__all__)
     assert set(METHODS) <= public
     assert set(EXCLUDED) <= public
     assert not set(METHODS) & set(EXCLUDED)
     for alias, target in ALIASES.items():
         assert target in METHODS, alias
-
-
-def test_helper_modules_hold_no_described_methods():
     for name in METHODS:
         assert _module(name) not in HELPER_MODULES, name
+    # The module docstring lists every described method.
+    for name in METHODS:
+        assert f"networkx_backbone.{name}`" in describe.__doc__, name
 
 
 def test_references_exist_and_are_used():
@@ -105,25 +103,42 @@ def test_dois_are_documented_in_the_repository():
             assert ref.doi in text, f"{key}: DOI {ref.doi} not found in README"
 
 
-def test_module_docstring_lists_registry():
-    for name in METHODS:
-        assert f"networkx_backbone.{name}`" in describe.__doc__
-
-
-@pytest.mark.parametrize("name", sorted(METHODS))
-@pytest.mark.parametrize("style", ["text", "markdown", "bibtex"])
-def test_every_method_renders(name, style):
+def _render_problems(name, style):
     entry = METHODS[name]
     kwargs = {"alpha": 0.05} if entry.test else {}
-    out = nb.describe_backbone(name, style=style, **kwargs)
+    try:
+        out = nb.describe_backbone(name, style=style, **kwargs)
+    except Exception as err:
+        return [f"raised {type(err).__name__}: {err}"]
+    problems = []
     if style == "bibtex":
-        assert out.count("@") == len(entry.refs) + 1 + bool(entry.builtin_mtc)
-        assert "keegan_networkx_backbone" in out
+        n_entries = len(entry.refs) + 1 + bool(entry.builtin_mtc)
+        if out.count("@") != n_entries:
+            problems.append(f"{out.count('@')} BibTeX entries, expected {n_entries}")
+        if "keegan_networkx_backbone" not in out:
+            problems.append("does not cite the package")
     else:
-        assert entry.label in out
-        assert "networkx-backbone version" in out
-        for key in entry.refs:
-            assert REFERENCES[key].cite() in out
+        if entry.label not in out:
+            problems.append(f"label {entry.label!r} missing")
+        if "networkx-backbone version" not in out:
+            problems.append("package version missing")
+        problems += [
+            f"citation {key!r} missing"
+            for key in entry.refs
+            if REFERENCES[key].cite() not in out
+        ]
+    return problems
+
+
+def test_every_method_renders():
+    # Every registered method, in every style; one line per failing pair.
+    failures = [
+        f"{name} ({style}): {problem}"
+        for name in sorted(METHODS)
+        for style in ("text", "markdown", "bibtex")
+        for problem in _render_problems(name, style)
+    ]
+    assert not failures, "\n".join(failures)
 
 
 # ---------------------------------------------------------------------------
@@ -160,27 +175,24 @@ def test_aliases_and_callables_resolve(les_mis):
     assert "(SVH)" in nb.describe_backbone("svh", alpha=0.01)
 
 
-@pytest.mark.parametrize(
-    ("mtc", "phrase", "cite"),
-    [
+def test_mtc_wording():
+    for mtc, phrase, cite in [
         ("bonferroni", "a Bonferroni correction", None),
         ("holm", "a Holm step-down correction", "Holm, 1979"),
         ("hochberg", "a Hochberg step-up correction", "Hochberg, 1988"),
         ("bh", "Benjamini-Hochberg", "Benjamini & Hochberg, 1995"),
         ("fdr", "Benjamini-Hochberg", "Benjamini & Hochberg, 1995"),
         ("BY", "Benjamini-Yekutieli", "Benjamini & Yekutieli, 2001"),
-    ],
-)
-def test_mtc_wording(mtc, phrase, cite):
-    text = nb.describe_backbone("lans_filter", alpha=0.05, mtc=mtc)
-    assert phrase in text
-    assert "for multiple comparisons" in text
-    bib = nb.describe_backbone("lans_filter", alpha=0.05, mtc=mtc, style="bibtex")
-    if cite:
-        assert cite in text
-        assert bib.count("@") == 3
-    else:
-        assert bib.count("@") == 2
+    ]:
+        text = nb.describe_backbone("lans_filter", alpha=0.05, mtc=mtc)
+        assert phrase in text, mtc
+        assert "for multiple comparisons" in text, mtc
+        bib = nb.describe_backbone("lans_filter", alpha=0.05, mtc=mtc, style="bibtex")
+        if cite:
+            assert cite in text, mtc
+            assert bib.count("@") == 3, mtc
+        else:
+            assert bib.count("@") == 2, mtc
 
 
 def test_alpha_none_mentions_pvalues():
