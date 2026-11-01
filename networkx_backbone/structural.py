@@ -198,7 +198,8 @@ def global_threshold_filter(G, threshold, weight="weight"):
     -----
     R ``backbone_from_weighted(model = "global", parameter = t)`` keeps edges
     with weight strictly greater than *t*; this function keeps
-    ``weight >= threshold``.
+    ``weight >= threshold``.  Pass ``threshold=math.nextafter(t, math.inf)``
+    to reproduce R's backbone.
 
     Examples
     --------
