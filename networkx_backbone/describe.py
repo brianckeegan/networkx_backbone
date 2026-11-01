@@ -12,9 +12,9 @@ the keys of its references in :data:`REFERENCES` (taken from the functions'
 own *References* sections).  The coverage policy is:
 
 - **Described**: every public function of the ``statistical``,
-  ``structural``, ``proximity``, ``hybrid``, ``bipartite``, ``hypergraph``
-  and ``unweighted`` modules that scores edges (or nodes, pairs or
-  hyperedges) or extracts a backbone, including the bipartite projections.
+  ``structural``, ``proximity``, ``hybrid``, ``bipartite``, ``hypergraph``,
+  ``unweighted`` and ``temporal`` modules that scores edges (or nodes, pairs
+  or hyperedges) or extracts a backbone, including the bipartite projections.
   Short aliases such as ``disparity`` or ``svh`` and the method names
   accepted by the dispatch wrappers (``"global"``, ``"simple"``, ...) are
   resolved through :data:`ALIASES`.
@@ -22,11 +22,16 @@ own *References* sections).  The coverage policy is:
   dispatch wrappers (describe the method they dispatch to), null-model
   building blocks (``bicm``, ``fastball``), hypergraph helpers that are not
   backbones, result classes, and the temporal-network format conversions
-  of ``temporal`` (that module will also hold temporal backbone methods,
-  so it is not a helper module).
+  of ``temporal`` (that module also holds the temporal backbone methods, so
+  it is not a helper module).
 - The helper modules ``filters``, ``measures``, ``hypergraph_io``,
   ``visualization``, ``describe`` and ``convert`` are not methods and are
   skipped.
+
+:data:`SCORE_KEYS` maps each static weighted or unweighted method to the
+edge attribute a cut uses (its p-value, score or ``*_keep`` flag);
+:func:`~networkx_backbone.backbone_stability` reads it to apply the same cut
+to every snapshot.
 
 The test suite checks that every public name falls in one of these groups, so
 a new method cannot be added without a registry entry.
@@ -489,7 +494,8 @@ class Method:
         Keys into :data:`REFERENCES`.
     kind
         Input the method takes: ``"weighted"``, ``"unweighted"``,
-        ``"bipartite"`` (agent-pair projection) or ``"hypergraph"``.
+        ``"bipartite"`` (agent-pair projection), ``"hypergraph"`` or
+        ``"temporal"`` (snapshots, events or spans).
     test
         Whether the method yields p-values to compare with ``alpha``.
     builtin_mtc
@@ -506,6 +512,7 @@ class Method:
 
 
 W, U, B, H = "weighted", "unweighted", "bipartite", "hypergraph"
+TEMPORAL = "temporal"
 
 _SHARED = "scores each edge by the number of neighbors its endpoints share"
 
@@ -842,7 +849,78 @@ METHODS = {
         "highest-degree neighbors",
         ("lindner2015", "hamann2016"), U,
     ),
+    # --- temporal ------------------------------------------------------------
+    "observation_fraction": Method(
+        "the observation fraction",
+        "which scores each edge by the share of its eligible steps (the steps "
+        "in which both endpoints are present) in which it is observed",
+        kind=TEMPORAL,
+    ),
+    "persistence": Method(
+        "edge persistence",
+        "which scores each edge by its runs of consecutive observed eligible "
+        "steps and by the share of its observed steps whose next eligible "
+        "step is also observed",
+        kind=TEMPORAL,
+    ),
+    "backbone_stability": Method(
+        "backbone stability",
+        "which extracts a static backbone in every step and scores each edge "
+        "by the share of its eligible steps in which that backbone keeps it",
+        kind=TEMPORAL,
+    ),
+    "weight_trend": Method(
+        "the weight trend",
+        "which summarizes each edge's weight series over its eligible steps "
+        "(an absent edge counting as weight 0) by its mean, standard "
+        "deviation, coefficient of variation and least-squares slope",
+        kind=TEMPORAL,
+    ),
 }  # fmt: skip
+
+#: Edge attribute that a cut on each static method's output uses: a p-value
+#: (cut with ``threshold_filter(..., mode="below")``), another score (cut with
+#: ``mode="above"``) or a ``*_keep`` flag (``boolean_filter``).
+SCORE_KEYS = {
+    "disparity_filter": "disparity_pvalue",
+    "noise_corrected_filter": "nc_pvalue",
+    "marginal_likelihood_filter": "ml_pvalue",
+    "ecm_filter": "ecm_pvalue",
+    "lans_filter": "lans_pvalue",
+    "multiple_linkage_analysis": "mla_keep",
+    "polya_filter": "polya_pvalue",
+    "gloss_filter": "gloss_pvalue",
+    "global_threshold_filter": "global_threshold_keep",
+    "strongest_n_ties": "strongest_n_ties_keep",
+    "global_sparsification": "global_sparsification_keep",
+    "primary_linkage_analysis": "primary_linkage_keep",
+    "edge_betweenness_filter": "edge_betweenness_keep",
+    "node_degree_filter": "node_degree_keep",
+    "high_salience_skeleton": "salience",
+    "metric_backbone": "metric_keep",
+    "ultrametric_backbone": "ultrametric_keep",
+    "doubly_stochastic_filter": "ds_keep",
+    "h_backbone": "h_backbone_keep",
+    "modularity_backbone": "modularity_keep",
+    "planar_maximally_filtered_graph": "pmfg_keep",
+    "maximum_spanning_tree_backbone": "mst_keep",
+    "neighborhood_overlap": "overlap",
+    "jaccard_backbone": "jaccard",
+    "dice_backbone": "dice",
+    "cosine_backbone": "cosine",
+    "hub_promoted_index": "hpi",
+    "hub_depressed_index": "hdi",
+    "lhn_local_index": "lhn_local",
+    "preferential_attachment_score": "pa",
+    "adamic_adar_index": "adamic_adar",
+    "resource_allocation_index": "resource_allocation",
+    "graph_distance_proximity": "dist",
+    "local_path_index": "lp",
+    "glab_filter": "glab_pvalue",
+    "sparsify": "sparsify_keep",
+    "lspar": "sparsify_keep",
+    "local_degree": "sparsify_keep",
+}
 
 #: Other accepted names (short aliases and dispatch-wrapper method names).
 ALIASES = {
@@ -881,6 +959,7 @@ EXCLUDED = {
         (
             "temporal_form",
             "convert_temporal",
+            "flatten_temporal",
             "snapshots_from_events",
             "snapshots_from_spans",
             "events_from_snapshots",
@@ -987,6 +1066,7 @@ def _hyperedges(obj):
 
 
 def _graph_share(original, backbone, weight):
+    """Edges, nodes and (unless *weight* is None) weight the backbone keeps."""
     from networkx_backbone.measures import (
         edge_fraction,
         node_fraction,
@@ -1002,8 +1082,10 @@ def _graph_share(original, backbone, weight):
         f"non-isolated nodes ({_pct(node_fraction(original, backbone))})"
     )
     weights = [d.get(weight) for _, _, d in original.edges(data=True)]
-    if weights and all(
-        isinstance(w, int | float) and not isinstance(w, bool) for w in weights
+    if (
+        weight is not None
+        and weights
+        and all(isinstance(w, int | float) and not isinstance(w, bool) for w in weights)
     ):
         share = weight_fraction(original, backbone, weight=weight)
         text += f", and {_pct(share)} of the total edge weight"
@@ -1025,6 +1107,15 @@ def _size_sentence(entry, original, backbone, weight):
         )
     if not isinstance(backbone, nx.Graph):
         raise TypeError("backbone must be a NetworkX graph for this method")
+    if entry.kind == TEMPORAL and original is not None:
+        if not isinstance(original, nx.Graph) or original.is_multigraph():
+            raise TypeError(
+                "For a temporal method, original is the scored graph the "
+                "method returned (the union of the observed edges)."
+            )
+        # Report edges and nodes only: the scores, not the summed weights
+        # over steps, define a temporal backbone.
+        return _graph_share(original, backbone, None)
     if entry.kind == B or original is None:
         n, m = backbone.number_of_nodes(), backbone.number_of_edges()
         what = "agents" if entry.kind == B else "nodes"
@@ -1086,6 +1177,65 @@ def _model_sentences(name, params, backbone, md):
                 "Edge weights were converted to counts in units of "
                 f"{code(f'unit = {_num(unit)}')} (count = weight / unit) before "
                 "testing."
+            )
+    return sentences, keys, params
+
+
+_INPUT_FORMS = {
+    "snapshots": "snapshots",
+    "events": "timestamped events",
+    "spans": "contacts with a start and an end",
+}
+
+
+def _temporal_sentences(name, params, original, backbone, md):
+    """Sentences for a temporal method: the steps, eligibility, inner method.
+
+    Reads ``graph["temporal"]`` of *backbone* (or else *original*).  Returns
+    ``(sentences, reference_keys, remaining_params)``.
+    """
+    params = dict(params)
+    meta = {}
+    for graph in (backbone, original):
+        if isinstance(graph, nx.Graph) and isinstance(
+            graph.graph.get("temporal"), dict
+        ):
+            meta = graph.graph["temporal"]
+            break
+    sentences, keys = [], []
+    if "n_steps" in meta:
+        text = f"The network was observed in {meta['n_steps']} time steps"
+        form = meta.get("input_form")
+        if form in _INPUT_FORMS:
+            text += f", given as {_INPUT_FORMS[form]}"
+        if form in ("events", "spans"):
+            freq = meta.get("freq")
+            if freq is None:
+                text += " with one step per distinct time"
+            else:
+                code = f"freq={freq!r}"
+                text += f" binned with {f'`{code}`' if md else code}"
+        sentences.append(text + ".")
+    sentences.append(
+        "An absent edge counted as an observed zero only in the steps in which "
+        "both of its endpoints were present (its eligible steps); in the other "
+        "steps it was treated as unknown."
+    )
+    if name == "backbone_stability":
+        inner = params.pop("method", None)
+        if inner is None:
+            inner = meta.get("parameters", {}).get("method")
+        try:
+            _, entry = _resolve(inner)
+        except (TypeError, ValueError):
+            entry = None
+        if entry is not None:
+            cites = "; ".join(REFERENCES[k].cite() for k in entry.refs)
+            keys += list(entry.refs)
+            sentences.append(
+                f"In every step the edges were scored with {entry.label}"
+                + (f" ({cites})" if cites else "")
+                + ", and the same cut was applied in each step."
             )
     return sentences, keys, params
 
@@ -1167,7 +1317,9 @@ def describe_backbone(
         that take a ``signed`` argument.
     original : graph or iterable of hyperedges, optional
         The input network.  With *backbone*, the share of edges, nodes and
-        weight kept is reported.
+        weight kept is reported.  For a temporal method, the scored graph
+        the method returned; the number of steps and the binning are read
+        from its ``graph["temporal"]`` record (or that of *backbone*).
     backbone : graph, iterable of hyperedges or result object, optional
         The extracted backbone.
     style : {"text", "markdown", "bibtex"}, optional (default="text")
@@ -1292,6 +1444,12 @@ def describe_backbone(
         name, params, backbone, style == "markdown"
     )
     keys += [k for k in model_keys if k not in keys]
+    if entry.kind == TEMPORAL:
+        temporal_sentences, temporal_keys, params = _temporal_sentences(
+            name, params, original, backbone, style == "markdown"
+        )
+        model_sentences += temporal_sentences
+        keys += [k for k in temporal_keys if k not in keys]
 
     if mtc_l != "none":
         mtc_phrase, mtc_keys = _MTC_TEXT[mtc_l]
@@ -1309,11 +1467,12 @@ def describe_backbone(
     md = style == "markdown"
     inner = "; ".join(filter(None, [f"`{name}`" if md else "", method_cites]))
     cite = f" ({inner})" if inner else ""
-    verb = (
-        "We projected the bipartite network with"
-        if entry.kind == B and not entry.test
-        else "We extracted the backbone with"
-    )
+    if entry.kind == B and not entry.test:
+        verb = "We projected the bipartite network with"
+    elif entry.kind == TEMPORAL:
+        verb = "We scored the edges of the temporal network with"
+    else:
+        verb = "We extracted the backbone with"
     sentences = [f"{verb} {entry.label}{cite}, {entry.summary}."]
     sentences += model_sentences
     sentences += _transform_sentences(original, backbone, md)
