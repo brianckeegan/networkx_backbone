@@ -178,7 +178,7 @@ implementation. Undirected graphs are assumed throughout, as in both papers.
     also treats the weight as a **distance**, so heavy edges are *longer*.
     The result is rounded to 3 decimals.
   - `h_backbone` uses unweighted (topological) betweenness over **ordered**
-    pairs, following Zhang et al. (2018) (see the 0.2.0 changelog).
+    pairs, following Zhang et al. (2018) (see the 0.3.0 changelog).
   - On a path of three nodes, `netbone` gives each edge
     b = 2/3 ≈ 0.667 and `h_backbone` gives 4/3. Both the bridge values and
     the h-bridge threshold differ, so the backbones can differ.
