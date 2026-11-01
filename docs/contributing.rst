@@ -108,6 +108,10 @@ stack:
   :class:`networkx.NetworkXNotImplemented` (via
   :func:`networkx.utils.decorators.not_implemented_for`) for unsupported graph types;
   raise :class:`ValueError` for invalid non-graph arguments.
+  Functions that also accept a matrix (the bipartite scorers take NumPy,
+  SciPy sparse, or pandas incidence matrices) use the module's own check,
+  which raises the same exception for graph input, because
+  ``not_implemented_for`` assumes a graph argument.
 - Name score attributes ``<method>_pvalue``, ``<method>_score``, or
   ``<method>_keep`` so they compose with the filters in
   :mod:`networkx_backbone.filters`.

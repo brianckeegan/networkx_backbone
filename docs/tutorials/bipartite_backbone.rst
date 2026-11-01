@@ -37,9 +37,21 @@ Setup
 Weighted projections
 --------------------
 
-Following Coscia & Neffke (2017, arXiv:1906.09081), you can project the
-bipartite graph into weighted one-mode networks using different weighting
-schemes::
+Coscia & Rossi (2019) compare four ways to weight a projection, all built from
+the shared artifacts ``z`` of two agents ``u`` and ``v`` (``d`` is a degree):
+
+- **simple**: the number of shared artifacts, ``|Γ(u) ∩ Γ(v)|`` (equal to
+  ``nx.bipartite.weighted_projected_graph``);
+- **hyper** (hyperbolic): ``Σ 1/d(z)``, so a small shared event counts for more
+  than a large one;
+- **ProbS**: the probability that a two-step random walk from ``u`` (to an
+  artifact, then to an agent) ends at ``v``, ``(1/d(u)) Σ 1/d(z)``, averaged
+  over the two directions;
+- **YCN** (Yildirim & Coscia, 2014): the stationary flow ``π_u T_uv`` of that
+  random walk. On a connected graph it equals the hyperbolic weight divided by
+  the number of bipartite edges.
+
+::
 
     G_simple = nb.simple_projection(B, women_nodes)
     G_hyper = nb.hyper_projection(B, women_nodes)
@@ -51,9 +63,21 @@ schemes::
     print("ProbS edges:", G_probs.number_of_edges())
     print("YCN edges:", G_ycn.number_of_edges())
 
-You can also dispatch by name::
+Coscia & Rossi's hyperbolic weight discounts each artifact by ``d(z)``. Newman's
+(2001) original collaboration weight discounts by ``d(z) - 1``, the number of
+*other* co-authors, and is what NetworkX's
+``nx.bipartite.collaboration_weighted_projected_graph`` computes. The two
+differ on every Davis pair (Olivia and Sylvia: 1/12 versus 1/11), so pick one
+deliberately::
+
+    G_newman = nb.hyper_projection(B, women_nodes, newman=True)
+
+You can also dispatch by name (``"simple"``, ``"hyper"``, ``"newman"``,
+``"probs"``, ``"ycn"``), and pass ``directed=True`` for the asymmetric ProbS and
+YCN scores::
 
     G = nb.bipartite_projection(B, women_nodes, method="probs")
+    D = nb.bipartite_projection(B, women_nodes, method="probs", directed=True)
 
 SDSM: Stochastic Degree Sequence Model
 ----------------------------------------
@@ -147,7 +171,41 @@ Partition selection note
 
 ``nx.davis_southern_women_graph()`` includes a ``"bipartite"`` node attribute,
 which makes partition selection straightforward. In general, pass whichever
-partition you want to project as ``agent_nodes``.
+partition you want to project as ``agent_nodes``; if you leave it out, it is
+taken from the ``"bipartite"`` attribute (value 0) or from a two-coloring of a
+connected graph.
+
+Incidence matrices and large data
+---------------------------------
+
+Every function in this tutorial also accepts an agents x artifacts incidence
+matrix in place of the graph, as R ``backbone`` does: a NumPy array, a SciPy
+sparse array or matrix, or a pandas ``DataFrame`` (whose index and columns
+become the labels). Rows are the agents; name them with ``agent_labels`` (and
+the columns with ``artifact_labels``, which ``prohibited``/``required`` refer
+to). The results are identical to the graph path::
+
+    women = sorted(women_nodes, key=str)
+    events = sorted(event_nodes, key=str)
+    M = nx.bipartite.biadjacency_matrix(B, row_order=women, column_order=events)
+    bb = nb.backbone_from_projection(
+        M, method="sdsm", alpha=0.05, agent_labels=women, artifact_labels=events
+    )
+
+The incidence is kept as a sparse matrix, co-occurrences come from sparse
+products, and agent pairs are scored in blocks of rows, so no dense agents x
+agents matrix is built. ``backbone_from_projection`` only turns significant
+pairs into edges, which keeps memory bounded for tens of thousands of agents
+(with ``mtc`` it also keeps one float per pair for the correction). By
+contrast, :func:`~networkx_backbone.sdsm` and :func:`~networkx_backbone.fdsm`
+return *every* pair as an edge, which is only practical for a few thousand
+agents::
+
+    import scipy.sparse as sp
+
+    M = sp.random_array((20_000, 5_000), density=0.01, format="csr")
+    M.data[:] = 1
+    bb = nb.backbone_from_projection(M, method="sdsm", alpha=0.01)  # ~0.5 min
 
 Signed backbones
 ----------------
@@ -180,8 +238,15 @@ Pass them to ``sdsm`` as iterables of ``(agent, artifact)`` pairs::
 References
 ----------
 
-- Coscia, M., & Neffke, F. M. (2017). *Network backboning with noisy data*.
-  https://arxiv.org/abs/1906.09081
+- Coscia, M., & Rossi, L. (2019). *The impact of projection and backboning on
+  network topologies*. Proc. IEEE/ACM ASONAM.
+  https://doi.org/10.1145/3341161.3342862 (arXiv:1906.09081)
+- Newman, M. E. J. (2001). *Scientific collaboration networks. II. Shortest
+  paths, weighted networks, and centrality*. Physical Review E, 64, 016132.
+- Yildirim, M. A., & Coscia, M. (2014). *Using random walks to generate
+  associations between objects*. PLoS ONE, 9(8), e104813.
+- Zhou, T., Ren, J., Medo, M., & Zhang, Y.-C. (2007). *Bipartite network
+  projection and personal recommendation*. Physical Review E, 76, 046115.
 - Neal, Z. P. (2014). *The backbone of bipartite projections*. Social Networks,
   39, 84-97.
 - Neal, Z. P., Domagalski, R., & Sagan, B. (2021). *Comparing alternatives to the

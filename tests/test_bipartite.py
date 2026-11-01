@@ -34,7 +34,11 @@ AGENTS = [1, 2, 3]
 
 
 def _davis_matrix(B, women):
-    agents, artifacts, R, observed = bp._bipartite_projection_matrix(B, women)
+    """Dense ``(agents, artifacts, R, co-occurrence)`` of a bipartite graph."""
+    agents, artifacts, R = bp._incidence(B, women)
+    R = R.toarray()
+    observed = R @ R.T
+    np.fill_diagonal(observed, 0)
     return agents, artifacts, R, observed
 
 
@@ -753,3 +757,465 @@ class TestSDSMEdgeConstraints:
             required=[(davis_women_nodes[0], artifact)],
         )
         assert all("sign" in d for _, _, d in H.edges(data=True))
+
+
+# ---------------------------------------------------------------------------
+# Projection formulas (issue #13): hand-computed values and sources
+# ---------------------------------------------------------------------------
+
+# Agents A, B, C; artifact x = {A, B, C} (degree 3), y = {A, B} (degree 2),
+# z = {A} (degree 1).  Agent degrees: A = 3, B = 2, C = 1; |E| = 6.
+TINY_EDGES = [("A", "x"), ("B", "x"), ("C", "x"), ("A", "y"), ("B", "y"), ("A", "z")]
+TINY_AGENTS = ["A", "B", "C"]
+TINY_EXPECTED = {
+    # |Γ(u) ∩ Γ(v)|
+    "simple": {"AB": 2.0, "AC": 1.0, "BC": 1.0},
+    # Σ 1/d(z): AB = 1/3 + 1/2, AC = BC = 1/3
+    "hyper": {"AB": 5 / 6, "AC": 1 / 3, "BC": 1 / 3},
+    # Newman: Σ 1/(d(z) - 1): AB = 1/2 + 1, AC = BC = 1/2
+    "newman": {"AB": 3 / 2, "AC": 1 / 2, "BC": 1 / 2},
+    # mean of (1/d(u)) Σ 1/d(z) and (1/d(v)) Σ 1/d(z):
+    # AB = (5/18 + 5/12) / 2, AC = (1/9 + 1/3) / 2, BC = (1/6 + 1/3) / 2
+    "probs": {"AB": 25 / 72, "AC": 2 / 9, "BC": 1 / 4},
+    # π = d / |E| = (1/2, 1/3, 1/6); π_u T_uv = hyper / 6
+    "ycn": {"AB": 5 / 36, "AC": 1 / 18, "BC": 1 / 18},
+}
+TINY_PROBS_DIRECTED = {
+    ("A", "B"): 5 / 18,
+    ("B", "A"): 5 / 12,
+    ("A", "C"): 1 / 9,
+    ("C", "A"): 1 / 3,
+    ("B", "C"): 1 / 6,
+    ("C", "B"): 1 / 3,
+}
+
+
+def _tiny():
+    return nx.Graph(TINY_EDGES)
+
+
+@pytest.mark.parametrize("method", list(TINY_EXPECTED))
+def test_projection_hand_computed(method):
+    P = bipartite_projection(_tiny(), TINY_AGENTS, method=method)
+    got = {"".join(sorted((u, v))): w for u, v, w in P.edges(data="weight")}
+    assert got == pytest.approx(TINY_EXPECTED[method], rel=1e-12)
+
+
+def test_projection_functions_match_dispatch():
+    B = _tiny()
+    for func, kw, method in [
+        (simple_projection, {}, "simple"),
+        (hyper_projection, {}, "hyper"),
+        (hyper_projection, {"newman": True}, "newman"),
+        (probs_projection, {}, "probs"),
+        (ycn_projection, {}, "ycn"),
+    ]:
+        got = _weights(func(B, TINY_AGENTS, **kw))
+        assert got == _weights(bipartite_projection(B, TINY_AGENTS, method=method))
+
+
+def test_probs_directed_hand_computed():
+    P = probs_projection(_tiny(), TINY_AGENTS, directed=True)
+    got = {(u, v): w for u, v, w in P.edges(data="weight")}
+    assert got == pytest.approx(TINY_PROBS_DIRECTED, rel=1e-12)
+    # Each row is a two-step random walk: with the return to u it sums to 1.
+    artifact_degrees = {"A": (3, 2, 1), "B": (3, 2), "C": (3,)}
+    for u, d in zip("ABC", (3, 2, 1)):
+        back = sum(1 / (d * k) for k in artifact_degrees[u])
+        out = sum(w for (s, _), w in got.items() if s == u)
+        assert out + back == pytest.approx(1.0)
+
+
+def test_probs_matches_yildirim_coscia_example():
+    # Yildirim & Coscia (2014): a1 = {b1, b4, b5}, a2 = {b1, b3}, no other
+    # links.  ProbS s(a1, a2) = 1/4 (the share of a2's resource reaching a1)
+    # and HeatS s(a1, a2) = 1/6 (the share of a1's resource reaching a2).
+    B = nx.Graph([("a1", "b1"), ("a1", "b4"), ("a1", "b5"), ("a2", "b1"), ("a2", "b3")])
+    P = probs_projection(B, ["a1", "a2"], directed=True)
+    assert P["a2"]["a1"]["weight"] == pytest.approx(1 / 4)
+    assert P["a1"]["a2"]["weight"] == pytest.approx(1 / 6)
+
+
+def test_ycn_directed_is_stationary_flow():
+    # π_u T_uv with T the ProbS transition matrix including returns.
+    P = ycn_projection(_tiny(), TINY_AGENTS, directed=True)
+    pi = {"A": 1 / 2, "B": 1 / 3, "C": 1 / 6}
+    for (u, v), t in TINY_PROBS_DIRECTED.items():
+        assert P[u][v]["weight"] == pytest.approx(pi[u] * t, rel=1e-12)
+
+
+def test_ycn_equals_hyper_over_edges_on_connected_graph(
+    davis_southern_women_graph, davis_women_nodes
+):
+    B = davis_southern_women_graph
+    ycn = _weights(ycn_projection(B, davis_women_nodes))
+    hyper = _weights(hyper_projection(B, davis_women_nodes))
+    E = B.number_of_edges()
+    assert ycn == pytest.approx({e: w / E for e, w in hyper.items()}, rel=1e-9)
+
+
+def test_ycn_disconnected_components_scaled_by_agent_share():
+    # Two components; power iteration from the uniform vector keeps each
+    # component's share of agents: π_u = (n_c / n) d(u) / |E_c|.
+    B = nx.Graph([("a", "x"), ("b", "x"), ("c", "y"), ("d", "y"), ("e", "y")])
+    P = ycn_projection(B, ["a", "b", "c", "d", "e"])
+    assert P["a"]["b"]["weight"] == pytest.approx((2 / 5) * (1 / 2) / 2)
+    assert P["c"]["d"]["weight"] == pytest.approx((3 / 5) * (1 / 3) / 3)
+
+
+def test_simple_equals_networkx_weighted_projection(
+    davis_southern_women_graph, davis_women_nodes
+):
+    B = davis_southern_women_graph
+    ours = _weights(simple_projection(B, davis_women_nodes))
+    theirs = _weights(nx.bipartite.weighted_projected_graph(B, davis_women_nodes))
+    assert ours == theirs
+
+
+def test_newman_equals_networkx_collaboration_projection(
+    davis_southern_women_graph, davis_women_nodes
+):
+    B = davis_southern_women_graph
+    ours = _weights(hyper_projection(B, davis_women_nodes, newman=True))
+    theirs = _weights(
+        nx.bipartite.collaboration_weighted_projected_graph(B, davis_women_nodes)
+    )
+    assert ours == pytest.approx(theirs, rel=1e-12)
+    for alias in ("newman", "collaboration"):
+        got = _weights(bipartite_projection(B, davis_women_nodes, method=alias))
+        assert got == pytest.approx(theirs, rel=1e-12)
+
+
+def test_hyper_differs_from_newman(davis_southern_women_graph, davis_women_nodes):
+    # Coscia & Rossi's 1/d(z) and Newman's 1/(d(z) - 1) differ on every pair.
+    B = davis_southern_women_graph
+    hyper = _weights(hyper_projection(B, davis_women_nodes))
+    newman = _weights(hyper_projection(B, davis_women_nodes, newman=True))
+    assert hyper.keys() == newman.keys()
+    assert all(hyper[e] < newman[e] for e in hyper)
+    pair = frozenset(("Olivia Carleton", "Sylvia Avondale"))
+    assert hyper[pair] == pytest.approx(1 / 12)
+    assert newman[pair] == pytest.approx(1 / 11)
+
+
+def test_scorers_accept_newman_projection(
+    davis_southern_women_graph, davis_women_nodes
+):
+    B, women = davis_southern_women_graph, davis_women_nodes
+    expected = _weights(hyper_projection(B, women, newman=True))
+    got = _weights(sdsm(B, women, projection="newman"))
+    assert got == {e: pytest.approx(expected.get(e, 0.0)) for e in got}
+
+
+def test_directed_symmetric_projection_raises():
+    for method in ("simple", "hyper", "newman"):
+        with pytest.raises(ValueError, match="directed"):
+            bipartite_projection(_tiny(), TINY_AGENTS, method=method, directed=True)
+
+
+# ---------------------------------------------------------------------------
+# Sparse end-to-end implementation (issue #30): dense reference
+# ---------------------------------------------------------------------------
+
+
+def _dense_tails(method, R, **kw):
+    """Pre-sparse dense implementation: tails for np.triu_indices pairs."""
+    na, nf = R.shape
+    iu, ju = np.triu_indices(na, 1)
+    k = (R @ R.T)[iu, ju]
+    if method == "sdsm":
+        P = bp._bicm_fit(R)
+        return bp._pairwise_pb_tails(P, k, method=kw["pvalue_method"], need_lower=True)
+    if method == "fixedfill":
+        return bp._pmf_tails(bp._fixedfill_pmf(na, nf, int(R.sum())), k)
+    if method == "fixedcol":
+        c = R.sum(axis=0).astype(float)
+        pmf = bp._poisson_binomial_pmf(np.clip(c * (c - 1) / (na * (na - 1)), 0, 1))
+        return bp._pmf_tails(pmf, k)
+    if method == "fixedrow":
+        d = R.sum(axis=1)
+        return (
+            stats.hypergeom.sf(k - 1, nf, d[iu], d[ju]),
+            stats.hypergeom.cdf(k, nf, d[iu], d[ju]),
+        )
+    if method == "fdsm":
+        rng = np.random.default_rng(kw["seed"])
+        exceed = np.zeros(len(iu), dtype=np.int64)
+        below = np.zeros(len(iu), dtype=np.int64)
+        for S in bp._fdsm_samples(R, kw["trials"], rng):
+            co = (S @ S.T)[iu, ju]
+            exceed += co >= k
+            below += co <= k
+        return (exceed + 1) / (kw["trials"] + 1), (below + 1) / (kw["trials"] + 1)
+    raise AssertionError(method)
+
+
+def _dense_weights(R, method):
+    """Pre-sparse dense projection weight matrix (undirected)."""
+    if method == "simple":
+        W = (R @ R.T).astype(float)
+    else:
+        d = R.sum(axis=0).astype(float)
+        H = (R * np.divide(1.0, d, out=np.zeros_like(d), where=d > 0)) @ R.T
+        deg = R.sum(axis=1).astype(float)
+        T = np.divide(H, deg[:, None], out=np.zeros_like(H), where=deg[:, None] > 0)
+        if method == "hyper":
+            W = H
+        elif method == "probs":
+            W = 0.5 * (T + T.T)
+        else:  # ycn: power iteration from the uniform vector
+            pi = np.full(len(R), 1 / len(R))
+            for _ in range(1000):
+                nxt = pi @ T
+                done = np.abs(nxt - pi).sum() <= 1e-12
+                pi = nxt
+                if done:
+                    break
+            U = (pi / pi.sum())[:, None] * T
+            W = 0.5 * (U + U.T)
+    np.fill_diagonal(W, 0.0)
+    return W
+
+
+DENSE_CASES = [
+    ("sdsm", {"pvalue_method": "exact"}),
+    ("sdsm", {"pvalue_method": "rna"}),
+    ("fixedfill", {}),
+    ("fixedrow", {}),
+    ("fixedcol", {}),
+    ("fdsm", {"trials": 60, "seed": 7}),
+]
+
+
+@pytest.mark.parametrize(("method", "kw"), DENSE_CASES)
+@pytest.mark.parametrize("signed", [False, True])
+@pytest.mark.parametrize("projection", ["simple", "hyper", "probs", "ycn"])
+def test_sparse_matches_dense_reference_on_davis(
+    davis_southern_women_graph, davis_women_nodes, method, kw, signed, projection
+):
+    B, women = davis_southern_women_graph, davis_women_nodes
+    agents, _, R, _ = _davis_matrix(B, women)
+    p_hi, p_lo = _dense_tails(method, R, **kw)
+    if signed:
+        expected, sign = bp._signed_pvalues(p_hi, p_lo)
+    else:
+        expected, sign = np.clip(p_hi, 0, 1), None
+    W = _dense_weights(R, projection)
+
+    H = getattr(nb, method)(
+        B, women, alpha=np.inf, signed=signed, projection=projection, **kw
+    )
+    iu, ju = np.triu_indices(len(agents), 1)
+    edges = [H[agents[i]][agents[j]] for i, j in zip(iu, ju)]
+    got = np.array([d[f"{method}_pvalue"] for d in edges])
+    if kw.get("pvalue_method") == "rna":
+        np.testing.assert_allclose(got, expected, rtol=1e-12, atol=0)
+    else:  # exact Poisson-binomial, closed forms and Monte Carlo: bit-identical
+        np.testing.assert_array_equal(got, expected)
+    if signed:
+        np.testing.assert_array_equal([d["sign"] for d in edges], sign)
+    got_w = [d["weight"] for d in edges]
+    np.testing.assert_allclose(got_w, W[iu, ju], rtol=1e-12, atol=0)
+
+
+@pytest.mark.parametrize("method", ["sdsm", "fixedrow", "fixedcol", "fdsm"])
+def test_row_blocks_do_not_change_results(
+    davis_southern_women_graph, davis_women_nodes, monkeypatch, method
+):
+    B, women = davis_southern_women_graph, davis_women_nodes
+    kw = {"trials": 30, "seed": 1} if method == "fdsm" else {}
+    common = {"method": method, "alpha": 0.5, "signed": True, "projection": "ycn"}
+
+    def run():
+        return (
+            backbone_from_projection(B, women, mtc="bh", **common, **kw),
+            backbone_from_projection(B, women, **common, **kw),
+            bipartite_projection(B, women, method="probs", directed=True),
+        )
+
+    one_block = run()
+    monkeypatch.setattr(bp, "_MAX_BLOCK_CELLS", 40)  # blocks of 2 agent rows
+    many_blocks = run()
+    for G, H in zip(one_block, many_blocks):
+        assert list(H.edges(data=True)) == list(G.edges(data=True))
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_bicm_classes_bit_identical_to_dense_fit(seed):
+    rng = np.random.default_rng(seed)
+    R = (rng.random((9, 7)) < 0.4).astype(int)
+    R[0] = 1  # full row
+    R[1] = 0  # empty row
+    R[:, 2] = 0  # empty column
+    if seed % 2:
+        R[:, 3] = 1  # full column
+    Q, row_class, col_class = bp._bicm_classes(R.sum(axis=1), R.sum(axis=0))
+    np.testing.assert_array_equal(Q[row_class][:, col_class], bp._bicm_fit(R))
+
+
+def test_bicm_classes_on_davis(davis_southern_women_graph, davis_women_nodes):
+    _, _, R, _ = _davis_matrix(davis_southern_women_graph, davis_women_nodes)
+    Q, rc, cc = bp._bicm_classes(R.sum(axis=1), R.sum(axis=0))
+    np.testing.assert_array_equal(Q[rc][:, cc], bp._bicm_fit(R))
+    assert Q.shape[0] < R.shape[0]  # degree classes compress the fit
+
+
+@pytest.mark.parametrize(
+    "method", ["none", "bonferroni", "holm", "hochberg", "bh", "fdr", "by"]
+)
+def test_adjust_array_matches_adjust_pvalues(method):
+    rng = np.random.default_rng(3)
+    p = np.round(rng.random(200) ** 3, 2)  # many ties
+    np.testing.assert_array_equal(
+        bp._adjust_array(p, method), nb.adjust_pvalues(p.tolist(), method)
+    )
+
+
+def test_invalid_mtc_raises(davis_southern_women_graph, davis_women_nodes):
+    with pytest.raises(ValueError, match="method must be one of"):
+        backbone_from_projection(
+            davis_southern_women_graph, davis_women_nodes, mtc="bogus"
+        )
+
+
+def test_scale_sparse_incidence_stays_fast():
+    # 3000 agents x 800 artifacts at 1% density: 4.5 million agent pairs.
+    # The dense implementation needed 40-80 s and about 2 GB per model here;
+    # the blocked sparse path takes well under a second per model.
+    sp = pytest.importorskip("scipy.sparse")
+    M = sp.random_array((3000, 800), density=0.01, rng=np.random.default_rng(0))
+    M.data[:] = 1
+    for method in ("sdsm", "fixedcol"):
+        H = backbone_from_projection(M, method=method, alpha=1e-3)
+        assert H.number_of_nodes() == 3000
+        assert 0 < H.number_of_edges() < 3000 * 2999 // 2
+        assert all(d[f"{method}_pvalue"] < 1e-3 for *_, d in H.edges(data=True))
+
+
+# ---------------------------------------------------------------------------
+# Incidence-matrix input (issue #20)
+# ---------------------------------------------------------------------------
+
+
+def _davis_incidence(B, women, kind):
+    sp = pytest.importorskip("scipy.sparse")
+    events = sorted(set(B) - set(women), key=str)
+    dense = nx.bipartite.biadjacency_matrix(
+        B, row_order=women, column_order=events
+    ).toarray()
+    if kind == "pandas":
+        pd = pytest.importorskip("pandas")
+        return pd.DataFrame(dense, index=women, columns=events), {}
+    M = {
+        "numpy": lambda: dense,
+        "bool": lambda: dense.astype(bool),
+        "csr_array": lambda: sp.csr_array(dense),
+        "csr_matrix": lambda: sp.csr_matrix(dense),
+        "coo_array": lambda: sp.coo_array(dense),
+    }[kind]()
+    return M, {"agent_labels": women, "artifact_labels": events}
+
+
+MATRIX_KINDS = ["numpy", "bool", "csr_array", "csr_matrix", "coo_array", "pandas"]
+
+
+def _same_graph(G, H):
+    assert list(G.nodes) == list(H.nodes)
+    assert list(G.edges(data=True)) == list(H.edges(data=True))
+
+
+@pytest.mark.parametrize("kind", MATRIX_KINDS)
+@pytest.mark.parametrize(
+    "method", ["sdsm", "fdsm", "fixedfill", "fixedrow", "fixedcol"]
+)
+def test_matrix_input_identical_to_graph(
+    davis_southern_women_graph, davis_women_nodes, kind, method
+):
+    B, women = davis_southern_women_graph, davis_women_nodes
+    M, labels = _davis_incidence(B, women, kind)
+    kw = {"trials": 30, "seed": 2} if method == "fdsm" else {}
+    common = {"method": method, "alpha": 0.3, "projection": "ycn", "signed": True}
+    _same_graph(
+        backbone_from_projection(M, **labels, **common, **kw),
+        backbone_from_projection(B, women, **common, **kw),
+    )
+    _same_graph(
+        getattr(nb, method)(M, **labels, alpha=np.inf, **kw),
+        getattr(nb, method)(B, women, alpha=np.inf, **kw),
+    )
+
+
+@pytest.mark.parametrize("kind", MATRIX_KINDS)
+def test_matrix_input_projections_and_bicm(
+    davis_southern_women_graph, davis_women_nodes, kind
+):
+    B, women = davis_southern_women_graph, davis_women_nodes
+    M, labels = _davis_incidence(B, women, kind)
+    for method in ("simple", "hyper", "newman", "probs", "ycn"):
+        _same_graph(
+            bipartite_projection(M, method=method, **labels),
+            bipartite_projection(B, women, method=method),
+        )
+    _same_graph(
+        hyper_projection(M, newman=True, **labels),
+        hyper_projection(B, women, newman=True),
+    )
+    P, agents, artifacts = nb.bicm(M, return_labels=True, **labels)
+    P0, agents0, artifacts0 = nb.bicm(B, women, return_labels=True)
+    np.testing.assert_array_equal(P, P0)
+    assert (agents, artifacts) == (agents0, artifacts0)
+
+
+def test_matrix_default_labels_and_constraints():
+    M = np.array([[1, 1, 0, 0], [1, 0, 1, 0], [0, 1, 1, 1], [1, 1, 1, 0]])
+    B = nx.Graph()
+    B.add_nodes_from(range(4), bipartite=0)
+    B.add_nodes_from((f"f{k}" for k in range(4)), bipartite=1)
+    B.add_edges_from((int(i), f"f{k}") for i, k in zip(*np.nonzero(M)))
+    H = sdsm(M, prohibited=[(0, 3)], required=[(2, 3)], signed=True)
+    assert set(H) == {0, 1, 2, 3}
+    H0 = sdsm(B, prohibited=[(0, "f3")], required=[(2, "f3")], signed=True)
+    _same_graph(H, H0)
+    # backbone() routes a matrix to the projection backbone.
+    _same_graph(nb.backbone(M, alpha=0.5), backbone_from_projection(M, alpha=0.5))
+
+
+def test_agent_nodes_inferred_by_scorers(davis_southern_women_graph):
+    B = davis_southern_women_graph
+    women = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
+    _same_graph(sdsm(B), sdsm(B, women))
+    _same_graph(simple_projection(B), simple_projection(B, women))
+
+
+@pytest.mark.parametrize(
+    ("M", "kw", "match"),
+    [
+        (np.array([[1, 2], [0, 1]]), {}, "binary"),
+        (np.array([[1.0, np.nan], [0, 1]]), {}, "binary"),
+        (np.array([1, 0, 1]), {}, "two-dimensional"),
+        (np.array([["a", "b"]]), {}, "numeric"),
+        (np.eye(2), {"agent_labels": ["x"]}, "agent_labels has 1"),
+        (np.eye(2), {"artifact_labels": ["x", "x"]}, "duplicates"),
+        (np.eye(2), {"agent_labels": [[1], [2]]}, "hashable"),
+        (np.eye(2), {"agent_nodes": [0, 1]}, "agent_labels"),
+    ],
+)
+def test_invalid_matrix_input_raises(M, kw, match):
+    with pytest.raises(ValueError, match=match):
+        backbone_from_projection(M, **kw)
+
+
+def test_sparse_duplicates_and_explicit_zeros():
+    sp = pytest.importorskip("scipy.sparse")
+    M = sp.coo_array(([1, 1], ([0, 0], [0, 0])), shape=(2, 2))  # sums to 2
+    with pytest.raises(ValueError, match="binary"):
+        simple_projection(M)
+    explicit_zero = sp.csr_array(
+        (np.array([1, 0]), np.array([0, 1]), np.array([0, 2, 2])), shape=(2, 2)
+    )
+    assert simple_projection(explicit_zero).number_of_edges() == 0
+
+
+def test_labels_rejected_for_graph_input(bipartite_graph):
+    with pytest.raises(ValueError, match="incidence matrix"):
+        simple_projection(bipartite_graph, AGENTS, agent_labels=AGENTS)

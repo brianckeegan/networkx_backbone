@@ -36,6 +36,15 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - ``local_path_index(weight=...)``; a ``h_bridge`` attribute from
   ``h_backbone``; ``statistically_validated_cores(max_groups=...)``.
 
+- Bipartite functions accept NumPy, SciPy sparse, or pandas incidence
+  matrices with ``agent_labels``/``artifact_labels``, and ``agent_nodes`` is
+  optional (#20, bipartite part).
+- ``hyper_projection(newman=True)`` / ``projection="newman"`` gives Newman's
+  :math:`1/(d(z)-1)` weighting, equal to
+  ``nx.bipartite.collaboration_weighted_projected_graph``. The default
+  hyperbolic weight, :math:`1/d(z)`, is unchanged and follows Coscia & Rossi
+  (2019). Projection citations are corrected to Coscia & Rossi (2019,
+  arXiv:1906.09081) (#13).
 - ``glab_filter`` now supports directed graphs using the out- and
   in-involvement of Zhang et al. (2014), Section 2.3 (#12). On a symmetric
   ``DiGraph`` it gives the undirected p-values.
@@ -108,6 +117,12 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   following NetworkX. Pass a seed for reproducible results.
 
 **Performance**
+
+- Bipartite projections and null models use sparse incidence matrices and
+  score agent pairs in row blocks, and ``backbone_from_projection`` builds
+  edges only for significant pairs. On a 3000x800 projection this cuts run
+  time from 40-76 s to under 2 s and peak memory from 2.2 GB to 0.23 GB;
+  results are unchanged (#30).
 
 - Vectorized ``sdsm``/``fixed*``/``fdsm`` (``sdsm`` on 400x300: 6.4 s ->
   0.36 s); MDL ``"node"`` optimizer with a lazy heap (m = 2000: 8.3 s ->

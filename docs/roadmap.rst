@@ -79,7 +79,7 @@ Correctness gaps found in review and not yet fixed
   target's in-links.
 - **done** (`#12 <https://github.com/brianckeegan/networkx_backbone/issues/12>`_): A directed GLAB variant, using the out- and in-involvement of
   Zhang et al. (2014), Section 2.3.
-- **next** (`#13 <https://github.com/brianckeegan/networkx_backbone/issues/13>`_): Check ``hyper_projection``'s weighting (:math:`1/d(z)` versus
+- **done** (`#13 <https://github.com/brianckeegan/networkx_backbone/issues/13>`_): Check ``hyper_projection``'s weighting (:math:`1/d(z)` versus
   Newman's :math:`1/(d(z)-1)`) and the arXiv identifier cited for the
   projection methods against Coscia & Neffke (2017).
 
@@ -117,7 +117,7 @@ API and ecosystem compatibility
 - **planned** (`#20 <https://github.com/brianckeegan/networkx_backbone/issues/20>`_): Accept SciPy sparse arrays and pandas edge lists as input to the
   statistical scorers, with ``to_*`` helpers back to NetworkX, matching how
   NetworkX interoperates with the NumPy/SciPy/pandas stack.
-- **planned** (`#30 <https://github.com/brianckeegan/networkx_backbone/issues/30>`_): Make the bipartite and projection code fully sparse
+- **done** (`#30 <https://github.com/brianckeegan/networkx_backbone/issues/30>`_): Make the bipartite and projection code fully sparse
   (no dense agent-by-artifact matrices). The per-pair loops are already
   vectorized.
 - **planned** (`#21 <https://github.com/brianckeegan/networkx_backbone/issues/21>`_): A sparse or blockwise ECM solver for graphs with more than
