@@ -66,14 +66,15 @@ Next release (0.2.0)
 Correctness gaps found in review and not yet fixed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- **next** (`#9 <https://github.com/brianckeegan/networkx_backbone/issues/9>`_): ``noise_corrected_filter`` is a binomial z-score. Implement the
+- **done** (`#9 <https://github.com/brianckeegan/networkx_backbone/issues/9>`_): ``noise_corrected_filter`` is a binomial z-score. Implement the
   full Bayesian noise-corrected backbone of Coscia & Neffke (2017): the
   posterior variance from the beta prior plus the delta method, and the
   transformed lift score. Keep the current score as an option for backward
   compatibility.
-- **next** (`#10 <https://github.com/brianckeegan/networkx_backbone/issues/10>`_): ``multiple_linkage_analysis`` currently thresholds LANS p-values
-  (the netbone convention). Implement the dominance-fitting procedure of
-  Van Nuffel et al. (2010) and keep the netbone behavior behind an option.
+- **next** (`#10 <https://github.com/brianckeegan/networkx_backbone/issues/10>`_): The dominance-fitting multiple
+  linkage analysis is implemented (``method="dominance"``). Its deviation
+  measure still needs checking against Van Nuffel (2007): the whole-profile
+  sum of squares versus Weaver's mean over the *k* candidate links.
 - **done** (`#11 <https://github.com/brianckeegan/networkx_backbone/issues/11>`_, contributed in
   `#34 <https://github.com/brianckeegan/networkx_backbone/pull/34>`_): Directed ``lans_filter`` now also tests the
   target's in-links.
@@ -135,7 +136,7 @@ Methods
   forest.
 - **planned** (`#24 <https://github.com/brianckeegan/networkx_backbone/issues/24>`_): The local (per-node-neighborhood) MDL hypergraph backbone
   (Kirkley et al., 2026, Appendix E).
-- **planned** (`#25 <https://github.com/brianckeegan/networkx_backbone/issues/25>`_): Signed variants of ``ecm_filter`` and the noise-corrected
+- **done** (`#25 <https://github.com/brianckeegan/networkx_backbone/issues/25>`_): Signed variants of ``ecm_filter`` and the noise-corrected
   filter, for parity with the other scorers' ``signed=True``.
 - **idea** (`#26 <https://github.com/brianckeegan/networkx_backbone/issues/26>`_): A ``missing_as_zero`` toggle for weighted inputs (Backbone 3.0),
   for testing absent dyads.

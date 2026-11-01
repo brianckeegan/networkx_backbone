@@ -104,15 +104,26 @@ def _keep(method, attr, label=None, **kwargs):
 WEIGHTED_CASES = [
     # Statistical
     _pvalue("disparity_filter", "disparity_pvalue"),
-    Case("noise_corrected_filter", "threshold", "nc_score", 2.0, "above"),
+    _pvalue("noise_corrected_filter", "nc_pvalue"),
+    Case(
+        "noise_corrected_filter",
+        "threshold",
+        "nc_score",
+        2.0,
+        "above",
+        kwargs={"method": "zscore"},
+        label="noise_corrected_filter(method='zscore')",
+    ),
     _pvalue("marginal_likelihood_filter", "ml_pvalue"),
     _pvalue("ecm_filter", "ecm_pvalue"),
     _pvalue("lans_filter", "lans_pvalue"),
-    _keep(
+    _keep("multiple_linkage_analysis", "mla_keep"),
+    Case(
         "multiple_linkage_analysis",
+        "boolean",
         "mla_keep",
-        "multiple_linkage_analysis(alpha=0.05)",
-        alpha=ALPHA,
+        kwargs={"method": "lans", "alpha": ALPHA},
+        label="multiple_linkage_analysis(method='lans', alpha=0.05)",
     ),
     # Structural
     _keep(

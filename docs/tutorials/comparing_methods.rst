@@ -26,7 +26,7 @@ Apply several different backbone methods to the same graph::
             nb.disparity_filter(G), "disparity_pvalue", 0.05
         ),
         "noise_corrected": nb.threshold_filter(
-            nb.noise_corrected_filter(G), "nc_score", 2.0, mode="above"
+            nb.noise_corrected_filter(G), "nc_pvalue", 0.05
         ),
         "metric": nb.boolean_filter(nb.metric_backbone(G), "metric_keep"),
         "mst": nb.boolean_filter(nb.maximum_spanning_tree_backbone(G), "mst_keep"),

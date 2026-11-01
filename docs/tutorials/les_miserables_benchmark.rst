@@ -62,8 +62,8 @@ scores:
 Each case expands to one score-then-filter call, for example::
 
     H = nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05, mode="below")
-    H = nb.threshold_filter(nb.noise_corrected_filter(G), "nc_score", 2.0, mode="above")
-    H = nb.boolean_filter(nb.multiple_linkage_analysis(G, alpha=0.05), "mla_keep")
+    H = nb.threshold_filter(nb.noise_corrected_filter(G), "nc_pvalue", 0.05, mode="below")
+    H = nb.boolean_filter(nb.multiple_linkage_analysis(G), "mla_keep")
 
 From a checkout of the repository, the whole table can be reproduced with::
 

@@ -65,7 +65,7 @@ Method comparison table
    * - :func:`~networkx_backbone.noise_corrected_filter`
      - Yes
      - Yes
-     - z-score
+     - Score + p-value
      - No guarantee
      - Statistical
    * - :func:`~networkx_backbone.marginal_likelihood_filter`
@@ -89,7 +89,7 @@ Method comparison table
    * - :func:`~networkx_backbone.multiple_linkage_analysis`
      - Yes
      - Yes
-     - Scored graph
+     - Keep flag
      - No guarantee
      - Statistical
    * - :func:`~networkx_backbone.global_threshold_filter`
@@ -229,9 +229,12 @@ null models:
   strength is uniformly distributed across its edges. Works well for
   heterogeneous networks with broad degree distributions.
 
-- :func:`~networkx_backbone.noise_corrected_filter`: Uses a binomial framework
-  to model edge weights as outcomes of random processes. Produces z-scores
-  rather than p-values.
+- :func:`~networkx_backbone.noise_corrected_filter`: Scores each edge by its
+  lift over the weight expected from its endpoints' strengths, and estimates
+  the score's standard deviation with a Bayesian model of noisy counts. Keep
+  edges with ``nc_score > 1.64 * nc_sdev`` or, equivalently, a low
+  ``nc_pvalue``. Designed for large count data; permissive on small, dense
+  graphs.
 
 - :func:`~networkx_backbone.marginal_likelihood_filter`: Considers both
   endpoints of each edge in a binomial null model. Treats weights as integer
@@ -245,5 +248,9 @@ null models:
   CDFs. Makes no distributional assumptions but relies on sufficient data at
   each node.
 
-- :func:`~networkx_backbone.multiple_linkage_analysis`: Local linkage
-  significance method that returns scored edges plus ``mla_keep`` flags.
+- :func:`~networkx_backbone.multiple_linkage_analysis`: For each node, compares
+  the sorted shares of its link weights with ideal "k equally dominant links"
+  distributions and keeps the links of the best fit (``mla_keep``, with the
+  number per node in ``mla_rank``). There is no significance level, and every
+  node keeps at least its strongest link. ``method="lans"`` thresholds LANS
+  p-values instead, as netbone does.

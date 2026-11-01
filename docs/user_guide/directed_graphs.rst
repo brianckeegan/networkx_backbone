@@ -9,12 +9,13 @@ Supported methods
 
 The following methods support both directed and undirected graphs:
 
-**Statistical methods** (all 5):
+**Statistical methods** (all 6):
     :func:`~networkx_backbone.disparity_filter`,
     :func:`~networkx_backbone.noise_corrected_filter`,
     :func:`~networkx_backbone.marginal_likelihood_filter`,
     :func:`~networkx_backbone.ecm_filter`,
-    :func:`~networkx_backbone.lans_filter`
+    :func:`~networkx_backbone.lans_filter`,
+    :func:`~networkx_backbone.multiple_linkage_analysis`
 
 **Structural (2 of 10)**:
     :func:`~networkx_backbone.global_threshold_filter`,
@@ -57,7 +58,11 @@ Behavior differences
 --------------------
 
 For statistical methods on directed graphs, the p-value computation uses the
-out-degree and out-strength of the source node. For proximity methods on
+out-degree and out-strength of the source node.
+:func:`~networkx_backbone.noise_corrected_filter` uses the source's
+out-strength and the target's in-strength, and
+:func:`~networkx_backbone.multiple_linkage_analysis` fits each node's
+out-links only. For proximity methods on
 directed graphs, neighborhoods are defined using successors.
 
 :func:`~networkx_backbone.glab_filter` follows Section 2.3 of Zhang et al.

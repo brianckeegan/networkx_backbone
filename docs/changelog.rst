@@ -36,6 +36,7 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 - ``local_path_index(weight=...)``; a ``h_bridge`` attribute from
   ``h_backbone``; ``statistically_validated_cores(max_groups=...)``.
 
+- ``ecm_filter`` and ``noise_corrected_filter`` accept ``signed=True`` (#25).
 - Bipartite functions accept NumPy, SciPy sparse, or pandas incidence
   matrices with ``agent_labels``/``artifact_labels``, and ``agent_nodes`` is
   optional (#20, bipartite part).
@@ -51,6 +52,20 @@ are tracked in the :doc:`roadmap` and in GitHub issues #9-#31.
 
 **Changes in results (bug fixes)**
 
+- ``noise_corrected_filter`` now implements the published Bayesian
+  noise-corrected backbone (Coscia & Neffke, 2017). Its scores and standard
+  deviations match the authors' reference code exactly. ``nc_score`` is the
+  transformed lift, in (-1, 1), with new ``nc_sdev`` and ``nc_pvalue``
+  attributes. Keep edges with ``nc_score > 1.64 * nc_sdev`` or
+  ``nc_pvalue < 0.05``; thresholding ``nc_score`` at 2.0 now keeps nothing.
+  The old z-score is available as ``method="zscore"``. Les Misérables: 98 ->
+  195 edges (#9).
+- ``multiple_linkage_analysis`` now fits each node's sorted weights to ideal
+  dominance distributions by default (``method="dominance"``; Van Nuffel,
+  2007, after Weaver, 1954) and adds ``mla_rank``. The previous LANS
+  threshold, which netbone uses, is ``method="lans"``. Les Misérables: 109 ->
+  223 edges (#10; the exact deviation measure is still to be checked against
+  the 2007 paper).
 - ``sparsify(umst=True)`` now adds the union of all minimum spanning trees
   (Hamann et al., 2016) instead of one arbitrary spanning forest, so tied
   scores no longer make the result depend on node order (#32). The union is
@@ -146,7 +161,7 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   versions, and a NetworkX-only job that checks the optional dependencies
   stay optional. Test coverage is 97%.
 - New :doc:`roadmap`; full numpydoc sections for the bipartite, hypergraph,
-  and structural APIs; corrected citations (Van Nuffel et al., 2010; Lü et
+  and structural APIs; corrected citations (Van Nuffel, 2007; Lü et
   al., 2009; Lindner et al., 2015); the docs version is taken from the package
   metadata.
 
