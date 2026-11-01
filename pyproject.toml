@@ -45,6 +45,10 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.6",
 ]
+benchmark = [
+    "asv>=0.6",
+    "virtualenv",
+]
 docs = [
     "sphinx>=7.0",
     "sphinx-gallery>=0.18",

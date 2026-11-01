@@ -33,15 +33,59 @@ Continuous integration (``.github/workflows/tests.yml``) runs lint, the test
 suite on Python 3.12-3.14, a job pinned to the oldest supported versions, and
 the minimal-dependency smoke tests on every push and pull request.
 
+Benchmarks
+----------
+
+``benchmarks/`` holds an `airspeed velocity (asv)
+<https://asv.readthedocs.io/>`_ suite, as NumPy, SciPy and NetworkX use. It
+times the statistical scorers on Les Misérables and on a 2000-node synthetic
+weighted graph, ``sdsm``/``fdsm``/``fixedfill``/``fixedrow``/``fixedcol`` on a
+400 x 300 bipartite graph, ``mdl_hypergraph_backbone`` (``edge``, ``node``,
+``auto``) at m = 500 and 2000, the statistically validated hypergraph and cores,
+and the shortest-path methods (salience, metric backbone, GLAB).
+
+Install asv and compare your branch with ``main``; asv builds each commit in
+its own virtual environment, so commit your changes first::
+
+    pip install -e ".[benchmark]"
+    cd benchmarks
+    asv machine --yes            # once per machine
+    asv continuous main HEAD     # flags benchmarks that changed by > 10%
+
+``asv continuous -b MDL main HEAD`` runs only the benchmarks matching a regular
+expression, and ``asv run --quick --dry-run`` (on the current commit, with
+results discarded) is a fast smoke test after editing a benchmark. Benchmarks
+are plain Python: a class with ``setup`` and ``time_*`` methods and optional
+``params``; seeded inputs come from ``benchmarks/benchmarks/_data.py``.
+
+The *Benchmarks* workflow (``.github/workflows/benchmarks.yml``) runs the same
+comparison on GitHub Actions when started by hand from the *Actions* tab
+(``workflow_dispatch``); its log lists the benchmarks that got faster or
+slower.
+
+``benchmarks/benchmarks/les_miserables.py`` is also the single definition of
+the :doc:`Les Misérables benchmark <tutorials/les_miserables_benchmark>`: the
+tests pin the edge count each case keeps, and the docs build renders the table
+from it. When a method's count changes on purpose, update ``EXPECTED_EDGES`` in
+``tests/test_les_miserables.py``; the docs follow automatically.
+
 Building documentation
 -----------------------
 
-Build the documentation locally::
+Build the documentation locally, treating warnings as errors as CI does::
 
     cd docs
-    make html
+    make html SPHINXOPTS="-W --keep-going -n"
 
 The built documentation will be in ``docs/_build/html/``.
+
+The build validates every rendered docstring with numpydoc: each public
+function needs a docstring with a summary, every parameter documented in
+signature order, and ``Returns`` and ``Examples`` sections. The checks are
+listed in ``[tool.numpydoc_validation]`` in ``pyproject.toml``; run them in
+seconds, without building the docs, with::
+
+    python -m numpydoc lint networkx_backbone/*.py
 
 Code style
 ----------

@@ -1,0 +1,25 @@
+{
+    // airspeed velocity configuration for networkx-backbone.
+    // Run from this directory, e.g. `asv continuous main HEAD`;
+    // see docs/contributing.rst.
+    "version": 1,
+    "project": "networkx-backbone",
+    "project_url": "https://github.com/brianckeegan/networkx_backbone",
+    "repo": "..",
+    "branches": ["main"],
+    "dvcs": "git",
+    "environment_type": "virtualenv",
+    "install_timeout": 600,
+    "show_commit_url": "https://github.com/brianckeegan/networkx_backbone/commit/",
+    "matrix": {
+        "req": {
+            "networkx": [""],
+            "numpy": [""],
+            "scipy": [""]
+        }
+    },
+    "benchmark_dir": "benchmarks",
+    "env_dir": ".asv/env",
+    "results_dir": ".asv/results",
+    "html_dir": ".asv/html"
+}
