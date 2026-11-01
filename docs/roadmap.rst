@@ -179,6 +179,34 @@ Validation
   in the docs build so missing Parameters, Returns, or Examples sections fail
   CI.
 
+Documentation, tutorials, and figures
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Longer, narrative documentation with figures, tracked in
+`#96 <https://github.com/brianckeegan/networkx_backbone/issues/96>`_. Each tutorial is executed when the docs are built, so its
+numbers and figures cannot drift from the code, and uses one colorblind-safe
+figure style.
+
+- **next** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
+  on the API pages, whose images date from 0.2.0 and show pre-fix results
+  (the ECM image keeps nearly every edge), and generate it at build time so
+  it cannot go stale. Done so far: the shared figure style
+  (``docs/_figures/style.py``) that the gallery, examples, and tutorials use.
+- **next** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
+  backbone, end to end (why a backbone, scoring vs filtering, choosing alpha
+  and corrections, comparing, validating, reporting).
+- **next** (`#90 <https://github.com/brianckeegan/networkx_backbone/issues/90>`_): Narrative tutorial: the statistical null models
+  side by side, including generalized nulls and signed backbones.
+- **next** (`#91 <https://github.com/brianckeegan/networkx_backbone/issues/91>`_): Narrative tutorial: structural and proximity
+  backbones, and when topology-based guarantees beat significance tests.
+- **next** (`#92 <https://github.com/brianckeegan/networkx_backbone/issues/92>`_): Narrative tutorial: bipartite projections and
+  their backbones.
+- **next** (`#93 <https://github.com/brianckeegan/networkx_backbone/issues/93>`_): Narrative tutorial: hypergraph backbones.
+- **next** (`#94 <https://github.com/brianckeegan/networkx_backbone/issues/94>`_): Narrative tutorial: temporal backbones, from
+  snapshots to smoothing.
+- **next** (`#95 <https://github.com/brianckeegan/networkx_backbone/issues/95>`_): Narrative guides: coming from R ``backbone`` or
+  ``netbone``, and scaling up to large networks.
+
 Release engineering
 ~~~~~~~~~~~~~~~~~~~
 
@@ -272,16 +300,14 @@ the method proposals are in the `temporal backbones proposal
 <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/temporal-backbones.md>`_;
 `#78 <https://github.com/brianckeegan/networkx_backbone/issues/78>`_ tracks the work.
 
-- **planned** (`#67 <https://github.com/brianckeegan/networkx_backbone/issues/67>`_): Foundation: the three input forms, binning
+- **done** (`#67 <https://github.com/brianckeegan/networkx_backbone/issues/67>`_): Foundation: the three input forms, binning
   with ``freq=``, the node-presence rule (an absent edge is zero only when both
-  endpoints are present), and the scored-static-graph output. Done so far: the
-  three forms, ``temporal_form``, binning, lossless conversions between
-  the forms, and ``flatten_temporal`` (collapse to a static weighted graph).
-  Remaining: presence and eligibility arrays, the output
-  conventions, and the API-contract ``kind="temporal"``.
-- **planned** (`#68 <https://github.com/brianckeegan/networkx_backbone/issues/68>`_): ``observation_fraction`` and ``persistence``
+  endpoints are present), and the scored-static-graph output: ``temporal_form``,
+  lossless conversions between the forms, ``flatten_temporal``, the shared
+  presence and eligibility masks, and the API-contract ``kind="temporal"``.
+- **done** (`#68 <https://github.com/brianckeegan/networkx_backbone/issues/68>`_): ``observation_fraction`` and ``persistence``
   (runs of consecutive observed steps).
-- **planned** (`#69 <https://github.com/brianckeegan/networkx_backbone/issues/69>`_): ``backbone_stability`` (how often any static
+- **done** (`#69 <https://github.com/brianckeegan/networkx_backbone/issues/69>`_): ``backbone_stability`` (how often any static
   scorer keeps an edge across steps) and ``weight_trend``.
 - **planned** (`#70 <https://github.com/brianckeegan/networkx_backbone/issues/70>`_): Interop with pandas event tables, DyNetX,
   teneto, and pathpy. Done so far: pandas event tables

@@ -4,8 +4,8 @@ Temporal networks: formats and conversions
 Networks observed over time come in three shapes, and
 :mod:`networkx_backbone.temporal` accepts all three, built from ordinary
 NetworkX graphs. This page shows each form and every conversion between
-them. The temporal backbone methods planned in the :doc:`../roadmap` will take
-any of the three forms.
+them. The temporal backbone scores (see :doc:`../tutorials/temporal_backbones`)
+take any of the three forms.
 
 .. contents:: On this page
    :local:
@@ -203,8 +203,10 @@ first and then flatten:
 [('ann', 'bob', 2), ('bob', 'cat', 1)]
 
 The flattened graph keeps no order beyond ``first``, ``last`` and
-``active_time``; the temporal filters on the :doc:`../roadmap` score edges by
-how they behave over time instead.
+``active_time``; the temporal backbone scores
+(:func:`~networkx_backbone.observation_fraction`,
+:func:`~networkx_backbone.persistence`, ...) score edges by how they behave
+over time instead.
 
 Datetimes and pandas
 --------------------

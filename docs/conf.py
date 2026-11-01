@@ -20,6 +20,11 @@ os.environ["_NETWORKX_BUILDING_DOCS_"] = "True"
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+# ...and the shared figure style (docs/_figures/style.py), so build hooks,
+# Sphinx-Gallery examples and executed reST can ``from _figures import style``.
+DOCS = Path(__file__).resolve().parent
+if str(DOCS) not in sys.path:
+    sys.path.insert(0, str(DOCS))
 
 # -- Project information -----------------------------------------------------
 
@@ -145,6 +150,9 @@ sphinx_gallery_conf = {
     "reference_url": {"networkx_backbone": None},
     "within_subsection_order": "FileNameSortKey",
     "remove_config_comments": True,
+    # Reset matplotlib before each example, then apply the shared docs style,
+    # so every example's figures match the rest of the docs.
+    "reset_modules": ("matplotlib", "_figures.style.reset_gallery"),
 }
 
 # -- HTML output -------------------------------------------------------------

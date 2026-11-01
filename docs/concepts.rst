@@ -194,8 +194,59 @@ interval ``[start, end)``). :func:`~networkx_backbone.temporal_form` tells them
 apart and :func:`~networkx_backbone.convert_temporal` converts between them.
 Events and spans become snapshots by binning time into steps of width
 ``freq``. Converting snapshots to events or spans and back is lossless. See
-:doc:`user_guide/temporal` for worked examples. Temporal backbone methods
-will build on these forms (see the :doc:`roadmap`).
+:doc:`user_guide/temporal` for worked examples.
+
+.. _temporal-eligibility:
+
+Temporal backbones: presence and eligible steps
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The temporal backbone scores (:func:`~networkx_backbone.observation_fraction`,
+:func:`~networkx_backbone.persistence`,
+:func:`~networkx_backbone.backbone_stability` and
+:func:`~networkx_backbone.weight_trend`) work on steps: the snapshots, or the
+bins of width ``freq`` that events and spans fall into. A node is **present**
+in a step if it is in that snapshot (isolated or not); after binning, only if
+it has an event or span in that step. An edge that is missing from a step
+means one of two things:
+
+- both endpoints are present, so the edge could have been seen and was not:
+  an **observed zero** (weight 0);
+- an endpoint is absent, so nothing is known about the edge in that step.
+
+An edge's **eligible steps** are the steps in which both of its endpoints are
+present. The scores count only those, so a node that joins late is not
+penalized for the steps before it existed. In this example ``"c"`` joins at
+step 2:
+
+.. code-block:: python
+
+    >>> import networkx as nx
+    >>> import networkx_backbone as nb
+    >>> S = [
+    ...     nx.Graph([("a", "b")]),
+    ...     nx.Graph([("a", "b")]),
+    ...     nx.Graph([("b", "c")]),
+    ...     nx.Graph([("a", "b"), ("b", "c")]),
+    ... ]
+    >>> S[2].add_node("a")  # present at step 2, without edges
+    >>> H = nb.observation_fraction(S)
+    >>> H["a"]["b"]["obs_fraction"], H["a"]["b"]["n_eligible"]
+    (0.75, 4)
+    >>> H["b"]["c"]["obs_fraction"], H["b"]["c"]["n_eligible"]
+    (1.0, 2)
+
+``("a", "b")`` is missing at step 2 while both endpoints are present, an
+observed zero, so it is seen in 3 of 4 eligible steps. ``("b", "c")`` is
+eligible only from step 2, when ``"c"`` joins, and is seen in both of those
+steps. Counting all four steps would give it 0.5 and treat the steps before
+``"c"`` existed as evidence against the edge. A node that leaves early is
+handled the same way: its edges are unknown, not zero, after it leaves.
+
+Each score returns one static graph, the union of the observed edges with
+score attributes (and ``H.graph["temporal"]``, which records the steps and
+parameters), so the score-then-filter pattern below applies unchanged. See
+the :doc:`tutorials/temporal_backbones` tutorial.
 
 The score-then-filter pattern
 -----------------------------
