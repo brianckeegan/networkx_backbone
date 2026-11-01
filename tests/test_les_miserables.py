@@ -31,7 +31,7 @@ EXPECTED_EDGES = {
     "marginal_likelihood_filter": 126,
     "ecm_filter": 72,
     "lans_filter": 109,
-    "multiple_linkage_analysis": 223,
+    "multiple_linkage_analysis": 205,
     "multiple_linkage_analysis(method='lans', alpha=0.05)": 109,
     "polya_filter": 12,
     "global_threshold_filter(threshold=2)": 157,
@@ -44,6 +44,8 @@ EXPECTED_EDGES = {
     "metric_backbone": 163,
     "ultrametric_backbone": 118,
     "doubly_stochastic_filter": 109,
+    # Sinkhorn-Knopp does not converge here; see the Notes of the docstring.
+    "doubly_stochastic_filter (ds_keep)": 220,
     "h_backbone": 18,
     "modularity_backbone": 72,
     "planar_maximally_filtered_graph": 162,

@@ -84,6 +84,77 @@ high-weight hyperedge out of the backbone::
     weights = [1, 1, 5, 1]   # the {2, 3, 4} interaction is strong
     result = nb.mdl_hypergraph_backbone(H, weights=weights, gamma=0.1)
 
+Local MDL backbone
+~~~~~~~~~~~~~~~~~~
+
+The MDL backbone is *global*: a hyperedge is dropped whenever some
+overlapping hyperedge anywhere in the hypergraph encodes it cheaply. Appendix E
+of the paper also gives a **local** variant, the higher-order analogue of the
+disparity filter. :func:`~networkx_backbone.local_mdl_hypergraph_backbone`
+takes each node's *neighborhood* (the hyperedges that contain it), finds the
+MDL backbone of that neighborhood on its own, and then combines the
+neighborhood backbones.
+
+In this example, a core interaction has two nested sub-interactions and two
+"satellite" interactions, each joining part of the core to three nodes that
+appear nowhere else::
+
+    H2 = [
+        (0, 1, 2, 3, 4, 5),        # a core interaction
+        (0, 1, 2, 3, 4),           # nested inside the core
+        (0, 1, 2, 3, 5),           # nested inside the core
+        (0, 1, 2, 3, 6, 7, 8),     # the core's 0-3 plus nodes 6, 7, 8
+        (2, 3, 4, 5, 9, 10, 11),   # the core's 2-5 plus nodes 9, 10, 11
+    ]
+
+    nb.mdl_hypergraph_backbone(H2).backbone
+    # [frozenset({0, 1, 2, 3, 4, 5}), frozenset({2, 3, 4, 5, 9, 10, 11})]
+
+    local = nb.local_mdl_hypergraph_backbone(H2)
+    local.backbone
+    # [frozenset({0, 1, 2, 3, 4, 5}), frozenset({0, 1, 2, 3, 6, 7, 8}),
+    #  frozenset({2, 3, 4, 5, 9, 10, 11})]
+
+The global backbone encodes the satellite ``{0, 1, 2, 3, 6, 7, 8}`` as a child
+of another hyperedge. In the neighborhoods of nodes 6, 7, and 8 it is the only
+hyperedge, so it is part of their local backbones, and the local backbone keeps
+it. Both backbones drop the two nested sub-interactions. The result records
+each node's neighborhood backbone and its description length::
+
+    local.local_backbones[6]               # [frozenset({0, 1, 2, 3, 6, 7, 8})]
+    local.local_backbones[0]               # the core and the first satellite
+    local.local_description_lengths[0]     # L(G_0, B_0*) in bits
+
+A hyperedge can be in the neighborhood backbones of some of its nodes and not
+others. The ``aggregation`` argument sets how many must agree:
+
+- ``"union"`` keeps a hyperedge if **any** of its nodes' neighborhood backbones
+  contains it. Every node stays in the backbone, but the backbone is dense.
+- ``"majority"`` (the default, used for Table II of the paper) keeps it if
+  **at least half** of them do. For pairwise edges, this matches the disparity
+  filter's rule of keeping an edge that either endpoint keeps.
+- ``"all"`` keeps it only if **every** one of them does. This is the most
+  conservative rule, and the backbone is often very sparse.
+
+::
+
+    for rule in ["union", "majority", "all"]:
+        result = nb.local_mdl_hypergraph_backbone(H2, aggregation=rule)
+        print(rule, len(result.backbone), round(result.compression_ratio, 2))
+    # union 3 0.84
+    # majority 3 0.84
+    # all 2 0.85
+
+The compression ratio of a local backbone is the paper's
+:math:`\eta^{(\mathrm{local})}`. It sums the neighborhood description lengths
+and divides by the cost of sending each neighborhood without compression. Local
+backbones are usually denser than the global one and compress less (0.84 here
+against 0.79 for the global backbone). Choose the local backbone when you care
+more about keeping each node's important interactions than about overall
+compression. ``weights``, ``gamma``, ``prior``, and ``method`` work as for
+:func:`~networkx_backbone.mdl_hypergraph_backbone` and apply within each
+neighborhood.
+
 Structural reductions
 ---------------------
 

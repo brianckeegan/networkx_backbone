@@ -78,12 +78,99 @@ def _combine_tails(p_hi, p_lo):
 
 
 # =====================================================================
+# Helper: missing_as_zero (absent dyads scored as weight-0 edges)
+# =====================================================================
+
+# Above this many absent dyads, ``missing_as_zero=True`` warns: every one of
+# them is stored as an edge of the returned graph (O(n^2) memory).
+_MISSING_AS_ZERO_WARN_DYADS = 1_000_000
+
+
+def _external_stacklevel():
+    """``warnings.warn`` stacklevel of the first frame outside this package.
+
+    Frame 1 (the caller of this helper) is stacklevel 1.  Frames in
+    networkx-backbone and in NetworkX's decorator machinery are skipped, so
+    the warning points at the user's call whether they called a scorer
+    directly or through a wrapper such as ``backbone_from_weighted``.
+    """
+    import os
+    import sys
+
+    package_dir = os.path.dirname(os.path.abspath(__file__))
+    decorators_file = nx.utils.decorators.__file__
+    frame = sys._getframe(1)
+    level = 1
+    while frame is not None:
+        filename = frame.f_code.co_filename
+        if not (
+            filename.startswith(package_dir)
+            or filename == decorators_file
+            or "argmap" in filename
+        ):
+            break
+        frame = frame.f_back
+        level += 1
+    return level
+
+
+def _absent_dyads(G, func_name):
+    """List the node pairs of *G* that have no edge (``missing_as_zero``).
+
+    Self-pairs are never included.  Undirected graphs give each unordered
+    pair once; directed graphs give every ordered pair ``(u, v)`` without an
+    edge ``u -> v``.  Warns when the list is larger than
+    ``_MISSING_AS_ZERO_WARN_DYADS``.
+    """
+    n = G.number_of_nodes()
+    m = G.number_of_edges() - nx.number_of_selfloops(G)
+    n_pairs = n * (n - 1) if G.is_directed() else n * (n - 1) // 2
+    n_absent = n_pairs - m
+    if n_absent > _MISSING_AS_ZERO_WARN_DYADS:
+        warnings.warn(
+            f"{func_name}: missing_as_zero=True adds {n_absent:,} weight-0 "
+            "edges, one for every absent node pair; the result needs O(n^2) "
+            "memory.",
+            RuntimeWarning,
+            stacklevel=_external_stacklevel(),
+        )
+    nodes = list(G)
+    if G.is_directed():
+        succ = G.succ
+        return [(u, v) for u in nodes for v in nodes if u != v and v not in succ[u]]
+    adj = G.adj
+    return [
+        (u, v) for i, u in enumerate(nodes) for v in nodes[i + 1 :] if v not in adj[u]
+    ]
+
+
+def _add_zero_edges(H, dyads, weight, tails, pvalue_attr, signed):
+    """Add each scored absent dyad to *H* as a weight-0 edge.
+
+    ``tails(u, v)`` returns ``(p_hi, p_lo, extra_attrs)`` for a dyad of
+    weight 0, or ``None`` when the null model cannot test that dyad, in which
+    case the pair is not added.
+    """
+    for u, v in dyads:
+        scored = tails(u, v)
+        if scored is None:
+            continue
+        p_hi, p_lo, extra = scored
+        attrs = {weight: 0, **extra}
+        if signed:
+            attrs[pvalue_attr], attrs["sign"] = _combine_tails(p_hi, p_lo)
+        else:
+            attrs[pvalue_attr] = min(max(p_hi, 0.0), 1.0)
+        H.add_edge(u, v, **attrs)
+
+
+# =====================================================================
 # 1. Disparity filter -- Serrano et al. (2009)
 # =====================================================================
 
 
 @not_implemented_for("multigraph")
-def disparity_filter(G, weight="weight", signed=False):
+def disparity_filter(G, weight="weight", signed=False, missing_as_zero=False):
     r"""Compute disparity filter p-values for each edge.
 
     The disparity filter [1]_ tests whether an edge's weight is
@@ -112,12 +199,19 @@ def disparity_filter(G, weight="weight", signed=False):
         If ``True``, run a two-tailed test: the stored p-value becomes two-sided
         and a ``"sign"`` edge attribute marks significantly strong (``+1``)
         versus significantly weak (``-1``) edges.
+    missing_as_zero : bool, optional (default=False)
+        If ``True``, also test every pair of distinct nodes that has no edge,
+        as an observed edge of weight 0, following ``missing_as_zero=TRUE``
+        in the R backbone package (version 3.0).  Tested pairs are added to
+        the result as edges with ``weight`` 0.  Meant for ``signed=True``;
+        see Notes.
 
     Returns
     -------
     H : graph
         A copy of *G* (same type) with ``"disparity_pvalue"`` added as an
-        edge attribute (and ``"sign"`` when ``signed=True``).
+        edge attribute (and ``"sign"`` when ``signed=True``).  With
+        ``missing_as_zero=True`` it also has the tested weight-0 edges.
 
     Raises
     ------
@@ -126,6 +220,11 @@ def disparity_filter(G, weight="weight", signed=False):
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
         :func:`~networkx_backbone.multigraph_to_weighted`.
+
+    Warns
+    -----
+    RuntimeWarning
+        If ``missing_as_zero=True`` would add more than one million edges.
 
     See Also
     --------
@@ -136,6 +235,21 @@ def disparity_filter(G, weight="weight", signed=False):
     -----
     An endpoint of degree 1 cannot reject the null model, so it contributes a
     p-value of 1 and the edge's p-value comes from the other endpoint.
+
+    **Absent pairs** (``missing_as_zero=True``).  A weight-0 pair does not
+    count toward any node's degree or strength; the null model of every
+    existing edge is unchanged, as in R.  From an endpoint of degree
+    :math:`k \geq 2` a weight of 0 has upper tail
+    :math:`(1 - 0)^{k - 1} = 1` and lower tail 0, because the null
+    distribution of the normalized weight is continuous.  So with
+    ``signed=True`` every absent pair with such an endpoint gets a two-sided
+    p-value of 0 and ``sign`` -1, as in R.  (R also gives a lower tail of 0
+    when both endpoints have degree 1; here both endpoints then contribute
+    1, by the degree-1 rule above.)  A pair with an endpoint that has no
+    links (for a directed pair ``(u, v)``: *u* has no out-links or *v* no
+    in-links) cannot be tested, because its normalized weight is
+    :math:`0/0`; R gives it a missing p-value, and it is not added here.
+    With ``signed=False`` the added pairs all have p-value 1.
 
     References
     ----------
@@ -162,27 +276,30 @@ def disparity_filter(G, weight="weight", signed=False):
         s_in = dict(G.in_degree(weight=weight))
         k_in = dict(G.in_degree())
     else:
-        strength = dict(G.degree(weight=weight))
-        degree = dict(G.degree())
+        s_out = s_in = dict(G.degree(weight=weight))
+        k_out = k_in = dict(G.degree())
+
+    def tails(u, v, w):
+        hi_u, lo_u = _disparity_node_tails(w, s_out[u], k_out[u])
+        hi_v, lo_v = _disparity_node_tails(w, s_in[v], k_in[v])
+        # OR rule: strong/weak if significant from either endpoint.
+        return min(hi_u, hi_v), min(lo_u, lo_v)
+
+    dyads = _absent_dyads(G, "disparity_filter") if missing_as_zero else []
 
     for u, v, data in H.edges(data=True):
-        w = data[weight]
-        if G.is_directed():
-            hi_u, lo_u = _disparity_node_tails(w, s_out[u], k_out[u])
-            hi_v, lo_v = _disparity_node_tails(w, s_in[v], k_in[v])
-            p_hi = min(hi_u, hi_v)
-            p_lo = min(lo_u, lo_v)
-        else:
-            hi_u, lo_u = _disparity_node_tails(w, strength[u], degree[u])
-            hi_v, lo_v = _disparity_node_tails(w, strength[v], degree[v])
-            # OR rule: strong/weak if significant from either endpoint.
-            p_hi = min(hi_u, hi_v)
-            p_lo = min(lo_u, lo_v)
+        p_hi, p_lo = tails(u, v, data[weight])
         if signed:
             data["disparity_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
         else:
             data["disparity_pvalue"] = p_hi
 
+    def zero_tails(u, v):
+        if k_out[u] == 0 or k_in[v] == 0:
+            return None  # 0/0 normalized weight: not testable
+        return (*tails(u, v, 0.0), {})
+
+    _add_zero_edges(H, dyads, weight, zero_tails, "disparity_pvalue", signed)
     return H
 
 
@@ -205,7 +322,9 @@ def _disparity_node_tails(w, s, k):
 
 
 @not_implemented_for("multigraph")
-def noise_corrected_filter(G, weight="weight", method="bayesian", signed=False):
+def noise_corrected_filter(
+    G, weight="weight", method="bayesian", signed=False, missing_as_zero=False
+):
     r"""Compute noise-corrected (NC) edge scores (Coscia & Neffke, 2017).
 
     The noise-corrected backbone [1]_ asks whether an edge carries more weight
@@ -254,13 +373,21 @@ def noise_corrected_filter(G, weight="weight", method="bayesian", signed=False):
         If ``True``, run a two-tailed test on ``nc_score / nc_sdev``:
         ``nc_pvalue`` becomes two-sided and a ``"sign"`` edge attribute marks
         significantly strong (``+1``) versus significantly weak (``-1``) edges.
+    missing_as_zero : bool, optional (default=False)
+        If ``True``, also score every pair of distinct nodes that has no
+        edge, as an observed edge of weight 0, and add the scored pairs to
+        the result as edges with ``weight`` 0.  This mirrors
+        ``missing_as_zero=TRUE`` in the R backbone package (version 3.0),
+        which has no noise-corrected model.  Meant for ``signed=True``;
+        see Notes.
 
     Returns
     -------
     H : graph
         A copy of *G* (same type).  Every edge gets ``"nc_score"`` and
         ``"nc_pvalue"``; with ``method="bayesian"`` also ``"nc_sdev"``; with
-        ``signed=True`` also ``"sign"``.
+        ``signed=True`` also ``"sign"``.  With ``missing_as_zero=True`` it
+        also has the scored weight-0 edges.
 
     Raises
     ------
@@ -270,6 +397,11 @@ def noise_corrected_filter(G, weight="weight", method="bayesian", signed=False):
         If *G* is a multigraph.
     ValueError
         If *method* is not ``"bayesian"`` or ``"zscore"``.
+
+    Warns
+    -----
+    RuntimeWarning
+        If ``missing_as_zero=True`` would add more than one million edges.
 
     See Also
     --------
@@ -332,6 +464,18 @@ def noise_corrected_filter(G, weight="weight", method="bayesian", signed=False):
     weights sum to about :math:`2W`, so on a unit-weight complete graph every
     edge gets a negative score.  Its ``nc_pvalue`` is :math:`P(Z \geq z)`.
 
+    **Absent pairs** (``missing_as_zero=True``).  The margins
+    :math:`n_{i.}`, :math:`n_{.j}` and :math:`n_{..}` are computed from the
+    existing edges only and are not changed by the weight-0 pairs.  A pair
+    is scored with :math:`n_{ij} = 0` in the formulas above: its lift is 0,
+    so ``nc_score`` is -1, and ``nc_sdev`` comes from the posterior with
+    :math:`n_{ij} = 0`.  With ``method="zscore"`` the score is
+    :math:`-\sqrt{W p / (1 - p)}`.  A pair with an endpoint whose margin is
+    0 (no links; for a directed pair ``(i, j)``, no out-links of *i* or no
+    in-links of *j*) has an undefined lift and is not added.  The R backbone
+    package has no noise-corrected model to compare against; this is the
+    model of the paper evaluated at a weight of 0.
+
     References
     ----------
     .. [1] Coscia, M. & Neffke, F. M. (2017). Network backboning with
@@ -360,8 +504,10 @@ def noise_corrected_filter(G, weight="weight", method="bayesian", signed=False):
     if G.number_of_edges() == 0:
         return H
 
+    dyads = _absent_dyads(G, "noise_corrected_filter") if missing_as_zero else []
+
     if method == "zscore":
-        _noise_corrected_zscore(G, H, weight, signed)
+        _noise_corrected_zscore(G, H, weight, signed, dyads)
         return H
 
     # Row and column sums of the (symmetric, for undirected graphs) weight
@@ -378,21 +524,31 @@ def noise_corrected_filter(G, weight="weight", method="bayesian", signed=False):
             s_in[u] = s_in.get(u, 0.0) + w
             total += w
 
-    for u, v, data in H.edges(data=True):
-        score, sdev = _nc_score_sdev(data[weight], s_out[u], s_in[v], total)
+    def tails(n_ij, n_i, n_j):
+        score, sdev = _nc_score_sdev(n_ij, n_i, n_j, total)
         if math.isinf(sdev):
             p_hi, p_lo = 1.0, 1.0  # degenerate prior: nothing to test
         elif sdev == 0.0:
             p_hi, p_lo = _normal_tails(math.copysign(math.inf, score) if score else 0.0)
         else:
             p_hi, p_lo = _normal_tails(score / sdev)
-        data["nc_score"] = score
-        data["nc_sdev"] = sdev
+        return p_hi, p_lo, {"nc_score": score, "nc_sdev": sdev}
+
+    for u, v, data in H.edges(data=True):
+        p_hi, p_lo, extra = tails(data[weight], s_out[u], s_in[v])
+        data.update(extra)
         if signed:
             data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
         else:
             data["nc_pvalue"] = p_hi
 
+    def zero_tails(u, v):
+        n_i, n_j = s_out.get(u, 0.0), s_in.get(v, 0.0)
+        if n_i == 0.0 or n_j == 0.0:
+            return None  # zero margin: the lift is undefined
+        return tails(0.0, n_i, n_j)
+
+    _add_zero_edges(H, dyads, weight, zero_tails, "nc_pvalue", signed)
     return H
 
 
@@ -430,8 +586,11 @@ def _normal_tails(z):
     return 0.5 * math.erfc(z / math.sqrt(2.0)), 0.5 * math.erfc(-z / math.sqrt(2.0))
 
 
-def _noise_corrected_zscore(G, H, weight, signed):
-    """Legacy binomial z-score (networkx-backbone <= 0.2), written into *H*."""
+def _noise_corrected_zscore(G, H, weight, signed, dyads):
+    """Legacy binomial z-score (networkx-backbone <= 0.2), written into *H*.
+
+    *dyads* are absent pairs to score as weight-0 edges (``missing_as_zero``).
+    """
     W = sum(d[weight] for _, _, d in G.edges(data=True))
     if G.is_directed():
         s_out = dict(G.out_degree(weight=weight))
@@ -440,19 +599,31 @@ def _noise_corrected_zscore(G, H, weight, signed):
         s_out = dict(G.degree(weight=weight))
         s_in = s_out
 
-    for u, v, data in H.edges(data=True):
-        p_ij = (s_out[u] * s_in[v]) / (W * W)
+    def tails(w, s_u, s_v):
+        p_ij = (s_u * s_v) / (W * W)
         variance = W * p_ij * (1 - p_ij)
         if variance > 0:
-            z = (data[weight] - W * p_ij) / math.sqrt(variance)
+            z = (w - W * p_ij) / math.sqrt(variance)
         else:
             z = 0.0
-        data["nc_score"] = z
         p_hi, p_lo = _normal_tails(z)
+        return p_hi, p_lo, {"nc_score": z}
+
+    for u, v, data in H.edges(data=True):
+        p_hi, p_lo, extra = tails(data[weight], s_out[u], s_in[v])
+        data.update(extra)
         if signed:
             data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
         else:
             data["nc_pvalue"] = p_hi
+
+    def zero_tails(u, v):
+        s_u, s_v = s_out[u], s_in[v]
+        if s_u == 0 or s_v == 0:
+            return None  # zero margin: the lift is undefined
+        return tails(0.0, s_u, s_v)
+
+    _add_zero_edges(H, dyads, weight, zero_tails, "nc_pvalue", signed)
 
 
 # =====================================================================
@@ -461,7 +632,7 @@ def _noise_corrected_zscore(G, H, weight, signed):
 
 
 @not_implemented_for("multigraph")
-def marginal_likelihood_filter(G, weight="weight", signed=False):
+def marginal_likelihood_filter(G, weight="weight", signed=False, missing_as_zero=False):
     r"""Compute marginal likelihood p-values for each edge.
 
     The marginal likelihood filter [1]_ treats an integer edge weight as a
@@ -489,11 +660,18 @@ def marginal_likelihood_filter(G, weight="weight", signed=False):
     signed : bool, optional (default=False)
         If ``True``, run a two-tailed test and add a ``"sign"`` edge attribute
         (``+1`` significantly strong, ``-1`` significantly weak).
+    missing_as_zero : bool, optional (default=False)
+        If ``True``, also test every pair of distinct nodes that has no edge,
+        as an observed edge of weight 0, following ``missing_as_zero=TRUE``
+        in the R backbone package (version 3.0).  Tested pairs are added to
+        the result as edges with ``weight`` 0.  Meant for ``signed=True``;
+        see Notes.
 
     Returns
     -------
     H : graph
-        A copy of *G* (same type) with ``"ml_pvalue"`` edge attribute.
+        A copy of *G* (same type) with ``"ml_pvalue"`` edge attribute.  With
+        ``missing_as_zero=True`` it also has the tested weight-0 edges.
 
     Raises
     ------
@@ -502,10 +680,27 @@ def marginal_likelihood_filter(G, weight="weight", signed=False):
     NetworkXNotImplemented
         If *G* is a multigraph.
 
+    Warns
+    -----
+    RuntimeWarning
+        If ``missing_as_zero=True`` would add more than one million edges.
+
     See Also
     --------
     disparity_filter : Tests each endpoint separately.
     ecm_filter : Maximum-entropy null that also fixes degrees.
+
+    Notes
+    -----
+    **Absent pairs** (``missing_as_zero=True``).  *T* and the strengths are
+    computed from the existing edges only, so the null model of every
+    existing edge is unchanged, as in R.  An absent pair is tested as
+    :math:`X = 0` under :math:`B(T, p_{uv})`: the upper tail is
+    :math:`P(X \geq 0) = 1` and the lower tail is
+    :math:`P(X \leq 0) = (1 - p_{uv})^T`, so with ``signed=True`` a pair
+    of strong nodes that never interact can be significantly weak.  As in R,
+    every pair is tested, including pairs with a node of strength 0, whose
+    p-value is 1.
 
     References
     ----------
@@ -547,20 +742,26 @@ def marginal_likelihood_filter(G, weight="weight", signed=False):
 
     norm = T * T if G.is_directed() else 2 * T * T
 
-    for u, v, data in H.edges(data=True):
-        k = round(data[weight])
+    def tails(u, v, k):
         if T > 0 and u != v:
-            p_param = min(s_out[u] * s_in[v] / norm, 1.0)
+            p_param = min(s_out.get(u, 0) * s_in.get(v, 0) / norm, 1.0)
             p_hi = float(sp_stats.binom.sf(k - 1, T, p_param))
             p_lo = float(sp_stats.binom.cdf(k, T, p_param))
-        else:
-            p_hi, p_lo = 1.0, 1.0
+            return p_hi, p_lo
+        return 1.0, 1.0
 
+    for u, v, data in H.edges(data=True):
+        p_hi, p_lo = tails(u, v, round(data[weight]))
         if signed:
             data["ml_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
         else:
             data["ml_pvalue"] = float(p_hi)
 
+    if missing_as_zero and T > 0:
+        dyads = _absent_dyads(G, "marginal_likelihood_filter")
+        _add_zero_edges(
+            H, dyads, weight, lambda u, v: (*tails(u, v, 0), {}), "ml_pvalue", signed
+        )
     return H
 
 
@@ -570,7 +771,9 @@ def marginal_likelihood_filter(G, weight="weight", signed=False):
 
 
 @not_implemented_for("multigraph")
-def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6, signed=False):
+def ecm_filter(
+    G, weight="weight", max_iter=1000, tol=1e-6, signed=False, missing_as_zero=False
+):
     r"""Compute ECM (Enhanced Configuration Model) p-values.
 
     The ECM [1]_ is the maximum-entropy ensemble of integer-weighted graphs
@@ -610,12 +813,19 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6, signed=False):
         (``+1`` significantly strong, ``-1`` significantly weak).  The lower
         tail is :math:`P(w_{ij} \leq w) = 1 - p_{ij} (y_i y_j)^w`, using the
         same fitted multipliers.
+    missing_as_zero : bool, optional (default=False)
+        If ``True``, also test every pair of distinct nodes that has no edge,
+        as an observed edge of weight 0, and add the tested pairs to the
+        result as edges with ``weight`` 0.  This mirrors
+        ``missing_as_zero=TRUE`` in the R backbone package (version 3.0),
+        which has no ECM model.  Meant for ``signed=True``; see Notes.
 
     Returns
     -------
     H : graph
         A copy of *G* (same type) with ``"ecm_pvalue"`` edge attribute (and
-        ``"sign"`` when ``signed=True``).
+        ``"sign"`` when ``signed=True``).  With ``missing_as_zero=True`` it
+        also has the tested weight-0 edges.
 
     Raises
     ------
@@ -628,7 +838,8 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6, signed=False):
     -----
     RuntimeWarning
         If the solver does not reproduce the degree and strength sequences to
-        within ``tol``.
+        within ``tol``, or if ``missing_as_zero=True`` would add more than
+        one million edges.
 
     See Also
     --------
@@ -638,6 +849,16 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6, signed=False):
     -----
     Self-loops are ignored when fitting the null model and get a p-value
     of 1.  The fit costs :math:`O(n^2)` memory and time per iteration.
+
+    **Absent pairs** (``missing_as_zero=True``).  The multipliers are fitted
+    to the degrees and strengths of the existing edges only, so the null
+    model of every existing edge is unchanged.  The ECM gives a weight of 0
+    probability :math:`1 - p_{ij}`, so an absent pair has upper tail
+    :math:`P(w_{ij} \geq 0) = 1` and lower tail
+    :math:`P(w_{ij} \leq 0) = 1 - p_{ij}`.  A pair with a node of degree 0
+    (for a directed pair ``(i, j)``, out-degree of *i* or in-degree of *j*)
+    has :math:`p_{ij} = 0` and p-value 1.  The R backbone package has no ECM
+    model to compare against; this is the ECM evaluated at a weight of 0.
 
     References
     ----------
@@ -669,6 +890,7 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6, signed=False):
                 data["sign"] = 1
         return H
 
+    dyads = _absent_dyads(G, "ecm_filter") if missing_as_zero else []
     idx = {v: i for i, v in enumerate(nodes)}
     k_out = np.zeros(n)
     k_in = np.zeros(n)
@@ -687,7 +909,7 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6, signed=False):
         k_out = k_in = k_out + k_in
         s_out = s_in = s_out + s_in
 
-    a_out, b_out, a_in, b_in, _act_out, _act_in, err = _fit_ecm(
+    a_out, b_out, a_in, b_in, act_out, act_in, err = _fit_ecm(
         k_out, s_out, k_in, s_in, G.is_directed(), max_iter, tol
     )
     if err > tol:
@@ -698,13 +920,7 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6, signed=False):
             stacklevel=2,
         )
 
-    for u, v, data in H.edges(data=True):
-        if u == v:
-            data["ecm_pvalue"] = 1.0
-            if signed:
-                data["sign"] = 1
-            continue
-        i, j = idx[u], idx[v]
+    def tails(i, j, w):
         # x_i x_j y_i y_j = exp(-(a_i + a_j)); y_i y_j = exp(-(b_i + b_j)).
         # Work in log space: x can be huge when y is tiny.
         log_xxyy = -float(a_out[i] + a_in[j])
@@ -714,17 +930,35 @@ def ecm_filter(G, weight="weight", max_iter=1000, tol=1e-6, signed=False):
         log_denom = hi + math.log(
             math.exp(log_xxyy - hi) + math.exp(log_one_minus_yy - hi)
         )
-        w = max(round(data[weight]), 1)
-        # Upper tail P(w_ij >= w) = p_ij (y_i y_j)^(w - 1).
-        log_p_hi = log_xxyy - log_denom + (w - 1) * log_yy
-        p_hi = float(min(max(math.exp(log_p_hi), 0.0), 1.0))
+        log_p_link = log_xxyy - log_denom  # log p_ij = log P(w_ij >= 1)
+        # Upper tail P(w_ij >= w) = p_ij (y_i y_j)^(w - 1) for w >= 1.
+        if w == 0:
+            p_hi = 1.0
+        else:
+            p_hi = float(min(max(math.exp(log_p_link + (w - 1) * log_yy), 0.0), 1.0))
+        # Lower tail P(w_ij <= w) = 1 - P(w_ij >= w + 1) = 1 - p_ij (y_i y_j)^w.
+        p_lo = -math.expm1(min(log_p_link + w * log_yy, 0.0))
+        return p_hi, p_lo
+
+    for u, v, data in H.edges(data=True):
+        if u == v:
+            data["ecm_pvalue"] = 1.0
+            if signed:
+                data["sign"] = 1
+            continue
+        p_hi, p_lo = tails(idx[u], idx[v], max(round(data[weight]), 1))
         if signed:
-            # Lower tail P(w_ij <= w) = 1 - P(w_ij >= w + 1).
-            p_lo = -math.expm1(min(log_p_hi + log_yy, 0.0))
             data["ecm_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
         else:
             data["ecm_pvalue"] = p_hi
 
+    def zero_tails(u, v):
+        i, j = idx[u], idx[v]
+        if not (act_out[i] and act_in[j]):
+            return 1.0, 1.0, {}  # x = 0: the pair is never linked
+        return (*tails(i, j, 0), {})
+
+    _add_zero_edges(H, dyads, weight, zero_tails, "ecm_pvalue", signed)
     return H
 
 
@@ -937,7 +1171,7 @@ def _fit_ecm(k_out, s_out, k_in, s_in, directed, max_iter, tol):
 
 
 @not_implemented_for("multigraph")
-def lans_filter(G, weight="weight", signed=False):
+def lans_filter(G, weight="weight", signed=False, missing_as_zero=False):
     r"""Compute LANS (Locally Adaptive Network Sparsification) p-values.
 
     LANS [1]_ is a nonparametric method that makes no distributional
@@ -965,11 +1199,18 @@ def lans_filter(G, weight="weight", signed=False):
     signed : bool, optional (default=False)
         If ``True``, run a two-tailed test and add a ``"sign"`` edge attribute
         (``+1`` significantly strong, ``-1`` significantly weak).
+    missing_as_zero : bool, optional (default=False)
+        If ``True``, also test every pair of distinct nodes that has no edge,
+        as an observed edge of weight 0, following ``missing_as_zero=TRUE``
+        in the R backbone package (version 3.0).  Tested pairs are added to
+        the result as edges with ``weight`` 0.  Meant for ``signed=True``;
+        see Notes.
 
     Returns
     -------
     H : graph
-        A copy of *G* (same type) with ``"lans_pvalue"`` edge attribute.
+        A copy of *G* (same type) with ``"lans_pvalue"`` edge attribute.  With
+        ``missing_as_zero=True`` it also has the tested weight-0 edges.
 
     Raises
     ------
@@ -978,9 +1219,26 @@ def lans_filter(G, weight="weight", signed=False):
     NetworkXNotImplemented
         If *G* is a multigraph.
 
+    Warns
+    -----
+    RuntimeWarning
+        If ``missing_as_zero=True`` would add more than one million edges.
+
     See Also
     --------
     disparity_filter : Parametric counterpart with a uniform null model.
+
+    Notes
+    -----
+    **Absent pairs** (``missing_as_zero=True``).  As in R, each node's
+    empirical CDF is built from its existing links only; weight-0 pairs do
+    not enter it, so the p-values of existing edges are unchanged.  A weight
+    of 0 is below every link of a node, so an absent pair has upper tail 1
+    and lower tail :math:`F(0) = 0`: with ``signed=True`` every absent pair
+    gets a two-sided p-value of 0 and ``sign`` -1, as in R.  A pair with an
+    endpoint that has no links (for a directed pair ``(u, v)``: *u* has no
+    out-links or *v* no in-links) has no empirical CDF to compare against;
+    R gives it a missing p-value, and it is not added here.
 
     References
     ----------
@@ -1009,56 +1267,71 @@ def lans_filter(G, weight="weight", signed=False):
             out_weights[u] = sorted(d[weight] for _, _, d in G.out_edges(u, data=True))
             in_weights[u] = sorted(d[weight] for _, _, d in G.in_edges(u, data=True))
     else:
-        node_weights = {}
-        for u in G.nodes():
-            ws = sorted(G[u][v][weight] for v in G[u])
-            node_weights[u] = ws
+        out_weights = in_weights = {
+            u: sorted(G[u][v][weight] for v in G[u]) for u in G.nodes()
+        }
+
+    def tails(u, v, w):
+        ecdf_u = _empirical_cdf(w, out_weights[u])
+        ecdf_v = _empirical_cdf(w, in_weights[v])
+        # OR rule: strong/weak if significant from either side of the edge.
+        return 1.0 - max(ecdf_u, ecdf_v), min(ecdf_u, ecdf_v)
+
+    dyads = _absent_dyads(G, "lans_filter") if missing_as_zero else []
 
     for u, v, data in H.edges(data=True):
-        w = data[weight]
-
-        if G.is_directed():
-            ecdf_u = _empirical_cdf(w, out_weights[u])
-            ecdf_v = _empirical_cdf(w, in_weights[v])
-            # OR rule: strong/weak if significant from either side of the edge.
-            p_hi = 1.0 - max(ecdf_u, ecdf_v)
-            p_lo = min(ecdf_u, ecdf_v)
-        else:
-            ecdf_u = _empirical_cdf(w, node_weights[u])
-            ecdf_v = _empirical_cdf(w, node_weights[v])
-            # OR rule: strong/weak if significant from either endpoint.
-            p_hi = 1.0 - max(ecdf_u, ecdf_v)
-            p_lo = min(ecdf_u, ecdf_v)
-
+        p_hi, p_lo = tails(u, v, data[weight])
         if signed:
             data["lans_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo)
         else:
             data["lans_pvalue"] = max(p_hi, 0.0)
 
+    def zero_tails(u, v):
+        if not out_weights[u] or not in_weights[v]:
+            return None  # no links to compare against
+        return (*tails(u, v, 0.0), {})
+
+    _add_zero_edges(H, dyads, weight, zero_tails, "lans_pvalue", signed)
     return H
 
 
 @not_implemented_for("multigraph")
-def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"):
+def multiple_linkage_analysis(
+    G, alpha=0.05, weight="weight", method="dominance", deviation="cod"
+):
     r"""Extract a backbone using Multiple Linkage Analysis (MLA).
 
     With ``method="dominance"`` (the default) this is the multiple linkage
-    analysis of Van Nuffel [1]_, which decides how many of a node's
+    analysis of Van Nuffel [1]_, [2]_, which decides how many of a node's
     links are *dominant*.  For each node:
 
     1. Sort its link weights in decreasing order and divide by their sum,
-       giving the profile :math:`p_1 \geq p_2 \geq \dots \geq p_n`.
+       giving the profile :math:`p_1 \geq p_2 \geq \dots \geq p_n`.  With
+       the default ``deviation="cod"`` the profile also holds a zero for
+       every other node the node has no link to, so :math:`n` is the number
+       of other nodes in *G*.
     2. Compare the profile with the ideal distributions in which *k* links
        share the weight equally and the others have none,
-       :math:`t^{(k)} = (1/k, \dots, 1/k, 0, \dots, 0)`, for
-       :math:`k = 1, \dots, n`, using the squared deviation
+       :math:`t^{(k)} = (1/k, \dots, 1/k, 0, \dots, 0)`, for *k* from 1 to
+       the number of links.
+    3. Keep the *k* strongest links of the best-fitting ideal distribution.
 
-       .. math::
+    The goodness of fit is set by *deviation*:
 
-           D_k = \sum_{r=1}^{n} \left(p_r - t^{(k)}_r\right)^2
-               = \sum_{r=1}^{n} p_r^2 + \frac{1 - 2 \sum_{r \leq k} p_r}{k}.
-
-    3. Keep the *k* strongest links of the best fit (smallest :math:`D_k`).
+    ``"cod"`` (default)
+        The coefficient of determination of [2]_, the squared Pearson
+        correlation between :math:`p` and :math:`t^{(k)}` over all :math:`n`
+        entries.  The largest value wins.
+    ``"profile"``
+        The squared deviation summed over the whole profile,
+        :math:`D_k = \sum_{r=1}^{n} (p_r - t^{(k)}_r)^2`, so links outside
+        the dominant set count against a fit.  The smallest value wins.
+        This was the default in the development versions of 0.2.0.
+    ``"weaver"``
+        The mean squared deviation over the *k* links of the candidate set
+        only, :math:`V_k = \frac{1}{k} \sum_{r=1}^{k} (p_r - 1/k)^2`, the
+        variance of Weaver's crop-combination method [3]_.  The smallest
+        value wins.
 
     Each node keeps at least one link.  For a directed graph the profile is
     built from each node's out-links (the setting of [1]_) and an edge is kept
@@ -1066,7 +1339,7 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     uses all of its links, and an edge is kept when it is dominant for
     *either* endpoint (OR rule).
 
-    With ``method="lans"`` this reproduces the netbone [2]_ implementation,
+    With ``method="lans"`` this reproduces the netbone [4]_ implementation,
     which thresholds the edge p-values of :func:`lans_filter` at ``alpha``.
 
     Parameters
@@ -1081,6 +1354,9 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
         ``"dominance"`` fits ideal dominance distributions as in [1]_;
         ``"lans"`` keeps edges with LANS p-value <= ``alpha``, as netbone
         does and as networkx-backbone 0.2 and earlier did.
+    deviation : {"cod", "profile", "weaver"}, optional (default="cod")
+        How ``method="dominance"`` measures the fit between a node's profile
+        and an ideal distribution; see above.  Ignored by ``method="lans"``.
 
     Returns
     -------
@@ -1095,7 +1371,8 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     Raises
     ------
     ValueError
-        If ``alpha`` is outside [0, 1] or *method* is unknown.
+        If ``alpha`` is outside [0, 1], or *method* or *deviation* is
+        unknown.
     NetworkXError
         If any edge has a non-positive, non-finite, or missing weight.
     NetworkXNotImplemented
@@ -1109,18 +1386,33 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
 
     Notes
     -----
-    The procedure is the least-squares comparison with ideal distributions
-    used in multiple linkage analysis, after Weaver's crop-combination
-    method [3]_.  Here the deviation is summed over the node's whole profile,
-    so links outside the dominant set count against a fit.  Weaver's original
-    measure instead averages the squared deviation over the *k* links of the
-    candidate combination only.  The exact variant used by Van Nuffel (2007)
-    has not yet been checked against the paper (see issue #10), so results
-    may differ from that paper's in borderline cases.  Ideal distributions
-    that would split a group of tied weights are not considered (such a split
-    never fits strictly better), so tied links are kept or dropped together and ``mla_rank`` is always the number
-    of links the node keeps.  If two fits are equally good, the smaller *k*
-    wins.
+    The 2007 paper [1]_ was not available to us.  The default follows its
+    restatement by the same first author in [2]_ (Section "Determination of
+    the number of significant connections", and Table 1): the flows of a
+    spatial unit, including zero flows to the units it is not linked to, are
+    compared with each ideal distribution by the coefficient of
+    determination, and "the number of significant flows corresponds to the
+    jth cycle with the highest COD value".  The tests reproduce every COD
+    value of Table 1 of [2]_.  A footnote of [2]_ describes MLA as an
+    extension of Weaver's method [3]_, which "uses the sum of the squared
+    differences (instead of the coefficient of determination) between the
+    fictive and the real percentages".  ``deviation="weaver"`` implements
+    Weaver's measure in its usual form, averaged over the *k* candidate
+    links; this form has not been checked against [3]_ itself.
+
+    Because the coefficient of determination depends on the number of zero
+    entries, ``deviation="cod"`` results depend on the number of nodes in
+    *G*, as in [2]_.  The other two measures do not.  If a node is linked to
+    every other node, the ideal distribution with all :math:`n` links equal
+    is constant, so its correlation is undefined and it is used only when
+    all of the node's weights are tied.
+
+    Ideal distributions that would split a group of tied weights are not
+    considered, so tied links are kept or dropped together and ``mla_rank``
+    is always the number of links the node keeps.  For ``"cod"`` and
+    ``"profile"`` such a split never fits strictly better; for ``"weaver"``
+    it sometimes does, so there this rule can change the result.  If two
+    fits are equally good, the smaller *k* wins.
 
     Unlike LANS, which tests each link against the empirical distribution of
     its node's weights, the dominance fit chooses *how many* links each node
@@ -1133,9 +1425,14 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
        flows in origin-destination specific analysis: the case of commuting in
        Flanders. *Regional Studies*, 41(4), 509-524.
        https://doi.org/10.1080/00343400701281808
+    .. [2] Van Nuffel, N., Derudder, B., & Witlox, F. (2010). Even important
+       connections are not always meaningful: on the use of a polarisation
+       measure in a typology of European cities in air transport networks.
+       *Tijdschrift voor Economische en Sociale Geografie*, 101(3), 333-348.
+       https://doi.org/10.1111/j.1467-9663.2009.00547.x
     .. [3] Weaver, J. C. (1954). Crop-combination regions in the Middle West.
        *Geographical Review*, 44(2), 175-200. https://doi.org/10.2307/212355
-    .. [2] Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023).
+    .. [4] Yassin, A., Haidar, A., Cherifi, H., Seba, H., & Togni, O. (2023).
        An evaluation tool for backbone extraction techniques in weighted
        complex networks. *Scientific Reports*, 13, 17000.
 
@@ -1155,6 +1452,21 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     >>> sorted(boolean_filter(H, "mla_keep").edges())
     [('a', 'x'), ('b', 'x'), ('b', 'y')]
 
+    The deviation measures can disagree.  For flows (50, 43, 42, 21, 12, 7)
+    to six of eight other units (Table 1 of [2]_), the coefficient of
+    determination picks three links, the whole-profile deviation four:
+
+    >>> G = nx.DiGraph()
+    >>> G.add_nodes_from("abcdefgh")
+    >>> G.add_weighted_edges_from(
+    ...     [("X", "h", 50), ("X", "a", 43), ("X", "d", 42),
+    ...      ("X", "g", 21), ("X", "c", 12), ("X", "e", 7)]
+    ... )
+    >>> multiple_linkage_analysis(G).nodes["X"]["mla_rank"]
+    3
+    >>> multiple_linkage_analysis(G, deviation="profile").nodes["X"]["mla_rank"]
+    4
+
     The netbone variant thresholds LANS p-values:
 
     >>> G = nx.les_miserables_graph()
@@ -1165,6 +1477,10 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     """
     if method not in ("dominance", "lans"):
         raise ValueError(f"method must be 'dominance' or 'lans', got {method!r}")
+    if deviation not in ("cod", "profile", "weaver"):
+        raise ValueError(
+            f"deviation must be 'cod', 'profile' or 'weaver', got {deviation!r}"
+        )
     if not 0.0 <= alpha <= 1.0:
         raise ValueError("alpha must be in [0, 1]")
 
@@ -1180,10 +1496,11 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     _validate_weights(H, weight)
 
     neighbors = G.succ if G.is_directed() else G.adj
+    others = G.number_of_nodes() - 1
     cutoff = {}
     for node in G:
         weights = sorted((d[weight] for d in neighbors[node].values()), reverse=True)
-        k = _dominance_rank(weights)
+        k = _dominance_rank(weights, deviation, max(others, len(weights)))
         H.nodes[node]["mla_rank"] = k
         cutoff[node] = weights[k - 1] if k else math.inf
 
@@ -1196,27 +1513,49 @@ def multiple_linkage_analysis(G, alpha=0.05, weight="weight", method="dominance"
     return H
 
 
-def _dominance_rank(weights):
+def _dominance_rank(weights, deviation="cod", n=None):
     """Number of dominant links for a node's weights sorted in decreasing order.
 
     Returns the *k* whose ideal distribution (*k* equal links, the rest zero)
-    is closest in squared deviation to the normalized profile; *k* never
-    splits a run of tied weights, and ties in the deviation go to the
-    smaller *k*.  The constant ``sum(p_r**2)`` is left out of the deviation.
+    fits the normalized profile best under *deviation*; *k* never splits a
+    run of tied weights, and ties in the fit go to the smaller *k*.  *n* is
+    the length of the profile once padded with zero flows (``"cod"`` only;
+    defaults to ``len(weights)``).
+
+    Each measure is reduced to a loss that is minimized:
+
+    - ``"profile"``: ``sum_r (p_r - t_r)**2`` minus the constant
+      ``sum_r p_r**2``, i.e. ``(1 - 2 S_k) / k``.
+    - ``"weaver"``: ``sum_{r<=k} (p_r - 1/k)**2 / k``.
+    - ``"cod"``: minus ``(S_k / k - 1/n)**2 / (1/k - 1/n)``, which is the
+      squared correlation times the constant ``n * var(p)``.
+
+    Here ``S_k`` is the sum of the *k* largest shares.
     """
-    n = len(weights)
-    if n == 0:
+    m = len(weights)
+    if m == 0:
         return 0
+    if n is None:
+        n = m
     total = math.fsum(weights)
-    best_k, best_dev = n, math.inf
-    cum = 0.0
-    for k in range(1, n + 1):
-        cum += weights[k - 1]
-        if k < n and weights[k] == weights[k - 1]:
+    best_k, best_loss = m, math.inf
+    cum = sq = 0.0
+    for k in range(1, m + 1):
+        share = weights[k - 1] / total
+        cum += share
+        sq += share * share
+        if k < m and weights[k] == weights[k - 1]:
             continue  # would split a group of tied weights
-        dev = (1.0 - 2.0 * cum / total) / k
-        if dev < best_dev - 1e-12:
-            best_k, best_dev = k, dev
+        if deviation == "profile":
+            loss = (1.0 - 2.0 * cum) / k
+        elif deviation == "weaver":
+            loss = (sq - 2.0 * cum / k + 1.0 / k) / k
+        else:
+            if k >= n:
+                continue  # constant ideal: correlation undefined
+            loss = -((cum / k - 1.0 / n) ** 2) / (1.0 / k - 1.0 / n)
+        if loss < best_loss - 1e-12:
+            best_k, best_loss = k, loss
     return best_k
 
 
@@ -1583,46 +1922,50 @@ def _polya_ml_estimate(rows):
     return float(math.exp(res.x))
 
 
-def disparity(G, weight="weight", signed=False):
+def disparity(G, weight="weight", signed=False, missing_as_zero=False):
     """Alias for :func:`disparity_filter`."""
-    return disparity_filter(G, weight=weight, signed=signed)
+    return disparity_filter(
+        G, weight=weight, signed=signed, missing_as_zero=missing_as_zero
+    )
 
 
-def mlf(G, weight="weight", signed=False):
+def mlf(G, weight="weight", signed=False, missing_as_zero=False):
     """Alias for :func:`marginal_likelihood_filter`."""
-    return marginal_likelihood_filter(G, weight=weight, signed=signed)
+    return marginal_likelihood_filter(
+        G, weight=weight, signed=signed, missing_as_zero=missing_as_zero
+    )
 
 
-def lans(G, weight="weight", signed=False):
+def lans(G, weight="weight", signed=False, missing_as_zero=False):
     """Alias for :func:`lans_filter`."""
-    return lans_filter(G, weight=weight, signed=signed)
+    return lans_filter(G, weight=weight, signed=signed, missing_as_zero=missing_as_zero)
 
 
 _COMPLEXITY = {
     "disparity_filter": {
         "time": "O(n + m)",
         "space": "O(n + m)",
-        "notes": "n=|V|, m=|E|.",
+        "notes": "n=|V|, m=|E|. missing_as_zero=True adds O(n^2) time and space.",
     },
     "noise_corrected_filter": {
         "time": "O(n + m)",
         "space": "O(n + m)",
-        "notes": "n=|V|, m=|E|.",
+        "notes": "n=|V|, m=|E|. missing_as_zero=True adds O(n^2) time and space.",
     },
     "marginal_likelihood_filter": {
         "time": "O(n + m)",
         "space": "O(n + m)",
-        "notes": "n=|V|, m=|E|.",
+        "notes": "n=|V|, m=|E|. missing_as_zero=True adds O(n^2) time and space.",
     },
     "ecm_filter": {
         "time": "O(I * n^2 + m)",
         "space": "O(n^2 + m)",
-        "notes": "I=solver iterations; a dense O(n^3) Newton polish is used for n <= 2000.",
+        "notes": "I=solver iterations; a dense O(n^3) Newton polish is used for n <= 2000. missing_as_zero=True adds O(n^2) time and space.",
     },
     "lans_filter": {
         "time": "O(m log n)",
         "space": "O(n + m)",
-        "notes": "Worst-case over node-local sorted edge-weight lookups.",
+        "notes": "Worst-case over node-local sorted edge-weight lookups. missing_as_zero=True adds O(n^2) time and space.",
     },
     "multiple_linkage_analysis": {
         "time": "O(m log n)",
@@ -1638,17 +1981,17 @@ _COMPLEXITY = {
     "disparity": {
         "time": "O(n + m)",
         "space": "O(n + m)",
-        "notes": "Alias for disparity_filter.",
+        "notes": "Alias for disparity_filter. missing_as_zero=True adds O(n^2) time and space.",
     },
     "mlf": {
         "time": "O(n + m)",
         "space": "O(n + m)",
-        "notes": "Alias for marginal_likelihood_filter.",
+        "notes": "Alias for marginal_likelihood_filter. missing_as_zero=True adds O(n^2) time and space.",
     },
     "lans": {
         "time": "O(m log n)",
         "space": "O(n + m)",
-        "notes": "Alias for lans_filter.",
+        "notes": "Alias for lans_filter. missing_as_zero=True adds O(n^2) time and space.",
     },
 }
 
