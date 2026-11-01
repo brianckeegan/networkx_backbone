@@ -89,7 +89,8 @@ jobs:
     # call every dispatchable function: test_dispatch on Graph, DiGraph and
     # MultiGraph inputs, test_api_contract on directed, relabeled, reordered
     # and empty inputs.  The rest of the suite also passes under the harness
-    # (NETWORKX_TEST_BACKEND=nx_loopback pytest), but adds no dispatch coverage.
+    # (NETWORKX_TEST_BACKEND=nx_loopback pytest), but calls none of this
+    # package's dispatchable functions that these two files do not.
     name: Backend dispatch (nx_loopback)
     runs-on: ubuntu-latest
     steps:
