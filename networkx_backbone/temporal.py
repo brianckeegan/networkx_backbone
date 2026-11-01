@@ -75,11 +75,12 @@ resulting steps.  An edge's **eligible** steps are those in which both of its
 endpoints are present.  In an eligible step an absent edge is an observed
 zero (weight 0); in any other step the edge is unknown and is not counted, so
 an edge whose endpoint joins late is scored only from the step it joins.
-Each scorer returns one static graph: a :class:`~networkx.Graph` (or
-:class:`~networkx.DiGraph` for directed input) holding the union of the
-observed edges with their score attributes, the attributes each edge had
-when last observed, and every node of every step with its attributes from
-the latest step it is in.  ``H.graph["temporal"]`` records the method, the
+Each scorer returns one static graph: the
+:func:`~networkx_backbone.flatten_temporal` of the steps (a
+:class:`~networkx.Graph`, or :class:`~networkx.DiGraph` for directed input,
+with every node of every step and its attributes from the latest step it is
+in), restricted to the observed edges, which carry their score attributes.
+``H.graph["temporal"]`` records the method, the
 input form, the step ``times``, ``n_steps``, ``freq``, ``origin`` and the
 parameters.  The usual filters then apply, as in
 ``threshold_filter(H, "obs_fraction", 0.5, mode="above")``.  The scores are
@@ -1820,8 +1821,9 @@ def to_event_table(
 #    and, when asked, a weight series (0 where eligible but absent).  The masks
 #    are numpy boolean arrays when numpy is installed and lists of lists of
 #    bools otherwise; each scorer that has a pure-Python path implements both.
-# 3. ``_scored_graph`` builds the output: the union of observed edges with
-#    the score attributes and ``H.graph["temporal"]``.
+# 3. ``_scored_graph`` builds the output from ``flatten_temporal`` of the
+#    steps: the union of observed edges with the score attributes, and
+#    ``H.graph["temporal"]``.
 
 
 def _numpy():
@@ -2048,26 +2050,21 @@ def _runs(table, mask, skip):
     return n_runs, max_run, share
 
 
-def _scored_graph(table, keep, last, attrs, method, parameters):
-    """The union of the edges *keep* with their score attributes.
+def _scored_graph(table, keep, attrs, method, parameters, weight):
+    """The union of the edges *keep*, with their score attributes.
 
-    Edge *j* (``keep[j]`` true) gets the attributes it had in step
-    ``last[j]`` and then ``attrs[j]``.  Nodes are every node of every step,
-    with the attributes of the latest step they are in.
+    The union comes from :func:`flatten_temporal` of the steps, so nodes,
+    node and graph attributes, and each edge's summed *weight*, ``n_obs``,
+    ``first`` and ``last`` follow its conventions; edge *j* (``keep[j]``
+    true) then gets ``attrs[j]``, and the other edges are removed.
     """
     steps = table.steps
-    H = nx.DiGraph() if steps.directed else nx.Graph()
-    latest = {}
-    for G in steps.graphs:
-        for n, d in G.nodes(data=True):
-            latest[n] = d
-    H.add_nodes_from((n, dict(d)) for n, d in latest.items())
-    H.graph.update((a, x) for a, x in steps.graphs[-1].graph.items() if a != RECORD)
+    H = flatten_temporal(dict(zip(steps.times, steps.graphs)), weight=weight)
     for j, (u, v) in enumerate(table.ends):
         if keep[j]:
-            d = dict(steps.graphs[last[j]].edges[u, v])
-            d.update(attrs[j])
-            H.add_edge(u, v, **d)
+            H.edges[u, v].update(attrs[j])
+        else:
+            H.remove_edge(u, v)
     H.graph[RECORD] = {
         "method": method,
         "input_form": steps.form,
@@ -2141,17 +2138,22 @@ def observation_fraction(
     -------
     H : Graph or DiGraph
         The union of the edges observed in any step, with the attributes
-        each edge had when last observed, plus
+        :func:`flatten_temporal` gives them over the steps (the summed
+        *weight*, ``n_obs``, ``first``, ``last``, and the attributes all
+        their observations share), plus
 
         - ``obs_fraction``: ``n_obs / n_eligible``;
-        - ``n_obs``: the number of steps in which the edge is observed;
+        - ``n_obs``: the number of steps in which the edge is observed
+          (replacing the count of :func:`flatten_temporal`, which also
+          counts the steps where the weight is at most *min_weight*);
         - ``n_eligible``: the number of steps in which both endpoints are
           present;
         - ``first_obs``, ``last_obs``: the times of the first and last
           observation.
 
         Nodes are every node present in any step, with their attributes from
-        the latest step they are in.  ``H.graph["temporal"]`` records the
+        the latest step they are in, and graph attributes come from the
+        latest step.  ``H.graph["temporal"]`` records the
         method, the input form, the step times, ``n_steps``, *freq*,
         *origin* and the parameters.
 
@@ -2193,8 +2195,9 @@ def observation_fraction(
     ...     4: nx.Graph([("b", "c"), ("a", "z")]),
     ... }
     >>> H = nb.observation_fraction(S)
-    >>> H["a"]["b"]
-    {'obs_fraction': 0.75, 'n_obs': 3, 'n_eligible': 4, 'first_obs': 1, 'last_obs': 3}
+    >>> H["a"]["b"]  # doctest: +NORMALIZE_WHITESPACE
+    {'weight': 3, 'n_obs': 3, 'first': 1, 'last': 3, 'obs_fraction': 0.75,
+     'n_eligible': 4, 'first_obs': 1, 'last_obs': 3}
     >>> H["b"]["c"]["obs_fraction"]
     1.0
     >>> B = nb.threshold_filter(H, "obs_fraction", 0.8, mode="above")
@@ -2227,7 +2230,9 @@ def observation_fraction(
         for a, b, f, z in zip(n, n_elig, first, last)
     ]
     parameters = {"weight": weight, "min_weight": min_weight, "aggregate": aggregate}
-    return _scored_graph(table, n, last, attrs, "observation_fraction", parameters)
+    return _scored_graph(
+        table, n, attrs, "observation_fraction", parameters, weight or "weight"
+    )
 
 
 def persistence(
@@ -2289,7 +2294,9 @@ def persistence(
     -------
     H : Graph or DiGraph
         The union of the edges observed in any step, with the attributes
-        each edge had when last observed, plus
+        :func:`flatten_temporal` gives them over the steps (the summed
+        *weight*, ``n_obs``, ``first``, ``last``, and the attributes all
+        their observations share), plus
 
         - ``max_run``: the length of the longest run, in steps;
         - ``mean_run``: the mean run length;
@@ -2332,9 +2339,10 @@ def persistence(
     ...     4: nx.Graph([("a", "b"), ("b", "c")]),
     ... }
     >>> H = nb.persistence(S)
-    >>> H["a"]["b"]
+    >>> scores = ("max_run", "mean_run", "n_runs", "persistence")
+    >>> {a: H["a"]["b"][a] for a in scores}
     {'max_run': 2, 'mean_run': 1.5, 'n_runs': 2, 'persistence': 0.5}
-    >>> H["b"]["c"]
+    >>> {a: H["b"]["c"][a] for a in scores}
     {'max_run': 3, 'mean_run': 3.0, 'n_runs': 1, 'persistence': 1.0}
 
     With ``ineligible="break"`` the unknown step ends the run:
@@ -2356,7 +2364,7 @@ def persistence(
     )
     table = _Table(steps, weight)
     observed = table.present if weight is None else table.above(min_weight)
-    n, _, _, last = _counts(table, observed)
+    n = _counts(table, observed)[0]
     n_runs, max_run, share = _runs(table, observed, ineligible == "skip")
     attrs = [
         {"max_run": r, "mean_run": a / k, "n_runs": k, "persistence": p} if a else {}
@@ -2368,7 +2376,7 @@ def persistence(
         "ineligible": ineligible,
         "aggregate": aggregate,
     }
-    return _scored_graph(table, n, last, attrs, "persistence", parameters)
+    return _scored_graph(table, n, attrs, "persistence", parameters, weight or "weight")
 
 
 def _resolve_scorer(method, key):
@@ -2381,9 +2389,10 @@ def _resolve_scorer(method, key):
         func = getattr(nb, name)
     elif callable(method):
         func = method
-        name = getattr(method, "__name__", repr(method))
+        base = getattr(method, "func", method)  # look through functools.partial
+        name = getattr(base, "__name__", repr(method))
         try:
-            name, entry = _resolve(method)
+            name, entry = _resolve(name)
         except ValueError:
             entry = None
     else:
@@ -2487,7 +2496,9 @@ def backbone_stability(
     -------
     H : Graph or DiGraph
         The union of the edges present in any step, with the attributes
-        each edge had when last present, plus
+        :func:`flatten_temporal` gives them over the steps (the summed
+        *weight*, ``n_obs``, ``first``, ``last``, and the attributes all
+        their observations share), plus
 
         - ``stability``: ``n_kept / n_eligible``;
         - ``n_kept``: the number of steps in which the backbone keeps the
@@ -2525,7 +2536,10 @@ def backbone_stability(
     Snapshots without edges are not scored.  Only edges present in a
     snapshot can be kept in it, even if *method* scores absent pairs too.
     An exception raised by *method* propagates with a note naming the
-    snapshot.
+    snapshot.  To pass *method* an argument named like one of this
+    function's own (``threshold`` of
+    :func:`~networkx_backbone.global_threshold_filter`, for example), bind
+    it with :func:`functools.partial`; the score key is still looked up.
 
     Examples
     --------
@@ -2614,7 +2628,6 @@ def backbone_stability(
                 continue
             if G.has_edge(u, v):
                 kept_at[-1].append(table.index[_pair(u, v, steps.directed)])
-    n_present, _, _, last_present = _counts(table, table.present)
     n, n_elig, first, last = _counts(table, table.mask(kept_at))
     attrs = [
         {
@@ -2636,9 +2649,9 @@ def backbone_stability(
         "aggregate": aggregate,
         **method_kwargs,
     }
-    return _scored_graph(
-        table, n_present, last_present, attrs, "backbone_stability", parameters
-    )
+    keep = [True] * len(table.ends)
+    weight = method_kwargs.get("weight", "weight")
+    return _scored_graph(table, keep, attrs, "backbone_stability", parameters, weight)
 
 
 def weight_trend(
@@ -2693,7 +2706,9 @@ def weight_trend(
     -------
     H : Graph or DiGraph
         The union of the edges present in any step, with the attributes
-        each edge had when last present, plus
+        :func:`flatten_temporal` gives them over the steps (the summed
+        *weight*, ``n_obs``, ``first``, ``last``, and the attributes all
+        their observations share), plus
 
         - ``weight_mean``, ``weight_std``: the mean and the population
           standard deviation (``ddof=0``, as :func:`numpy.std`) of the
@@ -2802,11 +2817,9 @@ def weight_trend(
     lists = {a: c.tolist() for a, c in columns.items()}
     m = len(table.ends)
     attrs = [{a: lists[a][j] for a in lists} for j in range(m)]
-    n_present, _, _, last_present = _counts(table, table.present)
     parameters = {"weight": weight, "pvalue": pvalue, "aggregate": aggregate}
-    return _scored_graph(
-        table, n_present, last_present, attrs, "weight_trend", parameters
-    )
+    keep = [True] * m
+    return _scored_graph(table, keep, attrs, "weight_trend", parameters, weight)
 
 
 _COMPLEXITY = {
