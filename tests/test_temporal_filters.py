@@ -215,8 +215,8 @@ def test_three_input_forms_agree():
             for T in (E, P):
                 got = temporal._steps(T, freq=freq, origin=times[0], **norm)
                 assert got.times == ref.times and got.directed == directed
+                assert got.presence == ref.presence
                 for G, R in zip(got.graphs, ref.graphs, strict=True):
-                    assert set(G) == set(R)
                     weights = [
                         {_key(X, u, v): w for u, v, w in X.edges(data="weight")}
                         for X in (G, R)

@@ -1113,7 +1113,8 @@ def _size_sentence(entry, original, backbone, weight):
                 "For a temporal method, original is the scored graph the "
                 "method returned (the union of the observed edges)."
             )
-        # The scored graph's weights are each edge's latest, not a total.
+        # Report edges and nodes only: the scores, not the summed weights
+        # over steps, define a temporal backbone.
         return _graph_share(original, backbone, None)
     if entry.kind == B or original is None:
         n, m = backbone.number_of_nodes(), backbone.number_of_edges()

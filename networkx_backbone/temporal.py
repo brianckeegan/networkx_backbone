@@ -1845,7 +1845,12 @@ def _require_numpy(what):
 
 
 class _Steps:
-    """A temporal network as T snapshots in time order."""
+    """A temporal network as T snapshots in time order.
+
+    ``times[k]`` is the time of step *k*, ``graphs[k]`` its snapshot and
+    ``presence[k]`` the nodes present in it: the snapshot's nodes, isolated
+    or not (after binning, the nodes with an event or span in the step).
+    """
 
     def __init__(self, form, times, graphs, directed, freq, origin):
         self.form = form
@@ -1854,6 +1859,10 @@ class _Steps:
         self.directed = directed
         self.freq = freq
         self.origin = origin
+
+    @property
+    def presence(self):
+        return [set(G) for G in self.graphs]
 
 
 def _steps(T, *, freq, origin, time, start, end, weight, aggregate):
