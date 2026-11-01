@@ -166,9 +166,12 @@ Planned features
 API and ecosystem compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- **planned** (`#19 <https://github.com/brianckeegan/networkx_backbone/issues/19>`_): NetworkX backend dispatching (``@nx._dispatchable``) so
+- **done** (`#19 <https://github.com/brianckeegan/networkx_backbone/issues/19>`_): NetworkX backend dispatching (``@nx._dispatchable``) so
   backends such as ``nx-cugraph`` and ``nx-parallel`` can accelerate the
-  shortest-path-heavy methods (salience, metric backbone, GLAB).
+  shortest-path-heavy methods (salience, metric backbone, GLAB). The
+  graph-in, graph-out functions dispatch as ``backbone_*``, the tests pass
+  under ``NETWORKX_TEST_BACKEND=nx_loopback``, and :doc:`user_guide/backends`
+  records nx-parallel timings.
 - **done** (`#20 <https://github.com/brianckeegan/networkx_backbone/issues/20>`_): Accept SciPy sparse arrays and pandas edge lists as input:
   bipartite functions take incidence matrices, and ``backbone``,
   ``backbone_from_weighted`` and ``backbone_from_unweighted`` take adjacency
