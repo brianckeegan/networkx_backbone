@@ -65,9 +65,9 @@ Structural
      - Space
      - Notes
    * - ``doubly_stochastic_filter``
-     - ``O(I * n^2 + m)``
+     - ``O(I * n^2 + m log m)``
      - ``O(n^2 + m)``
-     - I=max_iter for Sinkhorn-Knopp normalization.
+     - I=max_iter for Sinkhorn-Knopp normalization; the connectivity stage sorts the edges once.
    * - ``edge_betweenness_filter``
      - ``O(nm + n^2 log n)``
      - ``O(n + m)``
@@ -392,3 +392,19 @@ Visualization
      - ``O(n + m) without layout; plus rendering/write cost``
      - ``O(n + m)``
      - 
+
+Convert
+-------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 24 24 20
+
+   * - Function
+     - Time
+     - Space
+     - Notes
+   * - ``to_graph``
+     - ``O(n + m)``
+     - ``O(n + m)``
+     - Sparse input; a dense n x n array is O(n^2).

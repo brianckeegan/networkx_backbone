@@ -23,7 +23,8 @@ own *References* sections).  The coverage policy is:
   building blocks (``bicm``, ``fastball``), hypergraph helpers that are not
   backbones, and result classes.
 - The helper modules ``filters``, ``measures``, ``hypergraph_io``,
-  ``visualization`` and ``describe`` are not methods and are skipped.
+  ``visualization``, ``describe`` and ``convert`` are not methods and are
+  skipped.
 
 The test suite checks that every public name falls in one of these groups, so
 a new method cannot be added without a registry entry.
@@ -43,7 +44,7 @@ REPOSITORY = "https://github.com/brianckeegan/networkx_backbone"
 
 #: Modules whose public functions are helpers rather than backbone methods.
 HELPER_MODULES = frozenset(
-    {"filters", "measures", "hypergraph_io", "visualization", "describe"}
+    {"filters", "measures", "hypergraph_io", "visualization", "describe", "convert"}
 )
 
 
@@ -195,10 +196,23 @@ REFERENCES = _refs(
         "entropy", eprint="1706.00230",
     ),
     Reference(
+        "marcaccioli2019", "article", ("Marcaccioli, R.", "Livan, G."), 2019,
+        "A Pólya urn approach to information filtering in complex networks",
+        "Nature Communications", "10", pages="745",
+        doi="10.1038/s41467-019-08667-3",
+    ),
+    Reference(
         "foti2011", "article",
         ("Foti, N. J.", "Hughes, J. M.", "Rockmore, D. N."), 2011,
         "Nonparametric sparsification of complex multiscale networks",
         "PLoS ONE", "6", "2", "e16431", doi="10.1371/journal.pone.0016431",
+    ),
+    Reference(
+        "radicchi2011", "article",
+        ("Radicchi, F.", "Ramasco, J. J.", "Fortunato, S."), 2011,
+        "Information filtering in complex weighted networks",
+        "Physical Review E", "83", "4", "046101",
+        doi="10.1103/PhysRevE.83.046101",
     ),
     Reference(
         "vannuffel2007", "article", ("Van Nuffel, N.",), 2007,
@@ -206,6 +220,15 @@ REFERENCES = _refs(
         "origin-destination specific analysis: the case of commuting in "
         "Flanders", "Regional Studies", "41", "4", "509--524",
         doi="10.1080/00343400701281808",
+    ),
+    Reference(
+        "vannuffel2010", "article",
+        ("Van Nuffel, N.", "Derudder, B.", "Witlox, F."), 2010,
+        "Even important connections are not always meaningful: on the use "
+        "of a polarisation measure in a typology of European cities in air "
+        "transport networks", "Tijdschrift voor Economische en Sociale "
+        "Geografie", "101", "3", "333--348",
+        doi="10.1111/j.1467-9663.2009.00547.x",
     ),
     Reference(
         "weaver1954", "article", ("Weaver, J. C.",), 1954,
@@ -520,7 +543,23 @@ METHODS = {
         "which decides how many of each node's links are dominant by fitting "
         "the node's sorted link weights to ideal distributions of one, two, "
         "three, ... equally strong links, and keeps those links",
-        ("vannuffel2007", "weaver1954", "yassin2023"),
+        ("vannuffel2007", "vannuffel2010", "weaver1954", "yassin2023"),
+    ),
+    "polya_filter": Method(
+        "the Pólya filter",
+        "which tests each edge's weight against a null model in which each "
+        "node distributes its strength over its edges through a "
+        "self-reinforcing Pólya urn process (a beta-binomial distribution "
+        "with reinforcement parameter a)",
+        ("marcaccioli2019",), test=True,
+    ),
+    "gloss_filter": Method(
+        "the global statistical significance (GloSS) filter",
+        "which tests each edge's weight against a global null model that keeps "
+        "the topology fixed and draws every edge weight independently from the "
+        "network's empirical weight distribution, conditioning on the degrees "
+        "and strengths of the edge's endpoints",
+        ("radicchi2011",), test=True,
     ),
     # --- structural --------------------------------------------------------
     "global_threshold_filter": Method(
@@ -574,7 +613,8 @@ METHODS = {
     "doubly_stochastic_filter": Method(
         "the doubly stochastic filter",
         "which rescales the weight matrix to be doubly stochastic with the "
-        "Sinkhorn-Knopp algorithm and scores edges by their rescaled weight",
+        "Sinkhorn-Knopp algorithm, scores edges by their rescaled weight, "
+        "and flags the strongest edges needed to connect each component",
         ("slater2009",),
     ),
     "h_backbone": Method(
@@ -737,6 +777,13 @@ METHODS = {
         "which keeps the set of hyperedges from which the others can be "
         "encoded most cheaply, a parameter-free information-theoretic "
         "criterion",
+        ("kirkley2026",), H,
+    ),
+    "local_mdl_hypergraph_backbone": Method(
+        "the local minimum description length (MDL) hypergraph backbone",
+        "which finds the MDL backbone of each node's neighborhood (the "
+        "hyperedges containing it) separately and keeps a hyperedge according "
+        "to how many of its nodes' neighborhood backbones contain it",
         ("kirkley2026",), H,
     ),
     "maximal_hyperedges": Method(

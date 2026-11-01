@@ -31,12 +31,12 @@ pip install -e ".[full]"
 
 | Module | Description | Key Functions |
 |--------|-------------|---------------|
-| **statistical** | Hypothesis-testing methods | `disparity_filter`, `noise_corrected_filter`, `marginal_likelihood_filter`, `ecm_filter`, `lans_filter`, `multiple_linkage_analysis` |
+| **statistical** | Hypothesis-testing methods | `disparity_filter`, `noise_corrected_filter`, `marginal_likelihood_filter`, `ecm_filter`, `lans_filter`, `multiple_linkage_analysis`, `polya_filter`, `gloss_filter` |
 | **structural** | Topology-based methods | `global_threshold_filter`, `strongest_n_ties`, `global_sparsification`, `primary_linkage_analysis`, `edge_betweenness_filter`, `node_degree_filter`, `high_salience_skeleton`, `metric_backbone`, `ultrametric_backbone`, `doubly_stochastic_filter`, `h_backbone`, `modularity_backbone`, `planar_maximally_filtered_graph`, `maximum_spanning_tree_backbone` |
 | **proximity** | Neighborhood-similarity scoring | `jaccard_backbone`, `dice_backbone`, `cosine_backbone`, `hub_promoted_index`, `hub_depressed_index`, `adamic_adar_index`, `resource_allocation_index`, `local_path_index`, and more |
 | **hybrid** | Combined approaches | `glab_filter` |
 | **bipartite** | Bipartite projection backbones | `simple_projection`, `hyper_projection`, `probs_projection`, `ycn_projection`, `sdsm`, `fdsm`, `fixedfill`, `fixedrow`, `fixedcol`, `backbone` |
-| **hypergraph** | Higher-order (hypergraph) backbones | `mdl_hypergraph_backbone`, `hypergraph_compression_ratio`, `intersection_graph`, `maximal_hyperedges`, `order_filter`, `s_components`, `statistically_validated_hypergraph`, `statistically_validated_cores` |
+| **hypergraph** | Higher-order (hypergraph) backbones | `mdl_hypergraph_backbone`, `local_mdl_hypergraph_backbone`, `hypergraph_compression_ratio`, `intersection_graph`, `maximal_hyperedges`, `order_filter`, `s_components`, `statistically_validated_hypergraph`, `statistically_validated_cores` |
 | **hypergraph_io** | Hypergraph ingestion and interoperability | `hypergraph_to_bipartite`, `read_hif`, `write_hif`, `from_xgi`/`to_xgi`, `from_hypernetx`/`to_hypernetx`, `from_hypergraphx`/`to_hypergraphx`, `from_hat`/`to_hat` |
 | **unweighted** | Sparsification for unweighted graphs | `sparsify`, `lspar`, `local_degree` |
 | **filters** | Post-hoc filtering utilities | `multigraph_to_weighted`, `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone` |
@@ -52,6 +52,11 @@ Core method families used in [netbone](https://gitlab.liris.cnrs.fr/coregraphie/
 - Statistical: `disparity_filter`, `marginal_likelihood_filter`, `ecm_filter`, `noise_corrected_filter`, `lans_filter`, `multiple_linkage_analysis`
 - Structural: `global_threshold_filter`, `global_sparsification`, `primary_linkage_analysis`, `edge_betweenness_filter`, `high_salience_skeleton`, `doubly_stochastic_filter`, `maximum_spanning_tree_backbone`
 - Hybrid: `glab_filter`
+
+[docs/design/yassin-2025-coverage.md](docs/design/yassin-2025-coverage.md)
+checks the package method by method against the two comparative studies by
+Yassin et al. (2025). It covers 13 of the 15 methods; the Pólya urn and GloSS
+filters are missing.
 
 Every backbone *model* in Neal's
 [Backbone 3.0](https://doi.org/10.1371/journal.pone.0349258) R package is also
@@ -201,7 +206,7 @@ results = nb.compare_backbones(G, backbones)
 
 - **Required**: Python >= 3.12, `networkx >= 3.4` (version floors match NetworkX's own)
 - **Optional**: `numpy >= 2.2`, `scipy >= 1.15` (`[full]`: some statistical methods, bipartite null models, SVH/SVC, `doubly_stochastic_filter`, `local_path_index`, KS measures) and `matplotlib >= 3.10` (`[viz]`: visualization helpers and the docs gallery). Calling a function whose optional dependency is missing raises `ImportError`; the pure-Python methods work with NetworkX alone.
-- **Hypergraph interop (optional, lazily imported)**: `xgi`, `hypernetx`, `hypergraphx`, `Hypergraph-Analysis-Toolbox`
+- **Hypergraph interop (optional, lazily imported)**: `xgi >= 0.9.1`, `hypernetx >= 2.3.10`, `hypergraphx >= 1.7.7`, `HypergraphAnalysisToolbox >= 1.1.18` (extras `[xgi]`, `[hypernetx]`, `[hypergraphx]`, `[hat]`, or all four with `[interop]`)
 
 ## Testing
 
@@ -243,6 +248,7 @@ Key papers behind the implemented methods:
 - Gemmetto, V., Cardillo, A., & Garlaschelli, D. (2017). [Irreducible network backbones: unbiased graph filtering via maximum entropy](https://arxiv.org/abs/1706.00230). arXiv:1706.00230.
 - Grady, D., Thiemann, C., & Brockmann, D. (2012). [Robust classification of salient links in complex networks](https://doi.org/10.1038/ncomms1847). *Nature Communications*, 3, 864.
 - Hamann, M., Lindner, G., Meyerhenke, H., Staudt, C. L., and Wagner, D. (2016). [Structure-Preserving Sparsification Methods for Social Networks](https://doi.org/10.1007/s13278-016-0332-2). Social Network Analysis and Mining, 6, 22.
+- Marcaccioli, R., & Livan, G. (2019). [A Pólya urn approach to information filtering in complex networks](https://doi.org/10.1038/s41467-019-08667-3). *Nature Communications*, 10, 745.
 - Simas, T., Correia, R. B., & Rocha, L. M. (2021). [The distance backbone of complex networks](https://doi.org/10.1093/comnet/cnab021). *J. Complex Networks*, 9(6), cnab021.
 - Newman, M. E. J. (2001). [Scientific collaboration networks. II. Shortest paths, weighted networks, and centrality](https://doi.org/10.1103/PhysRevE.64.016132). *Physical Review E*, 64, 016132.
 - Neal, Z. P. (2014). [The backbone of bipartite projections](https://doi.org/10.1016/j.socnet.2014.06.001). *Social Networks*, 39, 84-97.
@@ -250,10 +256,12 @@ Key papers behind the implemented methods:
 - Neal, Z. P. (2022). [backbone: An R package to extract network backbones](https://doi.org/10.1371/journal.pone.0269137). *PLoS One*, 17(5), e0269137.
 - Neal, Z. P. (2026). [Backbone 3.0: An R package for extracting network backbones](https://doi.org/10.1371/journal.pone.0349258). *PLoS One*, 21, e0349258.
 - Neal, Z. P., & Neal, J. W. (2023). [Stochastic Degree Sequence Model with Edge Constraints (SDSM-EC) for Backbone Extraction](https://doi.org/10.1007/978-3-031-53468-3_11). *Complex Networks 12*, 127-136.
+- Radicchi, F., Ramasco, J. J., & Fortunato, S. (2011). [Information filtering in complex weighted networks](https://doi.org/10.1103/PhysRevE.83.046101). *Physical Review E*, 83(4), 046101.
 - Saracco, F., Di Clemente, R., Gabrielli, A., & Squartini, T. (2015). [Randomizing bipartite networks: the case of the World Trade Web](https://doi.org/10.1038/srep10595). *Scientific Reports*, 5, 10595.
 - Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). [Local graph sparsification for scalable clustering](https://doi.org/10.1145/1989323.1989399). *SIGMOD*, 721-732.
 - Serrano, M. A., Boguna, M., & Vespignani, A. (2009). [Extracting the multiscale backbone of complex weighted networks](https://doi.org/10.1073/pnas.0808904106). *PNAS*, 106(16), 6483-6488.
 - Van Nuffel, N. (2007). [Determination of the number of significant flows in origin-destination specific analysis: the case of commuting in Flanders](https://doi.org/10.1080/00343400701281808). *Regional Studies*, 41(4), 509-524.
+- Van Nuffel, N., Derudder, B., & Witlox, F. (2010). [Even important connections are not always meaningful: on the use of a polarisation measure in a typology of European cities in air transport networks](https://doi.org/10.1111/j.1467-9663.2009.00547.x). *Tijdschrift voor Economische en Sociale Geografie*, 101(3), 333-348.
 - Weaver, J. C. (1954). [Crop-combination regions in the Middle West](https://doi.org/10.2307/212355). *Geographical Review*, 44(2), 175-200.
 - Yildirim, M. A., & Coscia, M. (2014). [Using random walks to generate associations between objects](https://doi.org/10.1371/journal.pone.0104813). *PLoS One*, 9(8), e104813.
 - Zhang, X., Zhang, Z., Zhao, H., Wang, Q., & Zhu, J. (2014). [Extracting the globally and locally adaptive backbone of complex networks](https://doi.org/10.1371/journal.pone.0100428). *PLoS One*, 9(6), e100428.

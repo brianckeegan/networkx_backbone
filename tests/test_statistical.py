@@ -491,67 +491,212 @@ class TestLANS:
 # ---------------------------------------------------------------------------
 
 
+def _shares(weights, n=None):
+    """Normalized profile, padded with zero flows to length n."""
+    total = sum(weights)
+    p = [w / total for w in weights]
+    return p + [0.0] * ((n or len(p)) - len(p))
+
+
+def _ideal(k, n):
+    return [1 / k] * k + [0.0] * (n - k)
+
+
 def _dominance_deviation(weights, k):
     """Squared deviation of a sorted profile from k equal dominant links."""
-    total = sum(weights)
-    return sum(
-        (w / total - (1 / k if r < k else 0.0)) ** 2 for r, w in enumerate(weights)
-    )
+    p = _shares(weights)
+    return sum((a - b) ** 2 for a, b in zip(p, _ideal(k, len(p))))
+
+
+def _weaver_variance(weights, k):
+    """Weaver's variance: mean squared deviation over the k candidate links."""
+    p = _shares(weights)
+    return sum((p[r] - 1 / k) ** 2 for r in range(k)) / k
+
+
+def _cod(weights, k, n):
+    """Squared Pearson correlation of the zero-padded profile and the ideal."""
+    p, t = _shares(weights, n), _ideal(k, n)
+    mp, mt = sum(p) / n, sum(t) / n
+    cov = sum((a - mp) * (b - mt) for a, b in zip(p, t))
+    vp = sum((a - mp) ** 2 for a in p)
+    vt = sum((b - mt) ** 2 for b in t)
+    return cov**2 / (vp * vt)
+
+
+def _star(weights, n=None, source="hub"):
+    """DiGraph with out-links of the given weights from *source* to 0, 1, ...
+
+    Isolated extra nodes pad the graph to n other nodes (zero flows).
+    """
+    G = nx.DiGraph()
+    G.add_weighted_edges_from((source, i, w) for i, w in enumerate(weights))
+    G.add_nodes_from(range(len(weights), n or len(weights)))
+    return G
+
+
+# Table 1 of Van Nuffel, Derudder & Witlox (2010): the flows of spatial units
+# X and Y to eight other units a-h (zeros included), ranked largest first, and
+# the published coefficient of determination for 1-5 equal links.
+VAN_NUFFEL_TABLE_1 = {
+    "X": ([50, 43, 42, 21, 12, 7], [0.31, 0.55, 0.88, 0.80, 0.63], 3),
+    "Y": ([85, 32, 20, 19, 12, 5, 2], [0.85, 0.67, 0.51, 0.44, 0.34], 1),
+}
 
 
 class TestMultipleLinkageAnalysis:
+    @pytest.mark.parametrize("unit", ["X", "Y"])
+    def test_reproduces_van_nuffel_2010_table_1(self, unit):
+        weights, published, significant = VAN_NUFFEL_TABLE_1[unit]
+        cods = [_cod(weights, k, 8) for k in range(1, 6)]
+        assert cods == pytest.approx(published, abs=0.005)
+
+        H = nb.multiple_linkage_analysis(_star(weights, 8, source=unit))
+        assert H.nodes[unit]["mla_rank"] == significant
+        kept = sorted(v for _, v, keep in H.edges(data="mla_keep") if keep)
+        assert kept == list(range(significant))
+
     @pytest.mark.parametrize(
-        ("weights", "deviations", "dominant"),
+        ("unit", "profile_k", "weaver_k"),
         [
-            # One dominant link: profile (10, 1, 1, 1) / 13.
-            # D_1 = (3/13)^2 + 3 (1/13)^2 = 12/169.
-            ([10, 1, 1, 1], [12 / 169, 0.263314, 0.327416, 0.359467], 1),
+            # X: (50, 43, 42, 21, 12, 7) / 175.  D_3 = 3616/91875 > D_4 =
+            # 3013/122500 < D_5 = 1112/30625; V_3 = 1714/275625 > V_4 =
+            # 2241/490000 < V_5 = 1063/153125.  COD picks 3.
+            ("X", 4, 4),
+            # Y: (85, 32, 20, 19, 12, 5, 2) / 175.  D_k is smallest at k = 4
+            # (12757/122500); V_k decreases all the way to V_7 = 4808/214375.
+            # COD picks 1.
+            ("Y", 4, 7),
+        ],
+    )
+    def test_deviation_measures_disagree(self, unit, profile_k, weaver_k):
+        weights = VAN_NUFFEL_TABLE_1[unit][0]
+        ks = range(1, len(weights) + 1)
+        devs = [_dominance_deviation(weights, k) for k in ks]
+        variances = [_weaver_variance(weights, k) for k in ks]
+        assert 1 + devs.index(min(devs)) == profile_k
+        assert 1 + variances.index(min(variances)) == weaver_k
+        if unit == "X":
+            assert devs[2:5] == pytest.approx(
+                [3616 / 91875, 3013 / 122500, 1112 / 30625]
+            )
+            assert variances[2:5] == pytest.approx(
+                [1714 / 275625, 2241 / 490000, 1063 / 153125]
+            )
+        else:
+            assert devs[3] == pytest.approx(12757 / 122500)
+            assert variances[6] == pytest.approx(4808 / 214375)
+
+        G = _star(weights, 8, source=unit)
+        ranks = {
+            d: nb.multiple_linkage_analysis(G, deviation=d).nodes[unit]["mla_rank"]
+            for d in ("cod", "profile", "weaver")
+        }
+        assert ranks == {
+            "cod": VAN_NUFFEL_TABLE_1[unit][2],
+            "profile": profile_k,
+            "weaver": weaver_k,
+        }
+
+    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
+    @pytest.mark.parametrize(
+        ("weights", "deviations", "cods", "dominant"),
+        [
+            # One dominant link: profile (10, 1, 1, 1) / 13, n = 4.
+            # D_1 = (3/13)^2 + 3 (1/13)^2 = 12/169; COD_1 = 1.
+            (
+                [10, 1, 1, 1],
+                [12 / 169, 0.263314, 0.327416, 0.359467],
+                [1, 1 / 3, 1 / 9],
+                1,
+            ),
             # Two: profile (10, 10, 1, 1) / 22.
-            # D_2 = 2 (10/22 - 1/2)^2 + 2 (1/22)^2 = 4/484.
-            ([10, 10, 1, 1], [246 / 484, 4 / 484, 0.114325, 0.167355], 2),
+            # D_2 = 2 (10/22 - 1/2)^2 + 2 (1/22)^2 = 4/484; COD_2 = 1.
+            (
+                [10, 10, 1, 1],
+                [246 / 484, 4 / 484, 0.114325, 0.167355],
+                [1 / 3, 1, 1 / 3],
+                2,
+            ),
             # Three: profile (10, 10, 10, 1, 1) / 32.
             # D_3 = 3 (10/32 - 1/3)^2 + 2 (1/32)^2 = 3/2304 + 2/1024.
             (
                 [10, 10, 10, 1, 1],
                 [0.669922, 0.169922, 3 / 2304 + 2 / 1024, 0.060547, 0.094922],
+                [1 / 6, 4 / 9, 1, 3 / 8],
                 3,
             ),
-            # Evenly spread: keep all of them.
-            ([4, 4, 4, 4], [0.75, 0.25, 0.083333, 0.0], 4),
         ],
     )
-    def test_hand_computed_dominant_links(self, weights, deviations, dominant):
-        devs = [_dominance_deviation(weights, k) for k in range(1, len(weights) + 1)]
+    def test_hand_computed_dominant_links(
+        self, weights, deviations, cods, dominant, deviation
+    ):
+        n = len(weights)
+        devs = [_dominance_deviation(weights, k) for k in range(1, n + 1)]
         assert devs == pytest.approx(deviations, abs=1e-6)
+        # With n = number of links, the all-equal ideal has no variance.
+        assert [_cod(weights, k, n) for k in range(1, n)] == pytest.approx(cods)
 
-        G = nx.DiGraph()
-        G.add_weighted_edges_from(("hub", i, w) for i, w in enumerate(weights))
-        H = nb.multiple_linkage_analysis(G)
+        H = nb.multiple_linkage_analysis(_star(weights), deviation=deviation)
         assert H.nodes["hub"]["mla_rank"] == dominant
         kept = sorted(v for _, v, keep in H.edges(data="mla_keep") if keep)
         assert kept == list(range(dominant))
         # Targets have no out-links in a directed graph.
-        assert all(H.nodes[i]["mla_rank"] == 0 for i in range(len(weights)))
+        assert all(H.nodes[i]["mla_rank"] == 0 for i in range(n))
 
-    def test_tied_links_kept_together(self):
+    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
+    @pytest.mark.parametrize("n", [4, 6])
+    def test_evenly_spread_keeps_all(self, deviation, n):
+        H = nb.multiple_linkage_analysis(_star([4, 4, 4, 4], n), deviation=deviation)
+        assert H.nodes["hub"]["mla_rank"] == 4
+
+    def test_cod_counts_zero_flows(self):
+        # Profile (6, 3, 1) / 10.  Linked to all n = 3 other nodes:
+        # COD_1 = 16/19 > COD_2 = 49/76.  With two more nodes (n = 5):
+        # COD_1 = 10/13 < COD_2 = 125/156.  D_k and V_k ignore the padding.
+        assert _cod([6, 3, 1], 1, 3) == pytest.approx(16 / 19)
+        assert _cod([6, 3, 1], 2, 3) == pytest.approx(49 / 76)
+        assert _cod([6, 3, 1], 1, 5) == pytest.approx(10 / 13)
+        assert _cod([6, 3, 1], 2, 5) == pytest.approx(125 / 156)
+        for n, cod_k in [(3, 1), (5, 2)]:
+            G = _star([6, 3, 1], n)
+            assert nb.multiple_linkage_analysis(G).nodes["hub"]["mla_rank"] == cod_k
+            for d in ("profile", "weaver"):
+                H = nb.multiple_linkage_analysis(G, deviation=d)
+                assert H.nodes["hub"]["mla_rank"] == 2
+
+    @pytest.mark.parametrize("deviation", ["profile", "weaver"])
+    def test_tied_links_kept_together(self, deviation):
         # (6, 3, 3) / 12 = (1/2, 1/4, 1/4): D_1 = 3/8, D_2 = 1/8 (splits the
-        # tie, not considered), D_3 = 1/24 -> keep all three.
-        G = nx.DiGraph()
-        G.add_weighted_edges_from([("u", "a", 6), ("u", "b", 3), ("u", "c", 3)])
+        # tie, not considered), D_3 = 1/24 -> keep all three.  Weaver:
+        # V_1 = 1/4, V_2 = 1/32, V_3 = 1/72.
         devs = [_dominance_deviation([6, 3, 3], k) for k in (1, 2, 3)]
         assert devs == pytest.approx([3 / 8, 1 / 8, 1 / 24])
-        H = nb.multiple_linkage_analysis(G)
-        assert H.nodes["u"]["mla_rank"] == 3
+        variances = [_weaver_variance([6, 3, 3], k) for k in (1, 2, 3)]
+        assert variances == pytest.approx([1 / 4, 1 / 32, 1 / 72])
+        H = nb.multiple_linkage_analysis(_star([6, 3, 3]), deviation=deviation)
+        assert H.nodes["hub"]["mla_rank"] == 3
 
-    def test_equal_fits_go_to_smaller_rank(self):
-        # (3, 3, 1, 1) / 8: D_2 = D_3 = D_4 = 1/16; k = 3 would also split a
-        # tie.  The most parsimonious fit, k = 2, wins.
+    def test_weaver_tied_split_not_considered(self):
+        # (8, 8, 5, 5, 3, 3) / 32 with V_5 < V_6: k = 5 would split the tied
+        # 3s, so Weaver keeps all six (k = 4 fits worse than k = 6).
+        weights = [8, 8, 5, 5, 3, 3]
+        v = [_weaver_variance(weights, k) for k in range(1, 7)]
+        assert v[4] < v[5] < v[3]
+        H = nb.multiple_linkage_analysis(_star(weights), deviation="weaver")
+        assert H.nodes["hub"]["mla_rank"] == 6
+
+    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
+    def test_equal_fits_go_to_smaller_rank(self, deviation):
+        # (3, 3, 1, 1) / 8: D_2 = D_3 = D_4 = 1/16 and V_2 = V_3 = V_4 = 1/64;
+        # k = 3 would also split a tie.  The most parsimonious fit, k = 2,
+        # wins.  (COD_2 = 1 is the unique best.)
         devs = [_dominance_deviation([3, 3, 1, 1], k) for k in (2, 3, 4)]
         assert devs == pytest.approx([1 / 16] * 3)
-        G = nx.DiGraph()
-        G.add_weighted_edges_from([("u", i, w) for i, w in enumerate([3, 3, 1, 1])])
-        H = nb.multiple_linkage_analysis(G)
-        assert H.nodes["u"]["mla_rank"] == 2
+        variances = [_weaver_variance([3, 3, 1, 1], k) for k in (2, 3, 4)]
+        assert variances == pytest.approx([1 / 64] * 3)
+        H = nb.multiple_linkage_analysis(_star([3, 3, 1, 1]), deviation=deviation)
+        assert H.nodes["hub"]["mla_rank"] == 2
         assert sorted(v for _, v, keep in H.edges(data="mla_keep") if keep) == [0, 1]
 
     def test_undirected_or_rule(self):
@@ -562,12 +707,13 @@ class TestMultipleLinkageAnalysis:
             [("h", "a", 10), ("h", "b", 1), ("h", "c", 1), ("h", "d", 1)]
         )
         G.add_weighted_edges_from([("b", "x", 0.1), ("c", "y", 5), ("d", "z", 5)])
-        H = nb.multiple_linkage_analysis(G)
-        assert H.nodes["h"]["mla_rank"] == 1
-        assert H.nodes["b"]["mla_rank"] == 1
-        assert H["h"]["a"]["mla_keep"]
-        assert H["h"]["b"]["mla_keep"]  # dominant for b only
-        assert not H["h"]["c"]["mla_keep"]  # dominant for neither endpoint
+        for deviation in ("cod", "profile", "weaver"):
+            H = nb.multiple_linkage_analysis(G, deviation=deviation)
+            assert H.nodes["h"]["mla_rank"] == 1
+            assert H.nodes["b"]["mla_rank"] == 1
+            assert H["h"]["a"]["mla_keep"]
+            assert H["h"]["b"]["mla_keep"]  # dominant for b only
+            assert not H["h"]["c"]["mla_keep"]  # dominant for neither endpoint
 
     def test_lans_method_matches_netbone_convention(self, les_miserables_weighted):
         H = nb.multiple_linkage_analysis(
@@ -578,8 +724,11 @@ class TestMultipleLinkageAnalysis:
             assert d["mla_pvalue"] == L[u][v]["lans_pvalue"]
             assert d["mla_keep"] == (d["mla_pvalue"] <= 0.05)
 
-    def test_every_node_keeps_its_strongest_link(self, les_miserables_weighted):
-        H = nb.multiple_linkage_analysis(les_miserables_weighted)
+    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
+    def test_every_node_keeps_its_strongest_link(
+        self, les_miserables_weighted, deviation
+    ):
+        H = nb.multiple_linkage_analysis(les_miserables_weighted, deviation=deviation)
         for node in H:
             best = max(H[node], key=lambda v: H[node][v]["weight"])
             assert H[node][best]["mla_keep"]
@@ -588,3 +737,230 @@ class TestMultipleLinkageAnalysis:
     def test_invalid_method_raises(self, weighted_triangle):
         with pytest.raises(ValueError, match="method"):
             nb.multiple_linkage_analysis(weighted_triangle, method="bogus")
+
+    def test_invalid_deviation_raises(self, weighted_triangle):
+        with pytest.raises(ValueError, match="deviation"):
+            nb.multiple_linkage_analysis(weighted_triangle, deviation="bogus")
+
+
+# ---------------------------------------------------------------------------
+# missing_as_zero: absent dyads tested as weight-0 edges (Backbone 3.0, #26)
+# ---------------------------------------------------------------------------
+
+_MISSING_SCORERS = [
+    (nb.disparity_filter, "disparity_pvalue"),
+    (nb.lans_filter, "lans_pvalue"),
+    (nb.marginal_likelihood_filter, "ml_pvalue"),
+    (nb.ecm_filter, "ecm_pvalue"),
+    (nb.noise_corrected_filter, "nc_pvalue"),
+]
+
+
+def _zero_edges(H, attr):
+    """``{sorted pair: (pvalue, sign)}`` for the weight-0 edges of *H*."""
+    return {
+        tuple(sorted((u, v))): (d[attr], d.get("sign"))
+        for u, v, d in H.edges(data=True)
+        if d["weight"] == 0
+    }
+
+
+@pytest.fixture
+def small_graph():
+    """Strengths a=5, b=5, c=4, d=2, e=0; degrees 2, 2, 3, 1, 0."""
+    G = nx.Graph()
+    G.add_weighted_edges_from(
+        [("a", "b", 4), ("a", "c", 1), ("b", "c", 1), ("c", "d", 2)]
+    )
+    G.add_node("e")
+    return G
+
+
+@pytest.fixture
+def two_pairs():
+    """Two strong pairs a-b and c-d joined by one weak edge, plus isolate e.
+
+    T = 41; strengths a=21, b=20, c=21, d=20.
+    """
+    G = nx.Graph()
+    G.add_weighted_edges_from([("a", "b", 20), ("c", "d", 20), ("a", "c", 1)])
+    G.add_node("e")
+    return G
+
+
+class TestMissingAsZero:
+    @pytest.mark.parametrize(("scorer", "attr"), _MISSING_SCORERS)
+    @pytest.mark.parametrize("signed", [False, True])
+    def test_default_unchanged_and_existing_edges_unaffected(
+        self, scorer, attr, signed, count_graph
+    ):
+        count_graph.add_node("z")
+        default = scorer(count_graph, signed=signed)
+        assert set(map(frozenset, default.edges())) == set(
+            map(frozenset, count_graph.edges())
+        )
+        assert nx.utils.graphs_equal(
+            default, scorer(count_graph, signed=signed, missing_as_zero=False)
+        )
+        full = scorer(count_graph, signed=signed, missing_as_zero=True)
+        # Weight-0 pairs do not change the null model of existing edges.
+        for u, v, d in default.edges(data=True):
+            assert full[u][v] == d
+        added = set(map(frozenset, full.edges())) - set(
+            map(frozenset, count_graph.edges())
+        )
+        assert added
+        assert all(full.edges[tuple(e)]["weight"] == 0 for e in added)
+
+    @pytest.mark.parametrize(
+        ("scorer", "attr"),
+        [(nb.disparity_filter, "disparity_pvalue"), (nb.lans_filter, "lans_pvalue")],
+    )
+    def test_disparity_and_lans_hand_values(self, scorer, attr, small_graph):
+        # A weight of 0 is below every link: upper tail 1, lower tail 0 from
+        # any endpoint with links (degree >= 2 for the disparity filter).
+        # Pairs with the isolate "e" have a 0/0 normalized weight and are not
+        # added (R: NA).  The degree of d stays 1; (a, d) is tested from a.
+        signed = scorer(small_graph, signed=True, missing_as_zero=True)
+        assert _zero_edges(signed, attr) == {
+            ("a", "d"): (0.0, -1),
+            ("b", "d"): (0.0, -1),
+        }
+        unsigned = scorer(small_graph, missing_as_zero=True)
+        assert _zero_edges(unsigned, attr) == {
+            ("a", "d"): (1.0, None),
+            ("b", "d"): (1.0, None),
+        }
+
+    def test_directed_disparity_and_lans(self):
+        # Out-degrees a=2, b=1, c=1; in-degrees a=1, b=1, c=2; e isolated.
+        D = nx.DiGraph()
+        D.add_weighted_edges_from(
+            [("a", "b", 3), ("b", "c", 1), ("c", "a", 2), ("a", "c", 1)]
+        )
+        D.add_node("e")
+        disp = nb.disparity_filter(D, signed=True, missing_as_zero=True)
+        lans = nb.lans_filter(D, signed=True, missing_as_zero=True)
+        # Only b->a and c->b are testable (e has no out- or in-links).  Both
+        # sides of each have one link, which cannot reject the disparity null.
+        zeros = {(u, v) for u, v, w in disp.edges(data="weight") if w == 0}
+        assert zeros == {("b", "a"), ("c", "b")}
+        assert all(disp[u][v]["disparity_pvalue"] == 1.0 for u, v in zeros)
+        assert {(u, v) for u, v, w in lans.edges(data="weight") if w == 0} == zeros
+        assert all(lans[u][v]["lans_pvalue"] == 0.0 for u, v in zeros)
+        assert all(lans[u][v]["sign"] == -1 for u, v in zeros)
+
+    def test_mlf_hand_values(self, two_pairs):
+        # Absent pair (u, v) is X = 0 under B(T, s_u s_v / (2 T^2)): upper
+        # tail 1, lower tail (1 - p)^T.  Pairs with the isolate are tested
+        # (as in R) and get p-value 1.
+        T = 41
+        H = nb.marginal_likelihood_filter(two_pairs, signed=True, missing_as_zero=True)
+        got = _zero_edges(H, "ml_pvalue")
+        lo_ad = (1 - 21 * 20 / (2 * T * T)) ** T
+        lo_bd = (1 - 20 * 20 / (2 * T * T)) ** T
+        assert got[("a", "d")] == (pytest.approx(2 * lo_ad), -1)
+        assert got[("b", "c")] == (pytest.approx(2 * lo_ad), -1)
+        assert got[("b", "d")] == (pytest.approx(2 * lo_bd), -1)
+        assert got[("b", "d")][0] == pytest.approx(0.0111048103)
+        for x in "abcd":
+            assert got[(x, "e")] == (1.0, 1)
+        assert len(got) == 7
+        unsigned = nb.marginal_likelihood_filter(two_pairs, missing_as_zero=True)
+        assert {p for p, _ in _zero_edges(unsigned, "ml_pvalue").values()} == {1.0}
+
+    def test_noise_corrected_hand_values(self, two_pairs):
+        # Pair (b, d): n_i = n_j = 20, n = 82 (undirected weights counted
+        # twice).  n_ij = 0 gives lift 0, score -1 and derivative 2 * kappa.
+        n, ni, nj = 82.0, 20.0, 20.0
+        E = ni * nj / n**2
+        V = ni * nj * (n - ni) * (n - nj) / (n**4 * (n - 1))
+        a = E**2 * (1 - E) / V - E
+        b = E * (1 - E**2) / V - (1 - E)
+        p_post = a / (a + b + n)
+        sdev = 2 * (n / (ni * nj)) * math.sqrt(n * p_post * (1 - p_post))
+        H = nb.noise_corrected_filter(two_pairs, signed=True, missing_as_zero=True)
+        d = H["b"]["d"]
+        assert d["weight"] == 0
+        assert d["nc_score"] == -1.0
+        assert d["nc_sdev"] == pytest.approx(sdev)
+        assert d["nc_sdev"] == pytest.approx(0.6746729794)
+        assert d["nc_pvalue"] == pytest.approx(math.erfc(1 / (sdev * math.sqrt(2))))
+        assert d["sign"] == -1
+        # The isolate has a zero margin: undefined lift, not added.
+        assert not any(H.has_edge(x, "e") for x in "abcd")
+        assert len(_zero_edges(H, "nc_pvalue")) == 3
+
+    def test_noise_corrected_zscore_hand_values(self, two_pairs):
+        # Legacy z = (0 - W p) / sqrt(W p (1 - p)), p = s_b s_d / W^2, W = 41.
+        W, p = 41, 20 * 20 / 41**2
+        z = -math.sqrt(W * p / (1 - p))
+        H = nb.noise_corrected_filter(
+            two_pairs, method="zscore", signed=True, missing_as_zero=True
+        )
+        assert H["b"]["d"]["nc_score"] == pytest.approx(z)
+        assert H["b"]["d"]["nc_pvalue"] == pytest.approx(math.erfc(-z / math.sqrt(2)))
+        assert not H.has_edge("b", "e")
+
+    def test_ecm_lower_tail_is_one_minus_link_probability(self):
+        import numpy as np
+
+        from networkx_backbone.statistical import _fit_ecm
+
+        G = nx.Graph()
+        G.add_weighted_edges_from(
+            [
+                ("a", "b", 20),
+                ("c", "d", 20),
+                ("a", "c", 1),
+                ("b", "d", 1),
+                ("a", "e", 1),
+                ("b", "f", 1),
+            ]
+        )
+        G.add_node("g")
+        nodes = list(G)
+        k = np.array([G.degree(v) for v in nodes], float)
+        s = np.array([G.degree(v, weight="weight") for v in nodes], float)
+        fit = _fit_ecm(k, s, k, s, False, 1000, 1e-6)
+        p, _ = _ecm_expectations(fit, False)
+        H = nb.ecm_filter(G, signed=True, missing_as_zero=True)
+        i, j = nodes.index("a"), nodes.index("d")
+        # P(w_ad <= 0) = 1 - p_ad and P(w_ad >= 0) = 1.
+        assert H["a"]["d"]["ecm_pvalue"] == pytest.approx(2 * (1 - p[i, j]), rel=1e-6)
+        assert H["a"]["d"]["ecm_pvalue"] < 1.0
+        assert H["a"]["d"]["sign"] == -1
+        # The isolate g has x = 0, so p_gj = 0 and both tails are 1.
+        assert H["a"]["g"]["ecm_pvalue"] == 1.0
+        unsigned = nb.ecm_filter(G, missing_as_zero=True)
+        assert {pv for pv, _ in _zero_edges(unsigned, "ecm_pvalue").values()} == {1.0}
+
+    @pytest.mark.parametrize(("scorer", "attr"), _MISSING_SCORERS)
+    def test_edgeless_graph_adds_nothing(self, scorer, attr):
+        H = scorer(nx.empty_graph(4), signed=True, missing_as_zero=True)
+        assert H.number_of_edges() == 0
+
+    @pytest.mark.parametrize(("scorer", "attr"), _MISSING_SCORERS)
+    def test_warns_when_output_is_dense(self, scorer, attr, two_pairs, monkeypatch):
+        import networkx_backbone.statistical as st
+
+        monkeypatch.setattr(st, "_MISSING_AS_ZERO_WARN_DYADS", 6)
+        # 5 nodes: 10 pairs - 3 edges = 7 absent pairs > 6.
+        with pytest.warns(RuntimeWarning, match="missing_as_zero=True adds 7") as rec:
+            scorer(two_pairs, signed=True, missing_as_zero=True)
+        # The warning points at the caller, not at library internals.
+        assert any(r.filename == __file__ for r in rec)
+        monkeypatch.setattr(st, "_MISSING_AS_ZERO_WARN_DYADS", 7)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            scorer(two_pairs, signed=True, missing_as_zero=True)
+
+    def test_aliases_forward_missing_as_zero(self, two_pairs):
+        for alias, full in [
+            (nb.disparity, nb.disparity_filter),
+            (nb.mlf, nb.marginal_likelihood_filter),
+            (nb.lans, nb.lans_filter),
+        ]:
+            got = alias(two_pairs, signed=True, missing_as_zero=True)
+            want = full(two_pairs, signed=True, missing_as_zero=True)
+            assert nx.utils.graphs_equal(got, want)
