@@ -3,7 +3,7 @@
 # The fixture pins the p-values (both tails) and the retained edges of
 # R backbone (CRAN package "backbone", version 3.0 or later) on the shared
 # reference datasets, so tests/test_reference_implementations.py can compare
-# networkx-backbone against R without R installed.
+# nx-backbone against R without R installed.
 #
 # Usage (from the repository root):
 #

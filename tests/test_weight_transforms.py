@@ -17,7 +17,7 @@ from typing import Any
 import networkx as nx
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 ROOT = Path(__file__).resolve().parents[1]
 GUIDE = ROOT / "docs" / "user_guide" / "weight_transforms.rst"
@@ -42,9 +42,7 @@ class Row:
 
 
 def _row(name, qualifier="", **kw):
-    label = f":func:`~networkx_backbone.{name}`" + (
-        f" {qualifier}" if qualifier else ""
-    )
+    label = f":func:`~nx_backbone.{name}`" + (f" {qualifier}" if qualifier else "")
     return label, getattr(nb, name)
 
 

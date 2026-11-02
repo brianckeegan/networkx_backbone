@@ -41,7 +41,7 @@ for _path in (ROOT, DOCS):
 
 from _figures import style  # noqa: E402
 
-import networkx_backbone as nb  # noqa: E402
+import nx_backbone as nb  # noqa: E402
 
 # The API modules with a gallery include, in the order the includes are written.
 MODULES = (
@@ -464,7 +464,7 @@ def validate_coverage(specs):
 
     expected = set()
     for module in MODULES:
-        expected |= set(importlib.import_module(f"networkx_backbone.{module}").__all__)
+        expected |= set(importlib.import_module(f"nx_backbone.{module}").__all__)
     expected -= NOT_DRAWN
     drawn = {s.name for s in specs} | set(HYPERGRAPH_METHODS)
     missing, extra = sorted(expected - drawn), sorted(drawn - expected)
@@ -610,7 +610,7 @@ def _rst_figure(lines, stem, alt, caption):
 
 def _method_rst(spec, counts, dataset, stem):
     lines = [
-        f":func:`~networkx_backbone.{spec.name}` on {dataset.title}, keeping "
+        f":func:`~nx_backbone.{spec.name}` on {dataset.title}, keeping "
         f"``{spec.rule}``.{(' ' + spec.note) if spec.note else ''}",
         "",
     ]
@@ -637,7 +637,7 @@ def _hypergraph_rst(name, info, stem):
         f"{info['covered']} of {info['women']} women."
     )
     lines = [
-        f":func:`~networkx_backbone.{name}` on the Davis Southern Women "
+        f":func:`~nx_backbone.{name}` on the Davis Southern Women "
         f"hypergraph (each of the 14 events is a hyperedge on the women who "
         f"attended it), {HYPERGRAPH_METHODS[name]}.",
         "",

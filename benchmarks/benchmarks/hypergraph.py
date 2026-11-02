@@ -4,7 +4,7 @@ Guards the greedy MDL optimizers (``_greedy_node`` once scaled roughly
 cubically, 8.3 s at m = 2000) and the SVC sub-group enumeration.
 """
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 from ._data import group_hypergraph, nested_hypergraph
 

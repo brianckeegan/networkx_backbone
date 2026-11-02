@@ -15,7 +15,7 @@ from fractions import Fraction
 import networkx as nx
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 np = pytest.importorskip("numpy")
 

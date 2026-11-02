@@ -40,7 +40,7 @@ def _run(code):
 def test_import_without_optional_dependencies():
     _run(
         """
-        import networkx_backbone as nb
+        import nx_backbone as nb
         assert "disparity_filter" in nb.__all__
         """
     )
@@ -80,7 +80,7 @@ def test_pure_python_methods():
         f"""
         import traceback
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         G = nx.les_miserables_graph()
         failures = []
         for name in {PURE_PYTHON_WEIGHTED!r}:
@@ -99,7 +99,7 @@ def test_pure_python_pipeline():
     _run(
         """
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         G = nx.les_miserables_graph()
         scored = nb.disparity_filter(G)
         bb = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
@@ -124,7 +124,7 @@ def test_default_disparity_and_callable_transform_need_no_scipy():
         """
         import math
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         G = nx.les_miserables_graph()
         H = nb.transform_weights(G, math.log1p)
         assert H.graph["weight_transforms"][0]["transform"] == "math.log1p"
@@ -146,7 +146,7 @@ def test_missing_optional_dependency_raises_importerror():
     _run(
         """
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         try:
             nb.ecm_filter(nx.les_miserables_graph())
         except ImportError as exc:

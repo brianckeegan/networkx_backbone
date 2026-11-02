@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._docstrings import append_complexity_docstrings
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Mapping
@@ -46,7 +46,7 @@ def node_fraction(original: nx.Graph, backbone: nx.Graph) -> float:
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import node_fraction
+    >>> from nx_backbone import node_fraction
     >>> G = nx.les_miserables_graph()
     >>> H = G.edge_subgraph(list(G.edges())[:100]).copy()
     >>> 0.0 < node_fraction(G, H) <= 1.0
@@ -78,7 +78,7 @@ def edge_fraction(original: nx.Graph, backbone: nx.Graph) -> float:
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import edge_fraction
+    >>> from nx_backbone import edge_fraction
     >>> G = nx.les_miserables_graph()
     >>> H = G.edge_subgraph(list(G.edges())[:100]).copy()
     >>> 0.0 < edge_fraction(G, H) < 1.0
@@ -113,7 +113,7 @@ def weight_fraction(
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import (
+    >>> from nx_backbone import (
     ...     weight_fraction,
     ...     global_threshold_filter,
     ...     boolean_filter,
@@ -155,7 +155,7 @@ def reachability(G: nx.Graph) -> float:
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import reachability
+    >>> from nx_backbone import reachability
     >>> G = nx.les_miserables_graph()
     >>> reachability(G)
     1.0
@@ -203,7 +203,7 @@ def ks_degree(original: nx.Graph, backbone: nx.Graph) -> float:
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import ks_degree, global_threshold_filter, boolean_filter
+    >>> from nx_backbone import ks_degree, global_threshold_filter, boolean_filter
     >>> G = nx.les_miserables_graph()
     >>> H = boolean_filter(global_threshold_filter(G, threshold=2), "global_threshold_keep")
     >>> 0.0 <= ks_degree(G, H) <= 1.0
@@ -241,7 +241,7 @@ def ks_weight(original: nx.Graph, backbone: nx.Graph, weight: str = "weight") ->
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import ks_weight, global_threshold_filter, boolean_filter
+    >>> from nx_backbone import ks_weight, global_threshold_filter, boolean_filter
     >>> G = nx.les_miserables_graph()
     >>> H = boolean_filter(global_threshold_filter(G, threshold=2), "global_threshold_keep")
     >>> 0.0 <= ks_weight(G, H) <= 1.0
@@ -290,7 +290,7 @@ def compare_backbones(
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import (
+    >>> from nx_backbone import (
     ...     compare_backbones,
     ...     edge_fraction,
     ...     global_threshold_filter,

@@ -11,16 +11,16 @@ edges are counted. The narrative tutorial :ref:`tutorial-temporal-backbones`
 follows one case from raw records to a backbone, with figures, and compares
 the methods.
 
-.. automodule:: networkx_backbone.temporal
+.. automodule:: nx_backbone.temporal
    :no-members:
 
-.. currentmodule:: networkx_backbone
+.. currentmodule:: nx_backbone
 
 .. rubric:: Temporal backbone scores
 
 Each takes any of the three forms (``freq=`` and ``origin=`` bin events and
 spans into steps) and returns one scored static graph, filtered with
-:func:`~networkx_backbone.threshold_filter` and the other filters. These
+:func:`~nx_backbone.threshold_filter` and the other filters. These
 scores are descriptive: they come without p-values. They are not dispatchable to
 NetworkX backends, because they take several graphs or a multigraph of events
 rather than one graph.
@@ -36,9 +36,9 @@ rather than one graph.
 .. rubric:: Model-based temporal scores and tests
 
 These fit a model to every edge's series of observations and need numpy.
-:func:`~networkx_backbone.edge_persistence_hmm` gives posterior activity
+:func:`~nx_backbone.edge_persistence_hmm` gives posterior activity
 probabilities, which are smoothed membership scores, not p-values.
-:func:`~networkx_backbone.kalman_backbone` (which also needs SciPy) tests
+:func:`~nx_backbone.kalman_backbone` (which also needs SciPy) tests
 every edge in every step and returns p-values.
 
 .. autofunction:: edge_persistence_hmm

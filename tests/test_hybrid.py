@@ -1,4 +1,4 @@
-"""Known-answer tests for networkx_backbone.hybrid (GLAB).
+"""Known-answer tests for nx_backbone.hybrid (GLAB).
 
 Shared behavior (attributes, weight validation, directed support,
 multigraph rejection, empty graphs, no input mutation) is covered by
@@ -8,7 +8,7 @@ multigraph rejection, empty graphs, no input mutation) is covered by
 import networkx as nx
 import pytest
 
-from networkx_backbone import glab_filter
+from nx_backbone import glab_filter
 
 
 def _out_star(n):
@@ -20,7 +20,7 @@ class TestGLABPaperEquations:
     """Known answers from Zhang et al. (2014), Eqs. 1 and 4."""
 
     def test_involvement_sums_to_one_per_node(self, les_miserables_weighted):
-        from networkx_backbone.hybrid import _involvement
+        from nx_backbone.hybrid import _involvement
 
         G = les_miserables_weighted
 
@@ -32,7 +32,7 @@ class TestGLABPaperEquations:
             assert sum(inv.values()) == pytest.approx(1.0)
 
     def test_involvement_splits_tied_paths(self):
-        from networkx_backbone.hybrid import _involvement
+        from nx_backbone.hybrid import _involvement
 
         # From node 0 in C4: node 1 via (0,1), node 3 via (0,3), node 2 split.
         assert _involvement(nx.cycle_graph(4), 0, None) == {1: 0.5, 3: 0.5}

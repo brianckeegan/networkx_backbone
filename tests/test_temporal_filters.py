@@ -1,4 +1,4 @@
-"""Tests for the temporal backbone scores of networkx_backbone.temporal.
+"""Tests for the temporal backbone scores of nx_backbone.temporal.
 
 observation_fraction and persistence (#68), backbone_stability and
 weight_trend (#69), and the shared machinery they build on (#67).  The API
@@ -17,9 +17,9 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
-import networkx_backbone as nb
-from networkx_backbone import temporal
-from networkx_backbone.describe import METHODS, SCORE_KEYS
+import nx_backbone as nb
+from nx_backbone import temporal
+from nx_backbone.describe import METHODS, SCORE_KEYS
 from tests.test_minimal_deps import _run
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -472,7 +472,7 @@ def test_scores_need_only_networkx():
     _run(
         """
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         S = [nx.Graph([(0, 1), (1, 2)]), nx.Graph([(0, 1)]), nx.Graph([(0, 1), (1, 2)])]
         assert nb.observation_fraction(S)[1][2]["n_eligible"] == 2  # 2 is absent at 1
         assert nb.persistence(S)[0][1]["persistence"] == 1.0

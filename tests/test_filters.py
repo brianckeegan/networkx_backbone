@@ -1,11 +1,11 @@
-"""Tests for networkx_backbone.filters."""
+"""Tests for nx_backbone.filters."""
 
 import math
 
 import networkx as nx
 import pytest
 
-from networkx_backbone import (
+from nx_backbone import (
     adjust_pvalues,
     boolean_filter,
     consensus_backbone,

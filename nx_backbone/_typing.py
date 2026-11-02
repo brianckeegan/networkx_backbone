@@ -70,7 +70,7 @@ type GraphInput = nx.Graph | npt.ArrayLike | sp.sparray | sp.spmatrix | pd.DataF
 type Snapshots = Mapping[Any, nx.Graph] | Sequence[nx.Graph]
 
 #: A temporal network in any of the three forms of
-#: :mod:`networkx_backbone.temporal`: snapshots, or a multigraph of events
+#: :mod:`nx_backbone.temporal`: snapshots, or a multigraph of events
 #: (``time=``) or spans (``start=``/``end=``).
 type TemporalNetwork = Snapshots | nx.MultiGraph
 

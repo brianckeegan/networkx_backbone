@@ -4,7 +4,7 @@
 - **Tracking:** open items now live in `docs/roadmap.rst` and GitHub issue #31
 - **Scope:** Evaluation + proposed integration plan (no library code changed by this document)
 - **Trigger:** Request to evaluate incorporating hypergraph network backboning
-  methods into `networkx-backbone`, specifically the method of *Kirkley, Felippe,
+  methods into `nx-backbone`, specifically the method of *Kirkley, Felippe,
   Malizia & Battiston, "Hypergraph backboning," arXiv:2606.00893 (2026)*, with
   optional interoperability for `xgi`, `hypergraphx`, `HyperNetX`, and the
   `Hypergraph-Analysis-Toolbox`, and an assessment of which hypergraph backbone
@@ -152,7 +152,7 @@ current graph-in/graph-out filters.
 
 ```python
 import networkx as nx
-import networkx_backbone as nb
+import nx_backbone as nb
 
 hyperedges = {"H1": [1, 2, 3], "H2": [1, 2, 3], "H3": [3, 4, 5, 6], "H4": [5, 6]}
 nodes = sorted({v for members in hyperedges.values() for v in members})
@@ -219,7 +219,7 @@ required dependency**.
 - Design: (1) **HIF** as a stdlib-only hub (`read_hif`/`write_hif` into our
   hyperedge-list form); (2) thin lazy `from_*`/`to_*` adapters (~10–20 lines each,
   since the converters above already exist); (3) optional extras
-  `networkx-backbone[xgi|hypernetx|hypergraphx|hat]`. Core install unchanged; each
+  `nx-backbone[xgi|hypernetx|hypergraphx|hat]`. Core install unchanged; each
   adapter imports its library lazily and errors with an install hint if absent.
 
 ## 8. Gap analysis and challenges
@@ -248,7 +248,7 @@ matches the substrate every target library and HIF share.
 
 ### 9.2 Phase 0 — ingestion + surface Family A (**implemented**)
 
-`networkx_backbone.hypergraph_io` provides `hypergraph_to_bipartite` (enabling the
+`nx_backbone.hypergraph_io` provides `hypergraph_to_bipartite` (enabling the
 existing SDSM/FDSM/fixed projection backbones on hypergraphs), `read_hif`/`write_hif`
 (stdlib-only HIF interchange, cross-checked against xgi in tests), and lazy
 `from_*`/`to_*` adapters for xgi, HyperNetX, HypergraphX, and HAT. No required
@@ -259,7 +259,7 @@ dependency is added. (A worked tutorial is still a nice-to-have follow-up.)
 A `hypergraph` module implementing Kirkley+ 2026:
 
 ```python
-# networkx_backbone/hypergraph.py
+# nx_backbone/hypergraph.py
 def mdl_hypergraph_backbone(
     hyperedges, weights=None, gamma=1.0, prior="poisson",
     method="auto",          # "node" | "edge" | "auto" (run both, keep lower L)

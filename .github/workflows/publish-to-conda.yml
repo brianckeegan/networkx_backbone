@@ -1,4 +1,4 @@
-# Build and publish networkx-backbone as a conda package.
+# Build and publish nx-backbone as a conda package.
 #
 # Triggered on every push (for CI validation) and on release (for upload).
 # conda-forge publishing is handled separately via the feedstock repository;
@@ -45,9 +45,9 @@ jobs:
         run: |
           conda install -y flake8
           # stop the build if there are Python syntax errors or undefined names
-          flake8 networkx_backbone/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 nx_backbone/ --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings
-          flake8 networkx_backbone/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          flake8 nx_backbone/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Install package and test dependencies
         shell: bash -l {0}

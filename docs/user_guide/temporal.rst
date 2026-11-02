@@ -2,7 +2,7 @@ Temporal networks: formats and conversions
 ==========================================
 
 Networks observed over time come in three shapes, and
-:mod:`networkx_backbone.temporal` accepts all three, built from ordinary
+:mod:`nx_backbone.temporal` accepts all three, built from ordinary
 NetworkX graphs. This page shows each form and every conversion between
 them. The temporal backbone scores (see :doc:`../tutorials/temporal_backbones`)
 take any of the three forms.
@@ -19,7 +19,7 @@ The three forms
 when it has no edges:
 
 >>> import networkx as nx
->>> import networkx_backbone as nb
+>>> import nx_backbone as nb
 >>> S = {
 ...     0: nx.Graph([("ann", "bob")]),
 ...     1: nx.Graph([("ann", "bob"), ("bob", "cat")]),
@@ -51,7 +51,7 @@ excludes its end, so a span ending at 2 and one starting at 2 do not overlap.
 ... ])
 [0, 0]
 
-:func:`~networkx_backbone.temporal_form` tells them apart. Pass ``time=``,
+:func:`~nx_backbone.temporal_form` tells them apart. Pass ``time=``,
 ``start=`` or ``end=`` when your attributes have other names:
 
 >>> nb.temporal_form(S), nb.temporal_form(E), nb.temporal_form(P)
@@ -60,7 +60,7 @@ excludes its end, so a span ending at 2 and one starting at 2 do not overlap.
 Snapshots to events, and back
 -----------------------------
 
-:func:`~networkx_backbone.events_from_snapshots` writes one event per edge per
+:func:`~nx_backbone.events_from_snapshots` writes one event per edge per
 snapshot, timed by the snapshot's key:
 
 >>> M = nb.events_from_snapshots(S)
@@ -69,7 +69,7 @@ snapshot, timed by the snapshot's key:
 
 An edge list cannot hold the empty snapshot at time 2 or the isolated
 ``dan``, so the converter records them in ``M.graph["temporal"]``.
-:func:`~networkx_backbone.snapshots_from_events` uses that record to give the
+:func:`~nx_backbone.snapshots_from_events` uses that record to give the
 snapshots back exactly:
 
 >>> R = nb.snapshots_from_events(M)
@@ -81,7 +81,7 @@ True
 Snapshots to spans, and back
 ----------------------------
 
-:func:`~networkx_backbone.spans_from_snapshots` merges each edge's run of
+:func:`~nx_backbone.spans_from_snapshots` merges each edge's run of
 consecutive snapshots into one span. A run ends at the time of the next
 snapshot; the last snapshot lasts one step here because the times are evenly
 spaced (otherwise pass ``freq=`` or ``end_time=``):
@@ -112,7 +112,7 @@ missing weight counts as 1) and whose ``edge_count`` is their number:
 Empty bins between the first and the last event are kept (time 2 above). A
 node is present in a bin only if it has an event there, so ``cat`` is absent
 from bin 0. ``aggregate="count"``, ``"max"``, ``"min"`` or ``"mean"`` combine
-the weights as :func:`~networkx_backbone.multigraph_to_weighted` does. Without
+the weights as :func:`~nx_backbone.multigraph_to_weighted` does. Without
 ``freq``, every distinct time is its own snapshot.
 
 Spans to snapshots
@@ -132,7 +132,7 @@ Without ``freq``, a snapshot starts wherever a span starts or ends:
 Events to spans
 ---------------
 
-:func:`~networkx_backbone.spans_from_events` gives each event a ``duration``
+:func:`~nx_backbone.spans_from_events` gives each event a ``duration``
 and merges the events of a pair that overlap, touch, or come within ``gap``
 of each other:
 
@@ -143,7 +143,7 @@ of each other:
 Spans to events
 ---------------
 
-:func:`~networkx_backbone.events_from_spans` keeps each contact's onset by
+:func:`~nx_backbone.events_from_spans` keeps each contact's onset by
 default. With ``freq``, it writes one event per bin the span overlaps, so the
 events bin to the same snapshots as the spans:
 
@@ -155,7 +155,7 @@ events bin to the same snapshots as the spans:
 One function for all directions
 -------------------------------
 
-:func:`~networkx_backbone.convert_temporal` detects the input's form and calls
+:func:`~nx_backbone.convert_temporal` detects the input's form and calls
 the matching converter with your keyword arguments:
 
 >>> B = nb.convert_temporal(E, to="snapshots", freq=2, origin=0)
@@ -165,7 +165,7 @@ the matching converter with your keyword arguments:
 Collapsing to a static weighted graph
 -------------------------------------
 
-:func:`~networkx_backbone.flatten_temporal` collapses any of the three forms
+:func:`~nx_backbone.flatten_temporal` collapses any of the three forms
 into one ordinary graph, with one edge per node pair, so every static
 backbone method applies to it. Each edge's ``weight`` combines the weights of
 the pair's observations (a missing weight counts as 1), ``n_obs`` counts the
@@ -204,8 +204,8 @@ first and then flatten:
 
 The flattened graph keeps no order beyond ``first``, ``last`` and
 ``active_time``; the temporal backbone scores
-(:func:`~networkx_backbone.observation_fraction`,
-:func:`~networkx_backbone.persistence`, ...) score edges by how they behave
+(:func:`~nx_backbone.observation_fraction`,
+:func:`~nx_backbone.persistence`, ...) score edges by how they behave
 over time instead.
 
 Datetimes and pandas
@@ -214,9 +214,9 @@ Datetimes and pandas
 Numeric times need only NetworkX, and so do :class:`datetime.datetime` times
 with a :class:`datetime.timedelta` step. pandas is needed for frequency
 strings such as ``freq="1D"`` or ``"MS"`` (calendar months), and for event
-tables. :func:`~networkx_backbone.from_event_table` reads a ``DataFrame`` with
+tables. :func:`~nx_backbone.from_event_table` reads a ``DataFrame`` with
 one row per event (or per span, with ``end=``), and
-:func:`~networkx_backbone.to_event_table` writes one back:
+:func:`~nx_backbone.to_event_table` writes one back:
 
 >>> import pandas as pd
 >>> df = pd.DataFrame({

@@ -1,4 +1,4 @@
-"""Known-answer tests for the statistical scorers (networkx_backbone.statistical).
+"""Known-answer tests for the statistical scorers (nx_backbone.statistical).
 
 Each check is tied to an equation in the cited paper, so a regression here
 means the implementation drifted from the method it claims to implement.
@@ -13,7 +13,7 @@ import warnings
 import networkx as nx
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 pytest.importorskip("scipy")
 from scipy import special, stats
@@ -306,7 +306,7 @@ class TestNoiseCorrected:
         )
 
     def test_pure_python_betainc_matches_scipy(self):
-        from networkx_backbone.statistical import _betainc
+        from nx_backbone.statistical import _betainc
 
         rng = random.Random(0)
         for _ in range(500):
@@ -371,7 +371,7 @@ class TestECM:
     def test_fit_reproduces_degrees_and_strengths(self, les_miserables_weighted):
         import numpy as np
 
-        from networkx_backbone.statistical import _fit_ecm
+        from nx_backbone.statistical import _fit_ecm
 
         for directed in (False, True):
             G = les_miserables_weighted
@@ -426,7 +426,7 @@ class TestECM:
         # two-sided p-value 2 * min(tails) (#25).
         import numpy as np
 
-        from networkx_backbone.statistical import _fit_ecm
+        from nx_backbone.statistical import _fit_ecm
 
         nodes = list(count_graph)
         k = np.array([count_graph.degree(v) for v in nodes], float)
@@ -453,7 +453,7 @@ class TestECM:
         # but not an in-pair, so the fitted margins catch the difference.
         import numpy as np
 
-        from networkx_backbone.statistical import _fit_ecm
+        from nx_backbone.statistical import _fit_ecm
 
         G = nx.gnp_random_graph(120, 0.05, seed=1, directed=True)
         rng = np.random.default_rng(1)
@@ -477,7 +477,7 @@ class TestECM:
     def test_newton_cg_matches_dense_newton(self, les_miserables_weighted, monkeypatch):
         # Large problems use Newton-CG with chunked Hessian-vector products;
         # force it (and tiny chunks) on Les Miserables and compare.
-        import networkx_backbone.statistical as st
+        import nx_backbone.statistical as st
 
         graphs = [les_miserables_weighted, nx.DiGraph(les_miserables_weighted)]
         dense = [st.ecm_filter(G, tol=1e-10, signed=True) for G in graphs]
@@ -1050,7 +1050,7 @@ class TestMissingAsZero:
     def test_ecm_lower_tail_is_one_minus_link_probability(self):
         import numpy as np
 
-        from networkx_backbone.statistical import _fit_ecm
+        from nx_backbone.statistical import _fit_ecm
 
         G = nx.Graph()
         G.add_weighted_edges_from(
@@ -1086,7 +1086,7 @@ class TestMissingAsZero:
             assert H.number_of_edges() == 0, scorer.__name__
 
     def test_warns_when_output_is_dense(self, two_pairs, monkeypatch):
-        import networkx_backbone.statistical as st
+        import nx_backbone.statistical as st
 
         for scorer, _ in _MISSING_SCORERS:
             monkeypatch.setattr(st, "_MISSING_AS_ZERO_WARN_DYADS", 6)

@@ -3,18 +3,18 @@ Conversion from NumPy, SciPy sparse and pandas data to NetworkX graphs.
 
 Backbone methods score the edges of a NetworkX graph and return a graph.  Data
 held as a weighted adjacency matrix or as an edge-list ``DataFrame`` can be
-turned into a graph with :func:`~networkx_backbone.to_graph`, which wraps
+turned into a graph with :func:`~nx_backbone.to_graph`, which wraps
 NetworkX's own converters
 (:func:`~networkx.convert_matrix.from_numpy_array`,
 :func:`~networkx.convert_matrix.from_scipy_sparse_array` and
 :func:`~networkx.convert_matrix.from_pandas_edgelist`) and adds the checks a
 backbone needs: an undirected graph must come from a symmetric matrix, and an
 edge list must not list the same node pair twice.  The dispatch wrappers
-:func:`~networkx_backbone.backbone`,
-:func:`~networkx_backbone.backbone_from_weighted` and
-:func:`~networkx_backbone.backbone_from_unweighted` call it for you.  The
+:func:`~nx_backbone.backbone`,
+:func:`~nx_backbone.backbone_from_weighted` and
+:func:`~nx_backbone.backbone_from_unweighted` call it for you.  The
 individual scorers keep graph-only signatures, as NetworkX functions do:
-convert once with :func:`~networkx_backbone.to_graph` and pass the graph to
+convert once with :func:`~nx_backbone.to_graph` and pass the graph to
 as many scorers as you like.
 
 For the way back, :func:`~networkx.convert_matrix.to_pandas_edgelist` returns
@@ -22,14 +22,14 @@ a backbone, or a scored graph, as a tidy ``DataFrame`` with ``source`` and
 ``target`` columns and one column per edge attribute (weights and scores)::
 
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> H = nb.disparity_filter(nx.les_miserables_graph())
     >>> df = nx.to_pandas_edgelist(H)  # doctest: +SKIP
     >>> list(df.columns)  # doctest: +SKIP
     ['source', 'target', 'weight', 'disparity_pvalue']
 
 NumPy, SciPy and pandas are optional: they are only needed for the matching
-input type and are never imported by :func:`~networkx_backbone.to_graph` for
+input type and are never imported by :func:`~nx_backbone.to_graph` for
 graph input.
 """
 
@@ -40,7 +40,7 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._docstrings import append_complexity_docstrings
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Sequence
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-    from networkx_backbone._typing import GraphInput
+    from nx_backbone._typing import GraphInput
 
 __all__ = ["to_graph"]
 
@@ -232,7 +232,7 @@ def to_graph(
     A symmetric NumPy adjacency matrix with node labels:
 
     >>> import numpy as np
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> A = np.array([[0, 3, 1], [3, 0, 2], [1, 2, 0]])
     >>> G = nb.to_graph(A, nodelist=["a", "b", "c"])
     >>> sorted(G.edges(data="weight"))

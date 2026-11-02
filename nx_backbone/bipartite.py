@@ -38,7 +38,7 @@ from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast, overload
 
 import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._docstrings import append_complexity_docstrings
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Iterable, Sequence
@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     import numpy as np
     import numpy.typing as npt
 
-    from networkx_backbone._typing import GraphInput, IdentityDecorator, Seed
+    from nx_backbone._typing import GraphInput, IdentityDecorator, Seed
 
 __all__ = [
     # Bipartite projection methods
@@ -342,14 +342,14 @@ def _signed_pvalues(p_hi, p_lo):
 
 
 def _adjust_array(p, method):
-    """Vectorized :func:`~networkx_backbone.adjust_pvalues` for a float array.
+    """Vectorized :func:`~nx_backbone.adjust_pvalues` for a float array.
 
     Bit-for-bit identical to the list version (same tie order and the same
     floating-point operations), but fast enough for millions of agent pairs.
     """
     import numpy as np
 
-    from networkx_backbone.filters import _MTC_METHODS
+    from nx_backbone.filters import _MTC_METHODS
 
     method_l = method.lower()
     if method_l not in _MTC_METHODS:
@@ -555,7 +555,7 @@ def _pb_cost(K, n_steps, n_zero=0):
 
 def _warn_rna_fallback(cost, scope):
     """Warn that ``pvalue_method="auto"`` used the RNA for ``scope``."""
-    from networkx_backbone.statistical import _external_stacklevel
+    from nx_backbone.statistical import _external_stacklevel
 
     warnings.warn(
         f"sdsm: exact Poisson-binomial tails for every pair would take about "
@@ -852,7 +852,7 @@ def simple_projection(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import simple_projection
+    >>> from nx_backbone import simple_projection
     >>> B = nx.Graph([(1, "a"), (1, "b"), (2, "a"), (2, "c"), (3, "b"), (3, "c")])
     >>> P = simple_projection(B, agent_nodes=[1, 2, 3])
     >>> sorted(P.edges(data="weight"))
@@ -956,7 +956,7 @@ def hyper_projection(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import hyper_projection
+    >>> from nx_backbone import hyper_projection
     >>> B = nx.Graph([(1, "a"), (1, "b"), (2, "a"), (2, "c"), (3, "b"), (3, "c")])
     >>> P = hyper_projection(B, agent_nodes=[1, 2, 3])
     >>> sorted(P.edges(data="weight"))
@@ -1046,7 +1046,7 @@ def probs_projection(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import probs_projection
+    >>> from nx_backbone import probs_projection
     >>> B = nx.Graph([("a", "x"), ("a", "y"), ("b", "x"), ("c", "y")])
     >>> P = probs_projection(B, agent_nodes=["a", "b", "c"], directed=True)
     >>> P["a"]["b"]["weight"], P["b"]["a"]["weight"]
@@ -1141,7 +1141,7 @@ def ycn_projection(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import ycn_projection
+    >>> from nx_backbone import ycn_projection
     >>> B = nx.Graph([(1, "a"), (1, "b"), (2, "a"), (2, "c"), (3, "b"), (3, "c")])
     >>> P = ycn_projection(B, agent_nodes=[1, 2, 3])
     >>> round(P[1][2]["weight"], 4)  # hyperbolic weight 0.5 / 6 edges
@@ -1217,7 +1217,7 @@ def bipartite_projection(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import bipartite_projection
+    >>> from nx_backbone import bipartite_projection
     >>> B = nx.davis_southern_women_graph()
     >>> women = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
     >>> P = bipartite_projection(B, women, method="hyper")
@@ -1708,7 +1708,7 @@ def bicm(
     --------
     >>> import networkx as nx
     >>> import numpy as np
-    >>> from networkx_backbone import bicm
+    >>> from nx_backbone import bicm
     >>> B = nx.davis_southern_women_graph()
     >>> women = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
     >>> P, agents, artifacts = bicm(B, women, return_labels=True)
@@ -1807,7 +1807,7 @@ def fastball(
     Examples
     --------
     >>> import numpy as np
-    >>> from networkx_backbone import fastball
+    >>> from nx_backbone import fastball
     >>> M = np.array([[1, 0, 1], [0, 1, 1], [1, 1, 0]])
     >>> S = fastball(M, seed=1)
     >>> bool((S.sum(axis=0) == M.sum(axis=0)).all() and (S.sum(axis=1) == M.sum(axis=1)).all())
@@ -2122,7 +2122,7 @@ def fixedfill(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fixedfill
+    >>> from nx_backbone import fixedfill
     >>> B = nx.davis_southern_women_graph()
     >>> women = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
     >>> H = fixedfill(B, women, alpha=0.05)
@@ -2234,7 +2234,7 @@ def fixedrow(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fixedrow
+    >>> from nx_backbone import fixedrow
     >>> B = nx.davis_southern_women_graph()
     >>> women = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
     >>> H = fixedrow(B, women, alpha=0.05)
@@ -2344,7 +2344,7 @@ def fixedcol(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fixedcol
+    >>> from nx_backbone import fixedcol
     >>> B = nx.davis_southern_women_graph()
     >>> women = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
     >>> H = fixedcol(B, women, alpha=0.05)
@@ -2429,7 +2429,7 @@ def backbone_from_projection(
         Convergence tolerance for ``projection="ycn"``.
     mtc : string, optional (default="none")
         Multiple-testing correction (see
-        :func:`~networkx_backbone.adjust_pvalues`) applied to the p-values
+        :func:`~nx_backbone.adjust_pvalues`) applied to the p-values
         of all tested agent pairs before thresholding.
     missing_as_zero : bool, optional (default=True)
         If ``True``, every agent pair is tested, including pairs that never
@@ -2491,7 +2491,7 @@ def backbone_from_projection(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import backbone_from_projection
+    >>> from nx_backbone import backbone_from_projection
     >>> B = nx.davis_southern_women_graph()
     >>> H = backbone_from_projection(B, method="sdsm", alpha=0.05)
     >>> all(d["sdsm_pvalue"] < 0.05 for _, _, d in H.edges(data=True))
@@ -2576,7 +2576,7 @@ def backbone_from_weighted(
         A weighted NetworkX graph, a weighted adjacency matrix (NumPy array
         or SciPy sparse array or matrix), or a pandas edge-list
         ``DataFrame``; non-graph input is converted with
-        :func:`~networkx_backbone.to_graph`.
+        :func:`~nx_backbone.to_graph`.
     method : {"disparity", "mlf", "lans", "global"}, optional
         Backbone method (aliases such as ``"disparity_filter"`` accepted).
     weight : string, optional (default="weight")
@@ -2590,11 +2590,11 @@ def backbone_from_weighted(
         edges, each annotated with a ``"sign"`` attribute.
     mtc : string, optional (default="none")
         Multiple-testing correction applied before thresholding (see
-        :func:`~networkx_backbone.adjust_pvalues`).
+        :func:`~nx_backbone.adjust_pvalues`).
     collapse_multiedges : bool, optional (default=True)
         If ``True`` and ``G`` is a ``MultiGraph`` or ``MultiDiGraph``,
         collapse parallel edges using
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
     edge_type_attr : string or None, optional (default=None)
         Edge attribute used when collapsing multi-edges. If provided, edge
         weights count distinct edge types per node pair; otherwise they count
@@ -2610,9 +2610,9 @@ def backbone_from_weighted(
         p-value of 0, so they keep every absent pair they can test (for
         ``"disparity"``, except pairs of two degree-1 nodes); ``"mlf"`` gives
         a graded binomial test.  See the Notes of
-        :func:`~networkx_backbone.disparity_filter`,
-        :func:`~networkx_backbone.marginal_likelihood_filter` and
-        :func:`~networkx_backbone.lans_filter` for how each model scores
+        :func:`~nx_backbone.disparity_filter`,
+        :func:`~nx_backbone.marginal_likelihood_filter` and
+        :func:`~nx_backbone.lans_filter` for how each model scores
         them.  Not supported for ``method="global"``.
     nodelist : sequence or None, optional (default=None)
         Node labels for the rows and columns of an adjacency matrix *G*.
@@ -2634,7 +2634,7 @@ def backbone_from_weighted(
     ValueError
         If *method* is unknown, ``method="global"`` lacks ``threshold``,
         ``missing_as_zero=True`` is combined with ``method="global"``, or
-        a non-graph *G* is invalid (see :func:`~networkx_backbone.to_graph`).
+        a non-graph *G* is invalid (see :func:`~nx_backbone.to_graph`).
 
     Warns
     -----
@@ -2654,7 +2654,7 @@ def backbone_from_weighted(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import backbone_from_weighted
+    >>> from nx_backbone import backbone_from_weighted
     >>> G = nx.les_miserables_graph()
     >>> H = backbone_from_weighted(G, method="disparity", alpha=0.05)
     >>> H.number_of_edges() <= G.number_of_edges()
@@ -2677,18 +2677,18 @@ def backbone_from_weighted(
     >>> sorted((u, v, d["sign"]) for u, v, d in S.edges(data=True) if d["weight"] == 0)
     [('a', 'd', -1), ('b', 'c', -1), ('b', 'd', -1)]
     """
-    from networkx_backbone.convert import to_graph
-    from networkx_backbone.filters import (
+    from nx_backbone.convert import to_graph
+    from nx_backbone.filters import (
         boolean_filter,
         multigraph_to_weighted,
         threshold_filter,
     )
-    from networkx_backbone.statistical import (
+    from nx_backbone.statistical import (
         disparity_filter,
         lans_filter,
         marginal_likelihood_filter,
     )
-    from networkx_backbone.structural import global_threshold_filter
+    from nx_backbone.structural import global_threshold_filter
 
     G = to_graph(
         G,
@@ -2762,7 +2762,7 @@ def backbone_from_unweighted(
         An unweighted NetworkX graph, an adjacency matrix (NumPy array or
         SciPy sparse array or matrix; every nonzero entry is an edge), or a
         pandas edge-list ``DataFrame``; non-graph input is converted with
-        :func:`~networkx_backbone.to_graph`, without edge weights.
+        :func:`~nx_backbone.to_graph`, without edge weights.
     method : {"sparsify", "lspar", "local_degree"}, optional
         Sparsification method (default ``"sparsify"``).
     nodelist : sequence or None, optional (default=None)
@@ -2784,7 +2784,7 @@ def backbone_from_unweighted(
     ------
     ValueError
         If *method* is unknown or a non-graph *G* is invalid (see
-        :func:`~networkx_backbone.to_graph`).
+        :func:`~nx_backbone.to_graph`).
 
     See Also
     --------
@@ -2798,7 +2798,7 @@ def backbone_from_unweighted(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import backbone_from_unweighted
+    >>> from nx_backbone import backbone_from_unweighted
     >>> G = nx.karate_club_graph()
     >>> H = backbone_from_unweighted(G, method="lspar", s=0.5)
     >>> H.number_of_nodes() == G.number_of_nodes()
@@ -2811,9 +2811,9 @@ def backbone_from_unweighted(
     >>> sorted(H2.edges()) == sorted(H.edges())
     True
     """
-    from networkx_backbone.convert import to_graph
-    from networkx_backbone.filters import boolean_filter
-    from networkx_backbone.unweighted import local_degree, lspar, sparsify
+    from nx_backbone.convert import to_graph
+    from nx_backbone.filters import boolean_filter
+    from nx_backbone.unweighted import local_degree, lspar, sparsify
 
     G = to_graph(
         G,
@@ -2853,7 +2853,7 @@ def backbone(G: GraphInput, method: str | None = None, **kwargs: Any) -> nx.Grap
         A ``DataFrame`` with the *source* and *target* columns (default
         ``"source"`` and ``"target"``) is an edge list.  Non-graph input to
         the weighted and unweighted methods is converted with
-        :func:`~networkx_backbone.to_graph`.
+        :func:`~nx_backbone.to_graph`.
     method : string or None, optional (default=None)
         Any method name accepted by :func:`backbone_from_projection`,
         :func:`backbone_from_weighted` or :func:`backbone_from_unweighted`.
@@ -2887,7 +2887,7 @@ def backbone(G: GraphInput, method: str | None = None, **kwargs: Any) -> nx.Grap
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import backbone
+    >>> from nx_backbone import backbone
     >>> B = nx.davis_southern_women_graph()
     >>> H = backbone(B, alpha=0.05)  # bipartite attributes -> SDSM
     >>> all(d["sdsm_pvalue"] < 0.05 for _, _, d in H.edges(data=True))
@@ -2901,7 +2901,7 @@ def backbone(G: GraphInput, method: str | None = None, **kwargs: Any) -> nx.Grap
     >>> dict(H.edges) == dict(backbone(G, method="disparity").edges)
     True
     """
-    from networkx_backbone.convert import _is_dataframe, to_graph
+    from nx_backbone.convert import _is_dataframe, to_graph
 
     method_l = method.lower() if isinstance(method, str) else None
     weight = kwargs.get("weight", "weight")
@@ -3048,7 +3048,7 @@ def _drop_contradictory_constraints(R, req_mask, pro_mask, agents, artifacts):
             f"[{listed(bad_pro)}]"
         )
     if parts:
-        from networkx_backbone.statistical import _external_stacklevel
+        from nx_backbone.statistical import _external_stacklevel
 
         warnings.warn(
             "sdsm: ignoring SDSM-EC constraints that contradict the data: "
@@ -3323,7 +3323,7 @@ def sdsm(
     alpha : float, optional (default=0.05)
         Retained for API compatibility. This function returns the full
         projected graph with p-values on all edges; apply
-        :func:`~networkx_backbone.threshold_filter` (or use
+        :func:`~nx_backbone.threshold_filter` (or use
         :func:`backbone_from_projection`) to select significant edges.
     weight : None or string, optional (default=None)
         Not used for SDSM (bipartite is unweighted); reserved for API
@@ -3469,11 +3469,11 @@ def sdsm(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import sdsm
+    >>> from nx_backbone import sdsm
     >>> B = nx.davis_southern_women_graph()
     >>> women = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
     >>> scored = sdsm(B, agent_nodes=women)
-    >>> from networkx_backbone import threshold_filter
+    >>> from nx_backbone import threshold_filter
     >>> backbone = threshold_filter(scored, "sdsm_pvalue", 0.05, mode="below")
     >>> all("sdsm_pvalue" in data for _, _, data in backbone.edges(data=True))
     True
@@ -3549,7 +3549,7 @@ def fdsm(
     alpha : float, optional (default=0.05)
         Retained for API compatibility. This function returns the full
         projected graph with p-values on all edges; apply
-        :func:`~networkx_backbone.threshold_filter` (or use
+        :func:`~nx_backbone.threshold_filter` (or use
         :func:`backbone_from_projection`) to select significant edges.
     trials : int, optional (default=1000)
         Number of Monte Carlo samples.
@@ -3622,11 +3622,11 @@ def fdsm(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fdsm
+    >>> from nx_backbone import fdsm
     >>> B = nx.davis_southern_women_graph()
     >>> women = [n for n, d in B.nodes(data=True) if d["bipartite"] == 0]
     >>> scored = fdsm(B, agent_nodes=women, trials=100, seed=42)
-    >>> from networkx_backbone import threshold_filter
+    >>> from nx_backbone import threshold_filter
     >>> backbone = threshold_filter(scored, "fdsm_pvalue", 0.05, mode="below")
     >>> all("fdsm_pvalue" in data for _, _, data in backbone.edges(data=True))
     True

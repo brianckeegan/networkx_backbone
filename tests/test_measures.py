@@ -1,9 +1,9 @@
-"""Tests for networkx_backbone.measures."""
+"""Tests for nx_backbone.measures."""
 
 import networkx as nx
 import pytest
 
-from networkx_backbone import (
+from nx_backbone import (
     compare_backbones,
     disparity_filter,
     edge_fraction,

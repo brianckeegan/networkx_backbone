@@ -1,4 +1,4 @@
-# networkx_backbone
+# nx-backbone
 
 Backbone extraction algorithms for complex networks, built on [NetworkX](https://networkx.org/).
 
@@ -8,25 +8,25 @@ structures from weighted, unweighted, bipartite, temporal, and higher-order
 graph-in, graph-out functions dispatch to NetworkX backends such as
 `nx-parallel`.
 
-Full documentation: https://www.brianckeegan.com/networkx_backbone/
+Full documentation: https://www.brianckeegan.com/nx-backbone/
 
 ## Installation
 
 ```bash
-pip install networkx-backbone
+pip install nx-backbone
 ```
 
 For full functionality (required for statistical tests, bipartite methods, and some structural methods):
 
 ```bash
-pip install networkx-backbone[full]
+pip install nx-backbone[full]
 ```
 
 Or install from source:
 
 ```bash
-git clone https://github.com/brianckeegan/networkx_backbone.git
-cd networkx_backbone
+git clone https://github.com/brianckeegan/nx-backbone.git
+cd nx-backbone
 pip install -e ".[full]"
 ```
 
@@ -78,7 +78,7 @@ for the full coverage analysis.
 
 ```python
 import networkx as nx
-import networkx_backbone as nb
+import nx_backbone as nb
 
 # Create a weighted graph
 G = nx.les_miserables_graph()
@@ -121,7 +121,7 @@ print(nb.describe_backbone("disparity_filter", alpha=0.05, mtc="bh",
 print(nb.describe_backbone("disparity_filter", style="bibtex"))  # BibTeX entries
 ```
 
-See the [Validating a backbone](https://www.brianckeegan.com/networkx_backbone/tutorials/validating_backbones.html)
+See the [Validating a backbone](https://www.brianckeegan.com/nx-backbone/tutorials/validating_backbones.html)
 tutorial for multiple-testing correction, method comparison, consensus and
 signed backbones end to end. To cite the package itself, use
 [`CITATION.cff`](CITATION.cff).
@@ -238,14 +238,14 @@ results = nb.compare_backbones(G, backbones)
 
 ```bash
 pip install -e ".[dev]"
-pytest --doctest-modules networkx_backbone tests   # tests + docstring examples
-ruff check networkx_backbone tests && ruff format --check networkx_backbone tests
+pytest --doctest-modules nx_backbone tests   # tests + docstring examples
+ruff check nx_backbone tests && ruff format --check nx_backbone tests
 ```
 
 ## Roadmap
 
 Planned work, open gaps, and recently completed milestones are tracked in the
-[roadmap](https://www.brianckeegan.com/networkx_backbone/roadmap.html)
+[roadmap](https://www.brianckeegan.com/nx-backbone/roadmap.html)
 ([source](docs/roadmap.rst)).
 
 ## Visualization gallery

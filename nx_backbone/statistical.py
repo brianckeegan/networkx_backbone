@@ -3,7 +3,7 @@ Statistical backbone extraction methods.
 
 These methods evaluate edge significance using hypothesis testing against
 a null model. Each method computes a p-value (or score) for every edge,
-which can then be filtered using functions in :mod:`networkx_backbone.filters`.
+which can then be filtered using functions in :mod:`nx_backbone.filters`.
 
 Methods
 -------
@@ -34,9 +34,9 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
-from networkx_backbone._dispatch import _dispatchable
-from networkx_backbone._docstrings import append_complexity_docstrings
-from networkx_backbone._typing import not_implemented_for
+from nx_backbone._dispatch import _dispatchable
+from nx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._typing import not_implemented_for
 
 if TYPE_CHECKING:
     from collections.abc import Hashable
@@ -146,7 +146,7 @@ def _external_stacklevel():
     """``warnings.warn`` stacklevel of the first frame outside this package.
 
     Frame 1 (the caller of this helper) is stacklevel 1.  Frames in
-    networkx-backbone and in NetworkX's decorator and backend-dispatch
+    nx-backbone and in NetworkX's decorator and backend-dispatch
     machinery are skipped, so the warning points at the user's call whether
     they called a scorer directly or through a wrapper such as
     ``backbone_from_weighted``.
@@ -299,7 +299,7 @@ def disparity_filter(
         If any edge has a non-positive, non-finite, or missing weight.
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
     ValueError
         If *a* is not ``"ml"`` or a finite number greater than 0.
 
@@ -346,7 +346,7 @@ def disparity_filter(
     family is offered: links of the same node are exchangeable under the
     null, so every share has mean :math:`1/k`.
 
-    The beta-binomial null of :func:`~networkx_backbone.polya_filter`
+    The beta-binomial null of :func:`~nx_backbone.polya_filter`
     (Eq. (1) of Marcaccioli & Livan, 2019, with shape parameters
     :math:`1/a` and :math:`(k-1)/a`) converges to this Beta distribution
     when the strength *s* grows with the share *w/s* held fixed, so these
@@ -414,7 +414,7 @@ def disparity_filter(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import disparity_filter, threshold_filter
+    >>> from nx_backbone import disparity_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = disparity_filter(G)
     >>> backbone = threshold_filter(H, "disparity_pvalue", 0.05, mode="below")
@@ -656,7 +656,7 @@ def noise_corrected_filter(
     normal-approximation p-value of the :math:`\delta` rule,
     :math:`P(Z \geq \text{nc\_score} / \text{nc\_sdev})`, so that
     ``score > delta * sdev`` is the same as ``nc_pvalue < 1 - Phi(delta)``.
-    Either composes with :func:`~networkx_backbone.threshold_filter` and its
+    Either composes with :func:`~nx_backbone.threshold_filter` and its
     multiple-testing corrections.
 
     Parameters
@@ -668,7 +668,7 @@ def noise_corrected_filter(
     method : {"bayesian", "zscore"}, optional (default="bayesian")
         ``"bayesian"`` is the published noise-corrected backbone, matching the
         authors' reference implementation (``backboning.noise_corrected``).
-        ``"zscore"`` is the binomial z-score computed by networkx-backbone
+        ``"zscore"`` is the binomial z-score computed by nx-backbone
         0.2 and earlier, kept for backward compatibility (see Notes).
     signed : bool, optional (default=False)
         If ``True``, run a two-tailed test: ``nc_pvalue`` becomes two-sided
@@ -848,7 +848,7 @@ def noise_corrected_filter(
     :math:`P(X \geq n_{ij})`.  netbone also draws :math:`W` times with the
     doubled strengths above, which doubles every expected weight.  For a
     directed graph the default ``nc_pvalue`` equals the p-value of
-    :func:`~networkx_backbone.marginal_likelihood_filter` on integer
+    :func:`~nx_backbone.marginal_likelihood_filter` on integer
     weights.  For an undirected graph the two differ only in counting a
     pair as two cells of :math:`n_{..} = 2W` trials or one of :math:`W`;
     on Les Misérables and the karate club they keep the same edges at 0.05.
@@ -876,7 +876,7 @@ def noise_corrected_filter(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import noise_corrected_filter, threshold_filter
+    >>> from nx_backbone import noise_corrected_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = noise_corrected_filter(G)
     >>> backbone = threshold_filter(H, "nc_pvalue", 0.05, mode="below")
@@ -1075,7 +1075,7 @@ def _normal_tails(z):
 
 
 def _noise_corrected_zscore(G, H, weight, signed, dyads, unit=1):
-    """Legacy binomial z-score (networkx-backbone <= 0.2), written into *H*.
+    """Legacy binomial z-score (nx-backbone <= 0.2), written into *H*.
 
     *dyads* are absent pairs to score as weight-0 edges (``missing_as_zero``);
     weights are divided by *unit*.
@@ -1231,7 +1231,7 @@ def marginal_likelihood_filter(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import marginal_likelihood_filter, threshold_filter
+    >>> from nx_backbone import marginal_likelihood_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = marginal_likelihood_filter(G)
     >>> backbone = threshold_filter(H, "ml_pvalue", 0.05, mode="below")
@@ -1443,7 +1443,7 @@ def ecm_filter(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import ecm_filter, threshold_filter
+    >>> from nx_backbone import ecm_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = ecm_filter(G)
     >>> backbone = threshold_filter(H, "ecm_pvalue", 0.05, mode="below")
@@ -2080,7 +2080,7 @@ def lans_filter(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import lans_filter, threshold_filter
+    >>> from nx_backbone import lans_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = lans_filter(G)
     >>> backbone = threshold_filter(H, "lans_pvalue", 0.05, mode="below")
@@ -2293,7 +2293,7 @@ def multiple_linkage_analysis(
     links keeps both:
 
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, multiple_linkage_analysis
+    >>> from nx_backbone import boolean_filter, multiple_linkage_analysis
     >>> G = nx.DiGraph()
     >>> G.add_weighted_edges_from([("a", "x", 10), ("a", "y", 1), ("a", "z", 1)])
     >>> G.add_weighted_edges_from([("b", "x", 10), ("b", "y", 10), ("b", "z", 1)])
@@ -2584,7 +2584,7 @@ def polya_filter(
     and its link to B has weight 2.  At ``a=1`` the p-value is 6/15.
 
     >>> import networkx as nx
-    >>> from networkx_backbone import polya_filter, threshold_filter
+    >>> from nx_backbone import polya_filter, threshold_filter
     >>> G = nx.Graph()
     >>> G.add_weighted_edges_from([("A", "B", 2), ("A", "C", 1), ("A", "D", 1)])
     >>> H = polya_filter(G, a=1)
@@ -2857,7 +2857,7 @@ def gloss_filter(
         If any edge has a non-positive, non-finite, or missing weight.
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
     ValueError
         If *resolution* is not a positive finite number.
 
@@ -2906,7 +2906,7 @@ def gloss_filter(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import gloss_filter, threshold_filter
+    >>> from nx_backbone import gloss_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = gloss_filter(G)
     >>> backbone = threshold_filter(H, "gloss_pvalue", 0.05, mode="below")

@@ -31,7 +31,7 @@ sys.path.insert(0, ROOT)
 
 from benchmarks._data import weighted_graph  # noqa: E402
 
-import networkx_backbone as nb  # noqa: E402
+import nx_backbone as nb  # noqa: E402
 
 METHODS = [
     "metric_backbone",

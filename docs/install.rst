@@ -6,54 +6,68 @@ Quick install
 
 Install from PyPI::
 
-    pip install networkx-backbone
+    pip install nx-backbone
+
+Upgrading from networkx-backbone
+--------------------------------
+
+Versions 0.2 and earlier were published as ``networkx-backbone`` and
+imported as ``networkx_backbone``. From 0.3.0 the package is
+``nx-backbone``, imported as ``nx_backbone``, with no alias for the old
+name. Replace the distribution, then change the imports in your code::
+
+    pip uninstall networkx-backbone
+    pip install nx-backbone
+
+Function names and arguments are unchanged. See the :doc:`changelog` for
+the other changes in 0.3.0.
 
 Full installation
 -----------------
 
 For full functionality, install with optional dependencies. NumPy and SciPy
-are needed for statistical methods (:func:`~networkx_backbone.marginal_likelihood_filter`,
-:func:`~networkx_backbone.ecm_filter`), bipartite methods
-(:func:`~networkx_backbone.sdsm`, :func:`~networkx_backbone.fdsm`),
-:func:`~networkx_backbone.doubly_stochastic_filter`,
-:func:`~networkx_backbone.local_path_index`, and KS measures
-(:func:`~networkx_backbone.ks_degree`, :func:`~networkx_backbone.ks_weight`),
+are needed for statistical methods (:func:`~nx_backbone.marginal_likelihood_filter`,
+:func:`~nx_backbone.ecm_filter`), bipartite methods
+(:func:`~nx_backbone.sdsm`, :func:`~nx_backbone.fdsm`),
+:func:`~nx_backbone.doubly_stochastic_filter`,
+:func:`~nx_backbone.local_path_index`, and KS measures
+(:func:`~nx_backbone.ks_degree`, :func:`~nx_backbone.ks_weight`),
 and statistically validated hypergraphs
-(:func:`~networkx_backbone.statistically_validated_hypergraph`)::
+(:func:`~nx_backbone.statistically_validated_hypergraph`)::
 
-    pip install "networkx-backbone[full]"
+    pip install "nx-backbone[full]"
 
-The plotting helpers in :mod:`networkx_backbone.visualization` need
+The plotting helpers in :mod:`nx_backbone.visualization` need
 Matplotlib::
 
-    pip install "networkx-backbone[viz]"
+    pip install "nx-backbone[viz]"
 
 Calling a function whose optional dependency is missing raises
 :class:`ImportError`; everything else keeps working with NetworkX alone.
 
 pandas is optional and imported only when used: for data-frame input to
-:func:`~networkx_backbone.to_graph` and the bipartite functions, for the event
-tables of :func:`~networkx_backbone.from_event_table` and
-:func:`~networkx_backbone.to_event_table`, and for frequency strings such as
+:func:`~nx_backbone.to_graph` and the bipartite functions, for the event
+tables of :func:`~nx_backbone.from_event_table` and
+:func:`~nx_backbone.to_event_table`, and for frequency strings such as
 ``freq="1D"`` in the temporal module. Install it separately::
 
     pip install pandas
 
-:func:`~networkx_backbone.transform_weights` accepts scikit-learn transformers
+:func:`~nx_backbone.transform_weights` accepts scikit-learn transformers
 by duck typing, so scikit-learn is never required.
 
 Hypergraph interoperability
 ---------------------------
 
-The ``from_*``/``to_*`` adapters in :mod:`networkx_backbone.hypergraph_io`
+The ``from_*``/``to_*`` adapters in :mod:`nx_backbone.hypergraph_io`
 import their target library lazily, so none of them is a dependency. Install
 the ones you use through an extra, or all four with ``[interop]``::
 
-    pip install "networkx-backbone[xgi]"          # or [hypernetx], [hypergraphx], [hat]
-    pip install "networkx-backbone[interop]"      # all four
+    pip install "nx-backbone[xgi]"          # or [hypernetx], [hypergraphx], [hat]
+    pip install "nx-backbone[interop]"      # all four
 
 Reading and writing the HIF interchange format
-(:func:`~networkx_backbone.read_hif`, :func:`~networkx_backbone.write_hif`) needs
+(:func:`~nx_backbone.read_hif`, :func:`~nx_backbone.write_hif`) needs
 only the standard library.
 
 The version floors below are the oldest releases that pass the round-trip
@@ -87,7 +101,7 @@ work.
    * - ``[hypergraphx]``
      - ``hypergraphx``
      - >= 1.7.7
-     - No multi-edges: :func:`~networkx_backbone.to_hypergraphx` merges a
+     - No multi-edges: :func:`~nx_backbone.to_hypergraphx` merges a
        repeated hyperedge into one edge with the summed weight. Node labels in
        a hyperedge must be mutually comparable (HypergraphX sorts them). Its
        HIF reader relabels nodes ``0..n-1`` and ignores weights, and its HIF
@@ -96,7 +110,7 @@ work.
      - ``HypergraphAnalysisToolbox`` (``HAT``)
      - >= 1.1.18
      - Building from an incidence matrix fails in 1.1.14 and 1.1.16.
-       :func:`~networkx_backbone.to_hat` stores node labels in
+       :func:`~nx_backbone.to_hat` stores node labels in
        ``H.nodes["Names"]`` and weights in ``H.edges["weight"]``.
 
 These ranges were tested on Python 3.13 with xgi 0.10.2, HyperNetX 2.4.3,
@@ -108,20 +122,20 @@ Conda installation
 
 Install from anaconda.org::
 
-    conda install -c brianckeegan networkx-backbone
+    conda install -c brianckeegan nx-backbone
 
 Development installation
 ------------------------
 
 Clone the repository and install in editable mode::
 
-    git clone https://github.com/brianckeegan/networkx_backbone.git
-    cd networkx_backbone
+    git clone https://github.com/brianckeegan/nx-backbone.git
+    cd nx-backbone
     pip install -e ".[dev]"
 
 Run the test suite (including docstring examples) to verify the installation::
 
-    pytest --doctest-modules networkx_backbone tests
+    pytest --doctest-modules nx_backbone tests
 
 Requirements
 ------------

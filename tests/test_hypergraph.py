@@ -6,7 +6,7 @@ import random
 
 import pytest
 
-from networkx_backbone import (
+from nx_backbone import (
     HypergraphBackbone,
     ValidatedHypergraph,
     hypergraph_compression_ratio,
@@ -21,8 +21,8 @@ from networkx_backbone import (
     svc,
     svh,
 )
-from networkx_backbone import hypergraph as hg
-from networkx_backbone.hypergraph import (
+from nx_backbone import hypergraph as hg
+from nx_backbone.hypergraph import (
     _bh_threshold,
     _child_codelength,
     _log2_binom,

@@ -10,7 +10,7 @@ differences between methods are differences in which edges they keep.
 
 The drawing helpers come from the documentation's shared figure style
 (``docs/_figures/style.py`` in the repository). Outside the docs,
-:func:`~networkx_backbone.compare_graphs` draws the same kind of comparison.
+:func:`~nx_backbone.compare_graphs` draws the same kind of comparison.
 """
 
 import warnings
@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from _figures import style
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 G = nx.les_miserables_graph()
 pos = style.layout(G, "les_miserables")

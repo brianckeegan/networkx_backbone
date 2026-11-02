@@ -1,9 +1,9 @@
 """Tests for the two-state edge-activity HMM (#73).
 
-The engine (``networkx_backbone._hmm``): the exact algorithms are checked
+The engine (``nx_backbone._hmm``): the exact algorithms are checked
 against brute-force enumeration of all 2^T state paths; EM by parameter
 recovery on simulated data with fixed seeds.  The public
-:func:`~networkx_backbone.edge_persistence_hmm` is checked against the engine
+:func:`~nx_backbone.edge_persistence_hmm` is checked against the engine
 on hand-built and perturbed snapshots.
 """
 
@@ -16,8 +16,8 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-import networkx_backbone as nb  # noqa: E402
-from networkx_backbone import _hmm  # noqa: E402
+import nx_backbone as nb  # noqa: E402
+from nx_backbone import _hmm  # noqa: E402
 
 TRUE_BINARY = {"a01": 0.1, "a10": 0.2, "alpha": 0.05, "beta": 0.15}
 TRUE_PVALUE = {"a01": 0.1, "a10": 0.2, "a": 0.2}

@@ -17,9 +17,9 @@ import math
 
 import networkx as nx
 
-from networkx_backbone._dispatch import _dispatchable
-from networkx_backbone._docstrings import append_complexity_docstrings
-from networkx_backbone._typing import not_implemented_for
+from nx_backbone._dispatch import _dispatchable
+from nx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._typing import not_implemented_for
 
 __all__ = ["glab_filter"]
 
@@ -136,7 +136,7 @@ def glab_filter(G: nx.Graph, weight: str | None = "weight", c: float = 0.5) -> n
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import glab_filter, threshold_filter
+    >>> from nx_backbone import glab_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = glab_filter(G)
     >>> backbone = threshold_filter(H, "glab_pvalue", 0.05, mode="below")

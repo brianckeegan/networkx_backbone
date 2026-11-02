@@ -26,7 +26,7 @@ import networkx as nx
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from networkx_backbone._typing import Dispatchable, DispatchDecorator
+    from nx_backbone._typing import Dispatchable, DispatchDecorator
 
 __all__: list[str] = []
 

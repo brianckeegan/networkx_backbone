@@ -63,8 +63,8 @@ import numpy as np
 from _figures import style
 from matplotlib.lines import Line2D
 
-import networkx_backbone as nb
-from networkx_backbone.describe import METHODS, REFERENCES
+import nx_backbone as nb
+from nx_backbone.describe import METHODS, REFERENCES
 
 # sphinx_gallery_start_ignore
 # Sphinx-Gallery runs this file from docs/examples/structural_proximity/ when
@@ -514,8 +514,8 @@ Figure(
 # B is two strong ties (distance 1/5 + 1/5), so A–C is redundant.  Read as
 # distances, A–C is the short hop and it stays; now the long edge C–E is the
 # one with a shorter detour, through D.  If your weights are lengths, invert
-# them first, as above.  :func:`~networkx_backbone.transform_weights` records
-# such a transform for :func:`~networkx_backbone.describe_backbone`, and
+# them first, as above.  :func:`~nx_backbone.transform_weights` records
+# such a transform for :func:`~nx_backbone.describe_backbone`, and
 # :doc:`/user_guide/weight_transforms` lists which methods care.
 #
 # Salience follows the same convention.  The **salience** of an edge is the
@@ -611,13 +611,13 @@ Figure(
 # Version 0.3.0 removed this dependence from several methods (issues #60 and
 # #64 on GitHub):
 #
-# - :func:`~networkx_backbone.strongest_n_ties` used to break ties at each
+# - :func:`~nx_backbone.strongest_n_ties` used to break ties at each
 #   node's cutoff by adjacency order.  Now a node selects *every* edge tied
 #   with its *n*-th strongest, so it can select more than *n*; this is the
-#   rule :func:`~networkx_backbone.lspar` and
-#   :func:`~networkx_backbone.local_degree` use.
-# - :func:`~networkx_backbone.global_sparsification` and
-#   :func:`~networkx_backbone.edge_betweenness_filter` break ties by the
+#   rule :func:`~nx_backbone.lspar` and
+#   :func:`~nx_backbone.local_degree` use.
+# - :func:`~nx_backbone.global_sparsification` and
+#   :func:`~nx_backbone.edge_betweenness_filter` break ties by the
 #   string form of the endpoints, now taken in sorted order, so the result no
 #   longer depends on how an edge was stored (it can still depend on the node
 #   labels).
@@ -627,7 +627,7 @@ Figure(
 # order; a maximum spanning tree is not unique when weights tie; the
 # modularity backbone (Rajeh et al., 2022) runs Louvain community detection,
 # whose visiting order follows node order even with a fixed ``seed``; and
-# :func:`~networkx_backbone.fraction_filter` keeps an exact number of edges,
+# :func:`~nx_backbone.fraction_filter` keeps an exact number of edges,
 # so it breaks ties at its cut by input order, as its documentation says.
 #
 # We measure this directly.  Each method runs on the original graph and on
@@ -769,11 +769,11 @@ Table(
 #   inside it.
 # - **Need a fixed number of edges?**  ``fraction_filter`` must break ties
 #   somewhere.  If ties at the cut matter, use
-#   :func:`~networkx_backbone.threshold_filter` at the score of the last kept
+#   :func:`~nx_backbone.threshold_filter` at the score of the last kept
 #   edge instead: it keeps all tied edges, so it may keep a few more.
 # - **PMFG and the modularity backbone**: report the order you used, or run a
 #   few shuffles and keep the edges they agree on with
-#   :func:`~networkx_backbone.consensus_backbone`.
+#   :func:`~nx_backbone.consensus_backbone`.
 
 ultrametric = edge_set(guarantee_backbones["Ultrametric backbone"])
 trees = [order_cases["maximum_spanning_tree_backbone"](R) for R in [G, *rebuilds]]
@@ -830,7 +830,7 @@ print(
 #   penalty for being a hub yourself.
 #
 # Keeping the top 30% of edges by each score with
-# :func:`~networkx_backbone.fraction_filter` gives three backbones of equal
+# :func:`~nx_backbone.fraction_filter` gives three backbones of equal
 # size.  Plotting each edge's score against the degree of its better-connected
 # endpoint shows what each one rewards.
 
@@ -1020,12 +1020,12 @@ Table(
 # edge stays if either endpoint keeps it.  The exponent *s* runs from 0 (one
 # edge per node) to 1 (everything).
 #
-# - :func:`~networkx_backbone.lspar` (Satuluri et al., 2011) ranks each node's
+# - :func:`~nx_backbone.lspar` (Satuluri et al., 2011) ranks each node's
 #   edges by Jaccard similarity.
-# - :func:`~networkx_backbone.local_degree` (Lindner et al., 2015) ranks a
+# - :func:`~nx_backbone.local_degree` (Lindner et al., 2015) ranks a
 #   node's edges by the degree of the neighbor and keeps ``floor(d**s)``
 #   (at least one), so every node stays attached toward the hubs.
-# - :func:`~networkx_backbone.sparsify` is the general pipeline that both
+# - :func:`~nx_backbone.sparsify` is the general pipeline that both
 #   follow (Neal, 2022).  With ``umst=True`` it also adds the union of all
 #   minimum spanning trees of the edges' scores (Hamann et al., 2016), so the
 #   backbone keeps the network's connected components.
@@ -1288,8 +1288,8 @@ Table(
 # ----------
 #
 # The citations above are the library's own: each is taken from
-# ``networkx_backbone.describe.REFERENCES``, the bibliography that
-# :func:`~networkx_backbone.describe_backbone` uses, and checked against it
+# ``nx_backbone.describe.REFERENCES``, the bibliography that
+# :func:`~nx_backbone.describe_backbone` uses, and checked against it
 # here.
 
 cited = {

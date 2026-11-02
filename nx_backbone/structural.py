@@ -46,12 +46,12 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
-from networkx_backbone._dispatch import _dispatchable
-from networkx_backbone._docstrings import append_complexity_docstrings
-from networkx_backbone._typing import not_implemented_for
+from nx_backbone._dispatch import _dispatchable
+from nx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._typing import not_implemented_for
 
 if TYPE_CHECKING:
-    from networkx_backbone._typing import PySeed
+    from nx_backbone._typing import PySeed
 
 __all__ = [
     "global_threshold_filter",
@@ -213,7 +213,7 @@ def global_threshold_filter(
     ------
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -225,7 +225,7 @@ def global_threshold_filter(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, global_threshold_filter
+    >>> from nx_backbone import boolean_filter, global_threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = global_threshold_filter(G, threshold=3.0)
     >>> backbone = boolean_filter(H, "global_threshold_keep")
@@ -275,7 +275,7 @@ def strongest_n_ties(G: nx.Graph, n: int = 1, weight: str = "weight") -> nx.Grap
         If *n* < 1.
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -285,8 +285,8 @@ def strongest_n_ties(G: nx.Graph, n: int = 1, weight: str = "weight") -> nx.Grap
     it has *n* or fewer).  No tie is broken, so the result depends only on
     the weights and not on the order in which nodes or edges were added
     (``G`` and ``G.copy()`` give the same backbone).  This is the rule
-    :func:`~networkx_backbone.lspar` and
-    :func:`~networkx_backbone.local_degree` use for ties at their per-node
+    :func:`~nx_backbone.lspar` and
+    :func:`~nx_backbone.local_degree` use for ties at their per-node
     cutoff.  On an unweighted graph every edge ties, so every edge is kept.
 
     Edges without a *weight* attribute count as weight 0.
@@ -294,7 +294,7 @@ def strongest_n_ties(G: nx.Graph, n: int = 1, weight: str = "weight") -> nx.Grap
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, strongest_n_ties
+    >>> from nx_backbone import boolean_filter, strongest_n_ties
     >>> G = nx.Graph()
     >>> G.add_weighted_edges_from([("a", "b", 3), ("a", "c", 2), ("a", "d", 2), ("c", "d", 1)])
     >>> H = strongest_n_ties(G, n=1)
@@ -362,7 +362,7 @@ def global_sparsification(
         If ``s`` is outside (0, 1].
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -370,7 +370,7 @@ def global_sparsification(
     baseline ("global sparsification"), but rank edges by the Jaccard
     similarity of their endpoints rather than by weight.  To reproduce
     that baseline, score the edges with
-    :func:`~networkx_backbone.jaccard_backbone` and pass
+    :func:`~nx_backbone.jaccard_backbone` and pass
     ``weight="jaccard"``.  Ties are broken by the string form of the
     endpoints, taken in sorted order for undirected graphs so the result
     does not depend on how each edge is stored (which follows node
@@ -385,7 +385,7 @@ def global_sparsification(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, global_sparsification
+    >>> from nx_backbone import boolean_filter, global_sparsification
     >>> G = nx.Graph()
     >>> G.add_weighted_edges_from([(0, 1, 5.0), (1, 2, 1.0), (2, 3, 4.0), (3, 0, 2.0)])
     >>> H = global_sparsification(G, s=0.5)
@@ -442,7 +442,7 @@ def primary_linkage_analysis(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     ------
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -458,7 +458,7 @@ def primary_linkage_analysis(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, primary_linkage_analysis
+    >>> from nx_backbone import boolean_filter, primary_linkage_analysis
     >>> G = nx.DiGraph()
     >>> G.add_weighted_edges_from([("a", "b", 3), ("a", "c", 1), ("b", "c", 2), ("c", "a", 5)])
     >>> H = primary_linkage_analysis(G)
@@ -523,7 +523,7 @@ def edge_betweenness_filter(
         If ``s`` is outside (0, 1].
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -541,7 +541,7 @@ def edge_betweenness_filter(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, edge_betweenness_filter
+    >>> from nx_backbone import boolean_filter, edge_betweenness_filter
     >>> G = nx.barbell_graph(3, 0)  # two triangles joined by the bridge (2, 3)
     >>> H = edge_betweenness_filter(G, s=0.1)
     >>> sorted(boolean_filter(H, "edge_betweenness_keep").edges())
@@ -607,7 +607,7 @@ def node_degree_filter(G: nx.Graph, min_degree: int = 1) -> nx.Graph:
         If ``min_degree`` is negative.
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
 
     References
     ----------
@@ -617,7 +617,7 @@ def node_degree_filter(G: nx.Graph, min_degree: int = 1) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, node_degree_filter
+    >>> from nx_backbone import boolean_filter, node_degree_filter
     >>> G = nx.path_graph(4)
     >>> H = node_degree_filter(G, min_degree=2)
     >>> [n for n, keep in H.nodes(data="node_degree_keep") if keep]
@@ -671,7 +671,7 @@ def high_salience_skeleton(G: nx.Graph, weight: str = "weight") -> nx.Graph:
         If an edge has no *weight* attribute or a non-positive weight.
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
-        with :func:`~networkx_backbone.multigraph_to_weighted`.
+        with :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -700,7 +700,7 @@ def high_salience_skeleton(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import high_salience_skeleton, threshold_filter
+    >>> from nx_backbone import high_salience_skeleton, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = high_salience_skeleton(G)
     >>> backbone = threshold_filter(H, "salience", 0.5, mode="above")
@@ -764,7 +764,7 @@ def metric_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
         If an edge has no *weight* attribute or a non-positive weight.
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
-        with :func:`~networkx_backbone.multigraph_to_weighted`.
+        with :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -780,7 +780,7 @@ def metric_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, metric_backbone
+    >>> from nx_backbone import boolean_filter, metric_backbone
     >>> G = nx.les_miserables_graph()
     >>> H = metric_backbone(G)
     >>> backbone = boolean_filter(H, "metric_keep")
@@ -820,7 +820,7 @@ def ultrametric_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
         If an edge has no *weight* attribute or a non-positive weight.
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
-        with :func:`~networkx_backbone.multigraph_to_weighted`.
+        with :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -836,7 +836,7 @@ def ultrametric_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, ultrametric_backbone
+    >>> from nx_backbone import boolean_filter, ultrametric_backbone
     >>> G = nx.les_miserables_graph()
     >>> H = ultrametric_backbone(G)
     >>> backbone = boolean_filter(H, "ultrametric_keep")
@@ -953,7 +953,7 @@ def doubly_stochastic_filter(
         If *smoothing* is negative or not finite.
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
-        with :func:`~networkx_backbone.multigraph_to_weighted`.
+        with :func:`~nx_backbone.multigraph_to_weighted`.
 
     Warns
     -----
@@ -1069,7 +1069,7 @@ def doubly_stochastic_filter(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import (
+    >>> from nx_backbone import (
     ...     boolean_filter,
     ...     doubly_stochastic_filter,
     ...     threshold_filter,
@@ -1267,7 +1267,7 @@ def h_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
         If an edge has no *weight* attribute or a non-numeric weight.
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
-        with :func:`~networkx_backbone.multigraph_to_weighted`.
+        with :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -1292,7 +1292,7 @@ def h_backbone(G: nx.Graph, weight: str = "weight") -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, h_backbone
+    >>> from nx_backbone import boolean_filter, h_backbone
     >>> G = nx.les_miserables_graph()
     >>> H = h_backbone(G)
     >>> backbone = boolean_filter(H, "h_backbone_keep")
@@ -1364,7 +1364,7 @@ def modularity_backbone(
     ------
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
-        with :func:`~networkx_backbone.multigraph_to_weighted`.
+        with :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -1376,7 +1376,7 @@ def modularity_backbone(
     with ``seed=42``, five shuffled rebuilds kept between 65 and 93 edges
     (72 on the original).  Report the seed and the input order, or keep the
     edges that several shuffles agree on with
-    :func:`~networkx_backbone.consensus_backbone`.
+    :func:`~nx_backbone.consensus_backbone`.
 
     A graph (or node-deleted subgraph) with zero total edge weight has
     modularity 0.
@@ -1390,7 +1390,7 @@ def modularity_backbone(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, modularity_backbone
+    >>> from nx_backbone import boolean_filter, modularity_backbone
     >>> G = nx.les_miserables_graph()
     >>> H = modularity_backbone(G, seed=42)
     >>> backbone = boolean_filter(H, "modularity_keep")
@@ -1454,7 +1454,7 @@ def planar_maximally_filtered_graph(G: nx.Graph, weight: str = "weight") -> nx.G
         If an edge has no *weight* attribute or a non-numeric weight.
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
-        with :func:`~networkx_backbone.multigraph_to_weighted`.
+        with :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -1467,7 +1467,7 @@ def planar_maximally_filtered_graph(G: nx.Graph, weight: str = "weight") -> nx.G
     original, and 29 to 36 edges were in one but not the other.  With
     distinct weights the result does not depend on order.  Report the input
     order, or keep the edges that several shuffles agree on with
-    :func:`~networkx_backbone.consensus_backbone`.
+    :func:`~nx_backbone.consensus_backbone`.
 
     References
     ----------
@@ -1478,7 +1478,7 @@ def planar_maximally_filtered_graph(G: nx.Graph, weight: str = "weight") -> nx.G
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, planar_maximally_filtered_graph
+    >>> from nx_backbone import boolean_filter, planar_maximally_filtered_graph
     >>> G = nx.les_miserables_graph()
     >>> H = planar_maximally_filtered_graph(G)
     >>> backbone = boolean_filter(H, "pmfg_keep")
@@ -1536,7 +1536,7 @@ def maximum_spanning_tree_backbone(G: nx.Graph, weight: str = "weight") -> nx.Gr
     ------
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
-        with :func:`~networkx_backbone.multigraph_to_weighted`.
+        with :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -1544,14 +1544,14 @@ def maximum_spanning_tree_backbone(G: nx.Graph, weight: str = "weight") -> nx.Gr
     which one is returned depends on the order in which edges were added.
     On Les Misérables, five shuffled rebuilds each gave a tree in which 10
     to 15 of the original tree's 76 edges were swapped for tied ones.  For positive weights,
-    :func:`~networkx_backbone.ultrametric_backbone` keeps exactly the union
+    :func:`~nx_backbone.ultrametric_backbone` keeps exactly the union
     of all maximum spanning trees, so it does not depend on order; use it
     when the choice among tied trees should not matter.
 
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, maximum_spanning_tree_backbone
+    >>> from nx_backbone import boolean_filter, maximum_spanning_tree_backbone
     >>> G = nx.les_miserables_graph()
     >>> H = maximum_spanning_tree_backbone(G)
     >>> backbone = boolean_filter(H, "mst_keep")

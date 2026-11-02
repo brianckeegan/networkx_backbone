@@ -2,7 +2,7 @@
 
 This private module holds the numerics of proposal P1 in
 ``docs/design/temporal-backbones.md``; the public, graph-level function will
-live in :mod:`networkx_backbone.temporal` and call these helpers.  Everything
+live in :mod:`nx_backbone.temporal` and call these helpers.  Everything
 here works on numpy arrays with one row per edge and one column per time step;
 numpy and scipy are imported lazily inside the functions.
 
@@ -45,7 +45,7 @@ Using the recursions to test backbone edges is a novel adaptation.
 Examples
 --------
 >>> import numpy as np
->>> from networkx_backbone import _kalman
+>>> from nx_backbone import _kalman
 >>> Y = np.array([[0.5, np.nan, 2.0, 1.5]])
 >>> res = _kalman.kalman_scores(Y, q=0.0)
 >>> bool(np.allclose(res.score, (0.5 + 2.0 + 1.5) / np.sqrt(3)))  # Stouffer
@@ -72,7 +72,7 @@ _PITS = ("mid", "random")
 
 
 def _as_generator(seed):
-    from networkx_backbone.bipartite import _as_generator as as_generator
+    from nx_backbone.bipartite import _as_generator as as_generator
 
     return as_generator(seed)
 
@@ -106,7 +106,7 @@ def discrete_pit(p, p_strict, pit="mid", seed=None):
 
     Examples
     --------
-    >>> from networkx_backbone._kalman import discrete_pit
+    >>> from nx_backbone._kalman import discrete_pit
     >>> discrete_pit([1.0, 0.5], [0.0, 0.25]).tolist()
     [0.5, 0.375]
     """
@@ -159,7 +159,7 @@ def probit_scores(p, *, sign=None, p_strict=None, pit="mid", seed=None):
 
     Examples
     --------
-    >>> from networkx_backbone._kalman import probit_scores
+    >>> from nx_backbone._kalman import probit_scores
     >>> probit_scores([0.5, 0.025]).round(3).tolist()
     [0.0, 1.96]
     >>> probit_scores([0.05, 0.05], sign=[1, -1]).round(3).tolist()
@@ -401,7 +401,7 @@ def kalman_scores(Y, q, *, times=None, mode="smoother"):
     Examples
     --------
     >>> import numpy as np
-    >>> from networkx_backbone._kalman import kalman_scores
+    >>> from nx_backbone._kalman import kalman_scores
     >>> res = kalman_scores(np.array([[1.0, 2.0, 0.0]]), q=1e12)
     >>> res.score.round(6).tolist()  # q → ∞ returns the inputs
     [[1.0, 2.0, 0.0]]
@@ -463,7 +463,7 @@ def pooled_loglik(Y, q, *, times=None):
     Examples
     --------
     >>> import numpy as np
-    >>> from networkx_backbone._kalman import pooled_loglik
+    >>> from nx_backbone._kalman import pooled_loglik
     >>> ll = pooled_loglik(np.zeros((1, 2)), q=0.0)  # one innovation, S = 2
     >>> bool(np.isclose(ll, -0.5 * np.log(2 * np.pi * 2)))
     True
@@ -507,7 +507,7 @@ def estimate_q(Y, *, times=None, bounds=(1e-6, 1e3)):
     Examples
     --------
     >>> import numpy as np
-    >>> from networkx_backbone._kalman import estimate_q
+    >>> from nx_backbone._kalman import estimate_q
     >>> rng = np.random.default_rng(0)
     >>> X = np.cumsum(rng.normal(0, np.sqrt(0.2), (500, 30)), axis=1)
     >>> q, _ = estimate_q(X + rng.standard_normal(X.shape))
@@ -562,7 +562,7 @@ def half_life_to_q(half_life):
 
     Examples
     --------
-    >>> from networkx_backbone._kalman import half_life_to_q
+    >>> from nx_backbone._kalman import half_life_to_q
     >>> half_life_to_q(1.0)  # K = 1/2
     0.5
     """
@@ -591,7 +591,7 @@ def q_to_half_life(q):
 
     Examples
     --------
-    >>> from networkx_backbone._kalman import q_to_half_life
+    >>> from nx_backbone._kalman import q_to_half_life
     >>> q_to_half_life(0.5)
     1.0
     """
@@ -658,7 +658,7 @@ def max_score_test(Y, q, *, times=None, mode="smoother", n_sim=9999, seed=None):
     Examples
     --------
     >>> import numpy as np
-    >>> from networkx_backbone._kalman import max_score_test
+    >>> from nx_backbone._kalman import max_score_test
     >>> Y = np.array([[0.1, 3.5, 3.0, 0.2], [0.0, -1.0, np.nan, 0.5]])
     >>> stat, p = max_score_test(Y, q=0.5, n_sim=999, seed=1)
     >>> bool(p[0] < 0.05 < p[1])

@@ -1,4 +1,4 @@
-"""Tests for networkx_backbone.bipartite: projections, null models, wrappers.
+"""Tests for nx_backbone.bipartite: projections, null models, wrappers.
 
 Shared behavior of every projection scorer (attributes, p-value ranges,
 agent-set validation, directed/multigraph rejection, generator input, empty
@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 from scipy import stats
 
-import networkx_backbone as nb
-from networkx_backbone import (
+import nx_backbone as nb
+from nx_backbone import (
     backbone,
     backbone_from_projection,
     backbone_from_unweighted,
@@ -29,7 +29,7 @@ from networkx_backbone import (
     simple_projection,
     ycn_projection,
 )
-from networkx_backbone import bipartite as bp
+from nx_backbone import bipartite as bp
 
 AGENTS = [1, 2, 3]
 
@@ -884,7 +884,7 @@ class TestWeightedMissingAsZero:
         assert self._zeros(H) == {("a", "d"): -1, ("b", "c"): -1}
 
     def test_backbone_dispatch_forwards_flag(self, two_pairs):
-        from networkx_backbone import backbone
+        from nx_backbone import backbone
 
         H = backbone(two_pairs, method="mlf", signed=True, missing_as_zero=True)
         assert len(self._zeros(H)) == 3

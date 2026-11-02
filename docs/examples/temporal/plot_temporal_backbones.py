@@ -36,9 +36,9 @@ user guide :doc:`/user_guide/temporal`.
 # ----------
 #
 # The temporal functions need only NetworkX for the conversions and the
-# descriptive scores; :func:`~networkx_backbone.weight_trend` and the two
+# descriptive scores; :func:`~nx_backbone.weight_trend` and the two
 # model-based methods also need NumPy, and
-# :func:`~networkx_backbone.kalman_backbone` needs SciPy.
+# :func:`~nx_backbone.kalman_backbone` needs SciPy.
 
 import math
 import random
@@ -54,7 +54,7 @@ from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch, Rectangle
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
 # Figures are saved as light and dark SVG pairs next to the generated page,
@@ -101,7 +101,7 @@ def key(u, v):
 # systems log something else.  A message log has **events**, one per
 # contact with a single timestamp and no duration.  A survey repeated every
 # hour has **snapshots**, one ordinary graph per time **step**.
-# :mod:`networkx_backbone.temporal` accepts all three, built from ordinary
+# :mod:`nx_backbone.temporal` accepts all three, built from ordinary
 # NetworkX graphs: snapshots are a dict ``{time: graph}``, events a
 # :class:`~networkx.MultiGraph` with a ``time`` on every edge, and spans a
 # multigraph with ``start`` and ``end``.
@@ -275,7 +275,7 @@ save("temporal_forms", draw_forms)
 # ---------------
 #
 # The quickest way to a backbone is to forget time altogether.
-# :func:`~networkx_backbone.flatten_temporal` collapses any of the three
+# :func:`~nx_backbone.flatten_temporal` collapses any of the three
 # forms into one static weighted graph, with one edge per pair, so every
 # static backbone method applies.  The weight depends on ``aggregate=``:
 # counting contacts and adding up their durations tell different stories
@@ -461,7 +461,7 @@ assert set(block) | set(flicker) <= flat_kept
 #
 # The descriptive scores return the same kind of object as every other
 # scorer: one static graph, the union of the observed edges, with a score
-# on each edge, ready for :func:`~networkx_backbone.threshold_filter`.
+# on each edge, ready for :func:`~nx_backbone.threshold_filter`.
 # They count over each edge's **eligible steps**, the steps in which both
 # of its endpoints are present (here, all 24; see
 # :ref:`temporal-eligibility`).
@@ -494,11 +494,11 @@ sizes = [bb.number_of_edges() for bb in per_step.values()]
 print(f"Per-step backbones keep between {min(sizes)} and {max(sizes)} edges")
 
 # %%
-# **Backbone stability** (:func:`~networkx_backbone.backbone_stability`)
+# **Backbone stability** (:func:`~nx_backbone.backbone_stability`)
 # runs the same method on every snapshot with the same cut and scores
 # each edge by the share of its eligible steps in which the backbone keeps
 # it: a consensus over time, where
-# :func:`~networkx_backbone.consensus_backbone` is a consensus over
+# :func:`~nx_backbone.consensus_backbone` is a consensus over
 # methods.
 
 stab = nb.backbone_stability(snaps, nb.disparity_filter, threshold=ALPHA)
@@ -737,7 +737,7 @@ print(
 # edge's *weight* is significant, and when weights are noisy, a single
 # snapshot rarely says.  Testing every snapshot separately and keeping the
 # edges that pass in some step multiplies the false positives; flattening
-# first loses the timing.  :func:`~networkx_backbone.kalman_backbone` sits
+# first loses the timing.  :func:`~nx_backbone.kalman_backbone` sits
 # between the two.
 #
 # It runs a static significance test on every snapshot, turns each edge's
@@ -822,7 +822,7 @@ raw_found = {
 # Now the Kalman backbone on the same snapshots, with the same filter, a
 # half-life of 3 steps, and both the smoother (all steps) and the filter
 # (``mode="filter"``, only the steps up to each one, as an online method
-# would see them).  :func:`~networkx_backbone.kalman_snapshots` expands the
+# would see them).  :func:`~nx_backbone.kalman_snapshots` expands the
 # per-step p-values into one graph per step, to be cut like any snapshot.
 
 HALF_LIFE = 3
@@ -1062,12 +1062,12 @@ assert _r[3] > 2 * _r[0]
 # backbone above keeps no steady edge in any step, at the cost of some
 # power, which shows in how late the filter catches the rise.  A test
 # that judges each edge once, with continuous p-values, would avoid both
-# problems.  :func:`~networkx_backbone.noise_corrected_filter` (Coscia &
+# problems.  :func:`~nx_backbone.noise_corrected_filter` (Coscia &
 # Neffke, 2017) judges each edge once, but its calibrated p-values are
 # exact binomial tails, hence discrete; the p-value reading of the
 # paper's rule (``pvalue_method="delta"``) is continuous but far too small
 # on low-count snapshots (issue
-# `#105 <https://github.com/brianckeegan/networkx_backbone/issues/105>`_),
+# `#105 <https://github.com/brianckeegan/nx-backbone/issues/105>`_),
 # so do not smooth it.  Scorers with discrete p-values (the
 # noise-corrected and marginal likelihood filters, ECM, LANS, Pólya and
 # GloSS) need ``discrete="raw"``, which keeps the tests valid but
@@ -1101,7 +1101,7 @@ assert early["Kalman smoother"] > early["Kalman filter"]
 # So read a smoothed backbone at step *t* as "this edge is significant
 # around step *t*", not "at step *t*", and use ``mode="filter"`` when the
 # timing of an onset matters.  Two further cautions (see the Notes of
-# :func:`~networkx_backbone.kalman_backbone`):
+# :func:`~nx_backbone.kalman_backbone`):
 #
 # - **Persistent confounders.**  Anything that makes a pair's scores
 #   correlated over time under the null, such as a stable dyad-level
@@ -1110,7 +1110,7 @@ assert early["Kalman smoother"] > early["Kalman filter"]
 #   standardized one-step prediction errors, look like white noise.
 # - **Many tests.**  The per-step p-values are E × T tests.  Correct them
 #   within each step (for example with
-#   :func:`~networkx_backbone.kalman_snapshots` and
+#   :func:`~nx_backbone.kalman_snapshots` and
 #   ``threshold_filter(..., mtc="bh")``), or use the edge-level
 #   ``kalman_pvalue``.
 
@@ -1120,7 +1120,7 @@ assert early["Kalman smoother"] > early["Kalman filter"]
 #
 # Back to the first network.  Persistence takes every observation at face
 # value: one missed step cuts a run in two, and one stray observation
-# starts a run.  :func:`~networkx_backbone.edge_persistence_hmm` instead
+# starts a run.  :func:`~nx_backbone.edge_persistence_hmm` instead
 # treats each edge as switching between two hidden states, **inactive**
 # and **active**, as a Markov chain, and treats what is seen as a noisy
 # flag of the state: an active edge can be *missed* (at rate ``beta``) and
@@ -1352,7 +1352,7 @@ save("temporal_hmm", draw_hmm)
 # (its mean posterior) are **membership scores, not p-values**: they are
 # probabilities under a model fitted to the same data, which assumes that
 # every edge follows one shared chain.  Cut them with
-# :func:`~networkx_backbone.threshold_filter`, or use ``hmm_keep``
+# :func:`~nx_backbone.threshold_filter`, or use ``hmm_keep``
 # (``min_steps=``), but do not read the cut as a significance level.
 
 # %%
@@ -1469,33 +1469,33 @@ for _n in ("Weight trend (slope)", "Kalman (edge z-score)"):
 #      - Question it answers
 #      - Output
 #      - Use it when
-#    * - :func:`~networkx_backbone.flatten_temporal`, then a static method
+#    * - :func:`~nx_backbone.flatten_temporal`, then a static method
 #      - Which pairs are important overall?
 #      - A static graph; any static backbone
 #      - Timing does not matter, or the network is one aggregate by design.
-#    * - :func:`~networkx_backbone.observation_fraction`
+#    * - :func:`~nx_backbone.observation_fraction`
 #      - How often is the edge seen?
 #      - A share of eligible steps
 #      - Frequency of contact is the point; a quick first filter.
-#    * - :func:`~networkx_backbone.persistence`
+#    * - :func:`~nx_backbone.persistence`
 #      - Does the edge stay on once it appears?
 #      - Run lengths and a "stays on" share
 #      - You want lasting ties rather than frequent but scattered ones.
-#    * - :func:`~networkx_backbone.backbone_stability`
+#    * - :func:`~nx_backbone.backbone_stability`
 #      - How often does a static backbone keep the edge?
 #      - A share of eligible steps
 #      - You trust a static method per step and want a consensus over time.
-#    * - :func:`~networkx_backbone.weight_trend`
+#    * - :func:`~nx_backbone.weight_trend`
 #      - Is the edge's weight growing, fading or erratic?
 #      - Mean, spread, coefficient of variation, slope
 #      - Describing change; it is not a test.
-#    * - :func:`~networkx_backbone.edge_persistence_hmm`
+#    * - :func:`~nx_backbone.edge_persistence_hmm`
 #      - Is the edge in a persistently active state, allowing for missed and
 #        stray observations?
 #      - Posterior probabilities (membership scores, not p-values)
 #      - Observations are noisy and you can say what an active tie looks
 #        like (fix ``params=`` if the fit's idea differs from yours).
-#    * - :func:`~networkx_backbone.kalman_backbone`
+#    * - :func:`~nx_backbone.kalman_backbone`
 #      - Is the edge's weight significant around each step, pooling
 #        neighboring steps?
 #      - Per-step and edge-level p-values
@@ -1516,7 +1516,7 @@ for _n in ("Weight trend (slope)", "Kalman (edge z-score)"):
 #    backward.
 # 5. **Report** the bin width, the method and its settings (``half_life``,
 #    fixed HMM parameters, the per-step test and cut) with the backbone;
-#    :func:`~networkx_backbone.describe_backbone` writes that paragraph from
+#    :func:`~nx_backbone.describe_backbone` writes that paragraph from
 #    the scored graph's ``graph["temporal"]`` record.
 #
 # Where next
@@ -1524,8 +1524,8 @@ for _n in ("Weight trend (slope)", "Kalman (edge z-score)"):
 #
 # - API: :doc:`/api/temporal` (every function's parameters, Notes and
 #   examples) and :doc:`/api/filters` for
-#   :func:`~networkx_backbone.threshold_filter` and
-#   :func:`~networkx_backbone.boolean_filter`.
+#   :func:`~nx_backbone.threshold_filter` and
+#   :func:`~nx_backbone.boolean_filter`.
 # - User guide: :doc:`/user_guide/temporal` (the three forms and every
 #   conversion) and :ref:`temporal-eligibility` (how absent edges and
 #   absent nodes are counted).

@@ -1,7 +1,7 @@
 # Design proposal: temporal backbones and filtering-inspired methods
 
 - **Status:** Accepted for implementation in a new top-level module,
-  `networkx_backbone.temporal`. Tracking: GitHub issue #78.
+  `nx_backbone.temporal`. Tracking: GitHub issue #78.
 - **Issues:** #67 (foundation), #68 and #69 (simple filters), #70 (interop),
   #71 (null-model tests), #72 (P1 `kalman_backbone`), #73 (P2
   `edge_persistence_hmm`), #74 (P5, idea), #75 (P6, idea); not temporal:
@@ -31,11 +31,11 @@ they differ from Section 2 below, these decisions win:
 
 ---
 
-## Original report: Filtering-inspired network backbone methods for `networkx_backbone`: proposals
+## Original report: Filtering-inspired network backbone methods for `nx_backbone`: proposals
 
 **Scope.** I read five state-estimation and signal-filtering papers and checked which of their
-techniques carry over to network backbone extraction in `networkx_backbone` (current `main`,
-`d6a935b`). I read `README.md`, `docs/concepts.rst`, `docs/roadmap.rst`, `networkx_backbone/__init__.py`
+techniques carry over to network backbone extraction in `nx_backbone` (current `main`,
+`d6a935b`). I read `README.md`, `docs/concepts.rst`, `docs/roadmap.rst`, `nx_backbone/__init__.py`
 (`__all__`), `bipartite.py` (`fdsm`, `fastball`, `_fdsm_tails`, `_curveball_trades`,
 `backbone_from_projection`), `filters.py` (`threshold_filter`, `multigraph_to_weighted`,
 `consensus_backbone`), `tests/test_api_contract.py` and the header of `describe.py`. I did not
@@ -128,7 +128,7 @@ estimated `q`).
 
 **Module and contracts.**
 
-- A new module `networkx_backbone/temporal.py`. It must not be listed in `describe.HELPER_MODULES`.
+- A new module `nx_backbone/temporal.py`. It must not be listed in `describe.HELPER_MODULES`.
 - `tests/test_api_contract.py` needs a new `Spec.kind = "temporal"`. Today it assumes a single
   weighted, unweighted or bipartite graph.
 - Each method needs a `describe.METHODS` entry and `REFERENCES`.

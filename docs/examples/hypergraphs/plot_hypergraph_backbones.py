@@ -51,7 +51,7 @@ from _figures import style
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
 # Figure plumbing, hidden on the rendered page but kept in the downloads.
@@ -168,7 +168,7 @@ def _first_name(woman):
 # where a hyperedge is any group of nodes, of any size. The size of a
 # hyperedge is its **order**; an ordinary graph is a hypergraph whose
 # hyperedges all have order two. NetworkX has no hypergraph class, so
-# ``networkx_backbone`` uses the simplest representation there is: a list of
+# ``nx_backbone`` uses the simplest representation there is: a list of
 # hyperedges, each an iterable of node labels.
 #
 # In the Davis data each event is a hyperedge (the guest list) over the women.
@@ -227,7 +227,7 @@ print(f"Both hypergraphs project to the same triangle: {same}")
 # %%
 # The **incidence graph** keeps the difference. It is a bipartite graph with
 # one node per person, one node per hyperedge, and an edge for every
-# membership; :func:`~networkx_backbone.hypergraph_to_bipartite` builds it.
+# membership; :func:`~nx_backbone.hypergraph_to_bipartite` builds it.
 
 incidence_one, people = nb.hypergraph_to_bipartite(one_meeting)
 incidence_three, _ = nb.hypergraph_to_bipartite(three_meetings)
@@ -724,7 +724,7 @@ ThemedFigure(
 # value of 1 means no backbone shortens the description. A poor backbone can
 # do worse than no backbone at all: the largest-first cover's ratio is above
 # 1. The MDL ratio is stored on the result, and
-# :func:`~networkx_backbone.hypergraph_compression_ratio` returns it directly.
+# :func:`~nx_backbone.hypergraph_compression_ratio` returns it directly.
 
 print(f"eta = {result.compression_ratio:.3f}")
 print(f"eta = {nb.hypergraph_compression_ratio(hyperedges):.3f}")
@@ -812,7 +812,7 @@ ThemedFigure(
 # ``gamma=1`` ignores them. :doc:`/tutorials/hypergraph_backbone` shows the
 # call.
 #
-# **Reporting.** :func:`~networkx_backbone.describe_backbone` writes a methods
+# **Reporting.** :func:`~nx_backbone.describe_backbone` writes a methods
 # paragraph with the citation, from the same reference list the library uses
 # everywhere:
 
@@ -1210,12 +1210,12 @@ assert frozenset(hidden_core) in svc.validated
 # Three cheap, parameter-light tools complete the picture. They return plain
 # lists of hyperedges and need nothing beyond NetworkX.
 #
-# - :func:`~networkx_backbone.maximal_hyperedges` keeps the **toplexes**,
+# - :func:`~nx_backbone.maximal_hyperedges` keeps the **toplexes**,
 #   hyperedges not contained in any other. This removes exact nesting only;
 #   the MDL backbone also removes near-nesting and overlap.
-# - :func:`~networkx_backbone.order_filter` keeps hyperedges by order, for
+# - :func:`~nx_backbone.order_filter` keeps hyperedges by order, for
 #   example only the large gatherings.
-# - :func:`~networkx_backbone.s_components` groups hyperedges into
+# - :func:`~nx_backbone.s_components` groups hyperedges into
 #   **s-components**: two hyperedges are *s-adjacent* when they share at
 #   least ``s`` nodes, and an s-component is a connected set of them. Raising
 #   ``s`` shows at what overlap the hypergraph falls apart.
@@ -1245,7 +1245,7 @@ for s in range(1, max(sizes) + 1):
 # Hypergraph data usually lives in a dedicated library. The **Hypergraph
 # Interchange Format** (HIF) is a JSON standard that xgi, HyperNetX,
 # HypergraphX and HAT all read and write, and
-# :func:`~networkx_backbone.write_hif` and :func:`~networkx_backbone.read_hif`
+# :func:`~nx_backbone.write_hif` and :func:`~nx_backbone.read_hif`
 # need only the standard library. Here the distinct guest lists go out with a
 # weight (how many events share the list) and come back unchanged.
 
@@ -1272,7 +1272,7 @@ assert again.backbone == result.backbone
 # Pass a path instead of a buffer to write a file. The library-specific
 # adapters convert directly. They import their library only when called, and
 # the libraries are optional extras (for example,
-# ``pip install "networkx-backbone[xgi]"``), so the snippets below are shown
+# ``pip install "nx-backbone[xgi]"``), so the snippets below are shown
 # but not run when this page is built.
 #
 # .. code-block:: python

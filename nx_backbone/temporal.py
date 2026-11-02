@@ -1,7 +1,7 @@
 """
 Temporal networks: input forms and conversions between them.
 
-NetworkX has no temporal graph class, so ``networkx_backbone.temporal``
+NetworkX has no temporal graph class, so ``nx_backbone.temporal``
 accepts a network observed over time in any of three forms, all built from
 ordinary NetworkX graphs:
 
@@ -24,7 +24,7 @@ ordinary NetworkX graphs:
   ``start``.
 
 Every function takes the attribute names as keywords (``time=``, ``start=``,
-``end=``), and :func:`~networkx_backbone.temporal_form` tells the three forms apart.
+``end=``), and :func:`~nx_backbone.temporal_form` tells the three forms apart.
 
 **Binning.** Events and spans become snapshots by binning time into steps of
 width ``freq=``, starting at ``origin=`` (default: the earliest time).  Bin
@@ -35,7 +35,7 @@ and the bin's intersect), so a span from 0 to 10 is observed in each of five
 bins of width 2.  Snapshots run from the first to the last occupied bin;
 empty bins in between are kept as empty graphs.  The parallel edges of a node
 pair within one bin collapse into one edge with
-:func:`~networkx_backbone.multigraph_to_weighted` (``aggregate="sum"`` by
+:func:`~nx_backbone.multigraph_to_weighted` (``aggregate="sum"`` by
 default): its ``weight`` combines their weights (a missing weight counts as
 1) and ``edge_count`` counts them.  Attributes on which all of them agree are
 kept.  A node is present in a bin only if it has an event or span there.
@@ -44,20 +44,20 @@ kept.  A node is present in a bin only if it has an event or span there.
 :class:`datetime.datetime` times with a :class:`datetime.timedelta` step.
 pandas is needed only for frequency strings such as ``freq="1D"`` (or pandas
 offsets such as ``"MS"``, which step by calendar months) and for the
-``DataFrame`` functions :func:`~networkx_backbone.from_event_table` and :func:`~networkx_backbone.to_event_table`;
+``DataFrame`` functions :func:`~nx_backbone.from_event_table` and :func:`~nx_backbone.to_event_table`;
 it is imported lazily, only on those paths.  pandas ``Timestamp`` and
 ``Timedelta`` values work wherever datetimes do.
 
 **Round trips.** Converting snapshots to events or spans loses what an edge
 list cannot hold: empty snapshots, isolated nodes, and per-snapshot node and
-graph attributes.  :func:`~networkx_backbone.events_from_snapshots` and
-:func:`~networkx_backbone.spans_from_snapshots` therefore store that information in the graph
+graph attributes.  :func:`~nx_backbone.events_from_snapshots` and
+:func:`~nx_backbone.spans_from_snapshots` therefore store that information in the graph
 attribute ``M.graph["temporal"]``, a dict with keys ``"form"`` (``"events"``
 or ``"spans"``), ``"times"`` (the snapshot times in order), ``"snapshots"``
 (for each time, the snapshot's graph attributes, ``"graph"``, and its nodes
 with their attributes, ``"nodes"``) and, for spans, ``"end_time"`` (when the
-last snapshot ends).  :func:`~networkx_backbone.snapshots_from_events` and
-:func:`~networkx_backbone.snapshots_from_spans` called without ``freq`` and ``origin`` use this
+last snapshot ends).  :func:`~nx_backbone.snapshots_from_events` and
+:func:`~nx_backbone.snapshots_from_spans` called without ``freq`` and ``origin`` use this
 record to return the original snapshots exactly (as a dict, up to the order
 of edges): the same times, nodes, edges, and node, edge and graph attributes.
 The record describes the snapshots as they were converted.  If the events or
@@ -66,17 +66,17 @@ edges of one node pair in one snapshot), it is ignored and the input is
 binned as usual.  The other directions aggregate and are lossy; each
 function's Notes say what is kept.
 
-**Temporal backbone scores.** :func:`~networkx_backbone.observation_fraction`,
-:func:`~networkx_backbone.persistence`,
-:func:`~networkx_backbone.backbone_stability` and
-:func:`~networkx_backbone.weight_trend` take any of the three forms (events
+**Temporal backbone scores.** :func:`~nx_backbone.observation_fraction`,
+:func:`~nx_backbone.persistence`,
+:func:`~nx_backbone.backbone_stability` and
+:func:`~nx_backbone.weight_trend` take any of the three forms (events
 and spans are binned first, with ``freq=``) and score every edge over the
 resulting steps.  An edge's **eligible** steps are those in which both of its
 endpoints are present.  In an eligible step an absent edge is an observed
 zero (weight 0); in any other step the edge is unknown and is not counted, so
 an edge whose endpoint joins late is scored only from the step it joins.
 Each scorer returns one static graph: the
-:func:`~networkx_backbone.flatten_temporal` of the steps (a
+:func:`~nx_backbone.flatten_temporal` of the steps (a
 :class:`~networkx.Graph`, or :class:`~networkx.DiGraph` for directed input,
 with every node of every step and its attributes from the latest step it is
 in), restricted to the observed edges, which carry their score attributes.
@@ -85,20 +85,20 @@ input form, the step ``times``, ``n_steps``, ``freq``, ``origin`` and the
 parameters.  The usual filters then apply, as in
 ``threshold_filter(H, "obs_fraction", 0.5, mode="above")``.  The scores are
 descriptive: they come without p-values.  All but
-:func:`~networkx_backbone.weight_trend` work with NetworkX alone (numpy, when
+:func:`~nx_backbone.weight_trend` work with NetworkX alone (numpy, when
 installed, vectorizes them).
 
-**Model-based scores.** :func:`~networkx_backbone.edge_persistence_hmm`
+**Model-based scores.** :func:`~nx_backbone.edge_persistence_hmm`
 (numpy) follows the same input and output conventions.  It treats each edge
 as a two-state hidden Markov chain (inactive or active) observed with error
 in its eligible steps (the other steps carry no evidence), and adds
 posterior activity scores plus a per-step ``hmm_posterior`` dict; the fitted
 model is in ``H.graph["temporal"]["hmm"]``.
-:func:`~networkx_backbone.kalman_backbone` (numpy and SciPy) tests every edge
+:func:`~nx_backbone.kalman_backbone` (numpy and SciPy) tests every edge
 in every step with a static significance test and smooths each edge's
 evidence over time with a Kalman filter and smoother.  It adds an edge-level
 ``kalman_pvalue`` and per-step series as dict attributes keyed by time;
-:func:`~networkx_backbone.kalman_snapshots` expands those into one graph per
+:func:`~nx_backbone.kalman_snapshots` expands those into one graph per
 step, and the fitted model is in ``H.graph["temporal"]["kalman"]``.
 """
 
@@ -114,16 +114,16 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
-from networkx_backbone.convert import _is_dataframe
-from networkx_backbone.filters import multigraph_to_weighted
+from nx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone.convert import _is_dataframe
+from nx_backbone.filters import multigraph_to_weighted
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     import pandas as pd
 
-    from networkx_backbone._typing import Frequency, Snapshots, TemporalNetwork
+    from nx_backbone._typing import Frequency, Snapshots, TemporalNetwork
 
 __all__ = [
     "temporal_form",
@@ -608,7 +608,7 @@ def temporal_form(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import temporal_form
+    >>> from nx_backbone import temporal_form
     >>> temporal_form([nx.path_graph(3), nx.path_graph(4)])
     'snapshots'
     >>> M = nx.MultiGraph([(0, 1, {"time": 3}), (0, 1, {"time": 5})])
@@ -689,7 +689,7 @@ def snapshots_from_events(
         Edge attribute combined across the events of a node pair in one bin.
     aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
         How those weights combine, as in
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
 
     Returns
     -------
@@ -740,7 +740,7 @@ def snapshots_from_events(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import snapshots_from_events
+    >>> from nx_backbone import snapshots_from_events
     >>> M = nx.MultiGraph()
     >>> M.add_edges_from([("a", "b", {"time": 0}), ("a", "b", {"time": 1}),
     ...                   ("b", "c", {"time": 5})])
@@ -809,7 +809,7 @@ def snapshots_from_spans(
         Edge attribute combined across the spans of a node pair in one bin.
     aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
         How those weights combine, as in
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
 
     Returns
     -------
@@ -852,7 +852,7 @@ def snapshots_from_spans(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import snapshots_from_spans
+    >>> from nx_backbone import snapshots_from_spans
     >>> M = nx.MultiGraph()
     >>> M.add_edges_from([("a", "b", {"start": 0, "end": 5}),
     ...                   ("b", "c", {"start": 3, "end": 4})])
@@ -947,7 +947,7 @@ def events_from_snapshots(S: Snapshots, time: str = "time") -> nx.MultiGraph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import events_from_snapshots, snapshots_from_events
+    >>> from nx_backbone import events_from_snapshots, snapshots_from_events
     >>> S = {2020: nx.Graph([("a", "b")]), 2021: nx.Graph([("a", "b"), ("b", "c")])}
     >>> M = events_from_snapshots(S)
     >>> sorted((u, v, t) for u, v, t in M.edges(data="time"))
@@ -1033,7 +1033,7 @@ def spans_from_snapshots(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import spans_from_snapshots, snapshots_from_spans
+    >>> from nx_backbone import spans_from_snapshots, snapshots_from_spans
     >>> S = [nx.Graph([(0, 1)]), nx.Graph([(0, 1), (1, 2)]), nx.Graph([(1, 2)])]
     >>> M = spans_from_snapshots(S)
     >>> sorted((u, v, d["start"], d["end"]) for u, v, d in M.edges(data=True))
@@ -1139,7 +1139,7 @@ def events_from_spans(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import events_from_spans
+    >>> from nx_backbone import events_from_spans
     >>> M = nx.MultiGraph([("a", "b", {"start": 1, "end": 6})])
     >>> [t for *_, t in events_from_spans(M).edges(data="time")]
     [1]
@@ -1201,7 +1201,7 @@ def spans_from_events(
         Edge attribute combined across the events of a span.
     aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
         How those weights combine, as in
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
 
     Returns
     -------
@@ -1237,7 +1237,7 @@ def spans_from_events(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import spans_from_events
+    >>> from nx_backbone import spans_from_events
     >>> M = nx.MultiGraph()
     >>> M.add_edges_from([("a", "b", {"time": 0}), ("a", "b", {"time": 1}),
     ...                   ("a", "b", {"time": 9})])
@@ -1338,7 +1338,7 @@ def convert_temporal(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import convert_temporal
+    >>> from nx_backbone import convert_temporal
     >>> M = nx.MultiGraph([(0, 1, {"time": 0}), (0, 1, {"time": 3})])
     >>> S = convert_temporal(M, to="snapshots", freq=2)
     >>> {t: G.number_of_edges() for t, G in S.items()}
@@ -1441,7 +1441,7 @@ def flatten_temporal(
         counts as 1.  The aggregated value is stored under the same name.
     aggregate : {"sum", "count", "max", "min", "mean", "duration"}, optional
         How the observations' weights combine, as in
-        :func:`~networkx_backbone.multigraph_to_weighted`; ``"count"`` gives
+        :func:`~nx_backbone.multigraph_to_weighted`; ``"count"`` gives
         the number of observations.  ``"duration"`` (spans only) gives the
         total time the pair is in contact: the length of the union of its
         spans within *window*, so overlapping spans are not counted twice.
@@ -1505,7 +1505,7 @@ def flatten_temporal(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import flatten_temporal
+    >>> from nx_backbone import flatten_temporal
     >>> G1 = nx.Graph([("a", "b", {"weight": 2}), ("b", "c", {"weight": 1})])
     >>> G2 = nx.Graph([("a", "b", {"weight": 3})])
     >>> H = flatten_temporal({0: G1, 1: G2})
@@ -1675,20 +1675,20 @@ def from_event_table(
 
     See Also
     --------
-    to_event_table, snapshots_from_events, networkx_backbone.to_graph
+    to_event_table, snapshots_from_events, nx_backbone.to_graph
 
     Notes
     -----
     Duplicate rows are kept as parallel edges: two identical rows are two
     events, which :func:`snapshots_from_events` adds up when it bins them.
-    (:func:`~networkx_backbone.to_graph` refuses duplicates instead, because a
+    (:func:`~nx_backbone.to_graph` refuses duplicates instead, because a
     simple graph would silently drop them.)  Values come from
     ``Series.tolist()``, so datetime columns give pandas ``Timestamp`` times.
 
     Examples
     --------
     >>> import pandas as pd  # doctest: +SKIP
-    >>> from networkx_backbone import from_event_table
+    >>> from nx_backbone import from_event_table
     >>> df = pd.DataFrame({"source": ["a", "a", "b"], "target": ["b", "b", "c"],
     ...                    "time": [0, 1, 5], "w": [2, 3, 1]})  # doctest: +SKIP
     >>> M = from_event_table(df, weight="w")  # doctest: +SKIP
@@ -1792,7 +1792,7 @@ def to_event_table(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import to_event_table
+    >>> from nx_backbone import to_event_table
     >>> M = nx.MultiGraph([("b", "c", {"time": 5}), ("a", "b", {"time": 0, "w": 2})])
     >>> to_event_table(M)  # doctest: +SKIP
       source target  time    w
@@ -2134,7 +2134,7 @@ def observation_fraction(
     T : dict, list, MultiGraph or MultiDiGraph
         A temporal network: snapshots (a dict ``{time: graph}`` or a list of
         graphs), or a multigraph of events or spans (see
-        :mod:`networkx_backbone.temporal`).
+        :mod:`nx_backbone.temporal`).
     weight : str or None, optional (default=None)
         If given, an edge counts as observed only when its *weight* is above
         *min_weight* (a missing weight counts as 1).  ``None`` counts every
@@ -2157,7 +2157,7 @@ def observation_fraction(
         Edge attributes holding a span's start and end.
     aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
         How the weights of a node pair's events or spans in one bin combine
-        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+        (see :func:`~nx_backbone.multigraph_to_weighted`).
 
     Returns
     -------
@@ -2212,7 +2212,7 @@ def observation_fraction(
     both endpoints are present, an observed zero:
 
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> S = {
     ...     1: nx.Graph([("a", "b")]),
     ...     2: nx.Graph([("a", "b")]),
@@ -2285,7 +2285,7 @@ def persistence(
     T : dict, list, MultiGraph or MultiDiGraph
         A temporal network: snapshots (a dict ``{time: graph}`` or a list of
         graphs), or a multigraph of events or spans (see
-        :mod:`networkx_backbone.temporal`).
+        :mod:`nx_backbone.temporal`).
     weight : str or None, optional (default=None)
         If given, an edge counts as observed only when its *weight* is above
         *min_weight* (a missing weight counts as 1).
@@ -2313,7 +2313,7 @@ def persistence(
         Edge attributes holding a span's start and end.
     aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
         How the weights of a node pair's events or spans in one bin combine
-        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+        (see :func:`~nx_backbone.multigraph_to_weighted`).
 
     Returns
     -------
@@ -2356,7 +2356,7 @@ def persistence(
     at time 2, so ``("b", "c")`` is unknown there and its run is not broken:
 
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> S = {
     ...     1: nx.Graph([("a", "b"), ("b", "c")]),
     ...     2: nx.Graph([("a", "b")]),
@@ -2406,8 +2406,8 @@ def persistence(
 
 def _resolve_scorer(method, key, caller="backbone_stability"):
     """``(name, function, score key)`` for a static backbone method."""
-    import networkx_backbone as nb
-    from networkx_backbone.describe import METHODS, SCORE_KEYS, _resolve
+    import nx_backbone as nb
+    from nx_backbone.describe import METHODS, SCORE_KEYS, _resolve
 
     if isinstance(method, str):
         name, entry = _resolve(method)
@@ -2494,7 +2494,7 @@ def _kept_at(table, name, func, key, cut, method_kwargs):
     *cut* is ``(flag, threshold, mode, mtc, sign)``: the first three from
     :func:`_cut_settings`.  Only edges present in a snapshot can be kept.
     """
-    from networkx_backbone.filters import boolean_filter, threshold_filter
+    from nx_backbone.filters import boolean_filter, threshold_filter
 
     flag, threshold, mode, mtc, sign = cut
     steps = table.steps
@@ -2540,10 +2540,10 @@ def backbone_stability(
     """Score each edge by how often a static backbone keeps it across steps.
 
     Runs a backbone method (any static scorer, such as
-    :func:`~networkx_backbone.disparity_filter`) on every snapshot, applies
+    :func:`~nx_backbone.disparity_filter`) on every snapshot, applies
     the same cut in every step, and counts the steps in which each edge is
     kept: a temporal consensus backbone.  Where
-    :func:`~networkx_backbone.consensus_backbone` intersects methods, this
+    :func:`~nx_backbone.consensus_backbone` intersects methods, this
     aggregates one method over time.
 
     Parameters
@@ -2551,28 +2551,28 @@ def backbone_stability(
     T : dict, list, MultiGraph or MultiDiGraph
         A temporal network: snapshots (a dict ``{time: graph}`` or a list of
         graphs), or a multigraph of events or spans (see
-        :mod:`networkx_backbone.temporal`).
+        :mod:`nx_backbone.temporal`).
     method : str or callable
         The backbone method, as a function or by name (``"disparity_filter"``
         or an alias such as ``"disparity"``).  It is called as
         ``method(G_t, **method_kwargs)`` on each snapshot.
     key : str or None, optional (default=None)
         The edge attribute to cut on.  ``None`` looks the method up in
-        ``networkx_backbone.describe.SCORE_KEYS`` (``"disparity_pvalue"``
+        ``nx_backbone.describe.SCORE_KEYS`` (``"disparity_pvalue"``
         for the disparity filter, ``"mst_keep"`` for the maximum spanning
         tree, ...); a function outside the registry needs *key*.
     threshold : float or None, optional (default=None)
         The cut for a numeric *key*, applied with
-        :func:`~networkx_backbone.threshold_filter` in every step.  ``None``
+        :func:`~nx_backbone.threshold_filter` in every step.  ``None``
         means 0.05 for a p-value (a key ending in ``_pvalue``) and is an
         error for other scores.  Not used with a ``*_keep`` flag, which is
-        applied with :func:`~networkx_backbone.boolean_filter`.
+        applied with :func:`~nx_backbone.boolean_filter`.
     mode : {"below", "above"} or None, optional (default=None)
-        As in :func:`~networkx_backbone.threshold_filter`.  ``None`` means
+        As in :func:`~nx_backbone.threshold_filter`.  ``None`` means
         ``"below"`` for a p-value and ``"above"`` for other scores.
     mtc : str or None, optional (default=None)
         Multiple-testing correction applied within each step (see
-        :func:`~networkx_backbone.adjust_pvalues`); p-values only.
+        :func:`~nx_backbone.adjust_pvalues`); p-values only.
     sign : {1, -1} or None, optional (default=1)
         For signed scorers (``signed=True``, which add a ``sign``
         attribute): keep only the significantly strong (``1``) or weak
@@ -2594,7 +2594,7 @@ def backbone_stability(
         Edge attributes holding a span's start and end.
     aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
         How the weights of a node pair's events or spans in one bin combine
-        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+        (see :func:`~nx_backbone.multigraph_to_weighted`).
     **method_kwargs
         Passed to *method* in every step.  A ``weight`` entry also names the
         attribute that binning combines.
@@ -2645,7 +2645,7 @@ def backbone_stability(
     An exception raised by *method* propagates with a note naming the
     snapshot.  To pass *method* an argument named like one of this
     function's own (``threshold`` of
-    :func:`~networkx_backbone.global_threshold_filter`, for example), bind
+    :func:`~nx_backbone.global_threshold_filter`, for example), bind
     it with :func:`functools.partial`; the score key is still looked up.
 
     Examples
@@ -2654,7 +2654,7 @@ def backbone_stability(
     at least half of their eligible steps:
 
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> G = nx.les_miserables_graph()
     >>> S = {}
     >>> for t in range(4):
@@ -2732,7 +2732,7 @@ def weight_trend(
     T : dict, list, MultiGraph or MultiDiGraph
         A temporal network: snapshots (a dict ``{time: graph}`` or a list of
         graphs), or a multigraph of events or spans (see
-        :mod:`networkx_backbone.temporal`).
+        :mod:`nx_backbone.temporal`).
     weight : str, optional (default="weight")
         Edge attribute holding the weight; a missing weight counts as 1.
     pvalue : bool, optional (default=False)
@@ -2756,7 +2756,7 @@ def weight_trend(
         Edge attributes holding a span's start and end.
     aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
         How the weights of a node pair's events or spans in one bin combine
-        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+        (see :func:`~nx_backbone.multigraph_to_weighted`).
 
     Returns
     -------
@@ -2801,7 +2801,7 @@ def weight_trend(
     Examples
     --------
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> S = [nx.Graph() for _ in range(4)]
     >>> for t, w in enumerate([1, 2, 3, 6]):
     ...     S[t].add_edge("a", "b", weight=w)
@@ -2924,7 +2924,7 @@ def edge_persistence_hmm(
     T : dict, list, MultiGraph or MultiDiGraph
         A temporal network: snapshots (a dict ``{time: graph}`` or a list of
         graphs), or a multigraph of events or spans (see
-        :mod:`networkx_backbone.temporal`).
+        :mod:`nx_backbone.temporal`).
     observe : {"presence", "keep", "pvalue"}, optional (default="presence")
         What the model observes in each eligible step (both endpoints
         present):
@@ -2999,7 +2999,7 @@ def edge_persistence_hmm(
         Edge attributes holding a span's start and end.
     aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
         How the weights of a node pair's events or spans in one bin combine
-        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+        (see :func:`~nx_backbone.multigraph_to_weighted`).
     **method_kwargs
         Passed to *method* in every step.
 
@@ -3134,7 +3134,7 @@ def edge_persistence_hmm(
     discounted:
 
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> S = [nx.Graph() for _ in range(8)]
     >>> for t, G in enumerate(S):
     ...     G.add_nodes_from("abcd")
@@ -3161,7 +3161,7 @@ def edge_persistence_hmm(
     [('a', 'b')]
     """
     np = _require_numpy("edge_persistence_hmm")
-    from networkx_backbone import _hmm
+    from nx_backbone import _hmm
 
     if observe not in _OBSERVE:
         raise ValueError(f"observe must be one of {_OBSERVE}; got {observe!r}.")
@@ -3405,7 +3405,7 @@ def kalman_backbone(
     """Smooth each edge's per-step significance with a Kalman filter.
 
     Runs a static significance test (such as
-    :func:`~networkx_backbone.disparity_filter`) on every snapshot, turns
+    :func:`~nx_backbone.disparity_filter`) on every snapshot, turns
     each edge's p-value into a probit score ``y_t = Φ⁻¹(1 − p_t)``, which is
     N(0, 1) under that test's null, and smooths each edge's series with a
     local-level state-space model::
@@ -3427,17 +3427,17 @@ def kalman_backbone(
     T : dict, list, MultiGraph or MultiDiGraph
         A temporal network: snapshots (a dict ``{time: graph}`` or a list of
         graphs), or a multigraph of events or spans (see
-        :mod:`networkx_backbone.temporal`).
+        :mod:`nx_backbone.temporal`).
     method : str or callable
         A static weighted significance test, as a function or by name
         (``"disparity_filter"`` or an alias such as ``"disparity"``), called
         as ``method(G_t, **method_kwargs)`` on each snapshot.  Supported:
-        :func:`~networkx_backbone.disparity_filter` and
-        :func:`~networkx_backbone.glab_filter`, whose p-values are
+        :func:`~nx_backbone.disparity_filter` and
+        :func:`~nx_backbone.glab_filter`, whose p-values are
         continuous (see *sidak*); see *discrete* for the others.
     key : str or None, optional (default=None)
         The p-value attribute.  ``None`` looks the method up in
-        ``networkx_backbone.describe.SCORE_KEYS``; it must end in
+        ``nx_backbone.describe.SCORE_KEYS``; it must end in
         ``_pvalue``.
     mode : {"smoother", "filter"}, optional (default="smoother")
         ``"smoother"`` uses every step (past and future); ``"filter"`` uses
@@ -3458,20 +3458,20 @@ def kalman_backbone(
         Random seed for that simulation.
     sidak : bool, optional (default=True)
         For a method that gives an edge the smaller of its two endpoints'
-        p-values (:func:`~networkx_backbone.disparity_filter` and
-        :func:`~networkx_backbone.glab_filter`), replace each per-step
+        p-values (:func:`~nx_backbone.disparity_filter` and
+        :func:`~nx_backbone.glab_filter`), replace each per-step
         p-value ``p`` by ``1 − (1 − p)²``, the Šidák correction for the
         minimum of two independent tests (see Notes).  Ignored for other
         methods.
     discrete : {"raise", "raw"}, optional (default="raise")
         What to do for a method whose p-values are discrete
-        (:func:`~networkx_backbone.noise_corrected_filter` with its default
+        (:func:`~nx_backbone.noise_corrected_filter` with its default
         exact binomial p-values,
-        :func:`~networkx_backbone.marginal_likelihood_filter`,
-        :func:`~networkx_backbone.ecm_filter`,
-        :func:`~networkx_backbone.lans_filter`,
-        :func:`~networkx_backbone.polya_filter`,
-        :func:`~networkx_backbone.gloss_filter`).  ``"raise"`` refuses;
+        :func:`~nx_backbone.marginal_likelihood_filter`,
+        :func:`~nx_backbone.ecm_filter`,
+        :func:`~nx_backbone.lans_filter`,
+        :func:`~nx_backbone.polya_filter`,
+        :func:`~nx_backbone.gloss_filter`).  ``"raise"`` refuses;
         ``"raw"`` uses the p-values as they are, which keeps the tests valid
         but conservative (see Notes).
     freq : number, timedelta, str or None, optional (default=None)
@@ -3490,7 +3490,7 @@ def kalman_backbone(
         Edge attributes holding a span's start and end.
     aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
         How the weights of a node pair's events or spans in one bin combine
-        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+        (see :func:`~nx_backbone.multigraph_to_weighted`).
     **method_kwargs
         Passed to *method* in every step.  A ``weight`` entry also names the
         attribute that binning combines.  ``missing_as_zero`` defaults to
@@ -3505,7 +3505,7 @@ def kalman_backbone(
 
         - ``kalman_pvalue``: the edge-level p-value, a test across all
           steps of ``kalman_score`` (see Notes); cut it with
-          :func:`~networkx_backbone.threshold_filter`, with ``mtc=`` across
+          :func:`~nx_backbone.threshold_filter`, with ``mtc=`` across
           edges;
         - ``kalman_score``: the largest per-step z-score
           ``m_t / sd₀,t``;
@@ -3565,7 +3565,7 @@ def kalman_backbone(
     **Steps and absent edges.**  An edge is scored in a step when it is
     present, and also when it is absent but eligible (both endpoints
     present), as an observed zero: *method* is then called with
-    ``missing_as_zero=True`` (see :func:`~networkx_backbone.disparity_filter`),
+    ``missing_as_zero=True`` (see :func:`~nx_backbone.disparity_filter`),
     which tests the absent pairs as weight-0 edges.  This costs O(n²) per
     snapshot; pass ``missing_as_zero=False`` to treat such steps as unknown
     instead.  A method without ``missing_as_zero`` is run as is, with the
@@ -3612,8 +3612,8 @@ def kalman_backbone(
       tests stay valid but are conservative.  Mid-p and randomized
       transforms would remove that, but they need ``P(X > x)``, which the
       library's discrete tests do not report.
-    - :func:`~networkx_backbone.disparity_filter` and
-      :func:`~networkx_backbone.glab_filter` give an edge the smaller of
+    - :func:`~nx_backbone.disparity_filter` and
+      :func:`~nx_backbone.glab_filter` give an edge the smaller of
       its two endpoints' p-values, which is not uniform under the null:
       it is too small.  Smoothing adds up such a bias over steps, so the
       default ``sidak=True`` replaces ``p`` by ``1 − (1 − p)²``, which is
@@ -3625,7 +3625,7 @@ def kalman_backbone(
       p-values below 0.05 was 0.005 with ``sidak=True`` and 0.17 with
       ``sidak=False``, against 0.076 for the disparity filter on single
       snapshots.
-    - :func:`~networkx_backbone.noise_corrected_filter` tests each edge
+    - :func:`~nx_backbone.noise_corrected_filter` tests each edge
       once, with exact binomial p-values that are discrete (use
       ``discrete="raw"``).  Its ``pvalue_method="delta"`` p-values are
       continuous but far too small on low-count graphs (see its Notes),
@@ -3659,7 +3659,7 @@ def kalman_backbone(
 
     >>> import random
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> rng = random.Random(1)
     >>> G = nx.les_miserables_graph()
     >>> S = {}
@@ -3692,7 +3692,7 @@ def kalman_backbone(
         raise ImportError(
             "kalman_backbone requires SciPy; install it with `pip install scipy`."
         ) from err
-    from networkx_backbone import _kalman
+    from nx_backbone import _kalman
 
     name, func, key = _resolve_scorer(method, key, "kalman_backbone")
     if not key.endswith("_pvalue"):
@@ -3879,7 +3879,7 @@ def kalman_snapshots(H: nx.Graph) -> dict[Any, nx.Graph]:
         ``kalman_pvalues`` and ``kalman_levels`` at that step) and, where
         defined, ``kalman_innovation``.  Its nodes are those edges'
         endpoints, with their attributes from *H*.  Filter each with
-        :func:`~networkx_backbone.threshold_filter`, for example with
+        :func:`~nx_backbone.threshold_filter`, for example with
         ``mtc="bh"`` to correct the per-step tests within each step.
 
     Raises
@@ -3890,7 +3890,7 @@ def kalman_snapshots(H: nx.Graph) -> dict[Any, nx.Graph]:
     Examples
     --------
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> G = nx.les_miserables_graph()
     >>> H = nb.kalman_backbone([G, G, G], "disparity", q=0.5, seed=0)
     >>> steps = nb.kalman_snapshots(H)

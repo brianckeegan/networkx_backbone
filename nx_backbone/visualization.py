@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal, overload
 
 import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._docstrings import append_complexity_docstrings
 
 if TYPE_CHECKING:
     import os
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure, SubFigure
     from matplotlib.typing import ColorType
 
-    from networkx_backbone._typing import Seed
+    from nx_backbone._typing import Seed
 
     # ``ax.figure`` is a SubFigure when *ax* belongs to one.
     type _Fig = Figure | SubFigure
@@ -80,7 +80,7 @@ def graph_difference(original: nx.Graph, backbone: nx.Graph) -> _Diff:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import graph_difference
+    >>> from nx_backbone import graph_difference
     >>> G = nx.path_graph(4)
     >>> backbone = nx.Graph([(1, 0)])
     >>> backbone.add_node(2)
@@ -241,7 +241,7 @@ def compare_graphs(
     >>> matplotlib.use("Agg")
     >>> import matplotlib.pyplot as plt
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, compare_graphs, metric_backbone
+    >>> from nx_backbone import boolean_filter, compare_graphs, metric_backbone
     >>> G = nx.les_miserables_graph()
     >>> backbone = boolean_filter(metric_backbone(G), "metric_keep")
     >>> fig, ax = plt.subplots()
@@ -379,7 +379,7 @@ def save_graph_comparison(
     >>> import matplotlib
     >>> matplotlib.use("Agg")
     >>> import networkx as nx
-    >>> from networkx_backbone import save_graph_comparison
+    >>> from nx_backbone import save_graph_comparison
     >>> G = nx.cycle_graph(5)
     >>> backbone = nx.path_graph(5)
     >>> path = os.path.join(tempfile.mkdtemp(), "comparison.png")
