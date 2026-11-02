@@ -41,6 +41,24 @@ Unreleased
   now lists all eight statistical and six structural methods that accept
   directed graphs, and says which test both endpoints;
   :doc:`user_guide/backends` gives the date of its timings.
+- Figures on five how-to tutorials (#121): the Davis incidence matrix
+  beside its projection (:doc:`tutorials/bipartite_backbone`), hyperedges and
+  their MDL backbones beside the pairwise projection
+  (:doc:`tutorials/hypergraph_backbone`), edge activity over the time steps
+  with observation fraction and persistence
+  (:doc:`tutorials/temporal_backbones`), edges kept against alpha for each
+  multiple-testing correction and the consensus vote counts
+  (:doc:`tutorials/validating_backbones`), and an overview of one backbone
+  per API module (:doc:`tutorials/graph_gallery`), plus method-gallery
+  figures where they fit. The temporal and validating pages now link their
+  narrative tutorials.
+- A narrative tutorial, :ref:`tutorial-weight-meaning` (#125): telling counts,
+  strengths and distances apart and which methods assume which; how the
+  metric backbone, the disparity filter and LANS move under power transforms
+  of the weights; ``unit=`` for weights recorded in hours or minutes; when the
+  disparity filter's uniform null is wrong; and checking a test's calibration
+  on data with no structure, with the 0.3.0 noise-corrected and SDSM fixes as
+  examples. Six figures.
 
 Version 0.3.0 (2026-11-02)
 --------------------------

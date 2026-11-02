@@ -20,15 +20,9 @@ DOCS = Path(__file__).resolve().parents[1] / "docs"
 SECTIONS = ("tutorials", "user_guide")
 
 # Pages that have no figure yet, as "<section>/<file stem>".  #121 and #122
-# empty this set; never add to it.
-PENDING = {
-    # How-to tutorials (#121).
-    "tutorials/bipartite_backbone",
-    "tutorials/graph_gallery",
-    "tutorials/hypergraph_backbone",
-    "tutorials/temporal_backbones",
-    "tutorials/validating_backbones",
-}
+# emptied this set: every how-to and user guide page has a figure.  Never add
+# to it; give a new page a figure instead.
+PENDING: set[str] = set()
 
 _FIGURE = re.compile(
     r"^\s*\.\.\s+(?:page-figure|figure|image)::\s*\S"

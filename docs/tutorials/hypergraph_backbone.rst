@@ -54,6 +54,13 @@ compression ratio ``eta`` (also available via
 :func:`~nx_backbone.hypergraph_compression_ratio`) is near 0 for highly
 redundant hypergraphs and equals 1 when no compression is possible.
 
+On a real dataset, the Davis Southern Women read as a hypergraph (each event
+is a hyperedge on the women who attended it), the method gallery shows which
+events the MDL backbone keeps:
+
+.. page-figure:: gallery:hypergraph/mdl_hypergraph_backbone
+   :width: 75%
+
 Choosing the optimizer
 ~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -118,6 +125,8 @@ appear nowhere else::
     local.backbone
     # [frozenset({0, 1, 2, 3, 4, 5}), frozenset({0, 1, 2, 3, 6, 7, 8}),
     #  frozenset({2, 3, 4, 5, 9, 10, 11})]
+
+.. page-figure:: hypergraph_backbone/hyperedges-vs-projection
 
 The global backbone encodes the satellite ``{0, 1, 2, 3, 6, 7, 8}`` as a child
 of another hyperedge. In the neighborhoods of nodes 6, 7, and 8 it is the only
