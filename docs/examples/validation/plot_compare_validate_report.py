@@ -1273,7 +1273,7 @@ def draw_benchmark(mode):
         group.sort(key=lambda b: -b[1])
         rows.append(("header", title, None, None))
         rows += [("row", c.name, kept, bh) for c, kept, bh in group]
-    fig, ax = plt.subplots(figsize=(8.2, 0.21 * len(rows) + 1.2), layout="constrained")
+    fig, ax = plt.subplots(figsize=(6.6, 0.2 * len(rows) + 1.2), layout="constrained")
     y = np.arange(len(rows))[::-1]
     labels = []
     for yi, (kind, label, kept, bh) in zip(y, rows):
@@ -1306,7 +1306,7 @@ def draw_benchmark(mode):
         ax.scatter(
             kept, yi, s=34, color=pal.kept, edgecolors=pal.surface, lw=1, zorder=4
         )
-    ax.set_yticks(y, labels, fontsize=7.5)
+    ax.set_yticks(y, labels, fontsize=8)
     ax.tick_params(axis="y", length=0)
     ax.set_xlim(-5, L.number_of_edges() + 5)
     ax.set_ylim(-0.8, len(rows) - 0.2)
