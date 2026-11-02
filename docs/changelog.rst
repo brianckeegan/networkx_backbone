@@ -521,7 +521,7 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   ``NETWORKX_TEST_BACKEND=nx_loopback``, which checks that every dispatchable
   call gives the same result through a backend as without one (#19). The
   whole suite also passes under the harness.
-- The test suite was condensed from 1,644 to 739 collected tests (with
+- The test suite was condensed from 1,699 to 775 collected tests (with
   doctests) at unchanged line and branch coverage: sweeps over a registry
   (every method, style, scorer or dispatchable function) are one test per
   axis whose failure message names every failing case, and duplicated tests
