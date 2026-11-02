@@ -385,14 +385,26 @@ def test_kalman_backbone_q_steps_and_describe():
 def test_kalman_backbone_scorers_and_errors():
     S = _karate_snapshots(5)
     # A normal-model test gives the same one-sided scores signed or not.
-    one = nb.kalman_backbone(S, "noise_corrected_filter", q=0.3, n_sim=99, seed=0)
-    two = nb.kalman_backbone(
-        S, "noise_corrected_filter", q=0.3, n_sim=99, seed=0, signed=True
-    )
+    kw = {"q": 0.3, "n_sim": 99, "seed": 0, "pvalue_method": "delta"}
+    one = nb.kalman_backbone(S, "noise_corrected_filter", **kw)
+    two = nb.kalman_backbone(S, "noise_corrected_filter", signed=True, **kw)
     for u, v in [(0, 1), (32, 33)]:
         assert one[u][v]["kalman_pvalues"] == pytest.approx(
             two[u][v]["kalman_pvalues"], abs=1e-8
         )
+    # The default noise-corrected p-values are exact binomial tails (#105),
+    # so they are discrete.
+    for nc_kw in ({}, {"pvalue_method": "binomial"}):
+        with pytest.raises(ValueError, match="discrete p-values"):
+            nb.kalman_backbone(S, "noise_corrected_filter", q=0.3, **nc_kw)
+    with pytest.raises(ValueError, match="are discrete"):
+        nb.kalman_backbone(
+            S, "noise_corrected_filter", q=0.3, discrete="raw", signed=True
+        )
+    H = nb.kalman_backbone(
+        S, "noise_corrected_filter", q=0.3, discrete="raw", n_sim=99, seed=0
+    )
+    assert 0 <= H.edges[0, 1]["kalman_pvalue"] <= 1
     # glab_filter cannot score absent edges: they become unknown, with a warning.
     with pytest.warns(UserWarning, match="treated as unknown"):
         H = nb.kalman_backbone(S, "glab_filter", q=0.3, n_sim=99, seed=0)

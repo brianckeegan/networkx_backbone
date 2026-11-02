@@ -220,3 +220,47 @@ def test_sdsm_rna_sparse_null_is_anti_conservative():
     # pair's expected co-occurrence is small (here about 0.025).
     p = _sdsm_null_pvalues("rna")
     assert np.mean(p <= 1e-4) > 3e-4
+
+
+# ---------------------------------------------------------------------------
+# Noise-corrected filter: exact binomial versus the delta rule (#105)
+# ---------------------------------------------------------------------------
+
+
+def _interaction_null(seed, n=40, interactions=800):
+    """Directed graph from the noise-corrected null model.
+
+    Each unit interaction draws its source and target independently, with
+    probabilities proportional to lognormal node propensities (no self-loops).
+    """
+    rng = np.random.default_rng(seed)
+    pi = rng.lognormal(0.0, 1.0, n)
+    pi /= pi.sum()
+    draws = rng.choice(n, size=(2 * interactions, 2), p=pi)
+    draws = draws[draws[:, 0] != draws[:, 1]][:interactions]
+    G = nx.DiGraph()
+    for u, v in draws.tolist():
+        w = G[u][v]["weight"] + 1 if G.has_edge(u, v) else 1
+        G.add_edge(u, v, weight=w)
+    return G
+
+
+@pytest.mark.parametrize(
+    ("pvalue_method", "low", "high"), [("binomial", 0.02, 0.07), ("delta", 0.2, 0.6)]
+)
+def test_noise_corrected_calibration_under_its_null(pvalue_method, low, high):
+    # The default exact p-values hold their level on the model's own null;
+    # the p-value reading of the paper's delta rule rejects several times
+    # too often (the edges are dependent, so only loose bounds are checked).
+    p = np.concatenate(
+        [
+            [
+                d["nc_pvalue"]
+                for *_, d in nb.noise_corrected_filter(
+                    _interaction_null(seed), pvalue_method=pvalue_method
+                ).edges(data=True)
+            ]
+            for seed in range(4)
+        ]
+    )
+    assert low < np.mean(p < 0.05) < high

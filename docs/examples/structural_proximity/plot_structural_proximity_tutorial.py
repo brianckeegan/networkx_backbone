@@ -33,6 +33,8 @@ built.  For the function-by-function reference, see the short tutorials
 and :doc:`/tutorials/unweighted_sparsification`.
 """
 
+# sphinx_gallery_thumbnail_path = "_static/example_figures/structural_proximity/guarantees-light.png"
+
 # %%
 # Setup
 # -----
@@ -40,13 +42,17 @@ and :doc:`/tutorials/unweighted_sparsification`.
 # The figures use the documentation's shared style, which draws each figure
 # in a light and a dark version; your theme shows the matching one.  The two
 # small helper classes below only turn a drawing function, or a list of rows,
-# into HTML for this page.  They are not part of the library.
+# into HTML for this page; ``Figure`` saves the two versions as image files.
+# They are not part of the library.
 
 import base64
 import heapq
 import html
 import math
 import random
+import re
+import shutil
+import struct
 import tempfile
 import warnings
 from pathlib import Path
@@ -60,24 +66,73 @@ from matplotlib.lines import Line2D
 import networkx_backbone as nb
 from networkx_backbone.describe import METHODS, REFERENCES
 
+# sphinx_gallery_start_ignore
+# Sphinx-Gallery runs this file from docs/examples/structural_proximity/ when
+# it builds the docs.  The figure files then go to the gitignored
+# docs/_static/example_figures/structural_proximity/, which Sphinx copies with
+# the rest of _static, and the page links to them, so they are not embedded
+# in the HTML.  Run anywhere else (as a script, or as the downloaded
+# notebook), the files go to a temporary folder and are embedded in the output.
+_here = Path.cwd()
+if _here.parent.name == "examples" and (_here.parents[1] / "conf.py").is_file():
+    FIGURES = _here.parents[1] / "_static" / "example_figures" / _here.name
+    shutil.rmtree(FIGURES, ignore_errors=True)  # no stale files from earlier builds
+    _FIGURE_URL = f"../../_static/example_figures/{_here.name}/"
+else:
+    FIGURES = Path(tempfile.mkdtemp())
+    _FIGURE_URL = None
+PNG_DPI = 144  # network drawings are PNG; this keeps them sharp at full width
+
+
+def _img(path, mode, alt):
+    """An <img> for one variant: a link to the file, or the file inlined."""
+    data = path.read_bytes()
+    if path.suffix == ".png":  # the size is in the IHDR chunk
+        width, height = struct.unpack(">II", data[16:24])
+        mime = "image/png"
+    else:  # matplotlib writes the SVG size in points
+        size = re.search(
+            r'width="([\d.]+)pt" height="([\d.]+)pt"', data[:1000].decode()
+        )
+        width, height = (round(float(v) * 4 / 3) for v in size.groups())
+        mime = "image/svg+xml"
+    if _FIGURE_URL is None:
+        src = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
+    else:
+        src = _FIGURE_URL + path.name
+    # Lazy loading: the browser fetches only the variant the theme shows, and
+    # the width and height reserve the space before it arrives.
+    return (
+        f'<img class="only-{mode}" alt="{html.escape(alt)}" src="{src}" '
+        f'width="{width}" height="{height}" loading="lazy" '
+        'style="width: 100%; height: auto;">'
+    )
+
+
+# sphinx_gallery_end_ignore
+
 
 class Figure:
-    """Light and dark renderings of one figure, with alt text and a caption."""
+    """Light and dark renderings of one figure, with alt text and a caption.
 
-    def __init__(self, draw, alt, caption):
-        self.draw, self.alt, self.caption = draw, alt, caption
+    Network drawings with hundreds of edges are saved as PNG (``fmt="png"``),
+    which is much lighter than SVG for them; charts stay SVG.
+    """
+
+    def __init__(self, draw, name, alt, caption, fmt="svg"):
+        dpi = {"dpi": PNG_DPI} if fmt == "png" else {}
+        self.paths = style.save_variants(draw, FIGURES / name, fmt=fmt, **dpi)
+        self.alt, self.caption = alt, caption
 
     def _repr_html_(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            paths = style.save_variants(self.draw, Path(tmp) / "figure")
-            images = [
-                f'<img class="only-{mode}" alt="{html.escape(self.alt)}" '
-                'style="width: 100%; height: auto;" src="data:image/svg+xml;base64,'
-                f'{base64.b64encode(path.read_bytes()).decode("ascii")}">'
-                for mode, path in paths.items()
-            ]
+        images = "".join(
+            _img(path, mode, self.alt) for mode, path in self.paths.items()
+        )
+        # The caption follows a wrapper <div>, not the images themselves: the
+        # theme hides a <figcaption> that directly follows an ``only-dark``
+        # image in light mode.
         return (
-            f"<figure>{''.join(images)}"
+            f"<figure><div>{images}</div>"
             f"<figcaption>{html.escape(self.caption)}</figcaption></figure>"
         )
 
@@ -223,6 +278,8 @@ def draw_guarantees(mode):
 mst_counts = style.backbone_counts(G, guarantee_backbones["Maximum spanning tree"])
 Figure(
     draw_guarantees,
+    "guarantees",
+    fmt="png",
     alt=(
         "Nine network drawings of Les Misérables on the same layout: the "
         "original graph and eight backbones. Kept edges are drawn thick and "
@@ -438,6 +495,7 @@ def draw_toy(mode):
 
 Figure(
     draw_toy,
+    "toy",
     alt=(
         "The same five-node network drawn twice, with the edge labels 5, 5, 1, "
         "2, 2 and 6. Left: the metric backbone when the labels are strengths. "
@@ -528,6 +586,7 @@ def draw_salience(mode):
 
 Figure(
     draw_salience,
+    "salience",
     alt=(
         "Histogram of edge salience in Les Misérables, in bins of 0.05 from 0 "
         "to 1. Almost all edges fall in the lowest or the highest bins, with "
@@ -676,6 +735,7 @@ def draw_order(mode):
 n_dependent = sum(max(r[2]) > 0 for r in order_rows)
 Figure(
     draw_order,
+    "order",
     alt=(
         "Horizontal bar chart, one bar per method, of how many backbone edges "
         "change when Les Misérables is rebuilt in a shuffled order. Methods "
@@ -846,6 +906,7 @@ def draw_proximity_scatter(mode):
 
 Figure(
     draw_proximity_scatter,
+    "proximity_scatter",
     alt=(
         "Three scatter plots, one per score (Jaccard, Adamic–Adar, resource "
         "allocation), with one point per edge of the unweighted Les Misérables "
@@ -911,6 +972,8 @@ hub_edges = {
 }
 Figure(
     draw_proximity_backbones,
+    "proximity_backbones",
+    fmt="png",
     alt=(
         "Three network drawings of the unweighted Les Misérables graph on the "
         f"shared layout, with the hub {hub} labeled: the top {cut:.0%} of edges "
@@ -1020,6 +1083,8 @@ def draw_sparsifiers(mode):
 
 Figure(
     draw_sparsifiers,
+    "sparsifiers",
+    fmt="png",
     alt=(
         "Four network drawings of the unweighted Les Misérables graph on the "
         f"shared layout: lspar, lspar with R's convention, local degree, and "
@@ -1146,6 +1211,7 @@ def draw_convergence(mode):
 
 Figure(
     draw_convergence,
+    "convergence",
     alt=(
         "Line chart on a logarithmic vertical axis: the largest deviation of a "
         "row or column sum from one, against the Sinkhorn–Knopp iteration, for "

@@ -162,7 +162,9 @@ print(f"netbone {NETBONE['meta']['netbone']}")
 #      - Equal to about 1e-5, the solvers' tolerance
 #    * - ``noise_corrected``
 #      - :func:`~networkx_backbone.noise_corrected_filter`
-#      - Different total weight; netbone's backbone is a subset of ours
+#      - Same score formulas with a different total weight.  Both default
+#        to binomial p-values, but netbone's count fewer trials and give
+#        :math:`P(X > w)`, so the backbones differ (see the Notes)
 #    * - ``glanb``
 #      - :func:`~networkx_backbone.glab_filter`
 #      - Equal where no shortest paths tie

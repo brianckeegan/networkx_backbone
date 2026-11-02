@@ -3257,17 +3257,17 @@ def edge_persistence_hmm(
 
 #: Static scorers whose p-values are continuous under their null model, so
 #: their probit scores are N(0, 1) per endpoint test (see kalman_backbone).
-_CONTINUOUS_PVALUES = frozenset(
-    {"disparity_filter", "noise_corrected_filter", "glab_filter"}
-)
-#: Static scorers whose p-values are discrete (counts, empirical or posterior
-#: distributions over weights).  Their mid-p or randomized transforms need
-#: P(X > x), which none of them reports.
+_CONTINUOUS_PVALUES = frozenset({"disparity_filter", "glab_filter"})
 #: Static scorers that give an edge the smaller of its two endpoints'
 #: p-values (the "OR rule"), which is not uniform under the null.
 _MIN_OF_ENDPOINTS = frozenset({"disparity_filter", "glab_filter"})
+#: Static scorers whose p-values are discrete (counts, empirical or posterior
+#: distributions over weights).  Their mid-p or randomized transforms need
+#: P(X > x), which none of them reports.  noise_corrected_filter is discrete
+#: with its default exact binomial p-values (see _discrete_pvalues).
 _DISCRETE_PVALUES = frozenset(
     {
+        "noise_corrected_filter",
         "marginal_likelihood_filter",
         "ecm_filter",
         "lans_filter",
@@ -3275,6 +3275,18 @@ _DISCRETE_PVALUES = frozenset(
         "gloss_filter",
     }
 )
+
+
+def _discrete_pvalues(name, kwargs):
+    """Whether *name*, called with *kwargs*, gives discrete p-values.
+
+    noise_corrected_filter's default p-values are exact binomial tails; its
+    ``pvalue_method="delta"`` p-values are continuous, though not calibrated
+    (see its Notes).
+    """
+    if name == "noise_corrected_filter":
+        return kwargs.get("pvalue_method", "binomial") == "binomial"
+    return name in _DISCRETE_PVALUES
 
 
 def _accepts(func, name):
@@ -3364,11 +3376,9 @@ def kalman_backbone(
         A static weighted significance test, as a function or by name
         (``"disparity_filter"`` or an alias such as ``"disparity"``), called
         as ``method(G_t, **method_kwargs)`` on each snapshot.  Supported:
-        :func:`~networkx_backbone.noise_corrected_filter`,
         :func:`~networkx_backbone.disparity_filter` and
         :func:`~networkx_backbone.glab_filter`, whose p-values are
-        continuous (for the last two see *sidak*); see *discrete* for the
-        others.
+        continuous (see *sidak*); see *discrete* for the others.
     key : str or None, optional (default=None)
         The p-value attribute.  ``None`` looks the method up in
         ``networkx_backbone.describe.SCORE_KEYS``; it must end in
@@ -3399,7 +3409,9 @@ def kalman_backbone(
         methods.
     discrete : {"raise", "raw"}, optional (default="raise")
         What to do for a method whose p-values are discrete
-        (:func:`~networkx_backbone.marginal_likelihood_filter`,
+        (:func:`~networkx_backbone.noise_corrected_filter` with its default
+        exact binomial p-values,
+        :func:`~networkx_backbone.marginal_likelihood_filter`,
         :func:`~networkx_backbone.ecm_filter`,
         :func:`~networkx_backbone.lans_filter`,
         :func:`~networkx_backbone.polya_filter`,
@@ -3537,7 +3549,7 @@ def kalman_backbone(
     ``(1 − K)^half_life = 1/2`` and ``q = K² / (1 − K)``.
 
     **Validity of the per-step p-values.**  The calibration above holds when
-    each step's p-value is uniform under the null.  Three cases differ:
+    each step's p-value is uniform under the null.  Four cases differ:
 
     - Discrete p-values are stochastically larger than uniform.  The
       smoothing weights are nonnegative, so with ``discrete="raw"`` the
@@ -3556,8 +3568,12 @@ def kalman_backbone(
       the disparity filter's null; ``half_life=3``), the share of per-step
       p-values below 0.05 was 0.005 with ``sidak=True`` and 0.17 with
       ``sidak=False``, against 0.076 for the disparity filter on single
-      snapshots.  :func:`~networkx_backbone.noise_corrected_filter` tests
-      each edge once and needs no correction.
+      snapshots.
+    - :func:`~networkx_backbone.noise_corrected_filter` tests each edge
+      once, with exact binomial p-values that are discrete (use
+      ``discrete="raw"``).  Its ``pvalue_method="delta"`` p-values are
+      continuous but far too small on low-count graphs (see its Notes),
+      and smoothing adds up such a bias over steps.
     - Observed zeros only lower the scores, which is conservative.
 
     **Risks.**  The p-values are exact for the edge-global null (no signal
@@ -3629,7 +3645,8 @@ def kalman_backbone(
         )
     if discrete not in ("raise", "raw"):
         raise ValueError(f"discrete must be 'raise' or 'raw'; got {discrete!r}.")
-    if name in _DISCRETE_PVALUES and discrete == "raise":
+    discrete_pvalues = _discrete_pvalues(name, method_kwargs)
+    if discrete_pvalues and discrete == "raise":
         raise ValueError(
             f"{name} gives discrete p-values, whose probit scores are not "
             "N(0, 1) under the null, and it does not report P(X > x) for a "
@@ -3694,7 +3711,7 @@ def kalman_backbone(
     has_sign = ~np.isnan(signs)
     endpoint_min = name in _MIN_OF_ENDPOINTS
     if has_sign.any():
-        if name in _DISCRETE_PVALUES or endpoint_min:
+        if discrete_pvalues or endpoint_min:
             why = "combine two endpoints" if endpoint_min else "are discrete"
             raise ValueError(
                 f"signed (two-sided) p-values of {name} {why} and cannot be "

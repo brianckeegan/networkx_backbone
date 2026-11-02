@@ -54,8 +54,9 @@ cut for each method. The differences that change results:
   unordered pairs, uses weighted betweenness with weights read as distances,
   and rounds to three decimals.
 - **Noise-corrected (NC):** [S] uses the binomial "approximation" p-value.
-  `noise_corrected_filter` defaults to the Bayesian score. The closest match
-  here is `method="zscore"`, a normal approximation to the same binomial.
+  `noise_corrected_filter` defaults to an exact binomial p-value too (since
+  #105), with n.. = 2W trials on the symmetric weight matrix and the usual
+  tail P(X >= w).
 
 Details are in Section 4. The assessments of PF and GloSS made before they
 were implemented are in Section 5.
@@ -136,6 +137,11 @@ implementation. Undirected graphs are assumed throughout, as in both papers.
   only as `score`/`nc_sdev` with no p-value. No option here reproduces
   `netbone`'s exact-binomial NC p-value. This is a small gap. The `netbone`
   reference fixtures planned in #14 would show how much it matters.
+  *Update (#105):* the default `nc_pvalue` is now the exact binomial tail
+  P(X >= w) with n.. = 2W trials on the symmetric weight matrix; the
+  Bayesian score's normal p-value is `pvalue_method="delta"`. On Les
+  Misérables, netbone's p-value keeps 124 edges at 0.05 and ours 126, with
+  24 and 26 edges kept by only one of the two.
 - **ECM**: Same model (Gemmetto et al. 2017). `netbone` fits it with SciPy
   optimizers using derivatives computed by JAX. This package uses L-BFGS-B
   with an analytic gradient. P-values therefore agree only up to solver

@@ -7,6 +7,7 @@ graphs, input order) is covered by ``test_api_contract.py``.
 """
 
 import math
+import random
 import warnings
 
 import networkx as nx
@@ -15,7 +16,7 @@ import pytest
 import networkx_backbone as nb
 
 pytest.importorskip("scipy")
-from scipy import stats
+from scipy import special, stats
 
 
 @pytest.fixture
@@ -186,6 +187,11 @@ class TestNoiseCorrected:
         for *_, data in H.edges(data=True):
             assert data["nc_score"] == pytest.approx(1 / 9)
             assert data["nc_sdev"] == pytest.approx(sdev)
+            # Default: exact tail P(X >= 1) of X ~ B(n.., mean).
+            assert data["nc_pvalue"] == pytest.approx(1 - (1 - mean) ** n)
+        D = nb.noise_corrected_filter(G, pvalue_method="delta")
+        for *_, data in D.edges(data=True):
+            assert data["nc_sdev"] == pytest.approx(sdev)
             assert data["nc_pvalue"] == pytest.approx(stats.norm.sf(z))
 
         legacy = nb.noise_corrected_filter(G, method="zscore")
@@ -193,7 +199,7 @@ class TestNoiseCorrected:
 
     def test_pvalue_matches_delta_rule(self, les_miserables_weighted):
         # score > delta * sdev  <=>  nc_pvalue < 1 - Phi(delta)
-        H = nb.noise_corrected_filter(les_miserables_weighted)
+        H = nb.noise_corrected_filter(les_miserables_weighted, pvalue_method="delta")
         cut = stats.norm.sf(1.64)
         for *_, d in H.edges(data=True):
             assert (d["nc_score"] > 1.64 * d["nc_sdev"]) == (d["nc_pvalue"] < cut)
@@ -201,7 +207,7 @@ class TestNoiseCorrected:
     def test_signed_is_two_sided(self):
         G = nx.Graph()
         G.add_weighted_edges_from(NC_UNDIRECTED_EDGES)
-        H = nb.noise_corrected_filter(G, signed=True)
+        H = nb.noise_corrected_filter(G, signed=True, pvalue_method="delta")
         for (u, v), (score, sdev) in NC_REFERENCE["undirected"].items():
             z = score / sdev
             expected = min(1.0, 2 * stats.norm.sf(abs(z)))
@@ -234,6 +240,82 @@ class TestNoiseCorrected:
     def test_invalid_method_raises(self, count_graph):
         with pytest.raises(ValueError, match="method"):
             nb.noise_corrected_filter(count_graph, method="bogus")
+        with pytest.raises(ValueError, match="pvalue_method"):
+            nb.noise_corrected_filter(count_graph, pvalue_method="exact")
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_pvalue_is_exact_binomial_tail(self, directed):
+        # #105: nc_pvalue is P(X >= n_ij) for X ~ B(n.., n_i. n_.j / n..^2),
+        # with undirected edges counted in both directions.
+        G = nx.gnm_random_graph(30, 60, seed=2, directed=directed)
+        rng = random.Random(0)
+        for *_, d in G.edges(data=True):
+            d["weight"] = rng.randint(1, 4)
+        if directed:
+            s_out = dict(G.out_degree(weight="weight"))
+            s_in = dict(G.in_degree(weight="weight"))
+            n = G.size(weight="weight")
+        else:
+            s_out = s_in = dict(G.degree(weight="weight"))
+            n = 2 * G.size(weight="weight")
+        H = nb.noise_corrected_filter(G, signed=False)
+        S = nb.noise_corrected_filter(G, signed=True)
+        for u, v, d in H.edges(data=True):
+            p, k = s_out[u] * s_in[v] / n**2, d["weight"]
+            upper, lower = stats.binom.sf(k - 1, n, p), stats.binom.cdf(k, n, p)
+            assert d["nc_pvalue"] == pytest.approx(upper, rel=1e-9)
+            assert S[u][v]["nc_pvalue"] == pytest.approx(
+                min(1.0, 2 * min(upper, lower)), rel=1e-9
+            )
+            assert S[u][v]["sign"] == (1 if upper < lower else -1)
+        if directed:
+            # Same null as the marginal likelihood filter on a directed graph.
+            M = nb.marginal_likelihood_filter(G)
+            for u, v, d in H.edges(data=True):
+                assert d["nc_pvalue"] == pytest.approx(M[u][v]["ml_pvalue"], rel=1e-9)
+
+    def test_unit_weight_noise_is_not_significant(self):
+        # The reproducer of #105: every weight 1, no structure.  The delta
+        # rule kept all 40 edges with a median p-value near 1e-65.
+        G = nx.gnm_random_graph(30, 40, seed=1)
+        nx.set_edge_attributes(G, 1, "weight")
+        p = sorted(
+            d["nc_pvalue"] for *_, d in nb.noise_corrected_filter(G).edges(data=True)
+        )
+        assert sum(x < 0.05 for x in p) == 4
+        assert p[len(p) // 2] == pytest.approx(0.1176, abs=1e-4)
+        D = nb.noise_corrected_filter(G, pvalue_method="delta")
+        assert all(d["nc_pvalue"] < 0.05 for *_, d in D.edges(data=True))
+
+    def test_non_integer_counts_interpolate(self):
+        # Real counts use the incomplete beta function: between the integer
+        # tails and equal to them at integers.
+        def pvalue(w):
+            G = nx.DiGraph([(0, 1, {"weight": w}), (1, 2, {"weight": 3})])
+            G.add_edge(2, 0, weight=2)
+            G.add_edge(0, 2, weight=1)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)
+                return nb.noise_corrected_filter(G)[0][1]["nc_pvalue"]
+
+        p1, p15, p2 = pvalue(1), pvalue(1.5), pvalue(2)
+        assert p1 > p15 > p2
+        n, n_i, n_j = 7.5, 2.5, 1.5
+        assert p15 == pytest.approx(
+            special.betainc(1.5, n - 0.5, n_i * n_j / n**2), rel=1e-12
+        )
+
+    def test_pure_python_betainc_matches_scipy(self):
+        from networkx_backbone.statistical import _betainc
+
+        rng = random.Random(0)
+        for _ in range(500):
+            a, b = 10 ** rng.uniform(-1, 5), 10 ** rng.uniform(-1, 5)
+            x = rng.random() ** rng.choice([1, 3, 10])
+            ref = float(special.betainc(a, b, x))
+            if ref > 1e-250:
+                assert _betainc(a, b, x) == pytest.approx(ref, rel=1e-7, abs=1e-14)
+        assert (_betainc(2.0, 3.0, 0.0), _betainc(2.0, 3.0, 1.0)) == (0.0, 1.0)
 
 
 # ---------------------------------------------------------------------------
@@ -935,7 +1017,9 @@ class TestMissingAsZero:
         b = E * (1 - E**2) / V - (1 - E)
         p_post = a / (a + b + n)
         sdev = 2 * (n / (ni * nj)) * math.sqrt(n * p_post * (1 - p_post))
-        H = nb.noise_corrected_filter(two_pairs, signed=True, missing_as_zero=True)
+        H = nb.noise_corrected_filter(
+            two_pairs, signed=True, missing_as_zero=True, pvalue_method="delta"
+        )
         d = H["b"]["d"]
         assert d["weight"] == 0
         assert d["nc_score"] == -1.0
@@ -943,6 +1027,11 @@ class TestMissingAsZero:
         assert d["nc_sdev"] == pytest.approx(0.6746729794)
         assert d["nc_pvalue"] == pytest.approx(math.erfc(1 / (sdev * math.sqrt(2))))
         assert d["sign"] == -1
+        # Binomial default: upper tail 1, lower tail P(X = 0) = (1 - E)^n.
+        B = nb.noise_corrected_filter(two_pairs, signed=True, missing_as_zero=True)
+        assert B["b"]["d"]["nc_sdev"] == pytest.approx(sdev)
+        assert B["b"]["d"]["nc_pvalue"] == pytest.approx(min(1, 2 * (1 - E) ** n))
+        assert B["b"]["d"]["sign"] == -1
         # The isolate has a zero margin: undefined lift, not added.
         assert not any(H.has_edge(x, "e") for x in "abcd")
         assert len(_zero_edges(H, "nc_pvalue")) == 3
@@ -1280,7 +1369,7 @@ class TestCountUnit:
 
     def test_results_depend_on_unit(self, les_miserables_weighted):
         # The Les Misérables counts quoted in the docstrings: unit=0.1 counts
-        # every weight as ten events (126, 72 and 195 edges at unit=1, pinned
+        # every weight as ten events (126, 72 and 126 edges at unit=1, pinned
         # in test_les_miserables.py).
         got = {}
         for scorer, attr in [
@@ -1290,7 +1379,7 @@ class TestCountUnit:
         ]:
             H = scorer(les_miserables_weighted, unit=0.1)
             got[attr] = nb.threshold_filter(H, attr, 0.05).number_of_edges()
-        assert got == {"ml_pvalue": 215, "ecm_pvalue": 89, "nc_pvalue": 222}
+        assert got == {"ml_pvalue": 215, "ecm_pvalue": 89, "nc_pvalue": 215}
 
     def test_nc_score_does_not_depend_on_unit(self, les_miserables_weighted):
         G = les_miserables_weighted

@@ -609,6 +609,7 @@ def noise_corrected_filter(
     signed: bool = False,
     missing_as_zero: bool = False,
     unit: float = 1,
+    pvalue_method: str = "binomial",
 ) -> nx.Graph:
     r"""Compute noise-corrected (NC) edge scores (Coscia & Neffke, 2017).
 
@@ -635,13 +636,28 @@ def noise_corrected_filter(
 
         \text{nc\_score}_{ij} > \delta \cdot \text{nc\_sdev}_{ij},
 
-    with :math:`\delta = 1.64` the usual choice (a one-tailed test at about
-    the 5% level).  ``nc_pvalue`` is the matching normal-approximation p-value,
-    :math:`P(Z \geq \text{nc\_score} / \text{nc\_sdev})`, so the rule
-    ``score > delta * sdev`` is the same as ``nc_pvalue < 1 - Phi(delta)``
-    (0.0505 for ``delta=1.64``) and the scores compose with
-    :func:`~networkx_backbone.threshold_filter` and its multiple-testing
-    corrections.
+    with :math:`\delta = 1.64` the usual choice, described in the paper as
+    roughly a one-tailed test at the 5% level.  It is not one: on low-count
+    graphs it keeps most edges even when the weights are pure noise (see
+    Notes).
+
+    ``nc_pvalue`` is therefore, by default, the exact p-value of the null
+    model the score is built on: each of the :math:`n_{..}` unit
+    interactions falls in cell :math:`(i, j)` with probability
+    :math:`n_{i.} n_{.j} / n_{..}^2`, so
+
+    .. math::
+
+        \text{nc\_pvalue}_{ij} = P(X \geq n_{ij}), \qquad
+        X \sim \text{Binomial}\left(n_{..}, \frac{n_{i.} n_{.j}}{n_{..}^2}\right),
+
+    the p-value that the paper's footnote 2 gives as an alternative to the
+    :math:`\delta` rule.  ``pvalue_method="delta"`` instead gives the
+    normal-approximation p-value of the :math:`\delta` rule,
+    :math:`P(Z \geq \text{nc\_score} / \text{nc\_sdev})`, so that
+    ``score > delta * sdev`` is the same as ``nc_pvalue < 1 - Phi(delta)``.
+    Either composes with :func:`~networkx_backbone.threshold_filter` and its
+    multiple-testing corrections.
 
     Parameters
     ----------
@@ -655,12 +671,13 @@ def noise_corrected_filter(
         ``"zscore"`` is the binomial z-score computed by networkx-backbone
         0.2 and earlier, kept for backward compatibility (see Notes).
     signed : bool, optional (default=False)
-        If ``True``, run a two-tailed test on ``nc_score / nc_sdev``:
-        ``nc_pvalue`` becomes two-sided and a ``"sign"`` edge attribute marks
-        significantly strong (``+1``) versus significantly weak (``-1``) edges.
-        The sign is ``+1`` when ``nc_score / nc_sdev`` is positive and ``-1``
-        otherwise: a statistic of exactly 0, or an untestable edge, has
-        equal tails, and ties are signed ``-1`` as in R backbone.
+        If ``True``, run a two-tailed test: ``nc_pvalue`` becomes two-sided
+        and a ``"sign"`` edge attribute marks significantly strong (``+1``)
+        versus significantly weak (``-1``) edges.  With the binomial
+        p-values the sign is ``+1`` when the upper tail is the smaller one;
+        with ``pvalue_method="delta"`` (or ``method="zscore"``) it is ``+1``
+        when the standardized score is positive.  Otherwise it is ``-1``:
+        ties, including untestable edges, are signed ``-1`` as in R backbone.
     missing_as_zero : bool, optional (default=False)
         If ``True``, also score every pair of distinct nodes that has no
         edge, as an observed edge of weight 0, and add the scored pairs to
@@ -672,6 +689,14 @@ def noise_corrected_filter(
         Weight of one count: the model is applied to the counts
         ``weight / unit``.  The p-values depend on it (see Notes); the
         default uses the weights themselves as counts.
+    pvalue_method : {"binomial", "delta"}, optional (default="binomial")
+        How ``nc_pvalue`` is computed with ``method="bayesian"``.
+        ``"binomial"`` is the exact upper tail of the binomial null model
+        (calibrated; see Notes).  ``"delta"`` is the normal tail of
+        ``nc_score / nc_sdev``, the p-value reading of the paper's
+        :math:`\delta` rule, kept to reproduce the paper; it is far too
+        small on low-count graphs.  ``nc_score`` and ``nc_sdev``
+        do not depend on it.  Ignored with ``method="zscore"``.
 
     Returns
     -------
@@ -688,8 +713,9 @@ def noise_corrected_filter(
     NetworkXNotImplemented
         If *G* is a multigraph.
     ValueError
-        If *method* is not ``"bayesian"`` or ``"zscore"``, or *unit* is not
-        a finite number greater than 0.
+        If *method* is not ``"bayesian"`` or ``"zscore"``, *pvalue_method*
+        is not ``"binomial"`` or ``"delta"``, or *unit* is not a finite
+        number greater than 0.
 
     Warns
     -----
@@ -742,7 +768,42 @@ def noise_corrected_filter(
 
     ``nc_sdev`` is the square root of this variance.  When the prior is
     degenerate (total weight of at most 1, or one node carrying all of it)
-    the score cannot be tested: ``nc_sdev`` is ``inf`` and ``nc_pvalue`` 1.
+    ``nc_sdev`` is ``inf``, and with ``pvalue_method="delta"`` the edge
+    cannot be tested: its ``nc_pvalue`` is 1.
+
+    **Calibration.**  The :math:`\delta` rule divides the score by a
+    standard deviation evaluated at the *observed* weight, through a
+    transform that flattens as the lift grows: the slope of ``nc_score``
+    falls like :math:`(\kappa_{ij} n_{ij} + 1)^{-2}`, so ``nc_sdev``
+    shrinks faster than ``nc_score`` and their ratio has no bound.  On
+    ``gnm_random_graph(30, 40, seed=1)`` with every weight 1, the median
+    edge joins nodes of strength 5 and 2: the null model expects a weight
+    of 0.125, and seeing 1 has probability 0.12, yet ``nc_score / nc_sdev``
+    is 17 and the ``"delta"`` p-value :math:`10^{-65}`; all 40 edges pass
+    the :math:`\delta` rule, against 4 at ``nc_pvalue < 0.05`` with the
+    default.  The default ``"binomial"`` p-value is the exact upper tail
+    of the null model, so it is valid (discrete, hence conservative) for
+    every pair.  In simulations from that null (unit interactions whose
+    endpoints are drawn with probabilities proportional to lognormal node
+    propensities; 20 seeds each), the share of edges with
+    ``nc_pvalue < 0.05`` was:
+
+    ===============================================  =========  ==========
+    null graphs                                      "delta"    "binomial"
+    ===============================================  =========  ==========
+    2,000 interactions among 50 nodes, undirected    0.243      0.047
+    2,000 interactions among 50 nodes, directed      0.342      0.051
+    complete graph on 30 nodes, Poisson(3) weights   0.128      0.033
+    100 interactions among 50 nodes, undirected      0.790      0.154
+    same, all pairs (``missing_as_zero=True``)       0.081      0.016
+    ===============================================  =========  ==========
+
+    The last two rows show the limit of testing only the edges that are
+    present: in a very sparse graph an edge exists only where the null
+    drew at least one interaction, and for two weak nodes even one is
+    unlikely.  Over all pairs the binomial test holds its level.  The
+    binomial p-values do not use ``nc_sdev``; they are the test the paper
+    names as the alternative to the :math:`\delta` rule (its footnote 2).
 
     **Directed and undirected graphs.**  For a directed graph,
     :math:`n_{i.}` is the out-strength of *i*, :math:`n_{.j}` the in-strength
@@ -757,8 +818,11 @@ def noise_corrected_filter(
     a number of binomial trials.  With ``unit=u`` every :math:`n_{ij}` is
     ``weight / u``, so the same network recorded in other units (for example
     minutes instead of hours) gives different p-values; on Les Misérables,
-    ``unit=0.1`` (each weight counted as ten interactions) keeps 222 edges
-    at ``nc_pvalue < 0.05`` instead of 195.  Choose the weight of one
+    ``unit=0.1`` (each weight counted as ten interactions) keeps 215 edges
+    at ``nc_pvalue < 0.05`` instead of 126.  Non-integer counts are not
+    rounded: the binomial tails are evaluated through the regularized
+    incomplete beta function, which equals them at integers and
+    interpolates between them.  Choose the weight of one
     observed event.  The Bayesian ``nc_score`` does not depend on the unit;
     ``nc_sdev`` does.
 
@@ -775,12 +839,29 @@ def noise_corrected_filter(
     i.e. :math:`n_{..} = W`.  Its values equal ``nc_score`` and ``nc_sdev``
     computed with :math:`n_{..} = W` instead of :math:`2W`.
 
+    **Comparison with the reference binomial p-values.**  The authors'
+    code (``noise_corrected(..., calculate_p_value=True)``) and netbone's
+    default (``approximation=True``) both use the binomial null, but
+    report the CDF at :math:`n_{ij}`, whose complement is
+    :math:`P(X > n_{ij})`, not :math:`P(X \geq n_{ij})`: a test at level
+    0.05 on it rejects too often.  ``nc_pvalue`` is the usual upper tail,
+    :math:`P(X \geq n_{ij})`.  netbone also draws :math:`W` times with the
+    doubled strengths above, which doubles every expected weight.  For a
+    directed graph the default ``nc_pvalue`` equals the p-value of
+    :func:`~networkx_backbone.marginal_likelihood_filter` on integer
+    weights.  For an undirected graph the two differ only in counting a
+    pair as two cells of :math:`n_{..} = 2W` trials or one of :math:`W`;
+    on Les Misérables and the karate club they keep the same edges at 0.05.
+
     **Absent pairs** (``missing_as_zero=True``).  The margins
     :math:`n_{i.}`, :math:`n_{.j}` and :math:`n_{..}` are computed from the
     existing edges only and are not changed by the weight-0 pairs.  A pair
     is scored with :math:`n_{ij} = 0` in the formulas above: its lift is 0,
     so ``nc_score`` is -1, and ``nc_sdev`` comes from the posterior with
-    :math:`n_{ij} = 0`.  With ``method="zscore"`` the score is
+    :math:`n_{ij} = 0`.  Its binomial upper tail is 1 and its lower tail
+    :math:`P(X = 0)`, so with ``signed=True`` a pair of strong nodes that
+    never interact can be significantly weak.  With ``method="zscore"`` the
+    score is
     :math:`-\sqrt{W p / (1 - p)}`.  A pair with an endpoint whose margin is
     0 (no links; for a directed pair ``(i, j)``, no out-links of *i* or no
     in-links of *j*) has an undefined lift and is not added.  The R backbone
@@ -798,16 +879,27 @@ def noise_corrected_filter(
     >>> from networkx_backbone import noise_corrected_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = noise_corrected_filter(G)
+    >>> backbone = threshold_filter(H, "nc_pvalue", 0.05, mode="below")
+    >>> backbone.number_of_edges()
+    126
+
+    The paper's :math:`\delta` rule keeps more, and so does its p-value
+    reading:
+
     >>> kept = [(u, v) for u, v, d in H.edges(data=True)
     ...         if d["nc_score"] > 1.64 * d["nc_sdev"]]
     >>> len(kept)
     195
-    >>> backbone = threshold_filter(H, "nc_pvalue", 0.05, mode="below")
-    >>> backbone.number_of_edges()
+    >>> D = noise_corrected_filter(G, pvalue_method="delta")
+    >>> threshold_filter(D, "nc_pvalue", 0.05).number_of_edges()
     195
     """
     if method not in ("bayesian", "zscore"):
         raise ValueError(f"method must be 'bayesian' or 'zscore', got {method!r}")
+    if pvalue_method not in ("binomial", "delta"):
+        raise ValueError(
+            f"pvalue_method must be 'binomial' or 'delta', got {pvalue_method!r}"
+        )
     _validate_unit(unit)
 
     H = G.copy()
@@ -844,22 +936,29 @@ def noise_corrected_filter(
             s_in[u] = s_in.get(u, 0.0) + w
             total += w
 
+    betainc = _betainc_function() if pvalue_method == "binomial" else None
+
     def tails(n_ij, n_i, n_j):
         score, sdev = _nc_score_sdev(n_ij, n_i, n_j, total)
+        extra = {"nc_score": score, "nc_sdev": sdev}
+        if betainc is not None:
+            # Exact tails of the null B(n.., n_i. n_.j / n..^2) (see Notes).
+            p_null = min(n_i * n_j / (total * total), 1.0)
+            return (*_binomial_tails(n_ij, total, p_null, betainc), extra)
         if math.isinf(sdev):
             # Degenerate prior: nothing to test, so the tails tie.
-            return 1.0, 1.0, {"nc_score": score, "nc_sdev": sdev}, 0.0
+            return 1.0, 1.0, extra, 0.0
         if sdev == 0.0:
             z = math.copysign(math.inf, score) if score else 0.0
         else:
             z = score / sdev
-        return (*_normal_tails(z), {"nc_score": score, "nc_sdev": sdev}, z)
+        return (*_normal_tails(z), extra, z)
 
     for u, v, data in H.edges(data=True):
-        p_hi, p_lo, extra, z = tails(_as_count(data[weight], unit), s_out[u], s_in[v])
+        p_hi, p_lo, extra, *z = tails(_as_count(data[weight], unit), s_out[u], s_in[v])
         data.update(extra)
         if signed:
-            data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo, z)
+            data["nc_pvalue"], data["sign"] = _combine_tails(p_hi, p_lo, *z)
         else:
             data["nc_pvalue"] = p_hi
 
@@ -900,6 +999,74 @@ def _nc_score_sdev(n_ij, n_i, n_j, n):
     if not (variance >= 0.0 and math.isfinite(variance)):
         return score, math.inf
     return score, math.sqrt(variance)
+
+
+def _binomial_tails(k, n, p, betainc):
+    """Tails ``(P(X >= k), P(X <= k))`` of ``X ~ B(n, p)`` for real ``k``.
+
+    Uses the regularized incomplete beta function, which equals the binomial
+    tails for integer ``0 <= k <= n`` and interpolates them for real counts
+    (and a real number of trials *n*).
+    """
+    p_hi = 1.0 if k <= 0.0 else betainc(k, n - k + 1.0, p)
+    p_lo = 1.0 if k >= n else betainc(n - k, k + 1.0, 1.0 - p)
+    return min(max(p_hi, 0.0), 1.0), min(max(p_lo, 0.0), 1.0)
+
+
+def _betainc_function():
+    """SciPy's regularized incomplete beta, or a pure-Python fallback."""
+    try:
+        from scipy.special import betainc
+    except ImportError:
+        return _betainc
+    return lambda a, b, x: float(betainc(a, b, x))
+
+
+def _betainc(a, b, x):
+    """Regularized incomplete beta function :math:`I_x(a, b)` in pure Python.
+
+    The continued fraction of Numerical Recipes (Press et al., 2007, sec.
+    6.4), evaluated by the modified Lentz method; used when SciPy is not
+    installed.
+    """
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+    log_front = (
+        math.lgamma(a + b)
+        - math.lgamma(a)
+        - math.lgamma(b)
+        + a * math.log(x)
+        + b * math.log1p(-x)
+    )
+    if x < (a + 1.0) / (a + b + 2.0):
+        return math.exp(log_front) * _betacf(a, b, x) / a
+    return 1.0 - math.exp(log_front) * _betacf(b, a, 1.0 - x) / b
+
+
+def _betacf(a, b, x):
+    """Continued fraction for the incomplete beta function (modified Lentz)."""
+    tiny = 1e-300
+    qab, qap, qam = a + b, a + 1.0, a - 1.0
+    c = 1.0
+    d = 1.0 - qab * x / qap
+    d = 1.0 / (d if abs(d) > tiny else tiny)
+    h = d
+    for m in range(1, 1000 + int(20.0 * math.sqrt(max(a, b)))):
+        m2 = 2.0 * m
+        for aa in (
+            m * (b - m) * x / ((qam + m2) * (a + m2)),
+            -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2)),
+        ):
+            d = 1.0 + aa * d
+            d = 1.0 / (d if abs(d) > tiny else tiny)
+            c = 1.0 + aa / c
+            c = c if abs(c) > tiny else tiny
+            h *= d * c
+        if abs(d * c - 1.0) < 1e-15:
+            break
+    return h
 
 
 def _normal_tails(z):

@@ -38,7 +38,9 @@ These methods produce a p-value or score for each edge, or a keep flag.
 
 The noise-corrected backbone keeps an edge when its score exceeds ``delta``
 standard deviations (``nc_score > delta * nc_sdev``, with ``delta = 1.64`` in
-the paper); ``nc_pvalue`` expresses the same rule as a p-value.  Multiple
+the paper).  That rule is not a calibrated test, so ``nc_pvalue`` is by
+default the exact binomial p-value of the same null model;
+``pvalue_method="delta"`` expresses the paper's rule as a p-value.  Multiple
 linkage analysis is not a significance test: for each node it chooses how many
 links are dominant by comparing the node's sorted weight shares with ideal
 "one dominant link", "two equal links", ... distributions (by the coefficient

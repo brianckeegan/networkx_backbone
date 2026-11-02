@@ -320,8 +320,10 @@ across the 66 edges is enough, and it keeps exactly the rising edges:
 
 The disparity filter gives an edge the smaller of its two endpoints'
 p-values. ``kalman_backbone`` corrects that by default (``sidak=True``), which
-makes its tests on top of the disparity filter somewhat conservative;
-:func:`~networkx_backbone.noise_corrected_filter` tests each edge once.
+makes its tests on top of the disparity filter somewhat conservative.
+:func:`~networkx_backbone.noise_corrected_filter` tests each edge once, but its
+exact binomial p-values are discrete, so it needs ``discrete="raw"``, which is
+also conservative.
 
 Three cautions apply (see the Notes of
 :func:`~networkx_backbone.kalman_backbone`). The p-values are exact when no
