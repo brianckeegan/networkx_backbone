@@ -378,7 +378,7 @@ Documentation
 - **done** (`#123 <https://github.com/brianckeegan/nx-backbone/issues/123>`_): Narrative tutorial: comparing, validating,
   and reporting backbones (robustness to alpha, correction and input order;
   consensus; the Les Misérables benchmark explained; methods-section text).
-- **planned** (`#124 <https://github.com/brianckeegan/nx-backbone/issues/124>`_): Narrative tutorial: directed and signed
+- **done** (`#124 <https://github.com/brianckeegan/nx-backbone/issues/124>`_): Narrative tutorial: directed and signed
   networks (out- and in-tests, signed tails and ties, signed projections, R
   conventions).
 - **done** (`#125 <https://github.com/brianckeegan/nx-backbone/issues/125>`_): Narrative tutorial: what your weights mean

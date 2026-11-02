@@ -4,6 +4,8 @@ Directed Graphs
 Not all backbone methods support directed graphs. This guide explains which
 methods work with directed graphs and how their behavior differs.
 
+.. seealso:: :doc:`/auto_examples/directed_signed/plot_directed_signed`, a narrative tutorial on source and target tests, signed tails and ties.
+
 Supported methods
 -----------------
 

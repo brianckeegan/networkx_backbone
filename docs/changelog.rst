@@ -66,6 +66,13 @@ Unreleased
   disparity filter's uniform null is wrong; and checking a test's calibration
   on data with no structure, with the 0.3.0 noise-corrected and SDSM fixes as
   examples. Six figures.
+- New narrative tutorial, *Directed and signed backbones* (#124): on a
+  seeded directed network with planted asymmetries, what the source and the
+  target tests of ``disparity_filter`` and ``lans_filter`` each see, the
+  upper and lower tails and what "significantly weak" means under a local
+  and a joint null, a signed backbone read edge by edge, and how each scorer
+  signs an edge, with exact ties signed -1 and the signed LANS lower tail.
+  Linked from :doc:`user_guide/directed_graphs`.
 
 Version 0.3.0 (2026-11-02)
 --------------------------
