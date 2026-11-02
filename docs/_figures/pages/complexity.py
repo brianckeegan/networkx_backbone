@@ -190,8 +190,8 @@ def _wrap(classes, width=34) -> str:
 def draw_growth(mode):
     rows = _rows()
     p = style.palette(mode)
-    height = sum(0.3 + 0.16 * _wrap(cs).count("\n") for _, _, cs, _ in rows)
-    fig, ax = plt.subplots(figsize=(7.0, height + 1.2), layout="constrained")
+    height = sum(0.34 + 0.18 * _wrap(cs).count("\n") for _, _, cs, _ in rows)
+    fig, ax = plt.subplots(figsize=(6.4, height + 1.3), layout="constrained")
     top = max(max(fs) for _, fs, _, _ in rows)
     for y, (fam, factors, _, funcs) in enumerate(rows):
         mid = math.sqrt(min(factors) * max(factors))
@@ -207,7 +207,7 @@ def draw_growth(mode):
             color=p.ink,
         )
     ax.set_yticks(range(len(rows)), [_wrap(cs) for _, _, cs, _ in rows])
-    ax.tick_params(axis="y", length=0, labelcolor=p.ink, labelsize=7.5)
+    ax.tick_params(axis="y", length=0, labelcolor=p.ink, labelsize=8.5)
     ax.set_xscale("log")
     ax.set_xlim(0.7, top * 40)
     ticks = [t for t in (1, 10, 100, 1000, 10000) if t <= top * 2]
