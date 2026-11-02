@@ -318,8 +318,9 @@ the method proposals are in the `temporal backbones proposal
   filters.
 - **planned** (`#72 <https://github.com/brianckeegan/networkx_backbone/issues/72>`_): ``kalman_backbone``: Kalman smoothing of
   per-step edge significance, tested against an exact null.
-- **planned** (`#73 <https://github.com/brianckeegan/networkx_backbone/issues/73>`_): ``edge_persistence_hmm``: a two-state hidden
-  Markov model for persistent edge activity.
+- **done** (`#73 <https://github.com/brianckeegan/networkx_backbone/issues/73>`_): ``edge_persistence_hmm``: a two-state hidden
+  Markov model for persistent edge activity, observing presence, per-step
+  keep flags, or p-values.
 - **idea** (`#74 <https://github.com/brianckeegan/networkx_backbone/issues/74>`_): ``wavelet_denoise``: wavelet shrinkage of
   edge-weight time series before backboning.
 - **idea** (`#75 <https://github.com/brianckeegan/networkx_backbone/issues/75>`_): ``poisson_lift_filter``: a Gamma-Poisson
