@@ -6,6 +6,12 @@ how similar the neighborhoods of their endpoints are. High-scoring edges are
 structurally embedded within communities, while low-scoring edges tend to be
 bridges.
 
+.. seealso::
+
+   :ref:`sphx_glr_auto_examples_structural_proximity_plot_structural_proximity_tutorial.py`,
+   a narrative tutorial with figures comparing what Jaccard, Adamic-Adar and
+   resource allocation reward, and how ``fraction_filter`` treats ties.
+
 Setup
 -----
 

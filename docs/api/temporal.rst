@@ -7,7 +7,9 @@ between the three forms, and temporal backbone scores and tests. The
 examples and a table of what each one keeps; the
 :doc:`../tutorials/temporal_backbones` tutorial compares the scores on
 synthetic snapshots, and :ref:`temporal-eligibility` explains how absent
-edges are counted.
+edges are counted. The narrative tutorial :ref:`tutorial-temporal-backbones`
+follows one case from raw records to a backbone, with figures, and compares
+the methods.
 
 .. automodule:: networkx_backbone.temporal
    :no-members:

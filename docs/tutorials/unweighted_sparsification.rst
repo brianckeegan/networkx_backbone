@@ -4,6 +4,12 @@ Unweighted Graph Sparsification
 This tutorial demonstrates methods for sparsifying unweighted graphs using the
 :mod:`~networkx_backbone.unweighted` module.
 
+.. seealso::
+
+   :ref:`sphx_glr_auto_examples_structural_proximity_plot_structural_proximity_tutorial.py`,
+   a narrative tutorial with figures comparing ``lspar`` (both conventions),
+   ``local_degree`` and ``sparsify(umst=True)`` on one layout.
+
 Setup
 -----
 

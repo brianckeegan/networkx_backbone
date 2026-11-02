@@ -299,6 +299,14 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   the docs are built, and hidden checks fail the build if a claim in the
   text stops holding. The tutorials index is reorganized into "Start here",
   "By network type", and "Going further" (#89, #96).
+- New narrative tutorial, "Structural and proximity backbones", executed in
+  the example gallery with eight figures: what spanning trees, the PMFG, the
+  metric and ultrametric backbones, salience, the h-backbone and the doubly
+  stochastic filter guarantee (checked at build time) against the disparity
+  filter; weights as strengths or distances; ties and which methods still
+  depend on input order; proximity scores and sparsifiers for unweighted
+  graphs, including ``lspar(convention="r")``; and Sinkhorn-Knopp convergence
+  with ``smoothing=`` (#91).
 - Added ``CITATION.cff``.
 
 **Changes in results (bug fixes)**
@@ -483,6 +491,15 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Infrastructure and documentation**
 
+- New narrative tutorial, "Hypergraph backbones: keeping the groups that
+  matter", a Sphinx-Gallery example executed at build time on the Davis
+  Southern Women events and a synthetic meeting log. It covers what the
+  pairwise projection loses, the MDL backbone's description-length
+  trade-off and its optimizers, the local MDL aggregation rules, the
+  statistically validated hypergraphs and cores, the structural helpers, and
+  a HIF round trip, with six figures in light and dark variants. It is
+  listed under "By network type" in the tutorials index and linked from the
+  hypergraph API page and the how-to tutorial (#93, #96).
 - A shared figure style for the docs, ``docs/_figures/style.py`` (docs only,
   not library API): color tokens checked with a palette validator against the
   docs theme's light and dark backgrounds (kept and removed edges, positive
@@ -492,6 +509,13 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   and helpers that save light and dark variants and write the reST that shows
   the one matching the reader's theme. Sphinx-Gallery examples start from
   this style (#88, #96).
+- Two narrative guides, executed when the docs are built (#95): *Coming from
+  R backbone or netbone* maps each R ``backbone`` 3.0 and netbone function to
+  networkx-backbone, checks the four convention switches against the R
+  fixtures, and reproduces R's fixed row backbone of the Davis Southern Women
+  p-value by p-value; *Scaling up to large networks* covers sparse inputs,
+  cost classes with run times measured at build time, the ECM solver's
+  degree-strength classes, and the committed nx-parallel timings.
 - The method gallery on the API pages is regenerated and redesigned. The
   images committed for 0.2.0 showed pre-fix results (the ECM image kept
   nearly every edge, where the fixed ECM keeps 72 of 254). The gallery is now
@@ -518,6 +542,24 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   ``a=``, the count models' ``unit=``, ``transform_weights``, and signed
   backbones with the R tie convention. It is executed at build time (#90,
   #96).
+- A narrative tutorial, *Bipartite projections and their backbones*, executed
+  when the docs are built: two-mode data and why the raw projection
+  overstates ties, the five projection weights, the five null models compared
+  against the FDSM, the FDSM p-value floor and multiple testing, signed
+  backbones, SDSM-EC constraints (including contradictory ones), a check
+  against R ``backbone`` with ``missing_as_zero``, and sparse incidence
+  input, with seven figures in light and dark variants. It is listed under
+  "By network type" in the tutorials index (#92, #96).
+- New narrative tutorial, *Temporal backbones, from snapshots to
+  smoothing*: snapshots, events and spans and binning with ``freq=``;
+  ``flatten_temporal`` by count and by duration, and what a static backbone
+  of the flattened graph misses; observation fraction, persistence and
+  backbone stability on a persistent block among random flicker; the Kalman
+  backbone on a planted rising block (smoother against filter, the
+  edge-level test, the Šidák correction and temporal leakage); the
+  persistence HMM's posterior against raw presence; and a table for choosing
+  among them. Five figures, executed at build time; it is listed under "By
+  network type" in the tutorials index (#94, #96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose

@@ -7,6 +7,10 @@ higher-order interactions that pairwise graphs cannot. It covers the
 information-theoretic (MDL) backbone, structural reductions, statistical
 validation, and interoperability with the higher-order ecosystem.
 
+For the same methods told as one case study, with figures of the
+description-length trade-off, the local aggregation rules and the statistical
+validation, see :doc:`/auto_examples/hypergraphs/plot_hypergraph_backbones`.
+
 What is a hypergraph backbone?
 ------------------------------
 
