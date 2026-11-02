@@ -4,7 +4,7 @@ import networkx as nx
 import numpy as np
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 sp = pytest.importorskip("scipy.sparse")
 

@@ -47,7 +47,7 @@ No backend implements a ``backbone_*`` function yet, so
 .. code-block:: python
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G = nx.les_miserables_graph()
     H = nb.metric_backbone(G, backend="networkx")
@@ -119,7 +119,7 @@ own tests do. With ``nx_loopback``, the test backend that ships with
 NetworkX, every dispatchable call converts its input graphs, runs, and
 checks that the result equals the plain NetworkX result::
 
-    NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules networkx_backbone tests
+    NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules nx_backbone tests
 
 Add ``NETWORKX_FALLBACK_TO_NX=1`` to run with NetworkX the functions a
 backend does not implement, instead of marking their tests as expected

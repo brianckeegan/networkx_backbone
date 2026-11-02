@@ -5,14 +5,14 @@ These methods score each existing edge by the topological proximity
 (similarity) of its endpoints.  They are useful for identifying
 structurally embedded edges (high proximity) versus bridge edges
 (low proximity) and can feed into any of the filtering utilities
-in :mod:`networkx_backbone.filters`.
+in :mod:`nx_backbone.filters`.
 
 All local methods use the same conventions: the neighborhood
 :math:`N(u)` of a node excludes the node itself (self-loops are ignored,
 so an endpoint is never counted as a common neighbor of an edge), and
 :math:`k_u = |N(u)|`.  For directed graphs neighborhoods are successor
 sets and :math:`k_u` is the out-degree.  Multigraphs are not supported;
-collapse them first with :func:`~networkx_backbone.multigraph_to_weighted`.
+collapse them first with :func:`~nx_backbone.multigraph_to_weighted`.
 
 Local methods
 -------------
@@ -59,9 +59,9 @@ import math
 
 import networkx as nx
 
-from networkx_backbone._dispatch import _dispatchable
-from networkx_backbone._docstrings import append_complexity_docstrings
-from networkx_backbone._typing import not_implemented_for
+from nx_backbone._dispatch import _dispatchable
+from nx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._typing import not_implemented_for
 
 __all__ = [
     "neighborhood_overlap",
@@ -131,7 +131,7 @@ def neighborhood_overlap(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fraction_filter, neighborhood_overlap
+    >>> from nx_backbone import fraction_filter, neighborhood_overlap
     >>> G = nx.les_miserables_graph()
     >>> H = neighborhood_overlap(G)
     >>> backbone = fraction_filter(H, "overlap", 0.3, ascending=False)
@@ -182,7 +182,7 @@ def jaccard_backbone(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fraction_filter, jaccard_backbone
+    >>> from nx_backbone import fraction_filter, jaccard_backbone
     >>> G = nx.les_miserables_graph()
     >>> H = jaccard_backbone(G)
     >>> backbone = fraction_filter(H, "jaccard", 0.3, ascending=False)
@@ -236,7 +236,7 @@ def dice_backbone(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import dice_backbone, fraction_filter
+    >>> from nx_backbone import dice_backbone, fraction_filter
     >>> G = nx.les_miserables_graph()
     >>> H = dice_backbone(G)
     >>> backbone = fraction_filter(H, "dice", 0.3, ascending=False)
@@ -289,7 +289,7 @@ def cosine_backbone(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import cosine_backbone, fraction_filter
+    >>> from nx_backbone import cosine_backbone, fraction_filter
     >>> G = nx.les_miserables_graph()
     >>> H = cosine_backbone(G)
     >>> backbone = fraction_filter(H, "cosine", 0.3, ascending=False)
@@ -343,7 +343,7 @@ def hub_promoted_index(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fraction_filter, hub_promoted_index
+    >>> from nx_backbone import fraction_filter, hub_promoted_index
     >>> G = nx.les_miserables_graph()
     >>> H = hub_promoted_index(G)
     >>> backbone = fraction_filter(H, "hpi", 0.3, ascending=False)
@@ -397,7 +397,7 @@ def hub_depressed_index(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fraction_filter, hub_depressed_index
+    >>> from nx_backbone import fraction_filter, hub_depressed_index
     >>> G = nx.les_miserables_graph()
     >>> H = hub_depressed_index(G)
     >>> backbone = fraction_filter(H, "hdi", 0.3, ascending=False)
@@ -450,7 +450,7 @@ def lhn_local_index(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fraction_filter, lhn_local_index
+    >>> from nx_backbone import fraction_filter, lhn_local_index
     >>> G = nx.les_miserables_graph()
     >>> H = lhn_local_index(G)
     >>> backbone = fraction_filter(H, "lhn_local", 0.3, ascending=False)
@@ -503,7 +503,7 @@ def preferential_attachment_score(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fraction_filter, preferential_attachment_score
+    >>> from nx_backbone import fraction_filter, preferential_attachment_score
     >>> G = nx.les_miserables_graph()
     >>> H = preferential_attachment_score(G)
     >>> backbone = fraction_filter(H, "pa", 0.3, ascending=False)
@@ -554,7 +554,7 @@ def adamic_adar_index(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import adamic_adar_index, fraction_filter
+    >>> from nx_backbone import adamic_adar_index, fraction_filter
     >>> G = nx.les_miserables_graph()
     >>> H = adamic_adar_index(G)
     >>> backbone = fraction_filter(H, "adamic_adar", 0.3, ascending=False)
@@ -610,7 +610,7 @@ def resource_allocation_index(G: nx.Graph) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fraction_filter, resource_allocation_index
+    >>> from nx_backbone import fraction_filter, resource_allocation_index
     >>> G = nx.les_miserables_graph()
     >>> H = resource_allocation_index(G)
     >>> backbone = fraction_filter(H, "resource_allocation", 0.3, ascending=False)
@@ -685,7 +685,7 @@ def graph_distance_proximity(G: nx.Graph, all_pairs: bool = False) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import graph_distance_proximity
+    >>> from nx_backbone import graph_distance_proximity
     >>> G = nx.path_graph(4)
     >>> H = graph_distance_proximity(G)
     >>> {e: H.edges[e]["dist"] for e in H.edges()}
@@ -772,7 +772,7 @@ def local_path_index(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import fraction_filter, local_path_index
+    >>> from nx_backbone import fraction_filter, local_path_index
     >>> G = nx.les_miserables_graph()
     >>> H = local_path_index(G)
     >>> backbone = fraction_filter(H, "lp", 0.3, ascending=False)

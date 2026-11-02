@@ -277,7 +277,7 @@ def rc_params(mode: str = "light") -> dict[str, Any]:
         "patch.linewidth": 0.0,
         "image.cmap": "Blues",
         # Reproducible SVG: fixed ids, no timestamp in the metadata.
-        "svg.hashsalt": "networkx-backbone",
+        "svg.hashsalt": "nx-backbone",
     }
 
 

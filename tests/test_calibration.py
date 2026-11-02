@@ -24,8 +24,8 @@ import math
 import networkx as nx
 import pytest
 
-import networkx_backbone as nb
-from networkx_backbone.statistical import _disparity_beta_tails
+import nx_backbone as nb
+from nx_backbone.statistical import _disparity_beta_tails
 
 pytest.importorskip("numpy")
 pytest.importorskip("scipy")

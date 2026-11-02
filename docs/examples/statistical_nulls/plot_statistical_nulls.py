@@ -12,7 +12,7 @@ edge whose weight would be very unlikely under the null model gets a small
 **p-value** and is kept in the **backbone**, the sparse subgraph of edges
 that survive.
 
-networkx-backbone has seven statistical scorers, and each one encodes a
+nx-backbone has seven statistical scorers, and each one encodes a
 different idea of chance.  This tutorial runs all seven on the same graph
 and looks at what that choice does:
 
@@ -21,7 +21,7 @@ and looks at what that choice does:
 3. which backbones contain which;
 4. what each backbone preserves of the original network;
 5. how to loosen or adjust a null model (``a=``, ``unit=`` and
-   :func:`~networkx_backbone.transform_weights`);
+   :func:`~nx_backbone.transform_weights`);
 6. edges that are significantly *weak*, and how ties are signed.
 
 Every number below is computed when the documentation is built.  For the
@@ -60,7 +60,7 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import NullLocator
 from scipy.stats import spearmanr
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
 # Figures are saved as light and dark SVG pairs next to the generated page,
@@ -106,39 +106,39 @@ print(
 #    * - Method
 #      - The null model, in one sentence
 #      - Conditions on
-#    * - :func:`~networkx_backbone.disparity_filter`
+#    * - :func:`~nx_backbone.disparity_filter`
 #        (Serrano et al., 2009)
 #      - Each node splits its strength over its links at random, every share
 #        equally likely.
 #      - Each endpoint's strength and degree, one endpoint at a time (local).
-#    * - :func:`~networkx_backbone.polya_filter`
+#    * - :func:`~nx_backbone.polya_filter`
 #        (Marcaccioli & Livan, 2019)
 #      - Each node hands out its strength one unit at a time through a
 #        self-reinforcing urn, so weight attracts more weight.
 #      - Each endpoint's strength and degree (local), plus one reinforcement
 #        parameter for the whole network.
-#    * - :func:`~networkx_backbone.gloss_filter`
+#    * - :func:`~nx_backbone.gloss_filter`
 #        (Radicchi et al., 2011)
 #      - The links stay where they are and every link draws its weight from
 #        the network's own weight distribution.
 #      - The global weight distribution, and both endpoints' degree and
 #        strength.
-#    * - :func:`~networkx_backbone.noise_corrected_filter`
+#    * - :func:`~nx_backbone.noise_corrected_filter`
 #        (Coscia & Neffke, 2017)
 #      - Weights are noisy counts, and a pair's expected weight grows with
 #        both endpoints' strengths.
 #      - Both endpoints' strengths jointly, and the total weight.
-#    * - :func:`~networkx_backbone.marginal_likelihood_filter`
+#    * - :func:`~nx_backbone.marginal_likelihood_filter`
 #        (Dianati, 2016)
 #      - Every unit of weight picks its two endpoints at random, in proportion
 #        to their strengths.
 #      - Both endpoints' strengths jointly, and the total weight.
-#    * - :func:`~networkx_backbone.ecm_filter`
+#    * - :func:`~nx_backbone.ecm_filter`
 #        (Gemmetto et al., 2017)
 #      - The most random (maximum-entropy) integer-weighted graph whose
 #        expected degrees and strengths match the observed ones.
 #      - Every node's degree and strength at once.
-#    * - :func:`~networkx_backbone.lans_filter`
+#    * - :func:`~nx_backbone.lans_filter`
 #        (Foti et al., 2011)
 #      - No parametric model: an edge is compared with the other weights of
 #        the same node.
@@ -153,7 +153,7 @@ print(
 # :doc:`/user_guide/weight_transforms`.)
 #
 # Every scorer returns a copy of the graph with a p-value on each edge, and
-# :func:`~networkx_backbone.threshold_filter` keeps the edges below alpha.
+# :func:`~nx_backbone.threshold_filter` keeps the edges below alpha.
 
 METHODS = {
     "Disparity": (nb.disparity_filter, "disparity_pvalue"),
@@ -208,7 +208,7 @@ assert set(backbones["Noise-corrected"].edges()) == set(backbones["MLF"].edges()
 # keep the same edges.  (The noise-corrected filter adds a score and its
 # standard deviation, which the paper thresholds with a rule that keeps far
 # more edges; see the Notes of
-# :func:`~networkx_backbone.noise_corrected_filter` for why its default
+# :func:`~nx_backbone.noise_corrected_filter` for why its default
 # p-value is the binomial one.)  The figure puts every backbone on the same
 # layout, so the eye can compare them.
 
@@ -542,7 +542,7 @@ assert len(edge_sets["Noise-corrected"]) > 5 * len(edge_sets["Pólya"])
 # larger than the Pólya backbone here, so most of its edges cannot be in it.
 # The p-value is not the reason: like Yassin et al., who used the binomial
 # p-value of Coscia and Neffke (2017),
-# :func:`~networkx_backbone.noise_corrected_filter` uses a binomial
+# :func:`~nx_backbone.noise_corrected_filter` uses a binomial
 # p-value by default (the implementation they used counts the trials and
 # the tail slightly differently; see its Notes).  A mean over 27 networks
 # says little about any one of them.  Treat published hierarchies as
@@ -558,8 +558,8 @@ assert len(edge_sets["Noise-corrected"]) > 5 * len(edge_sets["Pólya"])
 # distribution**, or only the hubs?  The two-sample **Kolmogorov-Smirnov
 # (KS) distance** measures each: the largest gap between the two cumulative
 # distributions, from 0 (identical) to 1 (no overlap).
-# :func:`~networkx_backbone.ks_weight` and
-# :func:`~networkx_backbone.ks_degree` compute them.  The degrees here are
+# :func:`~nx_backbone.ks_weight` and
+# :func:`~nx_backbone.ks_degree` compute them.  The degrees here are
 # those of the nodes each backbone keeps (``include_all_nodes=False``), so
 # dropped nodes do not count as degree 0.
 
@@ -874,7 +874,7 @@ save("nulls_units", draw_units)
 # Transforming the weights
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 #
-# :func:`~networkx_backbone.transform_weights` returns a copy of the graph
+# :func:`~nx_backbone.transform_weights` returns a copy of the graph
 # with transformed weights, for example ``log(1 + w)`` to tame a heavy tail.
 # Which backbones does that change?  It depends on what each method reads
 # from a weight: only the order of a node's weights (LANS), a node's shares
@@ -1072,7 +1072,7 @@ print("Napoleon's degree:", G.degree("Napoleon"))
 print("Signed LANS, Napoleon-Myriel:", signed["LANS"]["Napoleon"]["Myriel"])
 
 # %%
-# networkx-backbone follows R ``backbone`` (Neal, 2022) here: an edge whose
+# nx-backbone follows R ``backbone`` (Neal, 2022) here: an edge whose
 # two tails are exactly equal is signed -1.  Neither choice is more correct;
 # matching R makes signed backbones directly comparable across the two
 # packages.  The tie convention matters only when the two tails can be
@@ -1134,8 +1134,8 @@ assert 0 < len(degree_one) < len(ties) < len(weak)
 # ----------
 #
 # - API pages: :doc:`/api/statistical` (every scorer's formulas and
-#   options), :doc:`/api/filters` (:func:`~networkx_backbone.threshold_filter`,
-#   :func:`~networkx_backbone.transform_weights`) and :doc:`/api/measures`
+#   options), :doc:`/api/filters` (:func:`~nx_backbone.threshold_filter`,
+#   :func:`~nx_backbone.transform_weights`) and :doc:`/api/measures`
 #   (the KS and fraction measures).
 # - User guide: :doc:`/user_guide/choosing_method`,
 #   :doc:`/user_guide/weight_transforms` and :doc:`/user_guide/evaluation`.

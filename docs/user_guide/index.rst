@@ -1,7 +1,7 @@
 User Guide
 ==========
 
-These guides explain how to use ``networkx-backbone`` effectively.
+These guides explain how to use ``nx-backbone`` effectively.
 
 .. toctree::
    :maxdepth: 2

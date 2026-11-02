@@ -1,6 +1,6 @@
 """Methods-section text and citations for a backbone.
 
-:func:`~networkx_backbone.describe_backbone` is the counterpart of the
+:func:`~nx_backbone.describe_backbone` is the counterpart of the
 ``narrative`` option of Neal's *Backbone 3.0* R package: it returns a short methods paragraph naming
 the method and its null model, the parameters, the multiple-testing
 correction, how much of the network was kept, and the papers to cite
@@ -30,7 +30,7 @@ own *References* sections).  The coverage policy is:
 
 :data:`SCORE_KEYS` maps each static weighted or unweighted method to the
 edge attribute a cut uses (its p-value, score or ``*_keep`` flag);
-:func:`~networkx_backbone.backbone_stability` reads it to apply the same cut
+:func:`~nx_backbone.backbone_stability` reads it to apply the same cut
 to every snapshot.
 
 The test suite checks that every public name falls in one of these groups, so
@@ -51,13 +51,13 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any
 
-    from networkx_backbone._typing import Hyperedges
-    from networkx_backbone.hypergraph import HypergraphBackbone, ValidatedHypergraph
+    from nx_backbone._typing import Hyperedges
+    from nx_backbone.hypergraph import HypergraphBackbone, ValidatedHypergraph
 
 __all__ = ["describe_backbone"]
 
-PACKAGE = "networkx-backbone"
-REPOSITORY = "https://github.com/brianckeegan/networkx_backbone"
+PACKAGE = "nx-backbone"
+REPOSITORY = "https://github.com/brianckeegan/nx-backbone"
 
 #: Modules whose public functions are helpers rather than backbone methods.
 HELPER_MODULES = frozenset(
@@ -154,7 +154,7 @@ def _refs(*entries):
 
 
 #: Bibliography of every method in :data:`METHODS` and every correction in
-#: :func:`~networkx_backbone.adjust_pvalues`, keyed by BibTeX key.
+#: :func:`~nx_backbone.adjust_pvalues`, keyed by BibTeX key.
 REFERENCES = _refs(
     # --- statistical -------------------------------------------------------
     Reference(
@@ -1027,7 +1027,7 @@ def _registry_listing():
     for name, entry in METHODS.items():
         cites = "; ".join(REFERENCES[k].cite() for k in entry.refs)
         cites = f" ({cites})" if cites else ""
-        lines.append(f"- :func:`~networkx_backbone.{name}` -- {entry.label}{cites}")
+        lines.append(f"- :func:`~nx_backbone.{name}` -- {entry.label}{cites}")
     return "\n".join(lines) + "\n"
 
 
@@ -1047,7 +1047,7 @@ def _resolve(method):
     if name in EXCLUDED:
         raise ValueError(f"{name!r} is {EXCLUDED[name]}.")
     raise ValueError(
-        f"Unknown method {name!r}. See networkx_backbone.describe.METHODS "
+        f"Unknown method {name!r}. See nx_backbone.describe.METHODS "
         "for the described methods."
     )
 
@@ -1060,7 +1060,7 @@ def _package_version():
 
 
 def _package_text(version, markdown):
-    title = "networkx-backbone: Backbone extraction algorithms for complex networks"
+    title = "nx-backbone: Backbone extraction algorithms for complex networks"
     if markdown:
         title = f"*{title}*"
     url = f"<{REPOSITORY}>" if markdown else REPOSITORY
@@ -1069,9 +1069,9 @@ def _package_text(version, markdown):
 
 def _package_bibtex(version):
     return (
-        "@misc{keegan_networkx_backbone,\n"
+        "@misc{keegan_nx_backbone,\n"
         "  author = {Keegan, Brian C.},\n"
-        "  title = {networkx-backbone: Backbone extraction algorithms for "
+        "  title = {nx-backbone: Backbone extraction algorithms for "
         "complex networks},\n"
         f"  version = {{{version}}},\n"
         f"  url = {{{REPOSITORY}}},\n"
@@ -1099,7 +1099,7 @@ def _hyperedges(obj):
 
 def _graph_share(original, backbone, weight):
     """Edges, nodes and (unless *weight* is None) weight the backbone keeps."""
-    from networkx_backbone.measures import (
+    from nx_backbone.measures import (
         edge_fraction,
         node_fraction,
         weight_fraction,
@@ -1408,7 +1408,7 @@ def describe_backbone(
     the returned text names the method and its null model (or criterion),
     lists the parameters, states the multiple-testing correction, reports
     how much of the network the backbone keeps (via
-    :mod:`~networkx_backbone.measures`) and cites the method's papers and
+    :mod:`~nx_backbone.measures`) and cites the method's papers and
     this package, with its installed version.
 
     Parameters
@@ -1416,16 +1416,16 @@ def describe_backbone(
     method : string or callable
         Name of a backbone function such as ``"disparity_filter"``, a short
         alias such as ``"disparity"`` or ``"svh"``, a method name accepted
-        by :func:`~networkx_backbone.backbone` such as ``"global"``, or the
+        by :func:`~nx_backbone.backbone` such as ``"global"``, or the
         function itself.  Every described method is listed in
-        ``networkx_backbone.describe.METHODS``.
+        ``nx_backbone.describe.METHODS``.
     alpha : float or None, optional (default=None)
         Significance level the p-values were compared with.  Only valid for
         methods that produce p-values.
     mtc : string, optional (default="none")
         Multiple-testing correction applied before thresholding, as passed
-        to :func:`~networkx_backbone.threshold_filter` (see
-        :func:`~networkx_backbone.adjust_pvalues`).
+        to :func:`~nx_backbone.threshold_filter` (see
+        :func:`~nx_backbone.adjust_pvalues`).
     signed : bool, optional (default=False)
         Whether a two-tailed (signed) test was run.  Only valid for methods
         that take a ``signed`` argument.
@@ -1444,10 +1444,10 @@ def describe_backbone(
         they are listed in the paragraph.  A ``weight`` entry also names the
         edge attribute used for the weight share.  Parameters that change the
         null model get a sentence of their own: ``a`` of
-        :func:`~networkx_backbone.disparity_filter` (with ``a="ml"`` the
+        :func:`~nx_backbone.disparity_filter` (with ``a="ml"`` the
         estimate is read from ``backbone.graph["disparity_a"]``) and ``unit``
         of the count-based scorers.  Weight transforms recorded by
-        :func:`~networkx_backbone.transform_weights` in the graph attributes
+        :func:`~nx_backbone.transform_weights` in the graph attributes
         of *backbone* (or else *original*) are reported too.
 
     Returns
@@ -1480,7 +1480,7 @@ def describe_backbone(
     A disparity-filter backbone of Les Misérables at ``alpha = 0.05``:
 
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> G = nx.les_miserables_graph()
     >>> scored = nb.disparity_filter(G)
     >>> bb = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
@@ -1494,14 +1494,14 @@ def describe_backbone(
     Edges were kept if their p-value was below alpha = 0.05, without
     correction for multiple comparisons. The backbone retains 9 of 254
     edges (3.5%) and 10 of 77 non-isolated nodes (13.0%), and 17.1% of the
-    total edge weight. Backbones were computed with networkx-backbone
+    total edge weight. Backbones were computed with nx-backbone
     version ... (Keegan, n.d.).
     <BLANKLINE>
     References
     <BLANKLINE>
-    Keegan, B. C. (n.d.). networkx-backbone: Backbone extraction algorithms
+    Keegan, B. C. (n.d.). nx-backbone: Backbone extraction algorithms
     for complex networks (Version ...) [Python package].
-    https://github.com/brianckeegan/networkx_backbone
+    https://github.com/brianckeegan/nx-backbone
     Serrano, M. A., Boguñá, M., & Vespignani, A. (2009). Extracting the
     multiscale backbone of complex weighted networks. Proceedings of the
     National Academy of Sciences, 106(16), 6483-6488.
@@ -1519,11 +1519,11 @@ def describe_backbone(
       doi = {10.1145/1989323.1989399}
     }
     <BLANKLINE>
-    @misc{keegan_networkx_backbone,
+    @misc{keegan_nx_backbone,
       author = {Keegan, Brian C.},
-      title = {networkx-backbone: Backbone extraction algorithms for complex networks},
+      title = {nx-backbone: Backbone extraction algorithms for complex networks},
       version = {...},
-      url = {https://github.com/brianckeegan/networkx_backbone},
+      url = {https://github.com/brianckeegan/nx-backbone},
       note = {Python package}
     }
     """
@@ -1531,7 +1531,7 @@ def describe_backbone(
     if style not in _STYLES:
         raise ValueError(f"style must be one of {_STYLES}, got {style!r}")
 
-    from networkx_backbone.filters import _MTC_METHODS
+    from nx_backbone.filters import _MTC_METHODS
 
     mtc_l = str(mtc).lower()
     if mtc_l not in _MTC_METHODS:
@@ -1545,7 +1545,7 @@ def describe_backbone(
             f"{name} applies its own {entry.builtin_mtc!r} correction; leave mtc='none'"
         )
     if signed:
-        import networkx_backbone as nb
+        import nx_backbone as nb
 
         if "signed" not in inspect.signature(getattr(nb, name)).parameters:
             raise ValueError(f"{name} has no signed (two-tailed) variant")
@@ -1625,8 +1625,7 @@ def describe_backbone(
             size += _sign_sentence(backbone)
         sentences.append(size)
     sentences.append(
-        f"Backbones were computed with networkx-backbone version {version} "
-        "(Keegan, n.d.)."
+        f"Backbones were computed with nx-backbone version {version} (Keegan, n.d.)."
     )
 
     refs = [REFERENCES[k] for k in keys]

@@ -33,9 +33,9 @@ documentation is built, so the text always matches the code.
 # Setup
 # -----
 #
-# Besides ``networkx`` and ``networkx_backbone``, this page uses NumPy, SciPy
+# Besides ``networkx`` and ``nx_backbone``, this page uses NumPy, SciPy
 # (for the marginal likelihood filter) and Matplotlib; ``pip install
-# "networkx-backbone[full,viz]"`` installs them all.
+# "nx-backbone[full,viz]"`` installs them all.
 #
 # The figures use the documentation's shared figure style,
 # ``docs/_figures/style.py`` in the repository: its colors, a fixed layout per
@@ -59,7 +59,7 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
 # Sphinx-Gallery runs this file from docs/examples/start_here/; the figures go
@@ -336,8 +336,8 @@ show(draw_distributions, "distributions")
 # scales in different parts of the network.
 #
 # Here is the cut at the 90th percentile of the weights, scored with
-# :func:`~networkx_backbone.global_threshold_filter` and filtered with
-# :func:`~networkx_backbone.boolean_filter`:
+# :func:`~nx_backbone.global_threshold_filter` and filtered with
+# :func:`~nx_backbone.boolean_filter`:
 
 for name, G in NETWORKS.items():
     t = np.quantile(weights(G), 0.9)
@@ -357,12 +357,12 @@ for name, G in NETWORKS.items():
 # 2. Scoring versus filtering
 # ---------------------------
 #
-# Every method in ``networkx_backbone`` works in two steps (see
+# Every method in ``nx_backbone`` works in two steps (see
 # :doc:`/user_guide/workflow`):
 #
 # - a **scorer** returns a copy of the graph with a score on every edge,
 #   here a p-value;
-# - a **filter**, such as :func:`~networkx_backbone.threshold_filter`, keeps
+# - a **filter**, such as :func:`~nx_backbone.threshold_filter`, keeps
 #   the edges whose score passes a rule.
 #
 # Keeping the two apart means you score once and can then try, compare and
@@ -651,8 +651,8 @@ print(f"Kept {backbone_L.number_of_edges()} of {L.number_of_edges()} edges.")
 #   edges among those kept. It keeps more edges, at the cost of a controlled
 #   share of mistakes.
 #
-# :func:`~networkx_backbone.threshold_filter` applies either with its ``mtc``
-# argument; :func:`~networkx_backbone.adjust_pvalues` returns the adjusted
+# :func:`~nx_backbone.threshold_filter` applies either with its ``mtc``
+# argument; :func:`~nx_backbone.adjust_pvalues` returns the adjusted
 # values themselves. Below, the number of edges each rule keeps is traced over
 # a range of :math:`\alpha`, for both networks.
 
@@ -791,7 +791,7 @@ show(draw_alpha_curves, "alpha_curves")
 # One more caution: because an edge's p-value is the smaller of its two
 # endpoint tests, the disparity filter passes somewhat more than a share
 # :math:`\alpha` of edges when the null model holds (see the Notes of
-# :func:`~networkx_backbone.disparity_filter`). A correction guards against
+# :func:`~nx_backbone.disparity_filter`). A correction guards against
 # that too.
 #
 # From here on we follow the collaboration network with **BH at**
@@ -981,10 +981,10 @@ show(draw_small_multiples, "small_multiples", fmt="png")
 #    title gives the method and how many edges and nodes it keeps.
 #
 # Pictures invite over-reading, so put numbers beside them.
-# :func:`~networkx_backbone.compare_backbones` evaluates every backbone with
+# :func:`~nx_backbone.compare_backbones` evaluates every backbone with
 # any measure that takes ``(original, backbone)``: the shares of nodes,
 # edges and total weight kept, the share of node pairs still joined by a path
-# (:func:`~networkx_backbone.reachability`, wrapped to take two arguments),
+# (:func:`~nx_backbone.reachability`, wrapped to take two arguments),
 # and our own measure, the share of edges within a department.
 
 
@@ -1096,7 +1096,7 @@ assert _sets[0] <= _sets[1] <= _sets[2]
 #
 # An edge that methods built on different ideas all keep is unlikely to be
 # an artifact of any one of them.
-# :func:`~networkx_backbone.consensus_backbone` keeps the edges present in
+# :func:`~nx_backbone.consensus_backbone` keeps the edges present in
 # every backbone it is given; counting how many backbones keep each edge
 # gives a graded answer instead of a yes or no.
 
@@ -1295,7 +1295,7 @@ show(draw_signed, "signed", fmt="png")
 # points the other way, to ties that are rarer than the researchers'
 # activity predicts. Analyze the two parts separately: they answer
 # different questions. :doc:`/tutorials/validating_backbones` shows a
-# pitfall when splitting by sign (:func:`~networkx_backbone.boolean_filter`
+# pitfall when splitting by sign (:func:`~nx_backbone.boolean_filter`
 # treats -1 as true).
 #
 # .. _hb-report:
@@ -1306,7 +1306,7 @@ show(draw_signed, "signed", fmt="png")
 # A methods section should name the method and its null model, give
 # :math:`\alpha` and the correction, say how much of the network was kept
 # and cite both the method and the software.
-# :func:`~networkx_backbone.describe_backbone` writes that paragraph from the
+# :func:`~nx_backbone.describe_backbone` writes that paragraph from the
 # same arguments you passed to the filter:
 
 print(
@@ -1338,15 +1338,15 @@ print(nb.describe_backbone("disparity_filter", alpha=0.05, mtc="bh", style="bibt
 #   :doc:`/user_guide/choosing_method`, :doc:`/user_guide/evaluation` and
 #   :doc:`/user_guide/weight_transforms` (what the weights mean to each
 #   null model).
-# - **The API.** :func:`~networkx_backbone.disparity_filter`,
-#   :func:`~networkx_backbone.marginal_likelihood_filter`,
-#   :func:`~networkx_backbone.high_salience_skeleton`,
-#   :func:`~networkx_backbone.maximum_spanning_tree_backbone`,
-#   :func:`~networkx_backbone.threshold_filter`,
-#   :func:`~networkx_backbone.adjust_pvalues`,
-#   :func:`~networkx_backbone.compare_backbones`,
-#   :func:`~networkx_backbone.consensus_backbone` and
-#   :func:`~networkx_backbone.describe_backbone`.
+# - **The API.** :func:`~nx_backbone.disparity_filter`,
+#   :func:`~nx_backbone.marginal_likelihood_filter`,
+#   :func:`~nx_backbone.high_salience_skeleton`,
+#   :func:`~nx_backbone.maximum_spanning_tree_backbone`,
+#   :func:`~nx_backbone.threshold_filter`,
+#   :func:`~nx_backbone.adjust_pvalues`,
+#   :func:`~nx_backbone.compare_backbones`,
+#   :func:`~nx_backbone.consensus_backbone` and
+#   :func:`~nx_backbone.describe_backbone`.
 #
 # References
 # ----------

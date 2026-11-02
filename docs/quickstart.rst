@@ -2,7 +2,7 @@ Quick Start
 ===========
 
 This guide walks through the basic workflow of extracting a backbone from
-a network using ``networkx-backbone``.
+a network using ``nx-backbone``.
 
 .. tip::
 
@@ -17,7 +17,7 @@ Import
 The recommended import convention is::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
 Step 1: Create or load a weighted graph
 ---------------------------------------
@@ -38,7 +38,7 @@ a copy of the graph with an added ``"disparity_pvalue"`` edge attribute::
 Step 3: Filter to extract the backbone
 ---------------------------------------
 
-Use :func:`~networkx_backbone.threshold_filter` to keep only edges whose
+Use :func:`~nx_backbone.threshold_filter` to keep only edges whose
 p-value is below a significance threshold::
 
     backbone = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
@@ -52,7 +52,7 @@ chance. Pass ``mtc`` to correct for multiple testing (``"bonferroni"``,
 Step 4: Evaluate the backbone
 ------------------------------
 
-Use the :mod:`~networkx_backbone.measures` module to compare the backbone
+Use the :mod:`~nx_backbone.measures` module to compare the backbone
 to the original graph::
 
     print(f"Edges kept: {nb.edge_fraction(G, backbone):.1%}")
@@ -64,7 +64,7 @@ Disparity filter visualization
 The Sphinx Gallery example below visualizes retained and removed structure
 after applying ``disparity_filter`` followed by ``threshold_filter``.
 
-.. minigallery:: networkx_backbone.disparity_filter
+.. minigallery:: nx_backbone.disparity_filter
 
 Other approaches
 ----------------

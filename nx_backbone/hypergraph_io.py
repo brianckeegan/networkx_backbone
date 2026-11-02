@@ -1,13 +1,13 @@
 """
 Hypergraph ingestion and interoperability adapters.
 
-``networkx_backbone`` represents a hypergraph as a plain iterable of hyperedges
+``nx_backbone`` represents a hypergraph as a plain iterable of hyperedges
 (each an iterable of node labels), which every hypergraph backbone method in
-:mod:`networkx_backbone.hypergraph` consumes.  This module converts that
+:mod:`nx_backbone.hypergraph` consumes.  This module converts that
 representation to and from:
 
 - a **NetworkX incidence bipartite graph**, so bipartite projection backbones
-  (:func:`~networkx_backbone.sdsm`, :func:`~networkx_backbone.fdsm`, ...) can be
+  (:func:`~nx_backbone.sdsm`, :func:`~nx_backbone.fdsm`, ...) can be
   applied to hypergraphs;
 - the **HIF** (Hypergraph Interchange Format) JSON standard;
 - the **xgi**, **HyperNetX**, **HypergraphX**, and **Hypergraph Analysis
@@ -27,13 +27,13 @@ from typing import TYPE_CHECKING, Literal, overload
 
 import networkx as nx
 
-from networkx_backbone.hypergraph import _sorted_labels
+from nx_backbone.hypergraph import _sorted_labels
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Iterable, Mapping
     from typing import IO, Any
 
-    from networkx_backbone._typing import Hyperedge, Hyperedges
+    from nx_backbone._typing import Hyperedge, Hyperedges
 
 __all__ = [
     "hypergraph_to_bipartite",
@@ -90,8 +90,8 @@ def hypergraph_to_bipartite(
     string node label such as ``"he0"`` -- carrying a ``"members"`` attribute
     with the hyperedge as a :class:`frozenset`.  The result is exactly the input
     expected by the bipartite projection backbones, so a hypergraph can be
-    backboned with, e.g., :func:`~networkx_backbone.sdsm` or
-    :func:`~networkx_backbone.fdsm`.
+    backboned with, e.g., :func:`~nx_backbone.sdsm` or
+    :func:`~nx_backbone.fdsm`.
 
     Parameters
     ----------
@@ -123,7 +123,7 @@ def hypergraph_to_bipartite(
     Examples
     --------
     >>> import networkx as nx
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> B, nodes = nb.hypergraph_to_bipartite([(1, 2, 3), (2, 3, 4), (5, 6)])
     >>> nx.is_bipartite(B)
     True
@@ -180,7 +180,7 @@ def _check_network_type(network_type):
         return
     if network_type == "directed":
         raise nx.NetworkXNotImplemented(
-            "directed hypergraphs are not supported; networkx_backbone "
+            "directed hypergraphs are not supported; nx_backbone "
             "hypergraphs are undirected (HIF network-type 'undirected' or 'asc')"
         )
     raise ValueError(
@@ -241,7 +241,7 @@ def write_hif(
 
     Examples
     --------
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> hif = nb.write_hif([(1, 2, 3), (3, 4)], weights=[2, 1])
     >>> hif["network-type"]
     'undirected'
@@ -351,7 +351,7 @@ def read_hif(
 
     Examples
     --------
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> hif = nb.write_hif([(1, 2, 3), (3, 4)], weights=[2, 1])
     >>> edges, weights = nb.read_hif(hif, return_weights=True)
     >>> [sorted(e) for e in edges], weights
@@ -463,7 +463,7 @@ def from_xgi(
     Examples
     --------
     >>> import xgi  # doctest: +SKIP
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> nb.from_xgi(xgi.Hypergraph([[1, 2, 3], [3, 4]]))  # doctest: +SKIP
     [frozenset({1, 2, 3}), frozenset({3, 4})]
     """
@@ -505,7 +505,7 @@ def to_xgi(hyperedges: Hyperedges, weights: Iterable[float] | None = None) -> An
 
     Examples
     --------
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> H = nb.to_xgi([(1, 2, 3), (3, 4)], weights=[2.0, 1.0])  # doctest: +SKIP
     >>> H.num_edges  # doctest: +SKIP
     2
@@ -567,7 +567,7 @@ def from_hypernetx(
     Examples
     --------
     >>> import hypernetx as hnx  # doctest: +SKIP
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> nb.from_hypernetx(hnx.Hypergraph({"a": [1, 2], "b": [2, 3]}))  # doctest: +SKIP
     [frozenset({1, 2}), frozenset({2, 3})]
     """
@@ -609,7 +609,7 @@ def to_hypernetx(hyperedges: Hyperedges, weights: Iterable[float] | None = None)
 
     Examples
     --------
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> H = nb.to_hypernetx([(1, 2, 3), (3, 4)])  # doctest: +SKIP
     >>> sorted(H.incidence_dict)  # doctest: +SKIP
     [0, 1]
@@ -668,7 +668,7 @@ def from_hypergraphx(
     Examples
     --------
     >>> import hypergraphx as hgx  # doctest: +SKIP
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> nb.from_hypergraphx(hgx.Hypergraph(edge_list=[(1, 2), (2, 3, 4)]))  # doctest: +SKIP
     [frozenset({1, 2}), frozenset({2, 3, 4})]
     """
@@ -720,7 +720,7 @@ def to_hypergraphx(
 
     Examples
     --------
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> H = nb.to_hypergraphx([(1, 2, 3), (3, 4), (3, 4)])  # doctest: +SKIP
     >>> nb.from_hypergraphx(H, return_weights=True)  # doctest: +SKIP
     ([frozenset({1, 2, 3}), frozenset({3, 4})], [1, 2])
@@ -824,7 +824,7 @@ def from_hat(
 
     Examples
     --------
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> H = nb.to_hat([("a", "b"), ("b", "c", "d")])  # doctest: +SKIP
     >>> nb.from_hat(H)  # doctest: +SKIP
     [frozenset({'a', 'b'}), frozenset({'b', 'c', 'd'})]
@@ -884,7 +884,7 @@ def to_hat(hyperedges: Hyperedges, weights: Iterable[float] | None = None) -> An
 
     Examples
     --------
-    >>> import networkx_backbone as nb
+    >>> import nx_backbone as nb
     >>> H = nb.to_hat([("a", "b"), ("b", "c", "d")], weights=[2, 1])  # doctest: +SKIP
     >>> list(H.edge_weights)  # doctest: +SKIP
     [2, 1]

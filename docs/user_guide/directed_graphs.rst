@@ -10,28 +10,28 @@ Supported methods
 The following methods support both directed and undirected graphs:
 
 **Statistical methods** (all 6):
-    :func:`~networkx_backbone.disparity_filter`,
-    :func:`~networkx_backbone.noise_corrected_filter`,
-    :func:`~networkx_backbone.marginal_likelihood_filter`,
-    :func:`~networkx_backbone.ecm_filter`,
-    :func:`~networkx_backbone.lans_filter`,
-    :func:`~networkx_backbone.multiple_linkage_analysis`
+    :func:`~nx_backbone.disparity_filter`,
+    :func:`~nx_backbone.noise_corrected_filter`,
+    :func:`~nx_backbone.marginal_likelihood_filter`,
+    :func:`~nx_backbone.ecm_filter`,
+    :func:`~nx_backbone.lans_filter`,
+    :func:`~nx_backbone.multiple_linkage_analysis`
 
 **Structural (2 of 10)**:
-    :func:`~networkx_backbone.global_threshold_filter`,
-    :func:`~networkx_backbone.strongest_n_ties`
+    :func:`~nx_backbone.global_threshold_filter`,
+    :func:`~nx_backbone.strongest_n_ties`
 
 **Hybrid methods**:
-    :func:`~networkx_backbone.glab_filter`
+    :func:`~nx_backbone.glab_filter`
 
 **Proximity methods** (all 12):
     All proximity scoring functions work with directed graphs.
 
 **Filters** (all 4):
-    :func:`~networkx_backbone.threshold_filter`,
-    :func:`~networkx_backbone.fraction_filter`,
-    :func:`~networkx_backbone.boolean_filter`,
-    :func:`~networkx_backbone.consensus_backbone`
+    :func:`~nx_backbone.threshold_filter`,
+    :func:`~nx_backbone.fraction_filter`,
+    :func:`~nx_backbone.boolean_filter`,
+    :func:`~nx_backbone.consensus_backbone`
 
 **Measures** (all 7):
     All evaluation functions work with directed graphs.
@@ -42,30 +42,30 @@ Undirected-only methods
 The following methods raise ``NetworkXNotImplemented`` when given a directed
 graph:
 
-- :func:`~networkx_backbone.high_salience_skeleton`
-- :func:`~networkx_backbone.metric_backbone`
-- :func:`~networkx_backbone.ultrametric_backbone`
-- :func:`~networkx_backbone.doubly_stochastic_filter`
-- :func:`~networkx_backbone.h_backbone`
-- :func:`~networkx_backbone.modularity_backbone`
-- :func:`~networkx_backbone.planar_maximally_filtered_graph`
-- :func:`~networkx_backbone.maximum_spanning_tree_backbone`
-- :func:`~networkx_backbone.sparsify`
-- :func:`~networkx_backbone.lspar`
-- :func:`~networkx_backbone.local_degree`
+- :func:`~nx_backbone.high_salience_skeleton`
+- :func:`~nx_backbone.metric_backbone`
+- :func:`~nx_backbone.ultrametric_backbone`
+- :func:`~nx_backbone.doubly_stochastic_filter`
+- :func:`~nx_backbone.h_backbone`
+- :func:`~nx_backbone.modularity_backbone`
+- :func:`~nx_backbone.planar_maximally_filtered_graph`
+- :func:`~nx_backbone.maximum_spanning_tree_backbone`
+- :func:`~nx_backbone.sparsify`
+- :func:`~nx_backbone.lspar`
+- :func:`~nx_backbone.local_degree`
 
 Behavior differences
 --------------------
 
 For statistical methods on directed graphs, the p-value computation uses the
 out-degree and out-strength of the source node.
-:func:`~networkx_backbone.noise_corrected_filter` uses the source's
+:func:`~nx_backbone.noise_corrected_filter` uses the source's
 out-strength and the target's in-strength, and
-:func:`~networkx_backbone.multiple_linkage_analysis` fits each node's
+:func:`~nx_backbone.multiple_linkage_analysis` fits each node's
 out-links only. For proximity methods on
 directed graphs, neighborhoods are defined using successors.
 
-:func:`~networkx_backbone.glab_filter` follows Section 2.3 of Zhang et al.
+:func:`~nx_backbone.glab_filter` follows Section 2.3 of Zhang et al.
 (2014): each link *(i, j)* gets an *out-importance* from the shortest paths
 that leave *i* through it (null model on the out-degree of *i*) and an
 *in-importance* from the shortest paths that reach *j* through it (null
@@ -78,7 +78,7 @@ Example
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     # Create a weighted directed graph
     G = nx.DiGraph()

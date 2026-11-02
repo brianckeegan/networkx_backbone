@@ -1,7 +1,7 @@
 """Tests for ``kalman_backbone`` (issue #72) and its numerical core.
 
-The array-level tests check ``networkx_backbone._kalman``; the last three
-check the graph-level function in ``networkx_backbone.temporal``.  The API
+The array-level tests check ``nx_backbone._kalman``; the last three
+check the graph-level function in ``nx_backbone.temporal``.  The API
 contract is checked in tests/test_api_contract.py.
 """
 
@@ -13,9 +13,9 @@ import pytest
 np = pytest.importorskip("numpy")
 stats = pytest.importorskip("scipy.stats")
 
-import networkx_backbone as nb  # noqa: E402
-from networkx_backbone import _kalman as kal  # noqa: E402
-from networkx_backbone.statistical import _combine_tails  # noqa: E402
+import nx_backbone as nb  # noqa: E402
+from nx_backbone import _kalman as kal  # noqa: E402
+from nx_backbone.statistical import _combine_tails  # noqa: E402
 
 MODES = ("smoother", "filter")
 

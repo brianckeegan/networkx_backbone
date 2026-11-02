@@ -10,7 +10,7 @@ Setup
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G = nx.les_miserables_graph()
 
@@ -36,11 +36,11 @@ Apply several different backbone methods to the same graph::
 Using compare_backbones
 -----------------------
 
-The :func:`~networkx_backbone.compare_backbones` function evaluates each
+The :func:`~nx_backbone.compare_backbones` function evaluates each
 backbone using a set of measures. By default, it computes
-:func:`~networkx_backbone.node_fraction`,
-:func:`~networkx_backbone.edge_fraction`, and
-:func:`~networkx_backbone.weight_fraction`::
+:func:`~nx_backbone.node_fraction`,
+:func:`~nx_backbone.edge_fraction`, and
+:func:`~nx_backbone.weight_fraction`::
 
     results = nb.compare_backbones(G, backbones)
 
@@ -73,7 +73,7 @@ accept the original graph and the backbone as arguments::
 Consensus backbone
 ------------------
 
-The :func:`~networkx_backbone.consensus_backbone` function finds edges that
+The :func:`~nx_backbone.consensus_backbone` function finds edges that
 appear in all provided backbones. This identifies the most robust edges that
 multiple methods agree are important::
 

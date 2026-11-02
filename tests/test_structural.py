@@ -1,4 +1,4 @@
-"""Known-answer and regression tests for networkx_backbone.structural.
+"""Known-answer and regression tests for nx_backbone.structural.
 
 Shared behavior (attributes, weight validation, directed/multigraph
 rejection, empty graphs, mixed labels, no input mutation) is covered by
@@ -11,7 +11,7 @@ import warnings
 import networkx as nx
 import pytest
 
-from networkx_backbone import (
+from nx_backbone import (
     boolean_filter,
     doubly_stochastic_filter,
     edge_betweenness_filter,

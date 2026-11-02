@@ -1,4 +1,4 @@
-"""Reference-implementation and regression tests for networkx_backbone.unweighted.
+"""Reference-implementation and regression tests for nx_backbone.unweighted.
 
 Shared behavior (attributes, directed/multigraph rejection, empty graphs,
 mixed labels, no input mutation) is covered by ``test_api_contract.py``.
@@ -12,7 +12,7 @@ import random
 import networkx as nx
 import pytest
 
-from networkx_backbone import (
+from nx_backbone import (
     boolean_filter,
     local_degree,
     lspar,
@@ -335,7 +335,7 @@ class TestSparsifyOptions:
         assert not failed, f"UMST differs from brute force for seeds {failed}"
 
     def test_umst_helper_matches_spanning_tree_iterator(self):
-        from networkx_backbone.unweighted import _umst_edges
+        from nx_backbone.unweighted import _umst_edges
 
         failed = []
         for seed in range(8):

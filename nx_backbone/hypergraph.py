@@ -31,12 +31,12 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
-from networkx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._docstrings import append_complexity_docstrings
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Iterable, Iterator
 
-    from networkx_backbone._typing import Hyperedge, Hyperedges
+    from nx_backbone._typing import Hyperedge, Hyperedges
 
 __all__ = [
     "intersection_graph",
@@ -392,7 +392,7 @@ def intersection_graph(
 
     Examples
     --------
-    >>> from networkx_backbone import intersection_graph
+    >>> from nx_backbone import intersection_graph
     >>> I = intersection_graph([(1, 2, 3), (2, 3, 4), (5, 6)])
     >>> I.number_of_nodes()
     3
@@ -730,7 +730,7 @@ def mdl_hypergraph_backbone(
 
     Examples
     --------
-    >>> from networkx_backbone import mdl_hypergraph_backbone
+    >>> from nx_backbone import mdl_hypergraph_backbone
     >>> # A 4-node hyperedge with two nested (redundant) sub-hyperedges.
     >>> G = [(1, 2, 3, 4), (1, 2, 3), (2, 3, 4), (8, 9)]
     >>> result = mdl_hypergraph_backbone(G)
@@ -815,7 +815,7 @@ def hypergraph_compression_ratio(
 
     Examples
     --------
-    >>> from networkx_backbone import hypergraph_compression_ratio
+    >>> from nx_backbone import hypergraph_compression_ratio
     >>> eta = hypergraph_compression_ratio([(1, 2, 3, 4), (1, 2, 3), (2, 3, 4)])
     >>> 0.0 <= eta <= 1.0
     True
@@ -949,7 +949,7 @@ def local_mdl_hypergraph_backbone(
     nodes 6, 7 and 8, so the local backbone keeps it (while still pruning the
     nested sub-hyperedges):
 
-    >>> from networkx_backbone import (
+    >>> from nx_backbone import (
     ...     local_mdl_hypergraph_backbone,
     ...     mdl_hypergraph_backbone,
     ... )
@@ -1074,7 +1074,7 @@ def maximal_hyperedges(hyperedges: Hyperedges) -> list[Hyperedge]:
 
     Examples
     --------
-    >>> from networkx_backbone import maximal_hyperedges
+    >>> from nx_backbone import maximal_hyperedges
     >>> sorted(map(sorted, maximal_hyperedges([(1, 2, 3), (1, 2), (2, 3), (4, 5)])))
     [[1, 2, 3], [4, 5]]
     """
@@ -1130,7 +1130,7 @@ def order_filter(
 
     Examples
     --------
-    >>> from networkx_backbone import order_filter
+    >>> from nx_backbone import order_filter
     >>> sorted(map(sorted, order_filter([(1, 2), (1, 2, 3), (1, 2, 3, 4)], min_order=3)))
     [[1, 2, 3], [1, 2, 3, 4]]
     """
@@ -1187,7 +1187,7 @@ def s_components(hyperedges: Hyperedges, s: int = 1) -> list[list[Hyperedge]]:
 
     Examples
     --------
-    >>> from networkx_backbone import s_components
+    >>> from nx_backbone import s_components
     >>> comps = s_components([(1, 2, 3), (2, 3, 4), (5, 6, 7)], s=2)
     >>> [len(c) for c in comps]
     [2, 1]
@@ -1367,7 +1367,7 @@ def statistically_validated_hypergraph(
 
     Examples
     --------
-    >>> from networkx_backbone import statistically_validated_hypergraph
+    >>> from nx_backbone import statistically_validated_hypergraph
     >>> edges = [(1, 2), (1, 2), (1, 2), (1, 3), (2, 4), (5, 6)]
     >>> result = statistically_validated_hypergraph(edges)
     >>> isinstance(result.validated, list)
@@ -1490,7 +1490,7 @@ def statistically_validated_cores(
 
     Examples
     --------
-    >>> from networkx_backbone import statistically_validated_cores
+    >>> from nx_backbone import statistically_validated_cores
     >>> edges = [(1, 2, 3), (1, 2, 3), (1, 2, 3), (1, 4), (2, 5)]
     >>> result = statistically_validated_cores(edges)
     >>> result.method

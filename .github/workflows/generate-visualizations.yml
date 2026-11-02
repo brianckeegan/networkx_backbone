@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - "networkx_backbone/**/*.py"
+      - "nx_backbone/**/*.py"
       - "scripts/generate_visualizations.py"
       - "scripts/roadmap_figures.py"
       - "docs/**"

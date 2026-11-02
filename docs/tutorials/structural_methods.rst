@@ -16,7 +16,7 @@ Setup
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G = nx.les_miserables_graph()
 

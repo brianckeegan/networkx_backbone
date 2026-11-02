@@ -20,7 +20,7 @@ import networkx as nx
 import numpy as np
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 P = (0.0, 1.0)  # bounds of a p-value or other unit-interval score
 NONNEG = (0.0, math.inf)

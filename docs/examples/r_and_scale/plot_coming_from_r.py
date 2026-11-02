@@ -4,7 +4,7 @@ Coming from R backbone or netbone
 
 You have a backbone from the R package ``backbone`` or from the Python
 package ``netbone``, perhaps in a published paper or in a colleague's
-script, and you want the same result from ``networkx-backbone``. This guide
+script, and you want the same result from ``nx-backbone``. This guide
 maps each of their functions to ours, says where the results match exactly
 and where they differ by design, names the options that reproduce R, and then
 reproduces one R backbone on the Davis Southern Women data, p-value by
@@ -43,7 +43,7 @@ import numpy as np
 from _figures import style
 from matplotlib.lines import Line2D
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 DOCS = Path(style.__file__).resolve().parents[1]
 FIXTURES = DOCS.parent / "tests" / "fixtures"
@@ -75,61 +75,61 @@ print(f"netbone {NETBONE['meta']['netbone']}")
 #    :widths: 34 34 32
 #
 #    * - R ``backbone`` 3.0
-#      - networkx-backbone
+#      - nx-backbone
 #      - Agreement on the fixtures
 #    * - ``backbone_from_weighted(W, model = "disparity")``
-#      - :func:`~networkx_backbone.backbone_from_weighted` with
+#      - :func:`~nx_backbone.backbone_from_weighted` with
 #        ``method="disparity"``, or
-#        :func:`~networkx_backbone.disparity_filter`
+#        :func:`~nx_backbone.disparity_filter`
 #      - Equal p-values and backbones; the signed lower tail differs
 #        (convention 1 below)
 #    * - ``model = "mlf"``
-#      - :func:`~networkx_backbone.marginal_likelihood_filter`
+#      - :func:`~nx_backbone.marginal_likelihood_filter`
 #      - Equal, signed or not
 #    * - ``model = "lans"``
-#      - :func:`~networkx_backbone.lans_filter`
+#      - :func:`~nx_backbone.lans_filter`
 #      - Equal, signed or not, including the signs of ties
 #    * - ``model = "global", parameter = t``
-#      - :func:`~networkx_backbone.global_threshold_filter`
+#      - :func:`~nx_backbone.global_threshold_filter`
 #      - R keeps ``w > t``, we keep ``w >= t`` (convention 4)
 #    * - ``backbone_from_projection(I, model = "sdsm")``
-#      - :func:`~networkx_backbone.backbone_from_projection`, or
-#        :func:`~networkx_backbone.sdsm`
+#      - :func:`~nx_backbone.backbone_from_projection`, or
+#        :func:`~nx_backbone.sdsm`
 #      - Equal with ``pvalue_method="rna"``; the default is the exact tail
 #    * - ``model = "fixedfill"``, ``"fixedrow"``
-#      - :func:`~networkx_backbone.fixedfill`,
-#        :func:`~networkx_backbone.fixedrow`
+#      - :func:`~nx_backbone.fixedfill`,
+#        :func:`~nx_backbone.fixedrow`
 #      - Equal (both exact)
 #    * - ``model = "fixedcol"``
-#      - :func:`~networkx_backbone.fixedcol`
+#      - :func:`~nx_backbone.fixedcol`
 #      - We use the exact tail, R an approximation; same backbones
 #    * - ``model = "fdsm"``
-#      - :func:`~networkx_backbone.fdsm`
+#      - :func:`~nx_backbone.fdsm`
 #      - Equal within Monte Carlo error
 #    * - SDSM-EC (structural zeros and ones)
 #      - ``sdsm(prohibited=..., required=...)``
 #      - Different fit of the null model; same backbones
 #    * - ``backbone_from_unweighted(U, model = "lspar", parameter = s)``
-#      - :func:`~networkx_backbone.lspar`
+#      - :func:`~nx_backbone.lspar`
 #      - Equal with ``convention="r"`` (convention 3)
 #    * - ``model = "degree"``
-#      - :func:`~networkx_backbone.local_degree`
+#      - :func:`~nx_backbone.local_degree`
 #      - Equal
 #    * - ``backbone()``, ``bicm()``, ``fastball()``
-#      - :func:`~networkx_backbone.backbone`,
-#        :func:`~networkx_backbone.bicm`,
-#        :func:`~networkx_backbone.fastball`
+#      - :func:`~nx_backbone.backbone`,
+#        :func:`~nx_backbone.bicm`,
+#        :func:`~nx_backbone.fastball`
 #      - ``bicm`` equal to 1e-7
 #    * - ``stats::p.adjust()``
-#      - :func:`~networkx_backbone.adjust_pvalues`
+#      - :func:`~nx_backbone.adjust_pvalues`
 #      - Equal
 #    * - the backbone object's ``narrative``
-#      - :func:`~networkx_backbone.describe_backbone`
+#      - :func:`~nx_backbone.describe_backbone`
 #      - Methods text and citations
 #
 # Our functions take a NetworkX graph or, like R, a matrix: an adjacency
 # matrix for the weighted and unweighted wrappers (through
-# :func:`~networkx_backbone.to_graph`) and an agents-by-artifacts incidence
+# :func:`~nx_backbone.to_graph`) and an agents-by-artifacts incidence
 # matrix for the projection models, with ``agent_labels`` and
 # ``artifact_labels`` for the row and column names.
 #
@@ -139,51 +139,51 @@ print(f"netbone {NETBONE['meta']['netbone']}")
 # netbone is a Python package with one function per method. Its p-values are
 # in a ``p_value`` column; ours are edge attributes on a copy of the graph
 # (``disparity_pvalue``, ``lans_pvalue``, ...), and a filter such as
-# :func:`~networkx_backbone.threshold_filter` turns them into a backbone.
+# :func:`~nx_backbone.threshold_filter` turns them into a backbone.
 #
 # .. list-table::
 #    :header-rows: 1
 #    :widths: 34 34 32
 #
 #    * - netbone
-#      - networkx-backbone
+#      - nx-backbone
 #      - Agreement on the fixtures
 #    * - ``disparity``, ``lans``, ``marginal_likelihood``
-#      - :func:`~networkx_backbone.disparity_filter`,
-#        :func:`~networkx_backbone.lans_filter`,
-#        :func:`~networkx_backbone.marginal_likelihood_filter`
+#      - :func:`~nx_backbone.disparity_filter`,
+#        :func:`~nx_backbone.lans_filter`,
+#        :func:`~nx_backbone.marginal_likelihood_filter`
 #      - Equal
 #    * - ``metric_distance_backbone``, ``ultrametric_distance_backbone``
-#      - :func:`~networkx_backbone.metric_backbone`,
-#        :func:`~networkx_backbone.ultrametric_backbone`
+#      - :func:`~nx_backbone.metric_backbone`,
+#        :func:`~nx_backbone.ultrametric_backbone`
 #      - Equal
 #    * - ``ecm``
-#      - :func:`~networkx_backbone.ecm_filter`
+#      - :func:`~nx_backbone.ecm_filter`
 #      - Equal to about 1e-5, the solvers' tolerance
 #    * - ``noise_corrected``
-#      - :func:`~networkx_backbone.noise_corrected_filter`
+#      - :func:`~nx_backbone.noise_corrected_filter`
 #      - Same score formulas with a different total weight.  Both default
 #        to binomial p-values, but netbone's count fewer trials and give
 #        :math:`P(X > w)`, so the backbones differ (see the Notes)
 #    * - ``glanb``
-#      - :func:`~networkx_backbone.glab_filter`
+#      - :func:`~nx_backbone.glab_filter`
 #      - Equal where no shortest paths tie
 #    * - ``high_salience_skeleton``
-#      - :func:`~networkx_backbone.high_salience_skeleton`
+#      - :func:`~nx_backbone.high_salience_skeleton`
 #      - Equal where no shortest paths tie; we split the credit of ties
 #    * - ``h_backbone``
-#      - :func:`~networkx_backbone.h_backbone`
+#      - :func:`~nx_backbone.h_backbone`
 #      - Same h-strength edges; different bridge values
 #    * - ``mlam``
-#      - :func:`~networkx_backbone.multiple_linkage_analysis`
+#      - :func:`~nx_backbone.multiple_linkage_analysis`
 #      - A different fitting procedure; netbone's links are a subset of ours
 #    * - ``doubly_stochastic``
-#      - :func:`~networkx_backbone.doubly_stochastic_filter`
+#      - :func:`~nx_backbone.doubly_stochastic_filter`
 #      - Not comparable: netbone's result depends on how edges are stored
 #
 # Each difference, with its measured size, is in the design note
 # `Convention differences from R backbone and netbone
-# <https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/reference-conventions.md>`__,
+# <https://github.com/brianckeegan/nx-backbone/blob/main/docs/design/reference-conventions.md>`__,
 # and in the Notes of each function's docstring.
 
 # %%
@@ -197,7 +197,7 @@ print(f"netbone {NETBONE['meta']['netbone']}")
 #    co-occur untested by default (``missing_as_zero = FALSE``), so a
 #    multiple-testing correction counts fewer tests. We test every pair.
 #    Pass ``missing_as_zero=False`` to
-#    :func:`~networkx_backbone.backbone_from_projection` to test only the
+#    :func:`~nx_backbone.backbone_from_projection` to test only the
 #    pairs R tests.
 # 2. **The sign of an exact tie.** In a *signed* backbone each kept edge is
 #    marked significantly strong (``+1``) or significantly weak (``-1``).
@@ -207,10 +207,10 @@ print(f"netbone {NETBONE['meta']['netbone']}")
 # 3. **lspar.** R's local sparsification ranks Jaccard similarities
 #    differently and keeps ``floor(d ** s)`` edges per node, with no minimum
 #    of one (Satuluri et al., 2011, describe the rule we use by default).
-#    Pass ``convention="r"`` to :func:`~networkx_backbone.lspar`.
+#    Pass ``convention="r"`` to :func:`~nx_backbone.lspar`.
 # 4. **Global threshold.** R keeps ``w > t``;
-#    :func:`~networkx_backbone.global_threshold_filter` keeps ``w >= t``, like
-#    :func:`~networkx_backbone.threshold_filter`. Pass
+#    :func:`~nx_backbone.global_threshold_filter` keeps ``w >= t``, like
+#    :func:`~nx_backbone.threshold_filter`. Pass
 #    ``threshold=math.nextafter(t, math.inf)``, the next number above ``t``.
 #
 # Some differences are kept on purpose and have no switch: the lower tail of
@@ -333,7 +333,7 @@ for label, theirs, kwargs, switch, func in rows:
 
 bb = nb.backbone_from_projection(B, agent_nodes=women, method="fixedrow", alpha=0.05)
 r_bb = r_edges(R["davis"]["fixedrow"]["backbones"]["none"], women)
-print(f"networkx-backbone keeps {bb.number_of_edges()} pairs; R keeps {len(r_bb)}.")
+print(f"nx-backbone keeps {bb.number_of_edges()} pairs; R keeps {len(r_bb)}.")
 print("Same pairs:", our_edges(bb) == r_bb)
 
 # %%
@@ -343,7 +343,7 @@ print("Same pairs:", our_edges(bb) == r_bb)
 # model, whose p-value both packages compute exactly, and the *stochastic
 # degree sequence model* (SDSM; Neal, 2014), whose p-value R approximates
 # with the refined normal approximation (RNA). Our
-# :func:`~networkx_backbone.sdsm` computes the exact tail by default, on
+# :func:`~nx_backbone.sdsm` computes the exact tail by default, on
 # inputs of any size while that is affordable, and takes
 # ``pvalue_method="rna"`` to match R.
 
@@ -425,7 +425,7 @@ def draw_pvalues(mode):
         ax.set_xticks([0, 0.5, 1])
         ax.set_yticks([0, 0.5, 1])
         ax.grid(True)
-    axes[0].set_ylabel("networkx-backbone p-value")
+    axes[0].set_ylabel("nx-backbone p-value")
     axes[1].set_xlabel(f"R backbone {meta['backbone']} p-value")
     marker = {"marker": "o", "linestyle": "", "markersize": 6}
     handles = [
@@ -459,7 +459,7 @@ style.save_variants(draw_pvalues, OUT / "coming_from_r_pvalues")
 #    :figclass: only-light
 #    :class: only-light
 #    :width: 100%
-#    :alt: Three scatter plots of networkx-backbone p-values against R
+#    :alt: Three scatter plots of nx-backbone p-values against R
 #          backbone p-values for the 153 pairs of Davis women. In the
 #          fixedrow panel and the sdsm panel with the RNA, every pair that
 #          co-occurs lies on the diagonal of equal p-values. In the default
@@ -477,7 +477,7 @@ style.save_variants(draw_pvalues, OUT / "coming_from_r_pvalues")
 #    :figclass: only-dark
 #    :class: only-dark
 #    :width: 100%
-#    :alt: Three scatter plots of networkx-backbone p-values against R
+#    :alt: Three scatter plots of nx-backbone p-values against R
 #          backbone p-values for the 153 pairs of Davis women. In the
 #          fixedrow panel and the sdsm panel with the RNA, every pair that
 #          co-occurs lies on the diagonal of equal p-values. In the default
@@ -507,7 +507,7 @@ style.save_variants(draw_pvalues, OUT / "coming_from_r_pvalues")
 #   matrices" of
 #   :doc:`/auto_examples/bipartite/plot_bipartite_projections` shows it on a
 #   planted group; `issue #108
-#   <https://github.com/brianckeegan/networkx_backbone/issues/108>`_). Use
+#   <https://github.com/brianckeegan/nx-backbone/issues/108>`_). Use
 #   ``pvalue_method="rna"`` to reproduce R, and the default otherwise.
 #
 # The backbone itself
@@ -582,9 +582,9 @@ print(draw_davis.caption)
 # -----------------------------------
 #
 # 1. Pick the wrapper by input type, as in R:
-#    :func:`~networkx_backbone.backbone_from_weighted`,
-#    :func:`~networkx_backbone.backbone_from_projection` or
-#    :func:`~networkx_backbone.backbone_from_unweighted`; ``model=`` becomes
+#    :func:`~nx_backbone.backbone_from_weighted`,
+#    :func:`~nx_backbone.backbone_from_projection` or
+#    :func:`~nx_backbone.backbone_from_unweighted`; ``model=`` becomes
 #    ``method=``.
 # 2. Keep ``alpha``, ``signed`` and ``mtc`` as they are.
 # 3. For a projection with ``mtc``, add ``missing_as_zero=False`` to test the

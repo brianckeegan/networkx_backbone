@@ -1,4 +1,4 @@
-"""Shared test fixtures for networkx_backbone tests.
+"""Shared test fixtures for nx_backbone tests.
 
 Setting ``NETWORKX_TEST_BACKEND`` runs the suite under NetworkX's dispatch
 test harness, as NetworkX's own ``conftest.py`` does for its tests: every
@@ -6,7 +6,7 @@ call to a dispatchable function (ours and NetworkX's) converts its input
 graphs to the named backend, calls that backend, and, for functions that
 return graphs, checks that the result equals the plain NetworkX result::
 
-    NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules networkx_backbone tests
+    NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules nx_backbone tests
 
 ``nx_loopback`` is the test backend that ships with NetworkX.  Set
 ``NETWORKX_FALLBACK_TO_NX=1`` to run functions a backend does not implement

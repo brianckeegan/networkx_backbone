@@ -18,8 +18,8 @@ from pathlib import Path
 import networkx as nx
 from _figures import style
 
-import networkx_backbone as nb
-from networkx_backbone.visualization import (
+import nx_backbone as nb
+from nx_backbone.visualization import (
     compare_graphs,
     graph_difference,
     save_graph_comparison,

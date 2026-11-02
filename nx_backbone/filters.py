@@ -14,9 +14,9 @@ from typing import TYPE_CHECKING
 
 import networkx as nx
 
-from networkx_backbone._dispatch import _dispatchable
-from networkx_backbone._docstrings import append_complexity_docstrings
-from networkx_backbone._typing import not_implemented_for
+from nx_backbone._dispatch import _dispatchable
+from nx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._typing import not_implemented_for
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable
@@ -78,7 +78,7 @@ def adjust_pvalues(pvalues: Iterable[float], method: str = "bh") -> list[float]:
 
     Examples
     --------
-    >>> from networkx_backbone import adjust_pvalues
+    >>> from nx_backbone import adjust_pvalues
     >>> adjust_pvalues([0.01, 0.02, 0.5], method="bonferroni")
     [0.03, 0.06, 1.0]
     """
@@ -186,7 +186,7 @@ def multigraph_to_weighted(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import multigraph_to_weighted
+    >>> from nx_backbone import multigraph_to_weighted
     >>> B = nx.davis_southern_women_graph()
     >>> MG = nx.MultiGraph()
     >>> MG.add_nodes_from(B.nodes(data=True))
@@ -294,7 +294,7 @@ def transform_weights(
         break ties by neighbor order behave as on *G*.  The transform is
         appended to the list ``H.graph["weight_transforms"]`` as a dict with
         keys ``"transform"`` (a description of *transformer*), ``"weight"``
-        and ``"out"``; :func:`~networkx_backbone.describe_backbone` reports
+        and ``"out"``; :func:`~nx_backbone.describe_backbone` reports
         it.
 
     Raises
@@ -303,7 +303,7 @@ def transform_weights(
         If an edge has a missing, non-numeric, or non-finite weight.
     NetworkXNotImplemented
         If *G* is a multigraph.  Collapse parallel edges first with
-        :func:`~networkx_backbone.multigraph_to_weighted`.
+        :func:`~nx_backbone.multigraph_to_weighted`.
     TypeError
         If *transformer* is neither callable nor has ``fit_transform`` or
         ``transform``.
@@ -334,10 +334,10 @@ def transform_weights(
     ``standardize=True``, ``QuantileTransformer`` with a normal output)
     produce negative weights.
 
-    Count-based null models (:func:`~networkx_backbone.marginal_likelihood_filter`,
-    :func:`~networkx_backbone.ecm_filter`,
-    :func:`~networkx_backbone.noise_corrected_filter`,
-    :func:`~networkx_backbone.polya_filter`) treat weights as numbers of
+    Count-based null models (:func:`~nx_backbone.marginal_likelihood_filter`,
+    :func:`~nx_backbone.ecm_filter`,
+    :func:`~nx_backbone.noise_corrected_filter`,
+    :func:`~nx_backbone.polya_filter`) treat weights as numbers of
     events, which a continuous transform does not preserve, and binning
     (for example ``KBinsDiscretizer``) gives ordinal labels, not counts.  To
     change the size of one count use their ``unit=`` argument instead.
@@ -346,7 +346,7 @@ def transform_weights(
     --------
     >>> import math
     >>> import networkx as nx
-    >>> from networkx_backbone import disparity_filter, transform_weights
+    >>> from nx_backbone import disparity_filter, transform_weights
     >>> G = nx.les_miserables_graph()
     >>> H = transform_weights(G, math.log1p)
     >>> round(H["Valjean"]["Javert"]["weight"], 4)
@@ -453,7 +453,7 @@ def _apply_array_transformer(transformer, how, ws):
 
 def _check_transformed(ws, ys):
     """Reject non-finite or degenerate output; warn on order changes."""
-    from networkx_backbone.statistical import _external_stacklevel
+    from nx_backbone.statistical import _external_stacklevel
 
     if not all(math.isfinite(y) for y in ys):
         raise ValueError("The transformed weights contain NaN or infinite values.")
@@ -614,7 +614,7 @@ def threshold_filter(
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import disparity_filter, threshold_filter
+    >>> from nx_backbone import disparity_filter, threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> H = disparity_filter(G)
     >>> filtered = threshold_filter(H, "disparity_pvalue", 0.5)
@@ -709,7 +709,7 @@ def fraction_filter(
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import disparity_filter, fraction_filter
+    >>> from nx_backbone import disparity_filter, fraction_filter
     >>> G = nx.les_miserables_graph()
     >>> H = disparity_filter(G)
     >>> filtered = fraction_filter(H, "disparity_pvalue", 0.5)
@@ -768,7 +768,7 @@ def boolean_filter(G: nx.Graph, score: str) -> nx.Graph:
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import boolean_filter, global_threshold_filter
+    >>> from nx_backbone import boolean_filter, global_threshold_filter
     >>> G = nx.les_miserables_graph()
     >>> scored = global_threshold_filter(G, threshold=2)
     >>> H = boolean_filter(scored, "global_threshold_keep")
@@ -811,7 +811,7 @@ def consensus_backbone(*backbones: nx.Graph) -> nx.Graph:
     --------
     >>> import networkx as nx
 
-    >>> from networkx_backbone import (
+    >>> from nx_backbone import (
     ...     consensus_backbone,
     ...     jaccard_backbone,
     ...     cosine_backbone,

@@ -3,7 +3,7 @@
 import networkx as nx
 import pytest
 
-from networkx_backbone import compare_graphs, graph_difference, save_graph_comparison
+from nx_backbone import compare_graphs, graph_difference, save_graph_comparison
 
 
 def test_graph_difference_nodes_and_edges():

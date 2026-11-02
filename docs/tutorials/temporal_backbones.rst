@@ -2,16 +2,16 @@ Temporal Backbones
 ==================
 
 This tutorial scores the edges of a temporal network with the descriptive
-filters of :mod:`networkx_backbone.temporal`:
-:func:`~networkx_backbone.observation_fraction`,
-:func:`~networkx_backbone.persistence`,
-:func:`~networkx_backbone.backbone_stability` and
-:func:`~networkx_backbone.weight_trend`, compares them with a model of
-persistent activity, :func:`~networkx_backbone.edge_persistence_hmm`, and
+filters of :mod:`nx_backbone.temporal`:
+:func:`~nx_backbone.observation_fraction`,
+:func:`~nx_backbone.persistence`,
+:func:`~nx_backbone.backbone_stability` and
+:func:`~nx_backbone.weight_trend`, compares them with a model of
+persistent activity, :func:`~nx_backbone.edge_persistence_hmm`, and
 smooths per-step significance with
-:func:`~networkx_backbone.kalman_backbone`. Each returns one static graph, the
+:func:`~nx_backbone.kalman_backbone`. Each returns one static graph, the
 union of the observed edges with score attributes, so the usual filters such
-as :func:`~networkx_backbone.threshold_filter` pick the backbone. See
+as :func:`~nx_backbone.threshold_filter` pick the backbone. See
 :doc:`../user_guide/temporal` for the three input forms (snapshots, events and
 spans) and the conversions between them, and :ref:`temporal-eligibility` for
 how absent edges are counted. The narrative tutorial
@@ -39,7 +39,7 @@ steps.
 >>> import random
 >>> from itertools import combinations
 >>> import networkx as nx
->>> import networkx_backbone as nb
+>>> import nx_backbone as nb
 >>> rng = random.Random(42)
 >>> block = [(0, 1), (2, 3), (4, 5), (6, 7), (8, 9)]
 >>> flicker = [(10, 11), (12, 13), (14, 15), (16, 17), (18, 19)]
@@ -68,7 +68,7 @@ A small helper averages a score over a group of edges, skipping NaN:
 How often: observation fraction
 -------------------------------
 
-:func:`~networkx_backbone.observation_fraction` divides the number of steps in
+:func:`~nx_backbone.observation_fraction` divides the number of steps in
 which an edge is observed by its number of eligible steps:
 
 >>> H = nb.observation_fraction(snaps)
@@ -86,7 +86,7 @@ fraction separates them from the noise but not from each other.
 How steadily: persistence
 -------------------------
 
-:func:`~networkx_backbone.persistence` looks at runs of consecutive observed
+:func:`~nx_backbone.persistence` looks at runs of consecutive observed
 steps. Its ``persistence`` score is the share of an edge's observed steps
 whose next step is also observed:
 
@@ -118,7 +118,7 @@ A static backbone of each snapshot is noisy. The disparity filter at
 >>> min(sizes), max(sizes)
 (2, 8)
 
-:func:`~networkx_backbone.backbone_stability` runs the same method on every
+:func:`~nx_backbone.backbone_stability` runs the same method on every
 snapshot with the same cut and scores each edge by the share of its eligible
 steps in which the backbone keeps it:
 
@@ -138,7 +138,7 @@ True
 
 Like ``obs_fraction``, stability counts steps, so it does not tell the block
 from the flicker; combine it with ``persistence`` for that. Where
-:func:`~networkx_backbone.consensus_backbone` intersects the backbones of
+:func:`~nx_backbone.consensus_backbone` intersects the backbones of
 several methods, ``backbone_stability`` aggregates one method over time.
 
 Persistent activity: a hidden Markov model
@@ -146,7 +146,7 @@ Persistent activity: a hidden Markov model
 
 ``persistence`` takes every observation at face value: one missed step splits
 a run in two, and one stray observation starts a run.
-:func:`~networkx_backbone.edge_persistence_hmm` (which needs numpy) instead
+:func:`~nx_backbone.edge_persistence_hmm` (which needs numpy) instead
 models each edge as switching between an inactive and an active state, seen
 with error: an active edge can be missed (rate ``beta``) and an inactive one
 seen (rate ``alpha``). One set of parameters, shared by all edges, is fitted
@@ -256,7 +256,7 @@ state, not measurement errors.
 Weight trends
 -------------
 
-:func:`~networkx_backbone.weight_trend` (which needs numpy) summarizes each
+:func:`~nx_backbone.weight_trend` (which needs numpy) summarizes each
 edge's weight series over its eligible steps, with weight 0 where the edge is
 absent. The block edges switch on and off once, the flicker edges many times,
 but both have the same mean and spread:
@@ -274,7 +274,7 @@ of variation.
 Smoothing significance over time: Kalman backbone
 -------------------------------------------------
 
-The scores above count steps. :func:`~networkx_backbone.kalman_backbone`
+The scores above count steps. :func:`~nx_backbone.kalman_backbone`
 instead tests every edge in every step with a static significance test and
 pools each edge's evidence over neighboring steps with a Kalman smoother, so
 an edge that is moderately significant in several consecutive steps can be
@@ -321,7 +321,7 @@ the late steps, together with several other edges:
 15 (4, 2)
 19 (2, 7)
 
-:func:`~networkx_backbone.kalman_backbone` runs the same filter on every
+:func:`~nx_backbone.kalman_backbone` runs the same filter on every
 step, turns each p-value into a probit score, and smooths each edge's series.
 ``half_life=3`` sets how far the smoother reaches: a step's weight halves
 every three steps away. ``kalman_snapshots`` expands the per-step p-values
@@ -348,12 +348,12 @@ across the 66 edges is enough, and it keeps exactly the rising edges:
 The disparity filter gives an edge the smaller of its two endpoints'
 p-values. ``kalman_backbone`` corrects that by default (``sidak=True``), which
 makes its tests on top of the disparity filter somewhat conservative.
-:func:`~networkx_backbone.noise_corrected_filter` tests each edge once, but its
+:func:`~nx_backbone.noise_corrected_filter` tests each edge once, but its
 exact binomial p-values are discrete, so it needs ``discrete="raw"``, which is
 also conservative.
 
 Three cautions apply (see the Notes of
-:func:`~networkx_backbone.kalman_backbone`). The p-values are exact when no
+:func:`~nx_backbone.kalman_backbone`). The p-values are exact when no
 step carries signal, but a signal in some steps also raises the smoothed
 score in nearby steps (temporal leakage; ``mode="filter"`` uses only past
 steps). Confounders that persist over time make the tests anti-conservative,
@@ -365,7 +365,7 @@ Describing the result
 ---------------------
 
 The scored graph records the steps and parameters in ``H.graph["temporal"]``,
-which :func:`~networkx_backbone.describe_backbone` reads:
+which :func:`~nx_backbone.describe_backbone` reads:
 
 >>> S.graph["temporal"]["n_steps"], S.graph["temporal"]["input_form"]
 (20, 'snapshots')

@@ -8,7 +8,7 @@
 
 ---
 
-## Original report: Generalizing the distributional assumptions of networkx-backbone
+## Original report: Generalizing the distributional assumptions of nx-backbone
 
 **Request (user):** "Several of the filtering methods assume an underlying distribution on the degree distributions or edge weights. Can these assumptions be softened or generalized to permit alternative distributions or preprocessing steps, like those present in scipy.stats and sklearn.preprocessing?"
 
@@ -408,4 +408,4 @@ Register the new parameters (`a`, `unit`, `weight_distribution`, and recorded tr
 
 1. `strongest_n_ties` results change under `G.copy()` on tied weights (Les Mis: 23 edges differ). Ties are broken by adjacency order, and `Graph.copy()` reorders adjacency. This affects any pipeline that copies the graph first.
 2. MLF and ECM coerce sub-unit weights inconsistently: MLF turns 0.4 into 0, which is dropped with p = 1; ECM turns 0.4 into 1. Python's `round` is round-half-even (2.5 → 2, 0.5 → 0). Nothing warns. SVH raises in the same situation.
-3. The main checkout has uncommitted modifications to `networkx_backbone/structural.py`, presumably someone's WIP.
+3. The main checkout has uncommitted modifications to `nx_backbone/structural.py`, presumably someone's WIP.

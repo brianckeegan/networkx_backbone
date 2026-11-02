@@ -24,7 +24,7 @@ Setup
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     # Davis Southern Women graph from NetworkX social generators
     B = nx.davis_southern_women_graph()
@@ -138,7 +138,7 @@ significantly weak pairs too::
 
     bb = nb.backbone_from_projection(B, women_nodes, method="sdsm", alpha=0.05, mtc="bh")
 
-Calling :func:`~networkx_backbone.sdsm` or :func:`~networkx_backbone.fdsm`
+Calling :func:`~nx_backbone.sdsm` or :func:`~nx_backbone.fdsm`
 directly instead returns the full scored projection, so you can choose the
 threshold yourself.
 
@@ -203,7 +203,7 @@ products, and agent pairs are scored in blocks of rows, so no dense agents x
 agents matrix is built. ``backbone_from_projection`` only turns significant
 pairs into edges, which keeps memory bounded for tens of thousands of agents
 (with ``mtc`` it also keeps one float per pair for the correction). By
-contrast, :func:`~networkx_backbone.sdsm` and :func:`~networkx_backbone.fdsm`
+contrast, :func:`~nx_backbone.sdsm` and :func:`~nx_backbone.fdsm`
 return *every* pair as an edge, which is only practical for a few thousand
 agents::
 

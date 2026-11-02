@@ -1,7 +1,7 @@
 Contributing
 ============
 
-Contributions to ``networkx-backbone`` are welcome.
+Contributions to ``nx-backbone`` are welcome.
 
 Development setup
 -----------------
@@ -9,8 +9,8 @@ Development setup
 Clone the repository and install in editable mode with all development
 dependencies::
 
-    git clone https://github.com/brianckeegan/networkx_backbone.git
-    cd networkx_backbone
+    git clone https://github.com/brianckeegan/nx-backbone.git
+    cd nx-backbone
     pip install -e ".[dev,docs]"
 
 Running tests
@@ -18,22 +18,22 @@ Running tests
 
 Run the test suite and the docstring examples with pytest::
 
-    pytest --doctest-modules networkx_backbone tests
+    pytest --doctest-modules nx_backbone tests
 
 Measure coverage::
 
-    pytest --cov=networkx_backbone --cov-report=term-missing
+    pytest --cov=nx_backbone --cov-report=term-missing
 
 ``tests/test_minimal_deps.py`` runs the pure-Python methods in a subprocess in
 which numpy, scipy, and matplotlib cannot be imported. If you add a method that
 needs an optional dependency, import it inside the function (not at module
-level) so ``import networkx_backbone`` keeps working with NetworkX alone.
+level) so ``import nx_backbone`` keeps working with NetworkX alone.
 
 Run the suite under NetworkX's backend-dispatch test harness, which sends
 every dispatchable call through the ``nx_loopback`` test backend and checks
 the result against plain NetworkX (see :doc:`user_guide/backends`)::
 
-    NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules networkx_backbone tests
+    NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules nx_backbone tests
 
 Continuous integration (``.github/workflows/tests.yml``) runs lint, mypy, the test
 suite on Python 3.12-3.14 (with doctests and coverage on 3.13), a job pinned to
@@ -68,7 +68,7 @@ its own virtual environment, so commit your changes first::
 
 ``asv continuous -b MDL main HEAD`` runs only the benchmarks matching a regular
 expression. After editing a benchmark, ``asv run -E existing --quick`` runs each
-one once against the networkx-backbone already installed in your environment,
+one once against the nx-backbone already installed in your environment,
 without building anything. Benchmarks are plain Python: a class with ``setup`` and ``time_*`` methods and optional
 ``params``; seeded inputs come from ``benchmarks/benchmarks/_data.py``.
 
@@ -91,11 +91,11 @@ with R `backbone <https://cran.r-project.org/package=backbone>`_ and
 `netbone <https://gitlab.liris.cnrs.fr/coregraphie/netbone>`_ on Les
 Misérables, the karate club, and Davis Southern Women.  It reads JSON
 fixtures in ``tests/fixtures/``, so neither R nor netbone is needed to run
-the tests, and CI does not install them.  Where networkx-backbone
+the tests, and CI does not install them.  Where nx-backbone
 intentionally differs from a reference, the test checks the documented
 relationship and the method's docstring Notes explain the difference.
 The `reference conventions note
-<https://github.com/brianckeegan/networkx_backbone/blob/main/docs/design/reference-conventions.md>`__
+<https://github.com/brianckeegan/nx-backbone/blob/main/docs/design/reference-conventions.md>`__
 lists every such difference, measures its effect on the three datasets, and
 records the options and the decision on each (issue #59).
 
@@ -143,7 +143,7 @@ signature order, and ``Returns`` and ``Examples`` sections. The checks are
 listed in ``[tool.numpydoc_validation]`` in ``pyproject.toml``; run them in
 seconds, without building the docs, with::
 
-    python -m numpydoc lint networkx_backbone/*.py
+    python -m numpydoc lint nx_backbone/*.py
 
 Code style
 ----------
@@ -154,13 +154,13 @@ stack:
 - Lint and format with `ruff <https://docs.astral.sh/ruff/>`_ (configured in
   ``pyproject.toml``)::
 
-      ruff check networkx_backbone tests scripts docs/conf.py docs/_figures docs/examples
-      ruff format networkx_backbone tests scripts docs/conf.py docs/_figures docs/examples
+      ruff check nx_backbone tests scripts docs/conf.py docs/_figures docs/examples
+      ruff format nx_backbone tests scripts docs/conf.py docs/_figures docs/examples
 
 - Take a graph ``G`` as the first argument, return a new graph, and never
   mutate the input.
 - Decorate a new function that takes a graph and returns a new graph with
-  ``networkx_backbone._dispatch._dispatchable`` (``edge_attrs="weight"`` if it
+  ``nx_backbone._dispatch._dispatchable`` (``edge_attrs="weight"`` if it
   reads edge weights), innermost, below ``not_implemented_for`` and
   ``py_random_state`` as in NetworkX, and add it to ``tests/test_dispatch.py``.
 - Name edge-weight parameters ``weight`` and random-state parameters ``seed``;
@@ -178,18 +178,18 @@ stack:
   module with ``from __future__ import annotations`` and import NumPy, SciPy,
   pandas, and Matplotlib types only under ``if TYPE_CHECKING:``, so the core
   package still imports with only NetworkX installed. Shared aliases (``Seed``,
-  ``GraphInput``, ``Hyperedges``, ...) live in ``networkx_backbone._typing``;
+  ``GraphInput``, ``Hyperedges``, ...) live in ``nx_backbone._typing``;
   import ``not_implemented_for`` and ``py_random_state`` from there too. They
   are NetworkX's own decorators, typed so that they keep the decorated
   function's signature (``_dispatchable`` is typed the same way, and also
   accepts ``backend=...``). Check with mypy (non-strict, configured in
   ``pyproject.toml``; the ``typing`` extra pins mypy and ``types-networkx``)::
 
-      mypy networkx_backbone
+      mypy nx_backbone
 
 - Name score attributes ``<method>_pvalue``, ``<method>_score``, or
   ``<method>_keep`` so they compose with the filters in
-  :mod:`networkx_backbone.filters`.
+  :mod:`nx_backbone.filters`.
 - Use NumPy-style docstrings for all public functions
 - Include ``Parameters``, ``Returns``, ``Raises`` (if applicable),
   ``References``, and ``Examples`` sections in docstrings
@@ -211,7 +211,7 @@ Package versions are derived automatically from Git tags using
 Maintainers should configure PyPI trusted publishing once in the PyPI project
 settings:
 
-1. Open the ``networkx-backbone`` project on PyPI and add a trusted publisher
+1. Open the ``nx-backbone`` project on PyPI and add a trusted publisher
    for this GitHub repository.
 2. Use the workflow filename ``publish-to-PyPI.yml`` and environment name
    ``pypi``.

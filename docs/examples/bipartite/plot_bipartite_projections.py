@@ -48,8 +48,8 @@ from matplotlib.colors import ListedColormap
 from matplotlib.lines import Line2D
 from scipy.stats import rankdata, spearmanr
 
-import networkx_backbone as nb
-from networkx_backbone.describe import REFERENCES
+import nx_backbone as nb
+from nx_backbone.describe import REFERENCES
 
 
 def _docs_dir():
@@ -60,7 +60,7 @@ def _docs_dir():
             return folder
         if (folder / "docs" / "_figures" / "style.py").is_file():
             return folder / "docs"
-    raise RuntimeError("Run this example from inside the networkx_backbone repository.")
+    raise RuntimeError("Run this example from inside the nx_backbone repository.")
 
 
 DOCS = _docs_dir()
@@ -81,7 +81,7 @@ def publish(name, draw, alt, caption):
 
 
 # The reference list at the end comes from the library's own bibliography,
-# ``networkx_backbone.describe.REFERENCES``.
+# ``nx_backbone.describe.REFERENCES``.
 REFERENCE_KEYS = [
     "benjamini1995",
     "coscia2019",
@@ -423,7 +423,7 @@ publish(
 # weight. Yet none of them says whether a tie is stronger than chance. A weight
 # is a description; to *test* it, we compare each co-occurrence with its
 # distribution under a null model of the incidence matrix. In
-# ``networkx-backbone`` the projection weight is only what the returned edges
+# ``nx-backbone`` the projection weight is only what the returned edges
 # carry (``projection=``); the test always uses the co-occurrence counts.
 #
 # Null models
@@ -451,7 +451,7 @@ publish(
 # chain; Godard & Neal, 2022), which is slow. The **stochastic degree sequence
 # model** (SDSM; Neal, 2014) keeps both degree sequences only on average: each
 # cell is an independent coin flip whose probability comes from the bipartite
-# configuration model (:func:`~networkx_backbone.bicm`), and the co-occurrence
+# configuration model (:func:`~nx_backbone.bicm`), and the co-occurrence
 # is a sum of independent coin flips with a closed-form distribution. Neal et
 # al. found the BiCM probabilities both the fastest and the most accurate of
 # the methods they tried, and the SDSM "a statistically conservative but close
@@ -577,7 +577,7 @@ publish(
 # Under the SDSM a co-occurrence follows a **Poisson-binomial** distribution
 # (a sum of independent coin flips with different probabilities). R
 # ``backbone`` evaluates its tail with the refined normal approximation (RNA);
-# ``networkx-backbone`` computes it exactly by convolution
+# ``nx-backbone`` computes it exactly by convolution
 # (``pvalue_method="auto"``, the default), and uses the RNA when you ask for
 # it with ``pvalue_method="rna"``. On Davis the difference is small but
 # visible (section 7 shows where it is not small):
@@ -603,7 +603,7 @@ print(
 # To see it, plant a group of agents who share a block of artifacts in an
 # otherwise random incidence matrix, and score it with more and more trials.
 # (A warning for this case is planned in `issue #76
-# <https://github.com/brianckeegan/networkx_backbone/issues/76>`_; for now
+# <https://github.com/brianckeegan/nx-backbone/issues/76>`_; for now
 # the check is yours to make.)
 
 rng = np.random.default_rng(2)
@@ -855,9 +855,9 @@ style.save_variants(
 # The negative ties are as informative as the positive ones: they mark women
 # who move in different circles. A one-tailed backbone would show only the
 # strong ties within each circle. Signed backbones are available for
-# :func:`~networkx_backbone.sdsm`, :func:`~networkx_backbone.fdsm` and the
+# :func:`~nx_backbone.sdsm`, :func:`~nx_backbone.fdsm` and the
 # three fixed models, and through
-# :func:`~networkx_backbone.backbone_from_projection` with ``signed=True``.
+# :func:`~nx_backbone.backbone_from_projection` with ``signed=True``.
 #
 # SDSM-EC: when some cells cannot vary
 # ------------------------------------
@@ -1084,11 +1084,11 @@ except nx.NetworkXError as err:
 # ----------
 #
 # The R package ``backbone`` (Neal, 2022) is the reference implementation of
-# these models, and ``networkx-backbone``'s test suite checks its p-values and
+# these models, and ``nx-backbone``'s test suite checks its p-values and
 # backbones against fixtures computed with R ``backbone`` on the same Davis
 # data (``tests/test_reference_implementations.py``; see
 # :doc:`/contributing` to regenerate them). Here we read those fixtures
-# directly. Where an exact p-value is cheap, ``networkx-backbone`` computes it
+# directly. Where an exact p-value is cheap, ``nx-backbone`` computes it
 # exactly, so it can differ from R's approximation by design; with
 # ``pvalue_method="rna"`` the SDSM agrees with R to the precision of the BiCM
 # fit.
@@ -1149,7 +1149,7 @@ def draw_r(mode):
             fontsize=7.5,
         )
         ax.set_xlabel("R backbone p-value")
-    axes[0].set_ylabel("networkx-backbone p-value")
+    axes[0].set_ylabel("nx-backbone p-value")
     fig.tight_layout()
     return fig
 
@@ -1158,14 +1158,14 @@ publish(
     "r_match",
     draw_r,
     alt=(
-        "Three scatter plots of networkx-backbone p-values up against R "
+        "Three scatter plots of nx-backbone p-values up against R "
         "backbone p-values across, one dot per pair of Davis women, with a "
         "diagonal line. In the SDSM RNA panel and the fixed fill panel every "
         "dot lies on the diagonal; in the exact SDSM panel the dots sit "
         "slightly off it."
     ),
     caption=(
-        "networkx-backbone against R backbone on Davis. The SDSM panels show "
+        "nx-backbone against R backbone on Davis. The SDSM panels show "
         "the pairs that co-attend; R does not test the others by default."
     ),
 )
@@ -1179,7 +1179,7 @@ publish(
 # One convention changes results without changing any p-value: which pairs
 # count as tests. R ``backbone_from_projection`` by default
 # (``missing_as_zero = FALSE``) tests only pairs that co-occur at least once.
-# ``networkx-backbone`` by default tests every pair, including those that never
+# ``nx-backbone`` by default tests every pair, including those that never
 # co-occur. Without a correction and without ``signed=True`` the two give the
 # same backbone, because a pair that never co-occurs has an upper-tail p-value
 # of 1. With a multiple-testing correction, fewer tests make the correction
@@ -1228,9 +1228,9 @@ for model in ("fixedfill", "fixedrow"):
 # matrix: a NumPy array, a SciPy sparse array or matrix, or a pandas
 # ``DataFrame``. The matrix stays sparse, co-occurrences come from sparse
 # products, and agent pairs are scored in blocks of rows.
-# :func:`~networkx_backbone.backbone_from_projection` turns only the
-# significant pairs into edges, so memory stays bounded; :func:`~networkx_backbone.sdsm`
-# and :func:`~networkx_backbone.fdsm` return *every* pair as an edge, which is
+# :func:`~nx_backbone.backbone_from_projection` turns only the
+# significant pairs into edges, so memory stays bounded; :func:`~nx_backbone.sdsm`
+# and :func:`~nx_backbone.fdsm` return *every* pair as an edge, which is
 # only practical for a few thousand agents.
 #
 # The run below plants a group of agents who share a block of artifacts in
@@ -1297,7 +1297,7 @@ assert (_found, _exact.number_of_edges() - _found) == _rows[2000, "auto"]
 # The exact tail stays cheap because a convolution only needs to run up to
 # the largest co-occurrence two agents can have (the smaller of their
 # degrees), once per pair of distinct agent degrees. Until `issue #108
-# <https://github.com/brianckeegan/networkx_backbone/issues/108>`_ was
+# <https://github.com/brianckeegan/nx-backbone/issues/108>`_ was
 # fixed, ``"auto"`` switched to the RNA above 200 artifacts, as in this
 # table's RNA rows. Now it does so only for pairs whose exact tail would be
 # too costly, starting with the largest expected co-occurrences (where the
@@ -1310,9 +1310,9 @@ assert (_found, _exact.number_of_edges() - _found) == _rows[2000, "auto"]
 #   on this page (projections, SDSM, FDSM, the fixed models, signed
 #   backbones, SDSM-EC, incidence-matrix input).
 # - :doc:`/api/bipartite`: the API reference, including
-#   :func:`~networkx_backbone.backbone_from_projection`,
-#   :func:`~networkx_backbone.sdsm`, :func:`~networkx_backbone.fdsm`,
-#   :func:`~networkx_backbone.bicm` and :func:`~networkx_backbone.fastball`.
+#   :func:`~nx_backbone.backbone_from_projection`,
+#   :func:`~nx_backbone.sdsm`, :func:`~nx_backbone.fdsm`,
+#   :func:`~nx_backbone.bicm` and :func:`~nx_backbone.fastball`.
 # - :doc:`/user_guide/choosing_method` and :doc:`/user_guide/workflow`: where
 #   projection backbones fit among the other methods, and the
 #   score-then-filter workflow.
@@ -1320,7 +1320,7 @@ assert (_found, _exact.number_of_edges() - _found) == _rows[2000, "auto"]
 #   nodes in the same way and use the same null models.
 # - :doc:`/tutorials/validating_backbones`: checking that a backbone is not an
 #   artifact of the choices made here.
-# - :func:`~networkx_backbone.describe_backbone`: methods text and citations
+# - :func:`~nx_backbone.describe_backbone`: methods text and citations
 #   for the backbone you report.
 #
 # References

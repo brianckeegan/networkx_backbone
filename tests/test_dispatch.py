@@ -21,8 +21,8 @@ import warnings
 import networkx as nx
 import pytest
 
-import networkx_backbone as nb
-from networkx_backbone._dispatch import DISPATCH_PREFIX
+import nx_backbone as nb
+from nx_backbone._dispatch import DISPATCH_PREFIX
 
 pytest.importorskip("numpy")
 pytest.importorskip("scipy")

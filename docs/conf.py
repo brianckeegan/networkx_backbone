@@ -28,12 +28,12 @@ if str(DOCS) not in sys.path:
 
 # -- Project information -----------------------------------------------------
 
-project = "networkx-backbone"
+project = "nx-backbone"
 copyright = "2025-2026, Brian C. Keegan"
 author = "Brian C. Keegan"
 # Single source of truth: the version setuptools-scm derives from git tags.
 try:
-    release = _pkg_version("networkx-backbone")
+    release = _pkg_version("nx-backbone")
 except PackageNotFoundError:  # building docs from an uninstalled checkout
     release = "0.0.0+unknown"
 version = ".".join(release.split(".")[:2])
@@ -65,7 +65,7 @@ numpydoc_xref_param_type = False
 # Validate every docstring autodoc renders; a failure is a Sphinx warning, so
 # the ``-W`` docs build fails on it.  The checks and exclusions live in the
 # ``[tool.numpydoc_validation]`` table of pyproject.toml (with the reasons),
-# shared with the faster ``python -m numpydoc lint networkx_backbone/*.py``.
+# shared with the faster ``python -m numpydoc lint nx_backbone/*.py``.
 with open(ROOT / "pyproject.toml", "rb") as _f:
     _numpydoc_cfg = tomllib.load(_f)["tool"]["numpydoc_validation"]
 numpydoc_validation_checks = set(_numpydoc_cfg["checks"])
@@ -122,7 +122,7 @@ autodoc_member_order = "bysource"
 # The public API is annotated (and ships ``py.typed``), but the rendered pages
 # keep plain signatures: the numpydoc "Parameters" and "Returns" sections
 # already give every type in prose, the annotations name private aliases from
-# ``networkx_backbone._typing``, and overloads would repeat each signature.
+# ``nx_backbone._typing``, and overloads would repeat each signature.
 autodoc_typehints = "none"
 autodoc_default_options = {
     "members": True,
@@ -146,8 +146,8 @@ sphinx_gallery_conf = {
     "gallery_dirs": ["auto_examples"],
     "filename_pattern": r"plot_",
     "backreferences_dir": "auto_examples/backreferences",
-    "doc_module": ("networkx_backbone",),
-    "reference_url": {"networkx_backbone": None},
+    "doc_module": ("nx_backbone",),
+    "reference_url": {"nx_backbone": None},
     "within_subsection_order": "FileNameSortKey",
     "remove_config_comments": True,
     # Reset matplotlib before each example, then apply the shared docs style,
@@ -159,7 +159,7 @@ sphinx_gallery_conf = {
 
 html_theme = "pydata_sphinx_theme"
 html_theme_options = {
-    "github_url": "https://github.com/brianckeegan/networkx_backbone",
+    "github_url": "https://github.com/brianckeegan/nx-backbone",
     "use_edit_page_button": True,
     "show_toc_level": 2,
     "navigation_with_keys": True,
@@ -167,7 +167,7 @@ html_theme_options = {
 }
 html_context = {
     "github_user": "brianckeegan",
-    "github_repo": "networkx_backbone",
+    "github_repo": "nx_backbone",
     "github_version": "main",
     "doc_path": "docs",
 }
@@ -201,7 +201,7 @@ def _les_miserables_table_rst():
             # Convergence warnings (e.g. Sinkhorn-Knopp) are the tests' concern.
             warnings.simplefilter("ignore")
             kept = case.run(lm.graph_for(case)).number_of_edges()
-        method = f":func:`~networkx_backbone.{case.method}`"
+        method = f":func:`~nx_backbone.{case.method}`"
         if case.kwargs:
             args = ", ".join(f"{k}={v!r}" for k, v in case.kwargs.items())
             method += f" (``{args}``)"

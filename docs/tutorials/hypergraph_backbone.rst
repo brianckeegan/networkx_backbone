@@ -24,7 +24,7 @@ original hyperedges.
 A hypergraph is represented as a plain iterable of hyperedges, each an iterable
 of node labels::
 
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     H = [
         (1, 2, 3, 4),   # a 4-node interaction
@@ -36,7 +36,7 @@ of node labels::
 MDL backbone (parameter-free)
 -----------------------------
 
-:func:`~networkx_backbone.mdl_hypergraph_backbone` implements the
+:func:`~nx_backbone.mdl_hypergraph_backbone` implements the
 information-theoretic method of Kirkley, Felippe, Malizia & Battiston (2026). It
 keeps a minimal set of "parent" hyperedges from which the remaining "child"
 hyperedges can be reconstructed via overlap and nestedness, by minimizing a
@@ -49,9 +49,9 @@ hypergraphs::
     print(result.compression_ratio)   # inverse compression ratio eta in [0, 1]
     print(result.assignment)          # parent -> [pruned child hyperedges]
 
-The result is a :class:`~networkx_backbone.HypergraphBackbone`. The inverse
+The result is a :class:`~nx_backbone.HypergraphBackbone`. The inverse
 compression ratio ``eta`` (also available via
-:func:`~networkx_backbone.hypergraph_compression_ratio`) is near 0 for highly
+:func:`~nx_backbone.hypergraph_compression_ratio`) is near 0 for highly
 redundant hypergraphs and equals 1 when no compression is possible.
 
 Choosing the optimizer
@@ -94,7 +94,7 @@ Local MDL backbone
 The MDL backbone is *global*: a hyperedge is dropped whenever some
 overlapping hyperedge anywhere in the hypergraph encodes it cheaply. Appendix E
 of the paper also gives a **local** variant, the higher-order analogue of the
-disparity filter. :func:`~networkx_backbone.local_mdl_hypergraph_backbone`
+disparity filter. :func:`~nx_backbone.local_mdl_hypergraph_backbone`
 takes each node's *neighborhood* (the hyperedges that contain it), finds the
 MDL backbone of that neighborhood on its own, and then combines the
 neighborhood backbones.
@@ -156,7 +156,7 @@ backbones are usually denser than the global one and compress less (0.84 here
 against 0.79 for the global backbone). Choose the local backbone when you care
 more about keeping each node's important interactions than about overall
 compression. ``weights``, ``gamma``, ``prior``, and ``method`` work as for
-:func:`~networkx_backbone.mdl_hypergraph_backbone` and apply within each
+:func:`~nx_backbone.mdl_hypergraph_backbone` and apply within each
 neighborhood.
 
 Structural reductions
@@ -164,16 +164,16 @@ Structural reductions
 
 Several purely structural backbones have no analog in pairwise graphs:
 
-- :func:`~networkx_backbone.maximal_hyperedges` -- inclusion (toplex) reduction:
+- :func:`~nx_backbone.maximal_hyperedges` -- inclusion (toplex) reduction:
   drop every hyperedge contained in another::
 
     nb.maximal_hyperedges(H)        # [frozenset({1, 2, 3, 4}), frozenset({8, 9})]
 
-- :func:`~networkx_backbone.order_filter` -- keep hyperedges by order (size)::
+- :func:`~nx_backbone.order_filter` -- keep hyperedges by order (size)::
 
     nb.order_filter(H, min_order=3)  # interactions of three or more nodes
 
-- :func:`~networkx_backbone.s_components` -- group hyperedges into s-connected
+- :func:`~nx_backbone.s_components` -- group hyperedges into s-connected
   components (those sharing at least ``s`` nodes)::
 
     nb.s_components(H, s=2)
@@ -181,7 +181,7 @@ Several purely structural backbones have no analog in pairwise graphs:
 Statistical validation (SVH / SVC)
 ----------------------------------
 
-:func:`~networkx_backbone.statistically_validated_hypergraph` keeps hyperedges
+:func:`~nx_backbone.statistically_validated_hypergraph` keeps hyperedges
 that **recur** more often than expected under a null model preserving node
 activity (Musciotto, Battiston & Mantegna, 2021). Repeated hyperedges (or
 integer ``weights``) are treated as interaction counts::
@@ -191,7 +191,7 @@ integer ``weights``) are treated as interaction counts::
     print(result.validated)                     # [frozenset({1, 2})]
     print(result.pvalues[frozenset({1, 2})])
 
-:func:`~networkx_backbone.statistically_validated_cores` additionally validates
+:func:`~nx_backbone.statistically_validated_cores` additionally validates
 significant sub-groups (cores), attributing significance to the largest
 validated group. Both require ``scipy``.
 

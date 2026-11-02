@@ -11,7 +11,7 @@ computed by the reference implementations on the same data networkx ships:
   ``scripts/export_reference_inputs.py``.
 
 Neither R nor netbone is needed to run these tests; ``docs/contributing.rst``
-explains how to regenerate the fixtures.  Where networkx-backbone
+explains how to regenerate the fixtures.  Where nx-backbone
 intentionally differs from a reference, the test asserts the documented
 relationship instead of equality and the method's docstring Notes explain
 the difference.
@@ -28,8 +28,8 @@ import networkx as nx
 import numpy as np
 import pytest
 
-import networkx_backbone as nb
-from networkx_backbone.statistical import _nc_score_sdev
+import nx_backbone as nb
+from nx_backbone.statistical import _nc_score_sdev
 
 FIXTURES = Path(__file__).parent / "fixtures"
 INPUTS = FIXTURES / "reference_inputs"
@@ -88,11 +88,11 @@ def our_backbone_set(H):
 
 
 def r_two_sided(upper, lower):
-    """R's signed test as networkx-backbone reports it.
+    """R's signed test as nx-backbone reports it.
 
     R retains an edge when ``min(upper, lower) < alpha / 2`` and signs it
     ``+1`` when ``upper < lower`` and ``-1`` otherwise, so an exact tie
-    ``upper == lower`` is ``-1``; networkx-backbone uses the same sign rule
+    ``upper == lower`` is ``-1``; nx-backbone uses the same sign rule
     (#59) and stores the equivalent two-sided p-value
     ``min(1, 2 min(upper, lower))``.
     """
@@ -256,7 +256,7 @@ def test_r_disparity_signed(dataset):
     """Signed disparity: documented lower-tail difference.
 
     R's lower tail is ``1 - upper`` with ``upper = min(alpha_u, alpha_v)``;
-    networkx-backbone applies the OR rule to each tail, so its lower tail
+    nx-backbone applies the OR rule to each tail, so its lower tail
     ``min(1 - alpha_u, 1 - alpha_v)`` is never larger than R's.  Hence a
     positive edge has the same p-value in both, a negative one a p-value no
     larger than R's.
@@ -351,7 +351,7 @@ def test_r_local_degree(s):
 
 
 def _r_lspar_rule(G, s):
-    """R's ``lspar`` as documented in :func:`networkx_backbone.lspar` Notes."""
+    """R's ``lspar`` as documented in :func:`nx_backbone.lspar` Notes."""
     nbrs = {u: set(G[u]) for u in G}
     kept = set()
     for u in G:
@@ -460,7 +460,7 @@ def test_r_sdsm_rna():
     """With ``pvalue_method="rna"`` SDSM reproduces R up to the BiCM fit.
 
     R evaluates the refined normal approximation even for pairs that never
-    co-occur (``missing_as_zero=TRUE``); networkx-backbone returns the exact
+    co-occur (``missing_as_zero=TRUE``); nx-backbone returns the exact
     value ``P(X >= 0) = 1`` for them.
     """
     B, women, pairs, k = davis()
@@ -501,7 +501,7 @@ def test_r_sdsm_ec():
     """SDSM-EC: different null-model fits, same (empty) backbones.
 
     R fits the edge probabilities of the unconstrained cells with a logistic
-    regression on the row and column sums; networkx-backbone refits the BiCM
+    regression on the row and column sums; nx-backbone refits the BiCM
     on those cells, so expected degrees match the observed ones exactly.  The
     p-values track each other closely but not exactly.
     """
@@ -714,7 +714,7 @@ def test_netbone_ecm(dataset):
 
 @over(DATASETS)
 def test_netbone_noise_corrected(dataset):
-    """netbone uses total weight ``W``; networkx-backbone ``2W`` (see Notes).
+    """netbone uses total weight ``W``; nx-backbone ``2W`` (see Notes).
 
     netbone sums each undirected edge once for the total but at both
     endpoints for the strengths.  With that total, the score and standard
@@ -762,7 +762,7 @@ def _shortest_path_ties(G):
 def test_netbone_high_salience_skeleton(dataset):
     """Same salience except where shortest paths tie (see Notes).
 
-    netbone credits the one path Dijkstra happens to return; networkx-backbone
+    netbone credits the one path Dijkstra happens to return; nx-backbone
     splits the credit over the tied predecessors.  Both lie between the
     fraction of trees in which the edge is the only shortest-path predecessor
     and the fraction in which it is one of them, and agree when those are
@@ -785,7 +785,7 @@ def test_netbone_glab(c):
     """GLAB p-values agree for links whose endpoints see no tied paths.
 
     netbone's involvement counts shortest paths (a target reached by ``g``
-    tied paths weighs ``g`` times); networkx-backbone uses the paper's
+    tied paths weighs ``g`` times); nx-backbone uses the paper's
     average over targets of the fraction of paths through the link.
     """
     G, _, edges = weighted_case("les_miserables", netbone_fixture())
@@ -817,7 +817,7 @@ def test_netbone_h_backbone(dataset):
     """Same h-strength edges; different bridge values (see Notes).
 
     netbone computes edge betweenness with the weights as distances and
-    rounds the bridge to three decimals; networkx-backbone follows the paper
+    rounds the bridge to three decimals; nx-backbone follows the paper
     and uses the unweighted topology, so only the h-strength part agrees.
     """
     G, _, edges = weighted_case(dataset, netbone_fixture())

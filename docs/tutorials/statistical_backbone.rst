@@ -11,7 +11,7 @@ Setup
 We use a weighted graph for this tutorial::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     # Create a weighted graph
     G = nx.les_miserables_graph()
@@ -50,7 +50,7 @@ low-count graphs it keeps most edges even when the weights are pure noise.
 ``nc_pvalue`` is therefore, by default, the exact p-value of the model's null,
 :math:`P(X \ge n_{ij})` for a binomial count with the expected weight as its
 mean (the alternative the paper itself gives), so it works with
-:func:`~networkx_backbone.threshold_filter` and multiple-testing corrections.
+:func:`~nx_backbone.threshold_filter` and multiple-testing corrections.
 ``pvalue_method="delta"`` gives the normal-approximation p-value of the
 ``delta`` rule instead::
 
@@ -76,7 +76,7 @@ counted in both directions, as in the authors' reference implementation.  On
 Les Misérables the default keeps 126 of 254 edges at 0.05, the same edges as
 the marginal likelihood filter below, whose null is the same binomial model;
 the ``delta`` rule keeps 195.  The Notes of
-:func:`~networkx_backbone.noise_corrected_filter` show why the ``delta`` rule
+:func:`~nx_backbone.noise_corrected_filter` show why the ``delta`` rule
 over-rejects, with simulations from the model's null.  The binomial z-score of
 networkx-backbone 0.2 and earlier is still available as ``method="zscore"``.
 
@@ -184,7 +184,7 @@ networkx-backbone 0.2 and earlier)::
 Comparing all statistical methods
 ----------------------------------
 
-Use :func:`~networkx_backbone.compare_backbones` to compare the results::
+Use :func:`~nx_backbone.compare_backbones` to compare the results::
 
     backbones = {
         "disparity": nb.threshold_filter(
@@ -224,8 +224,8 @@ Multiple-testing correction
 
 Because a statistical backbone tests every edge, correcting for multiple
 comparisons avoids retaining edges by chance. Pass ``mtc`` to
-:func:`~networkx_backbone.threshold_filter` (or use
-:func:`~networkx_backbone.adjust_pvalues` directly). Supported corrections match
+:func:`~nx_backbone.threshold_filter` (or use
+:func:`~nx_backbone.adjust_pvalues` directly). Supported corrections match
 R's ``p.adjust``: ``"bonferroni"``, ``"holm"``, ``"hochberg"``, ``"bh"``/``"fdr"``
 (Benjamini-Hochberg), and ``"by"`` (Benjamini-Yekutieli)::
 

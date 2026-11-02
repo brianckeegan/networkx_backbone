@@ -5,14 +5,14 @@ Every weighted method makes an assumption about what an edge weight is: a
 count of events, a share of a node's strength, a distance, or just a value
 that can be ranked.  This guide explains how the results change when the
 weights are rescaled or transformed, how to transform weights with
-:func:`~networkx_backbone.transform_weights`, how to set the count unit of the
+:func:`~nx_backbone.transform_weights`, how to set the count unit of the
 count-based null models, and how to relax the null model of the disparity
 filter.
 
 Transforming weights
 --------------------
 
-:func:`~networkx_backbone.transform_weights` returns a copy of a graph with
+:func:`~nx_backbone.transform_weights` returns a copy of a graph with
 transformed edge weights.  It takes a plain function, applied to each weight,
 or any object with a scikit-learn style ``fit_transform`` method, which is
 called once with the weights as a column.  scikit-learn is not a dependency:
@@ -24,7 +24,7 @@ nor scikit-learn.
     import math
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G = nx.les_miserables_graph()
     H = nb.transform_weights(G, math.log1p)          # replaces "weight"
@@ -39,7 +39,7 @@ nor scikit-learn.
 The returned graph keeps every node's neighbor order, so methods that break
 weight ties by neighbor order give the same result on an identity transform.
 The transform is recorded in ``H.graph["weight_transforms"]``, and
-:func:`~networkx_backbone.describe_backbone` reports it in the methods text.
+:func:`~nx_backbone.describe_backbone` reports it in the methods text.
 
 The function raises an error when the output is not finite or is the same for
 every edge although the weights differ (scikit-learn's ``Normalizer`` scales
@@ -78,108 +78,108 @@ checks that this table matches the tests.
      - Rescaling
      - Increasing transform
      - Why
-   * - :func:`~networkx_backbone.lans_filter`
+   * - :func:`~nx_backbone.lans_filter`
      - yes
      - yes
      - Uses only the order of each node's weights.
-   * - :func:`~networkx_backbone.strongest_n_ties`
+   * - :func:`~nx_backbone.strongest_n_ties`
      - yes
      - yes
      - Keeps each node's heaviest links.
-   * - :func:`~networkx_backbone.global_sparsification`
+   * - :func:`~nx_backbone.global_sparsification`
      - yes
      - yes
      - Keeps the heaviest fraction of all edges.
-   * - :func:`~networkx_backbone.primary_linkage_analysis`
+   * - :func:`~nx_backbone.primary_linkage_analysis`
      - yes
      - yes
      - Keeps each node's heaviest link.
-   * - :func:`~networkx_backbone.maximum_spanning_tree_backbone`
+   * - :func:`~nx_backbone.maximum_spanning_tree_backbone`
      - yes
      - yes
      - A maximum spanning tree depends only on the order of the weights.
-   * - :func:`~networkx_backbone.planar_maximally_filtered_graph`
+   * - :func:`~nx_backbone.planar_maximally_filtered_graph`
      - yes
      - yes
      - Adds edges in weight order.
-   * - :func:`~networkx_backbone.ultrametric_backbone`
+   * - :func:`~nx_backbone.ultrametric_backbone`
      - yes
      - yes
      - Minimax paths depend only on the order of the weights.
-   * - :func:`~networkx_backbone.disparity_filter` (any ``a``)
+   * - :func:`~nx_backbone.disparity_filter` (any ``a``)
      - yes
      - no
      - Tests the shares :math:`w/s`.
-   * - :func:`~networkx_backbone.multiple_linkage_analysis`
+   * - :func:`~nx_backbone.multiple_linkage_analysis`
      - yes
      - no
      - Fits each node's weight shares.
-   * - :func:`~networkx_backbone.polya_filter` (``approximate=True``)
+   * - :func:`~nx_backbone.polya_filter` (``approximate=True``)
      - yes
      - no
      - The large-strength approximation depends on :math:`w/s` only.
-   * - :func:`~networkx_backbone.gloss_filter`
+   * - :func:`~nx_backbone.gloss_filter`
      - yes
      - no
      - With the default ``resolution``, the weight lattice and the strengths
        rescale together.
-   * - :func:`~networkx_backbone.doubly_stochastic_filter`
+   * - :func:`~nx_backbone.doubly_stochastic_filter`
      - yes
      - no
      - Row and column scaling absorbs a constant factor.
-   * - :func:`~networkx_backbone.metric_backbone`
+   * - :func:`~nx_backbone.metric_backbone`
      - yes
      - no
      - Shortest paths on distances :math:`1/w`: a factor rescales every path
        alike, a nonlinear transform does not.
-   * - :func:`~networkx_backbone.high_salience_skeleton`
+   * - :func:`~nx_backbone.high_salience_skeleton`
      - yes
      - no
      - Shortest-path trees on distances :math:`1/w`.
-   * - :func:`~networkx_backbone.edge_betweenness_filter`
+   * - :func:`~nx_backbone.edge_betweenness_filter`
      - yes
      - no
      - Shortest paths on distances :math:`1/w`.
-   * - :func:`~networkx_backbone.glab_filter`
+   * - :func:`~nx_backbone.glab_filter`
      - yes
      - no
      - Shortest-path involvement on distances :math:`1/w`.
-   * - :func:`~networkx_backbone.modularity_backbone`
+   * - :func:`~nx_backbone.modularity_backbone`
      - yes
      - no
      - Weighted modularity uses weights relative to the total weight.
-   * - :func:`~networkx_backbone.marginal_likelihood_filter`
+   * - :func:`~nx_backbone.marginal_likelihood_filter`
      - no
      - no
      - Weights are counts of unit edges; set ``unit=`` instead.
-   * - :func:`~networkx_backbone.ecm_filter`
+   * - :func:`~nx_backbone.ecm_filter`
      - no
      - no
      - Weights are integer counts; set ``unit=`` instead.
-   * - :func:`~networkx_backbone.noise_corrected_filter`
+   * - :func:`~nx_backbone.noise_corrected_filter`
      - no
      - no
      - Weights are counts of interactions; set ``unit=`` instead.
-   * - :func:`~networkx_backbone.polya_filter` (exact p-values)
+   * - :func:`~nx_backbone.polya_filter` (exact p-values)
      - no
      - no
      - Weights are counts of urn draws.
-   * - :func:`~networkx_backbone.h_backbone`
+   * - :func:`~nx_backbone.h_backbone`
      - no
      - no
      - The h-index compares weights with counts of edges.
-   * - :func:`~networkx_backbone.local_path_index` (``weight=...``)
+   * - :func:`~nx_backbone.local_path_index` (``weight=...``)
      - no
      - no
      - Mixes :math:`A^2` and :math:`\varepsilon A^3`, whose ratio changes
        with scale.
 
 Methods that ignore weights, such as
-:func:`~networkx_backbone.node_degree_filter`, the proximity indices without
-``weight=``, :func:`~networkx_backbone.sparsify`,
-:func:`~networkx_backbone.lspar`, and :func:`~networkx_backbone.local_degree`,
+:func:`~nx_backbone.node_degree_filter`, the proximity indices without
+``weight=``, :func:`~nx_backbone.sparsify`,
+:func:`~nx_backbone.lspar`, and :func:`~nx_backbone.local_degree`,
 are unaffected by any transform.
-:func:`~networkx_backbone.global_threshold_filter` changes with the weights
+:func:`~nx_backbone.global_threshold_filter` changes with the weights
 but in step with them: thresholding :math:`f(w)` at :math:`f(t)` keeps the
 same edges as thresholding :math:`w` at :math:`t`.
 
@@ -191,14 +191,14 @@ Some transforms are best avoided:
   labels, not counts.  Use ``unit=`` (below) for a change of unit.
 - **Rank transforms before share-based methods**: after a uniform
   ``QuantileTransformer`` the disparity filter tests the shares of ranks.
-  :func:`~networkx_backbone.lans_filter` is the method for ranks.
+  :func:`~nx_backbone.lans_filter` is the method for ranks.
 
 Count units
 -----------
 
-:func:`~networkx_backbone.marginal_likelihood_filter`,
-:func:`~networkx_backbone.ecm_filter`, and
-:func:`~networkx_backbone.noise_corrected_filter` treat each weight as a
+:func:`~nx_backbone.marginal_likelihood_filter`,
+:func:`~nx_backbone.ecm_filter`, and
+:func:`~nx_backbone.noise_corrected_filter` treat each weight as a
 number of events, so their p-values depend on the unit the weights are
 recorded in.  Their ``unit=`` argument sets the weight of one event: the
 models use the counts ``weight / unit`` (rounded to integers by MLF and ECM).
@@ -244,7 +244,7 @@ heterogeneity, and ``a="ml"`` fits *a* by maximum likelihood and stores it in
 Les Misérables' shares are more even than the uniform null expects
 (:math:`\hat a < 1`), so the fitted filter keeps 19 edges where the original
 keeps 9.  The parameter has the same meaning as the reinforcement parameter of
-:func:`~networkx_backbone.polya_filter`: with the shares held fixed, the
+:func:`~nx_backbone.polya_filter`: with the shares held fixed, the
 Pólya filter's beta-binomial null converges to this Beta distribution as the
 node strength grows.  Only this symmetric family is offered, because the links
 of a node are exchangeable under the null, so every share has mean
@@ -263,13 +263,13 @@ Not offered
 - **Fitting an arbitrary distribution to the weights and testing each weight
   against it.**  With one distribution fitted to all weights, the p-value
   decreases with the weight, so the backbone is a global weight threshold
-  (:func:`~networkx_backbone.global_threshold_filter`) that ignores degrees
+  (:func:`~nx_backbone.global_threshold_filter`) that ignores degrees
   and strengths.  With a distribution fitted to each node's few weights, the
   fit reuses the weight being tested.
 - **Arbitrary share distributions in the disparity filter**, such as a
   Beta(:math:`c`, :math:`d`) with :math:`d \neq (k-1)c`: shares of
   exchangeable links must have mean :math:`1/k`.
 
-Still open (issue `#55 <https://github.com/brianckeegan/networkx_backbone/issues/55>`_):
+Still open (issue `#55 <https://github.com/brianckeegan/nx-backbone/issues/55>`_):
 a continuous-weight ECM, an overdispersed (beta-binomial) marginal likelihood
 filter, and user-supplied weight distributions for GloSS.

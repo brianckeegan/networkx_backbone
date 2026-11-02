@@ -1,4 +1,4 @@
-# Publish networkx-backbone to PyPI when a GitHub Release is published.
+# Publish nx-backbone to PyPI when a GitHub Release is published.
 # Uses PyPI trusted publishing as documented at:
 # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
 
@@ -71,7 +71,7 @@ jobs:
       id-token: write
     environment:
       name: pypi
-      url: https://pypi.org/p/networkx-backbone
+      url: https://pypi.org/p/nx-backbone
 
     steps:
       - name: Download distribution packages

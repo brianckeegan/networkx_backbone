@@ -1,4 +1,4 @@
-"""Tests for networkx_backbone.temporal: input forms and conversions."""
+"""Tests for nx_backbone.temporal: input forms and conversions."""
 
 import copy
 import doctest
@@ -9,7 +9,7 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 from tests.test_minimal_deps import _run
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -524,7 +524,7 @@ def test_numeric_and_datetime_paths_need_no_pandas():
         """
         from datetime import datetime, timedelta
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         S = [nx.Graph([(0, 1)]), nx.Graph(), nx.Graph([(0, 1)])]
         for to in ("events", "spans"):
             back = nb.convert_temporal(nb.convert_temporal(S, to=to), to="snapshots")

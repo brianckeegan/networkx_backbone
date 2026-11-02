@@ -22,14 +22,14 @@ from itertools import groupby
 from operator import itemgetter
 from typing import TYPE_CHECKING, Literal
 
-from networkx_backbone._dispatch import _dispatchable
-from networkx_backbone._docstrings import append_complexity_docstrings
-from networkx_backbone._typing import not_implemented_for, py_random_state
+from nx_backbone._dispatch import _dispatchable
+from nx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._typing import not_implemented_for, py_random_state
 
 if TYPE_CHECKING:
     import networkx as nx
 
-    from networkx_backbone._typing import PySeed
+    from nx_backbone._typing import PySeed
 
 __all__ = ["sparsify", "lspar", "local_degree"]
 
@@ -116,7 +116,7 @@ def sparsify(
         values.
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse a multigraph first
-        with :func:`~networkx_backbone.multigraph_to_weighted`.
+        with :func:`~nx_backbone.multigraph_to_weighted`.
 
     Notes
     -----
@@ -165,7 +165,7 @@ def sparsify(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, sparsify
+    >>> from nx_backbone import boolean_filter, sparsify
     >>> G_weighted = nx.les_miserables_graph()
     >>> G = nx.Graph()
     >>> G.add_nodes_from(G_weighted.nodes(data=True))
@@ -253,7 +253,7 @@ def lspar(
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, lspar
+    >>> from nx_backbone import boolean_filter, lspar
     >>> G_weighted = nx.les_miserables_graph()
     >>> G = nx.Graph()
     >>> G.add_nodes_from(G_weighted.nodes(data=True))
@@ -338,7 +338,7 @@ def local_degree(G: nx.Graph, s: float = 0.3) -> nx.Graph:
     Examples
     --------
     >>> import networkx as nx
-    >>> from networkx_backbone import boolean_filter, local_degree
+    >>> from nx_backbone import boolean_filter, local_degree
     >>> G = nx.star_graph(4)
     >>> G.add_edges_from([(4, 5), (4, 6)])
     >>> H = local_degree(G, s=0.0)

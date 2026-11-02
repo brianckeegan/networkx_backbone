@@ -30,7 +30,7 @@
 ## 1. Summary
 
 The two papers evaluate **15 methods**: 7 statistical in [S] and 8 structural
-in [T]. **`networkx-backbone` now implements all 15.** When this evaluation
+in [T]. **`nx-backbone` now implements all 15.** When this evaluation
 was written, two were missing, the Pólya urn filter (PF) and the Global
 Statistical Significance filter (GloSS), both statistical methods from [S].
 They were added as `polya_filter` (#42) and `gloss_filter` (#43).
@@ -82,7 +82,7 @@ Both papers cite the Yassin et al. (2023) `netbone` paper ([S] ref 31,
 Each citation is reproduced as the paper gives it, including any DOI. Where a
 paper gives no DOI, none is added here.
 
-| Abbr. | Method | Paper | Citation as given in the paper | `networkx-backbone` | Status |
+| Abbr. | Method | Paper | Citation as given in the paper | `nx-backbone` | Status |
 |---|---|---|---|---|---|
 | DF | Disparity filter | [S] ref 12 | Serrano MA, Boguna M, Vespignani A. Extracting the multiscale backbone of complex weighted networks. *PNAS*. 2009;106:6483–6488. doi:10.1073/pnas.0808904106 | `disparity_filter` (`disparity_pvalue`); also `disparity` / `backbone_from_weighted(model="disparity")` | Covered |
 | PF | Pólya urn filter | [S] ref 13 | Marcaccioli R, Livan G. A Pólya urn approach to information filtering in complex networks. *Nature Communications*. 2019;10:745. doi:10.1038/s41467-019-08667-3 | `polya_filter` (`polya_pvalue`) | Covered (#42) |
@@ -316,7 +316,7 @@ implementation. Undirected graphs are assumed throughout, as in both papers.
 The related-work sections of [S] and [T] mention further methods without
 benchmarking them. They are listed here for completeness.
 
-| Method | Mentioned in | Citation as given | `networkx-backbone` |
+| Method | Mentioned in | Citation as given | `nx-backbone` |
 |---|---|---|---|
 | Global weight thresholding | [S], [T] (Dai et al. 2018 comparison) | no single citation given | `global_threshold_filter` |
 | k-core decomposition | [T] ref 51 | Alvarez-Hamelin J, Dall' Asta L, Barrat A, Vespignani A. Large scale networks fingerprinting and visualization using the k-core decomposition. *Advances in Neural Information Processing Systems* 18. MIT Press; 2005. | not a backbone function; use `networkx.k_core` |
@@ -334,7 +334,7 @@ package does not model, so no follow-up is proposed for them.
 ## 7. Evaluation measures
 
 Both papers use the same backbone-level measures. Coverage in
-`networkx_backbone.measures`:
+`nx_backbone.measures`:
 
 | Measure ([S], [T]) | Here |
 |---|---|

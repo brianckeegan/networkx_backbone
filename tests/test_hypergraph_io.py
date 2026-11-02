@@ -9,7 +9,7 @@ import networkx as nx
 import numpy as np
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 HYPEREDGES = [(1, 2, 3), (2, 3, 4), (5, 6)]
 EXPECTED = {frozenset(e) for e in HYPEREDGES}

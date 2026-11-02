@@ -18,7 +18,7 @@ Setup
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G = nx.les_miserables_graph()
     print(f"Original: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
@@ -87,7 +87,7 @@ matrix powers::
 Filtering by proximity
 -----------------------
 
-Use :func:`~networkx_backbone.fraction_filter` to keep the most structurally
+Use :func:`~nx_backbone.fraction_filter` to keep the most structurally
 embedded edges. Since higher proximity scores indicate more embedded edges,
 use ``ascending=False``::
 

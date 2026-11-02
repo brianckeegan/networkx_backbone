@@ -2,7 +2,7 @@
 
 This private module is the numerical core of ``edge_persistence_hmm``
 (issue #73).  It works on arrays only and knows nothing about graphs: the
-public function in :mod:`networkx_backbone.temporal` turns a temporal network
+public function in :mod:`nx_backbone.temporal` turns a temporal network
 into an ``(E, T)`` observation array plus a mask and calls these functions.
 numpy is imported lazily inside each function.
 
@@ -569,7 +569,7 @@ def fit_hmm(
 
     starts = [start_from(init)]
     if n_init > 1:
-        from networkx_backbone.bipartite import _as_generator
+        from nx_backbone.bipartite import _as_generator
 
         rng = _as_generator(seed)
         ranges = {

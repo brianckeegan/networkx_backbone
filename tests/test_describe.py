@@ -9,9 +9,9 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
-import networkx_backbone as nb
-from networkx_backbone import describe
-from networkx_backbone.describe import (
+import nx_backbone as nb
+from nx_backbone import describe
+from nx_backbone.describe import (
     ALIASES,
     EXCLUDED,
     HELPER_MODULES,
@@ -47,7 +47,7 @@ def test_registry_matches_public_api():
         and name not in EXCLUDED
     ]
     assert not missing, (
-        f"add these to networkx_backbone.describe.METHODS (or EXCLUDED): {missing}"
+        f"add these to nx_backbone.describe.METHODS (or EXCLUDED): {missing}"
     )
     # Every registry name is public, and none lives in a helper module.
     public = set(nb.__all__)
@@ -60,7 +60,7 @@ def test_registry_matches_public_api():
         assert _module(name) not in HELPER_MODULES, name
     # The module docstring lists every described method.
     for name in METHODS:
-        assert f"networkx_backbone.{name}`" in describe.__doc__, name
+        assert f"nx_backbone.{name}`" in describe.__doc__, name
 
 
 def test_references_exist_and_are_used():
@@ -115,12 +115,12 @@ def _render_problems(name, style):
         n_entries = len(entry.refs) + 1 + bool(entry.builtin_mtc)
         if out.count("@") != n_entries:
             problems.append(f"{out.count('@')} BibTeX entries, expected {n_entries}")
-        if "keegan_networkx_backbone" not in out:
+        if "keegan_nx_backbone" not in out:
             problems.append("does not cite the package")
     else:
         if entry.label not in out:
             problems.append(f"label {entry.label!r} missing")
-        if "networkx-backbone version" not in out:
+        if "nx-backbone version" not in out:
             problems.append("package version missing")
         problems += [
             f"citation {key!r} missing"
@@ -283,7 +283,7 @@ def test_bibtex_entries():
         "neal2021",
         "godard2022",
         "benjamini1995",
-        "keegan_networkx_backbone",
+        "keegan_nx_backbone",
     ]
     assert "doi = {10.1038/s41598-021-03238-3}" in bib
     misc = nb.describe_backbone("ecm_filter", style="bibtex")
@@ -400,7 +400,7 @@ def test_describe_without_optional_dependencies():
     _run(
         """
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         G = nx.les_miserables_graph()
         bb = nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05)
         text = nb.describe_backbone("disparity", alpha=0.05, mtc="holm",

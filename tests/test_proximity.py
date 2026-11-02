@@ -1,4 +1,4 @@
-"""Known-answer and convention tests for networkx_backbone.proximity.
+"""Known-answer and convention tests for nx_backbone.proximity.
 
 Shared behavior (attributes, multigraph rejection, empty graphs, mixed labels,
 no input mutation) is covered by ``test_api_contract.py``.
@@ -9,7 +9,7 @@ import math
 import networkx as nx
 import pytest
 
-from networkx_backbone import (
+from nx_backbone import (
     adamic_adar_index,
     cosine_backbone,
     dice_backbone,

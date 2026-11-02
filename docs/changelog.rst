@@ -16,6 +16,28 @@ and backbones against R ``backbone`` 3.0.4 and netbone, which they now match
 **Several methods now return different results**; see *Changes in results*
 below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
 
+**Renamed (breaking)**
+
+- The package is now **nx-backbone**: install it with
+  ``pip install nx-backbone`` and import it as ``import nx_backbone``. The
+  repository moved to `brianckeegan/nx-backbone
+  <https://github.com/brianckeegan/nx-backbone>`_, and the documentation to
+  https://www.brianckeegan.com/nx-backbone/. This is a clean break: there is
+  no ``networkx_backbone`` alias, so ``import networkx_backbone`` fails once
+  the old package is uninstalled. The old ``networkx-backbone`` project on
+  PyPI is not updated.
+- To migrate, replace the distribution and the imports::
+
+      pip uninstall networkx-backbone
+      pip install nx-backbone
+      # then, in your code:
+      #   import networkx_backbone as nb  ->  import nx_backbone as nb
+      #   from networkx_backbone import ...  ->  from nx_backbone import ...
+
+  Function names, arguments and edge attributes are unchanged by the rename.
+  The BibTeX key that :func:`~nx_backbone.describe_backbone` writes is now
+  ``keegan_nx_backbone``.
+
 **Supported versions (breaking)**
 
 - Requires **Python 3.12 or newer** and **NetworkX 3.4 or newer**, matching
@@ -27,7 +49,7 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
 
 *Statistical and structural methods*
 
-- New :func:`~networkx_backbone.gloss_filter`, the GloSS filter of Radicchi,
+- New :func:`~nx_backbone.gloss_filter`, the GloSS filter of Radicchi,
   Ramasco & Fortunato (2011). It tests each edge weight against a global null
   model that keeps the topology and draws weights from the network's own
   weight distribution, conditioning on both endpoints' degrees and strengths,
@@ -35,7 +57,7 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   exactly (integer weights) by direct convolution, stable at any degree;
   directed graphs use out- and in-degrees and strengths. Les Misérables: 3
   edges at alpha = 0.05 (#43).
-- New :func:`~networkx_backbone.polya_filter`: the Pólya urn filter of
+- New :func:`~nx_backbone.polya_filter`: the Pólya urn filter of
   Marcaccioli & Livan (2019), adding ``polya_pvalue``. The null model is the
   beta-binomial urn of Eqs. (1)-(2), tested from both endpoints (out- and
   in-links for directed graphs). By default the reinforcement parameter ``a``
@@ -52,7 +74,7 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   large-strength limit of ``polya_filter``'s beta-binomial null. Les
   Misérables: ``a`` = 0.525 and 19 edges at alpha = 0.05 (9 at ``a=1``)
   (#55).
-- New :func:`~networkx_backbone.transform_weights` returns a copy of a graph
+- New :func:`~nx_backbone.transform_weights` returns a copy of a graph
   with transformed weights, from a plain callable or any object with a
   scikit-learn style ``fit_transform`` (scikit-learn is not a dependency). It
   keeps each node's neighbor order, rejects non-finite or constant output,
@@ -113,15 +135,15 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   al., 2026) with ``"edge"``, ``"node"``, and ``"auto"`` optimizers;
   statistically validated hypergraphs and cores (SVH/SVC); maximal
   hyperedges, order filtering, s-components, and intersection graphs.
-- New :func:`~networkx_backbone.local_mdl_hypergraph_backbone`: the local
+- New :func:`~nx_backbone.local_mdl_hypergraph_backbone`: the local
   MDL hypergraph backbone of Kirkley et al. (2026, Appendix E). It finds the
   MDL backbone of each node's neighborhood separately and combines them with
   the ``"union"``, ``"majority"`` (default), or ``"all"`` rule.
-  :class:`~networkx_backbone.HypergraphBackbone` gains ``n_hyperedges``,
+  :class:`~nx_backbone.HypergraphBackbone` gains ``n_hyperedges``,
   ``aggregation``, ``local_backbones``, and ``local_description_lengths``
   (#24).
 - Backbone 3.0 parity: multiple-testing correction
-  (:func:`~networkx_backbone.adjust_pvalues`, ``threshold_filter(mtc=...)``),
+  (:func:`~nx_backbone.adjust_pvalues`, ``threshold_filter(mtc=...)``),
   signed backbones (``signed=True``), and SDSM-EC edge constraints.
 - ``backbone_from_projection(mtc=...)``; ``sdsm(pvalue_method=...)``;
   ``fdsm(burn_in=..., thin=...)``; ``bicm(tol=..., max_iter=...)``.
@@ -142,7 +164,7 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
 
 *Inputs and interoperability*
 
-- New :func:`~networkx_backbone.to_graph` converts a NumPy or SciPy sparse
+- New :func:`~nx_backbone.to_graph` converts a NumPy or SciPy sparse
   adjacency matrix (with ``nodelist`` and ``directed``) or a pandas edge-list
   ``DataFrame`` (``source``/``target``/``weight`` columns) to a graph with
   NetworkX's own converters, refusing an asymmetric matrix for an undirected
@@ -176,17 +198,17 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
     ``write_hif`` now always writes both.
 - ``multigraph_to_weighted(aggregate=...)``, which can sum, average, or take
   the max/min of parallel-edge weights.
-- New module ``networkx_backbone.temporal`` (first part of #67): temporal
+- New module ``nx_backbone.temporal`` (first part of #67): temporal
   networks as snapshots (a dict or list of graphs), events (a multigraph
   with a ``time`` per edge), or spans (``start``/``end``, read as the
-  half-open interval ``[start, end)``). :func:`~networkx_backbone.temporal_form`
-  detects the form; :func:`~networkx_backbone.snapshots_from_events`,
-  :func:`~networkx_backbone.snapshots_from_spans`,
-  :func:`~networkx_backbone.events_from_snapshots`,
-  :func:`~networkx_backbone.spans_from_snapshots`,
-  :func:`~networkx_backbone.events_from_spans`,
-  :func:`~networkx_backbone.spans_from_events` and
-  :func:`~networkx_backbone.convert_temporal` convert between them, binning
+  half-open interval ``[start, end)``). :func:`~nx_backbone.temporal_form`
+  detects the form; :func:`~nx_backbone.snapshots_from_events`,
+  :func:`~nx_backbone.snapshots_from_spans`,
+  :func:`~nx_backbone.events_from_snapshots`,
+  :func:`~nx_backbone.spans_from_snapshots`,
+  :func:`~nx_backbone.events_from_spans`,
+  :func:`~nx_backbone.spans_from_events` and
+  :func:`~nx_backbone.convert_temporal` convert between them, binning
   with ``freq=``/``origin=`` and combining weights with
   ``multigraph_to_weighted(aggregate=...)``. Snapshots to events or spans and
   back is lossless (empty snapshots, isolated nodes, and node, edge and graph
@@ -194,14 +216,14 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   ``datetime`` times with ``timedelta`` steps need only NetworkX; frequency
   strings such as ``"1D"`` import pandas lazily. See
   :doc:`user_guide/temporal`.
-- :func:`~networkx_backbone.flatten_temporal` collapses snapshots, events or
+- :func:`~nx_backbone.flatten_temporal` collapses snapshots, events or
   spans into one static weighted graph for the static backbone methods: one
   edge per node pair with the combined ``weight`` (``aggregate=`` sum, count,
   mean, max or min, or ``"duration"`` for spans, the length of the union of a
   pair's spans), ``n_obs``, ``first`` and ``last`` (and ``active_time`` for
   spans), optionally restricted to a half-open ``window=(t0, t1)``.
-- :func:`~networkx_backbone.from_event_table` and
-  :func:`~networkx_backbone.to_event_table` read and write pandas event (or
+- :func:`~nx_backbone.from_event_table` and
+  :func:`~nx_backbone.to_event_table` read and write pandas event (or
   span) tables, keeping duplicate rows as separate events (#70, pandas part).
 - Temporal backbone scores, descriptive (no p-values), for any of the three
   forms (events and spans are binned with ``freq=``). Each returns one static
@@ -212,19 +234,19 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   both endpoints are present: an absent edge is an observed zero there and
   unknown elsewhere, so a node that joins late is not penalized (#67).
 
-  - :func:`~networkx_backbone.observation_fraction`: ``obs_fraction``,
+  - :func:`~nx_backbone.observation_fraction`: ``obs_fraction``,
     ``n_obs``, ``n_eligible``, ``first_obs``, ``last_obs``; ``weight=`` and
     ``min_weight=`` count only heavier observations (#68).
-  - :func:`~networkx_backbone.persistence`: ``max_run``, ``mean_run``,
+  - :func:`~nx_backbone.persistence`: ``max_run``, ``mean_run``,
     ``n_runs`` and ``persistence``, the share of observed steps whose next
     eligible step is also observed; ``ineligible="break"`` lets unknown steps
     end a run (#68).
-  - :func:`~networkx_backbone.backbone_stability`: runs any static method
+  - :func:`~nx_backbone.backbone_stability`: runs any static method
     (``disparity_filter``, ``lans_filter``, ...) on every step with the same
     cut and adds ``stability`` (``n_kept / n_eligible``), ``n_kept``,
     ``n_eligible``, ``first_kept``, ``last_kept``. The cut's attribute comes
     from the new ``describe.SCORE_KEYS`` registry (#69).
-  - :func:`~networkx_backbone.weight_trend` (needs numpy): ``weight_mean``,
+  - :func:`~nx_backbone.weight_trend` (needs numpy): ``weight_mean``,
     ``weight_std``, ``weight_cv``, ``weight_slope`` per step (and
     ``weight_slope_time`` per unit of numeric time), with an optional,
     descriptive slope p-value (SciPy) (#69).
@@ -233,7 +255,7 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   describes them, including the number of steps and the binning. New tutorial:
   :doc:`tutorials/temporal_backbones`; :ref:`temporal-eligibility` explains
   the eligible steps.
-- New :func:`~networkx_backbone.edge_persistence_hmm` (needs numpy): a
+- New :func:`~nx_backbone.edge_persistence_hmm` (needs numpy): a
   two-state hidden Markov model of edge activity. Each edge switches between
   an inactive and an active state (transition probabilities ``a01`` and
   ``a10``) and is observed with a false-positive rate ``alpha`` and a miss
@@ -261,7 +283,7 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   explain the trade-off and when to fix ``beta`` with ``params=``. A Beta
   prior on ``alpha`` and ``beta`` (MAP-EM) was evaluated on planted-truth
   simulations and not adopted. No fitted values change (#112).
-- New :func:`~networkx_backbone.kalman_backbone` (needs numpy and SciPy), a
+- New :func:`~nx_backbone.kalman_backbone` (needs numpy and SciPy), a
   novel adaptation of the Kalman filter and Rauch-Tung-Striebel smoother to
   backboning (#72). It runs a static significance test (``disparity_filter``
   or ``glab_filter``; discrete tests such as ``noise_corrected_filter`` with
@@ -277,7 +299,7 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   maximum likelihood fit, recorded in ``H.graph["temporal"]["kalman"]``. Each
   edge also gets ``kalman_score``, ``kalman_n_obs`` and the per-step dicts
   ``kalman_pvalues``, ``kalman_levels`` and ``kalman_innovations``;
-  :func:`~networkx_backbone.kalman_snapshots` expands them into per-step
+  :func:`~nx_backbone.kalman_snapshots` expands them into per-step
   graphs. Methods with discrete p-values (LANS, ECM, the marginal likelihood
   filter, Pólya, GloSS) raise unless ``discrete="raw"`` (valid but
   conservative), because none reports the ``P(X > x)`` that a mid-p transform
@@ -290,7 +312,7 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
 
 *Reporting and documentation*
 
-- New :func:`~networkx_backbone.describe_backbone`: methods-section text and
+- New :func:`~nx_backbone.describe_backbone`: methods-section text and
   citations for a backbone, in text, Markdown, or BibTeX; the counterpart of
   Backbone 3.0's ``narrative`` (#23). It is backed by one method-to-BibTeX
   registry that covers every public scorer, and a test enforces that coverage.
@@ -479,7 +501,7 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 **API conventions (NetworkX compatibility)**
 
 - Every scorer raises ``NetworkXNotImplemented`` for multigraphs (use
-  :func:`~networkx_backbone.multigraph_to_weighted` first), and
+  :func:`~nx_backbone.multigraph_to_weighted` first), and
   ``NetworkXError`` for missing, non-positive, NaN, or infinite weights.
 - Bipartite functions accept generators for ``agent_nodes``, reject agent sets
   that are not one side of the bipartition, and raise ``AmbiguousSolution``
@@ -563,7 +585,7 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   this style (#88, #96).
 - Two narrative guides, executed when the docs are built (#95): *Coming from
   R backbone or netbone* maps each R ``backbone`` 3.0 and netbone function to
-  networkx-backbone, checks the four convention switches against the R
+  nx-backbone, checks the four convention switches against the R
   fixtures, and reproduces R's fixed row backbone of the Davis Southern Women
   p-value by p-value; *Scaling up to large networks* covers sparse inputs,
   cost classes with run times measured at build time, the ECM solver's
@@ -718,10 +740,10 @@ Version 0.2.0 (2026-02-14)
 Tagged ``v0.2.0`` in git. PyPI has 0.1.0 and a development build
 (``0.2.0.post1.dev9``), but no 0.2.0 release.
 
-- New :mod:`~networkx_backbone.visualization` module:
-  :func:`~networkx_backbone.graph_difference`,
-  :func:`~networkx_backbone.compare_graphs`, and
-  :func:`~networkx_backbone.save_graph_comparison` draw an original graph
+- New :mod:`~nx_backbone.visualization` module:
+  :func:`~nx_backbone.graph_difference`,
+  :func:`~nx_backbone.compare_graphs`, and
+  :func:`~nx_backbone.save_graph_comparison` draw an original graph
   and its backbone side by side.
 - A Sphinx-Gallery visual comparison gallery and score-then-filter examples
   in the documentation.

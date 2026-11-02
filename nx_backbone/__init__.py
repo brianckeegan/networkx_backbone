@@ -24,20 +24,20 @@ networks, organized into the following submodules:
   hidden Markov model of edge activity)
 """
 
-from networkx_backbone.bipartite import *
-from networkx_backbone.convert import *
-from networkx_backbone.describe import *
-from networkx_backbone.filters import *
-from networkx_backbone.hybrid import *
-from networkx_backbone.hypergraph import *
-from networkx_backbone.hypergraph_io import *
-from networkx_backbone.measures import *
-from networkx_backbone.proximity import *
-from networkx_backbone.statistical import *
-from networkx_backbone.structural import *
-from networkx_backbone.temporal import *
-from networkx_backbone.unweighted import *
-from networkx_backbone.visualization import *
+from nx_backbone.bipartite import *
+from nx_backbone.convert import *
+from nx_backbone.describe import *
+from nx_backbone.filters import *
+from nx_backbone.hybrid import *
+from nx_backbone.hypergraph import *
+from nx_backbone.hypergraph_io import *
+from nx_backbone.measures import *
+from nx_backbone.proximity import *
+from nx_backbone.statistical import *
+from nx_backbone.structural import *
+from nx_backbone.temporal import *
+from nx_backbone.unweighted import *
+from nx_backbone.visualization import *
 
 __all__ = [
     # Statistical

@@ -2,7 +2,7 @@
 Scaling up to large networks
 ============================
 
-Every method in ``networkx-backbone`` runs in a blink on Les Misérables (77
+Every method in ``nx-backbone`` runs in a blink on Les Misérables (77
 nodes). A network with a hundred thousand nodes is different: some methods
 still take seconds, others would take days or run out of memory. This guide
 explains which is which and what to do about it, in four steps: start from
@@ -37,7 +37,7 @@ import numpy as np
 import scipy.sparse as sp
 from _figures import style
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 DOCS = Path(style.__file__).resolve().parents[1]
 # Light and dark SVG pairs, next to the gallery's own images.
@@ -64,9 +64,9 @@ def weighted_graph(n, m=3, max_weight=20, seed=0):
 # entries, zeros included, and its memory grows with n squared.
 #
 # If your data is already a SciPy sparse adjacency matrix, pass it straight
-# to the wrappers: :func:`~networkx_backbone.backbone_from_weighted` and
-# :func:`~networkx_backbone.backbone_from_unweighted` convert it with
-# :func:`~networkx_backbone.to_graph`, which reads only the stored entries.
+# to the wrappers: :func:`~nx_backbone.backbone_from_weighted` and
+# :func:`~nx_backbone.backbone_from_unweighted` convert it with
+# :func:`~nx_backbone.to_graph`, which reads only the stored entries.
 
 G = weighted_graph(5000)
 A = nx.to_scipy_sparse_array(G, weight="weight", format="csr")
@@ -104,7 +104,7 @@ print(
 # method returns. The point is to never go through a dense matrix on the way.
 #
 # The same holds for bipartite data. The projection models,
-# :func:`~networkx_backbone.backbone_from_projection` and the functions it
+# :func:`~nx_backbone.backbone_from_projection` and the functions it
 # calls, accept an agents-by-artifacts *incidence matrix* (a 1 where an agent
 # takes part in an artifact) as a NumPy array, a SciPy sparse array or a
 # pandas ``DataFrame``. Internally they keep it sparse and count
@@ -144,31 +144,31 @@ print(
 #      - Methods
 #      - At scale
 #    * - ``O(n + m)`` or ``O(m log n)``
-#      - :func:`~networkx_backbone.disparity_filter`,
-#        :func:`~networkx_backbone.noise_corrected_filter`,
-#        :func:`~networkx_backbone.marginal_likelihood_filter`,
-#        :func:`~networkx_backbone.lans_filter`,
-#        :func:`~networkx_backbone.global_threshold_filter`,
-#        :func:`~networkx_backbone.maximum_spanning_tree_backbone`
+#      - :func:`~nx_backbone.disparity_filter`,
+#        :func:`~nx_backbone.noise_corrected_filter`,
+#        :func:`~nx_backbone.marginal_likelihood_filter`,
+#        :func:`~nx_backbone.lans_filter`,
+#        :func:`~nx_backbone.global_threshold_filter`,
+#        :func:`~nx_backbone.maximum_spanning_tree_backbone`
 #      - Time grows about in proportion to m
 #    * - ``O(I C^2)`` over C classes
-#      - :func:`~networkx_backbone.ecm_filter`
+#      - :func:`~nx_backbone.ecm_filter`
 #      - See the ECM section below
 #    * - ``O(n m + n^2 log n)``: one shortest-path search per node
-#      - :func:`~networkx_backbone.high_salience_skeleton`,
-#        :func:`~networkx_backbone.metric_backbone`,
-#        :func:`~networkx_backbone.edge_betweenness_filter`,
-#        :func:`~networkx_backbone.h_backbone`,
-#        :func:`~networkx_backbone.glab_filter`
+#      - :func:`~nx_backbone.high_salience_skeleton`,
+#        :func:`~nx_backbone.metric_backbone`,
+#        :func:`~nx_backbone.edge_betweenness_filter`,
+#        :func:`~nx_backbone.h_backbone`,
+#        :func:`~nx_backbone.glab_filter`
 #      - Time grows about with m squared on sparse graphs; a backend can
 #        help some of them
 #    * - ``O(n_a^2 n_f)``
-#      - The projection models, :func:`~networkx_backbone.sdsm`,
-#        :func:`~networkx_backbone.fixedfill`, ...;
-#        :func:`~networkx_backbone.fdsm` multiplies it by its trials
+#      - The projection models, :func:`~nx_backbone.sdsm`,
+#        :func:`~nx_backbone.fixedfill`, ...;
+#        :func:`~nx_backbone.fdsm` multiplies it by its trials
 #      - Grows with the square of the number of agents
 #    * - ``O(n^3)`` time, ``O(n^2)`` memory
-#      - :func:`~networkx_backbone.local_path_index`
+#      - :func:`~nx_backbone.local_path_index`
 #      - Small graphs only
 #
 # Complexity classes hide constants, so here is the real thing: three
@@ -348,7 +348,7 @@ style.save_variants(draw_timings, OUT / "scaling_up_timings")
 # node, which used to make it the slowest statistical method by far.
 #
 # Two nodes with the same degree and the same strength get the same numbers
-# in the fitted model, so :func:`~networkx_backbone.ecm_filter` solves for
+# in the fitted model, so :func:`~nx_backbone.ecm_filter` solves for
 # one pair of numbers per *class* of such nodes instead of per node. This is
 # exact, not an approximation, and its cost depends on the number of classes
 # C rather than on n. How many classes do real-sized graphs have?
@@ -454,7 +454,7 @@ style.save_variants(draw_classes, OUT / "scaling_up_ecm_classes")
 #
 # Weights matter too: the ECM treats weights as counts, so a graph whose
 # weights take many distinct values has more classes. The ``unit=``
-# argument of :func:`~networkx_backbone.ecm_filter` says how much weight one
+# argument of :func:`~nx_backbone.ecm_filter` says how much weight one
 # count is.
 #
 # NetworkX backends
@@ -576,22 +576,22 @@ style.save_variants(draw_backends, OUT / "scaling_up_backends")
 # -----------
 #
 # - **Score once, filter many times.** Scoring is the expensive step;
-#   :func:`~networkx_backbone.threshold_filter` on a scored graph is cheap.
+#   :func:`~nx_backbone.threshold_filter` on a scored graph is cheap.
 #   Keep the scored graph and try several alphas on it.
 # - **Avoid all-pairs memory on big graphs.**
-#   :func:`~networkx_backbone.metric_backbone`,
-#   :func:`~networkx_backbone.doubly_stochastic_filter` and
-#   :func:`~networkx_backbone.local_path_index` use memory that grows with
+#   :func:`~nx_backbone.metric_backbone`,
+#   :func:`~nx_backbone.doubly_stochastic_filter` and
+#   :func:`~nx_backbone.local_path_index` use memory that grows with
 #   n squared (see :doc:`/user_guide/complexity`).
-# - **Know what a scorer returns.** :func:`~networkx_backbone.sdsm` and
-#   :func:`~networkx_backbone.fdsm` return every pair of agents with its
+# - **Know what a scorer returns.** :func:`~nx_backbone.sdsm` and
+#   :func:`~nx_backbone.fdsm` return every pair of agents with its
 #   p-value, ``n_a (n_a - 1) / 2`` edges (for the sparse incidence above,
 #   the number of pairs printed after "of").
-#   :func:`~networkx_backbone.backbone_from_projection` returns only the
+#   :func:`~nx_backbone.backbone_from_projection` returns only the
 #   significant ones.
 # - **Testing absent pairs is quadratic.** ``missing_as_zero=True`` tests
 #   every pair of nodes that is not linked as a weight-0 edge, and
-#   :func:`~networkx_backbone.ecm_filter` warns when that would add more than
+#   :func:`~nx_backbone.ecm_filter` warns when that would add more than
 #   a million edges.
 # - **Limit threads when you run many jobs.** Running several analyses side
 #   by side, each with multithreaded linear algebra, oversubscribes the CPUs.
@@ -607,7 +607,7 @@ style.save_variants(draw_backends, OUT / "scaling_up_backends")
 #   guide, for reproducing R ``backbone`` and netbone.
 # - The how-to tutorials :doc:`/tutorials/statistical_backbone` and
 #   :doc:`/tutorials/bipartite_backbone`.
-# - The API pages :doc:`/api/convert` (:func:`~networkx_backbone.to_graph`),
+# - The API pages :doc:`/api/convert` (:func:`~nx_backbone.to_graph`),
 #   :doc:`/api/statistical` and :doc:`/api/bipartite`.
 # - The ``asv`` benchmark suite in ``benchmarks/``, described in
 #   :doc:`/contributing`, for timing a change.

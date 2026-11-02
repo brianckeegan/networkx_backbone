@@ -17,7 +17,7 @@ import warnings
 
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 pytestmark = [
     pytest.mark.interop,
