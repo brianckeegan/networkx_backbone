@@ -9,6 +9,8 @@ weights are rescaled or transformed, how to transform weights with
 count-based null models, and how to relax the null model of the disparity
 filter.
 
+.. seealso:: :ref:`tutorial-weight-meaning`, a narrative tutorial that works through these choices on data, with figures.
+
 Transforming weights
 --------------------
 

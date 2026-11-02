@@ -39,6 +39,13 @@ Unreleased
   per API module (:doc:`tutorials/graph_gallery`), plus method-gallery
   figures where they fit. The temporal and validating pages now link their
   narrative tutorials.
+- A narrative tutorial, :ref:`tutorial-weight-meaning` (#125): telling counts,
+  strengths and distances apart and which methods assume which; how the
+  metric backbone, the disparity filter and LANS move under power transforms
+  of the weights; ``unit=`` for weights recorded in hours or minutes; when the
+  disparity filter's uniform null is wrong; and checking a test's calibration
+  on data with no structure, with the 0.3.0 noise-corrected and SDSM fixes as
+  examples. Six figures.
 
 Version 0.3.0 (2026-11-02)
 --------------------------
