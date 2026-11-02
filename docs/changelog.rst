@@ -242,6 +242,21 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   registry that covers every public scorer, and a test enforces that coverage.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
+- New narrative tutorial, "From a hairball to a backbone, end to end", the
+  "Start here" entry point linked from the home page, the quick start, the
+  tutorials index, and the statistical, filters, measures and describe API
+  pages. A worked case study on Les Misérables and a seeded, simulated
+  collaboration network with planted departments: why a global weight cut
+  fails, scoring versus filtering and the disparity filter's null model for
+  one node, choosing alpha with Bonferroni and Benjamini-Hochberg
+  corrections, four backbones compared in small multiples with
+  ``compare_backbones``, robustness to alpha and to the method
+  (``consensus_backbone``), a signed backbone, and ``describe_backbone``
+  output. It is a Sphinx-Gallery example, so its nine figures (light and dark
+  variants, in the shared figure style) and every number are computed when
+  the docs are built, and hidden checks fail the build if a claim in the
+  text stops holding. The tutorials index is reorganized into "Start here",
+  "By network type", and "Going further" (#89, #96).
 - Added ``CITATION.cff``.
 
 **Changes in results (bug fixes)**
