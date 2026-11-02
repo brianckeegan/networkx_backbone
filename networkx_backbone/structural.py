@@ -1369,8 +1369,17 @@ def modularity_backbone(
     Notes
     -----
     Louvain is randomized, so with ``seed=None`` the vitalities (and the
-    retained edges) can change between calls.  A graph (or node-deleted
-    subgraph) with zero total edge weight has modularity 0.
+    retained edges) can change between calls.  A fixed *seed* makes repeated
+    calls on the same graph agree, but Louvain also visits nodes in graph
+    order, so the same network built with its nodes or edges added in a
+    different order can still give a different backbone.  On Les Misérables
+    with ``seed=42``, five shuffled rebuilds kept between 65 and 93 edges
+    (72 on the original).  Report the seed and the input order, or keep the
+    edges that several shuffles agree on with
+    :func:`~networkx_backbone.consensus_backbone`.
+
+    A graph (or node-deleted subgraph) with zero total edge weight has
+    modularity 0.
 
     References
     ----------
@@ -1447,6 +1456,19 @@ def planar_maximally_filtered_graph(G: nx.Graph, weight: str = "weight") -> nx.G
         If *G* is directed or a multigraph.  Collapse parallel edges first
         with :func:`~networkx_backbone.multigraph_to_weighted`.
 
+    Notes
+    -----
+    The construction is greedy, and edges with equal weight are tried in
+    edge-insertion order.  When weights tie, which tied edge goes in first
+    can change which later edges still fit in a planar graph, so the same
+    network built in a different order can give a different PMFG.  This
+    matters for integer or rounded weights: on Les Misérables, the PMFGs of
+    five shuffled rebuilds kept 163 or 164 edges against 162 on the
+    original, and 29 to 36 edges were in one but not the other.  With
+    distinct weights the result does not depend on order.  Report the input
+    order, or keep the edges that several shuffles agree on with
+    :func:`~networkx_backbone.consensus_backbone`.
+
     References
     ----------
     .. [1] Tumminello, M., Aste, T., Di Matteo, T., & Mantegna, R. N.
@@ -1515,6 +1537,16 @@ def maximum_spanning_tree_backbone(G: nx.Graph, weight: str = "weight") -> nx.Gr
     NetworkXNotImplemented
         If *G* is directed or a multigraph.  Collapse parallel edges first
         with :func:`~networkx_backbone.multigraph_to_weighted`.
+
+    Notes
+    -----
+    When weights tie, a graph can have many maximum spanning trees, and
+    which one is returned depends on the order in which edges were added.
+    On Les Misérables, five shuffled rebuilds each gave a tree in which 10
+    to 15 of the original tree's 76 edges were swapped for tied ones.  For positive weights,
+    :func:`~networkx_backbone.ultrametric_backbone` keeps exactly the union
+    of all maximum spanning trees, so it does not depend on order; use it
+    when the choice among tied trees should not matter.
 
     Examples
     --------
