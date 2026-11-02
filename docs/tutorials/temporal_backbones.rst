@@ -6,11 +6,12 @@ filters of :mod:`networkx_backbone.temporal`:
 :func:`~networkx_backbone.observation_fraction`,
 :func:`~networkx_backbone.persistence`,
 :func:`~networkx_backbone.backbone_stability` and
-:func:`~networkx_backbone.weight_trend`, and compares them with a model of
-persistent activity, :func:`~networkx_backbone.edge_persistence_hmm`. Each
-returns one static graph, the union of the observed edges with score
-attributes, so the usual filters such as
-:func:`~networkx_backbone.threshold_filter` pick the backbone. See
+:func:`~networkx_backbone.weight_trend`, compares them with a model of
+persistent activity, :func:`~networkx_backbone.edge_persistence_hmm`, and
+smooths per-step significance with
+:func:`~networkx_backbone.kalman_backbone`. Each returns one static graph, the
+union of the observed edges with score attributes, so the usual filters such
+as :func:`~networkx_backbone.threshold_filter` pick the backbone. See
 :doc:`../user_guide/temporal` for the three input forms (snapshots, events and
 spans) and the conversions between them, and :ref:`temporal-eligibility` for
 how absent edges are counted.
@@ -240,6 +241,94 @@ but both have the same mean and spread:
 ``weight_slope``, the least-squares slope against the step number, tells an
 edge that fades out from one that builds up; ``weight_cv`` is the coefficient
 of variation.
+
+Smoothing significance over time: Kalman backbone
+-------------------------------------------------
+
+The scores above count steps. :func:`~networkx_backbone.kalman_backbone`
+instead tests every edge in every step with a static significance test and
+pools each edge's evidence over neighboring steps with a Kalman smoother, so
+an edge that is moderately significant in several consecutive steps can be
+detected where each step alone is too noisy. It needs numpy and SciPy.
+
+A new example: a fixed stochastic block model with three blocks of 10 nodes
+(each pair linked with probability 0.3 within a block and 0.05 across), whose
+edge weights are drawn afresh in every one of 20 steps from an exponential
+distribution with mean 1. Five planted edges inside the first block are
+**rising**: their mean weight is 1 up to step 9 and then grows by 1 per
+step, to 11 at step 19.
+
+>>> rng = random.Random(7)
+>>> pairs = [
+...     (u, v)
+...     for u, v in combinations(range(30), 2)
+...     if rng.random() < (0.3 if u // 10 == v // 10 else 0.05)
+... ]
+>>> rising = [(0, 1), (2, 3), (4, 5), (6, 7), (8, 9)]
+>>> pairs = sorted(set(pairs) | set(rising))
+>>> sbm = {}
+>>> for t in range(20):
+...     sbm[t] = nx.Graph()
+...     for u, v in pairs:
+...         mean = 1 + max(0, t - 9) if (u, v) in rising else 1
+...         sbm[t].add_edge(u, v, weight=rng.expovariate(1 / mean))
+>>> len(pairs)
+66
+
+A helper counts the rising edges a backbone finds, and the other edges it
+keeps:
+
+>>> def found(edges):
+...     edges = {tuple(sorted(e)) for e in edges}
+...     return len(edges & set(rising)), len(edges - set(rising))
+
+The disparity filter on single snapshots finds some of the rising edges in
+the late steps, together with several other edges:
+
+>>> for t in (11, 15, 19):
+...     D = nb.disparity_filter(sbm[t])
+...     print(t, found(nb.threshold_filter(D, "disparity_pvalue", 0.05).edges))
+11 (2, 5)
+15 (4, 2)
+19 (2, 7)
+
+:func:`~networkx_backbone.kalman_backbone` runs the same filter on every
+step, turns each p-value into a probit score, and smooths each edge's series.
+``half_life=3`` sets how far the smoother reaches: a step's weight halves
+every three steps away. ``kalman_snapshots`` expands the per-step p-values
+into one graph per step, to be cut like a single snapshot:
+
+>>> K = nb.kalman_backbone(sbm, "disparity", half_life=3, seed=0)
+>>> steps = nb.kalman_snapshots(K)
+>>> for t in (11, 15, 19):
+...     print(t, found(nb.threshold_filter(steps[t], "kalman_pvalue", 0.05).edges))
+11 (4, 0)
+15 (5, 1)
+19 (5, 2)
+
+It finds four rising edges by step 11 and all five from step 15, and keeps
+no more of the other 61 edges than a 5% test should (about three per step).
+Each edge also gets one p-value across all steps, ``kalman_pvalue``, which
+tests its largest smoothed score. It is one test per edge, so a correction
+across the 66 edges is enough, and it keeps exactly the rising edges:
+
+>>> KB = nb.threshold_filter(K, "kalman_pvalue", 0.05, mtc="bh")
+>>> found(KB.edges)
+(5, 0)
+
+The disparity filter gives an edge the smaller of its two endpoints'
+p-values. ``kalman_backbone`` corrects that by default (``sidak=True``), which
+makes its tests on top of the disparity filter somewhat conservative;
+:func:`~networkx_backbone.noise_corrected_filter` tests each edge once.
+
+Three cautions apply (see the Notes of
+:func:`~networkx_backbone.kalman_backbone`). The p-values are exact when no
+step carries signal, but a signal in some steps also raises the smoothed
+score in nearby steps (temporal leakage; ``mode="filter"`` uses only past
+steps). Confounders that persist over time make the tests anti-conservative,
+so check that each edge's ``kalman_innovations`` look like noise. And the
+per-step p-values are many tests, one per edge and step: correct them within
+each step, or use the edge-level ``kalman_pvalue``.
 
 Describing the result
 ---------------------

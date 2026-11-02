@@ -250,6 +250,31 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   ``alpha < 1 - beta`` is imposed by relabeling the states. ``hmm_score`` is
   a persistence-smoothed membership score, not a p-value. The temporal
   tutorial compares it with ``persistence`` (#73).
+- New :func:`~networkx_backbone.kalman_backbone` (needs numpy and SciPy), a
+  novel adaptation of the Kalman filter and Rauch-Tung-Striebel smoother to
+  backboning (#72). It runs a static significance test (``disparity_filter``,
+  ``noise_corrected_filter`` or ``glab_filter``) on every step, scoring
+  eligible absent edges as weight 0 with ``missing_as_zero=True``, turns the
+  p-values into probit scores, and smooths each edge's series with a
+  local-level model (``mode="smoother"`` or the online ``"filter"``; unknown
+  steps and unequal spacing are handled exactly). Per-step p-values use the
+  exact null distribution of the smoothed level; the edge-level
+  ``kalman_pvalue`` tests the largest smoothed z-score over the steps against
+  a null simulated once per missingness pattern (``n_sim=``, ``seed=``). The
+  process variance comes from ``q=``, ``half_life=`` (in steps) or a pooled
+  maximum likelihood fit, recorded in ``H.graph["temporal"]["kalman"]``. Each
+  edge also gets ``kalman_score``, ``kalman_n_obs`` and the per-step dicts
+  ``kalman_pvalues``, ``kalman_levels`` and ``kalman_innovations``;
+  :func:`~networkx_backbone.kalman_snapshots` expands them into per-step
+  graphs. Methods with discrete p-values (LANS, ECM, the marginal likelihood
+  filter, Pólya, GloSS) raise unless ``discrete="raw"`` (valid but
+  conservative), because none reports the ``P(X > x)`` that a mid-p transform
+  needs. The disparity filter and GLAB give an edge the smaller of two
+  endpoint p-values, which smoothing would turn into many false positives;
+  the default ``sidak=True`` corrects for that, which keeps their smoothed
+  tests valid but conservative. The docstring documents the risks: temporal
+  leakage, autocorrelated confounders, and multiple testing over edges and
+  steps.
 
 *Reporting and documentation*
 

@@ -456,6 +456,14 @@ Temporal
      - ``O(n_S + m_S + n_init I m T) plus T runs of the method``
      - ``O(n T + m T)``
      - T steps, m distinct edges, I EM iterations (at most max_iter); plus binning for events and spans.  The method runs only with observe="keep" or "pvalue".
+   * - ``kalman_backbone``
+     - ``O(n_S + m_S + I m T + P n_sim T) plus T runs of the method``
+     - ``O(n T + m T + n_sim T)``
+     - T steps, m distinct edges, P distinct missingness patterns, I likelihood evaluations when q is estimated; with missing_as_zero the method also tests the O(n^2) absent pairs of each snapshot.
+   * - ``kalman_snapshots``
+     - ``O(m T)``
+     - ``O(m T)``
+     -
    * - ``from_event_table``
      - ``O(r)``
      - ``O(r)``

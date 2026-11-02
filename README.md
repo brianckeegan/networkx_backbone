@@ -211,8 +211,10 @@ H = nb.flatten_temporal(M, aggregate="count")     # one weighted edge per pair
 backbone = nb.threshold_filter(nb.disparity_filter(H), "disparity_pvalue", 0.05)
 ```
 
-Temporal backbone methods (observation fraction, persistence, backbone
-stability, Kalman smoothing, and a persistence HMM) are on the roadmap.
+Temporal backbone scores (`observation_fraction`, `persistence`,
+`backbone_stability`, `weight_trend`) and `kalman_backbone`, which smooths
+per-step significance over time with a Kalman filter, return one scored static
+graph; a persistence HMM is on the roadmap.
 
 ### Comparing multiple methods
 
@@ -272,6 +274,7 @@ Key papers behind the implemented methods:
 - Gemmetto, V., Cardillo, A., & Garlaschelli, D. (2017). [Irreducible network backbones: unbiased graph filtering via maximum entropy](https://arxiv.org/abs/1706.00230). arXiv:1706.00230.
 - Grady, D., Thiemann, C., & Brockmann, D. (2012). [Robust classification of salient links in complex networks](https://doi.org/10.1038/ncomms1847). *Nature Communications*, 3, 864.
 - Hamann, M., Lindner, G., Meyerhenke, H., Staudt, C. L., and Wagner, D. (2016). [Structure-Preserving Sparsification Methods for Social Networks](https://doi.org/10.1007/s13278-016-0332-2). Social Network Analysis and Mining, 6, 22.
+- Kalman, R. E. (1960). [A new approach to linear filtering and prediction problems](https://doi.org/10.1115/1.3662552). *Journal of Basic Engineering*, 82(1), 35-45.
 - Marcaccioli, R., & Livan, G. (2019). [A Pólya urn approach to information filtering in complex networks](https://doi.org/10.1038/s41467-019-08667-3). *Nature Communications*, 10, 745.
 - Simas, T., Correia, R. B., & Rocha, L. M. (2021). [The distance backbone of complex networks](https://doi.org/10.1093/comnet/cnab021). *J. Complex Networks*, 9(6), cnab021.
 - Newman, M. E. J. (2001). [Scientific collaboration networks. II. Shortest paths, weighted networks, and centrality](https://doi.org/10.1103/PhysRevE.64.016132). *Physical Review E*, 64, 016132.
@@ -281,6 +284,7 @@ Key papers behind the implemented methods:
 - Neal, Z. P. (2026). [Backbone 3.0: An R package for extracting network backbones](https://doi.org/10.1371/journal.pone.0349258). *PLoS One*, 21, e0349258.
 - Neal, Z. P., & Neal, J. W. (2023). [Stochastic Degree Sequence Model with Edge Constraints (SDSM-EC) for Backbone Extraction](https://doi.org/10.1007/978-3-031-53468-3_11). *Complex Networks 12*, 127-136.
 - Radicchi, F., Ramasco, J. J., & Fortunato, S. (2011). [Information filtering in complex weighted networks](https://doi.org/10.1103/PhysRevE.83.046101). *Physical Review E*, 83(4), 046101.
+- Rauch, H. E., Tung, F., & Striebel, C. T. (1965). [Maximum likelihood estimates of linear dynamic systems](https://doi.org/10.2514/3.3166). *AIAA Journal*, 3(8), 1445-1450.
 - Saracco, F., Di Clemente, R., Gabrielli, A., & Squartini, T. (2015). [Randomizing bipartite networks: the case of the World Trade Web](https://doi.org/10.1038/srep10595). *Scientific Reports*, 5, 10595.
 - Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). [Local graph sparsification for scalable clustering](https://doi.org/10.1145/1989323.1989399). *SIGMOD*, 721-732.
 - Serrano, M. A., Boguna, M., & Vespignani, A. (2009). [Extracting the multiscale backbone of complex weighted networks](https://doi.org/10.1073/pnas.0808904106). *PNAS*, 106(16), 6483-6488.
