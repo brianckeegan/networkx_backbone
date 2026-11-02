@@ -577,9 +577,10 @@ publish(
 # Under the SDSM a co-occurrence follows a **Poisson-binomial** distribution
 # (a sum of independent coin flips with different probabilities). R
 # ``backbone`` evaluates its tail with the refined normal approximation (RNA);
-# ``networkx-backbone`` computes it exactly by convolution when that is cheap,
-# as on Davis, and switches to the RNA for large inputs
-# (``pvalue_method="auto"``). The difference is small but visible:
+# ``networkx-backbone`` computes it exactly by convolution
+# (``pvalue_method="auto"``, the default), and uses the RNA when you ask for
+# it with ``pvalue_method="rna"``. On Davis the difference is small but
+# visible (section 7 shows where it is not small):
 
 H_rna = nb.sdsm(B, women, pvalue_method="rna")
 p_exact, p_rna = pv["SDSM"], pvalues(H_rna, "sdsm_pvalue")
@@ -1236,9 +1237,9 @@ for model in ("fixedfill", "fixedrow"):
 # sparse random matrices and asks the SDSM for a backbone with the BH
 # correction (Benjamini & Hochberg, 1995), which millions of tests make
 # necessary. A matrix this sparse needs care with the tail: each pair's
-# expected co-occurrence is tiny, far from the normal shape the RNA assumes,
-# and ``pvalue_method="auto"`` picks the RNA once there are more than 200
-# artifacts. Compare it with the exact tail:
+# expected co-occurrence is tiny, far from the normal shape the RNA assumes.
+# Compare the default (``pvalue_method="auto"``, exact here) with the RNA
+# that R ``backbone`` uses:
 
 rng = np.random.default_rng(0)
 group = 30
@@ -1256,7 +1257,7 @@ for n_agents in (1000, 2000):
     M.data[:] = 1.0
     M.eliminate_zeros()
     n_pairs = n_agents * (n_agents - 1) // 2
-    for tail in ("exact", "rna"):
+    for tail in ("auto", "rna"):
         t0 = time.perf_counter()
         bh = nb.backbone_from_projection(
             M, method="sdsm", alpha=ALPHA, mtc="bh", pvalue_method=tail
@@ -1270,16 +1271,37 @@ for n_agents in (1000, 2000):
             f"{bh.number_of_edges():>6,} {found:>4} of {planted} {other:>6,} {elapsed:>8.2f}"
         )
 
+# sphinx_gallery_start_ignore
+_rows = {(n, t): (f, o) for n, t, f, o in scale_rows}
+for _n in (1000, 2000):
+    assert _rows[_n, "auto"][1] <= 2  # "(almost) only planted pairs"
+    assert _rows[_n, "rna"][1] > 10 * max(_rows[_n, "auto"][1], 1)
+# "auto" is exact here: same backbone as pvalue_method="exact", no warning.
+with warnings.catch_warnings():
+    warnings.simplefilter("error")
+    _exact = nb.backbone_from_projection(
+        M, method="sdsm", alpha=ALPHA, mtc="bh", pvalue_method="exact"
+    )
+_found = sum(1 for u, v in _exact.edges() if u < group and v < group)
+assert (_found, _exact.number_of_edges() - _found) == _rows[2000, "auto"]
+# sphinx_gallery_end_ignore
+
 # %%
 # "Planted" counts the pairs inside the planted group that the backbone
 # keeps; "other" counts every other pair it keeps, all of them noise here.
-# The exact tail keeps (almost) only planted pairs. The RNA, used by R
-# ``backbone`` and by ``"auto"`` above 200 artifacts, reports p-values far
-# smaller than the true ones for pairs with a tiny expected co-occurrence, so
-# noise pairs pass even a corrected test. On sparse data, pass
-# ``pvalue_method="exact"`` (its cost grows with the square of the number of
-# artifacts, per pair of distinct agent degrees), or check the RNA backbone
-# against it on a sample.
+# The default, exact tail keeps (almost) only planted pairs. The RNA reports
+# p-values far smaller than the true ones for pairs with a tiny expected
+# co-occurrence, so noise pairs pass even a corrected test. Use
+# ``pvalue_method="rna"`` only to reproduce R's numbers.
+#
+# The exact tail stays cheap because a convolution only needs to run up to
+# the largest co-occurrence two agents can have (the smaller of their
+# degrees), once per pair of distinct agent degrees. Until `issue #108
+# <https://github.com/brianckeegan/networkx_backbone/issues/108>`_ was
+# fixed, ``"auto"`` switched to the RNA above 200 artifacts, as in this
+# table's RNA rows. Now it does so only for pairs whose exact tail would be
+# too costly, starting with the largest expected co-occurrences (where the
+# RNA is accurate), and warns when it does.
 #
 # Where next
 # ----------

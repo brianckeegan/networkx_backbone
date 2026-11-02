@@ -148,8 +148,12 @@ Comparing SDSM and FDSM
 - **SDSM** is faster (analytical) and works well for large networks. It fits
   the bipartite configuration model (BiCM), in which node degrees hold in
   expectation rather than exactly. It then evaluates each co-occurrence count
-  with the exact Poisson-binomial distribution, or with its refined normal
-  approximation (RNA) for large inputs, as R ``backbone`` does.
+  with the exact Poisson-binomial distribution. ``pvalue_method="rna"``
+  uses the refined normal approximation (RNA) instead, as R ``backbone``
+  does; it matches R's p-values, but its far upper tail is too small for
+  pairs with a small expected co-occurrence, so on sparse data noise pairs
+  can pass even a corrected test. The default ``"auto"`` falls back to the
+  RNA, with a warning, only for pairs whose exact tail would be too costly.
 
 - **FDSM** is more conservative and statistically rigorous. It preserves the
   exact degree sequence by sampling a curveball Markov chain that starts from

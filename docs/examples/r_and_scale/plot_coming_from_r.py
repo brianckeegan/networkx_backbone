@@ -343,8 +343,9 @@ print("Same pairs:", our_edges(bb) == r_bb)
 # model, whose p-value both packages compute exactly, and the *stochastic
 # degree sequence model* (SDSM; Neal, 2014), whose p-value R approximates
 # with the refined normal approximation (RNA). Our
-# :func:`~networkx_backbone.sdsm` computes the exact tail on graphs this
-# small and takes ``pvalue_method="rna"`` to match R.
+# :func:`~networkx_backbone.sdsm` computes the exact tail by default, on
+# inputs of any size while that is affordable, and takes
+# ``pvalue_method="rna"`` to match R.
 
 pairs = [(women[i], women[j]) for i, j in R["davis"]["pairs"]]
 cooccur = np.array(R["davis"]["cooccurrence"])
@@ -499,9 +500,15 @@ style.save_variants(draw_pvalues, OUT / "coming_from_r_pvalues")
 # - **sdsm, default**: our exact tail differs from R's approximation by the
 #   printed amount. On Davis this moves no pair across alpha = 0.05 (the
 #   counts of pairs below it are printed above), so the backbones are the
-#   same; on other data they need not be. Use
-#   ``pvalue_method="rna"`` to reproduce R, and the default when you do not
-#   need to.
+#   same; on other data they need not be. On sparse data the gap is large:
+#   when a pair's expected co-occurrence is tiny, the RNA's far upper tail is
+#   many orders of magnitude too small, and pure-noise pairs pass even a
+#   Benjamini-Hochberg correction (the section "Scale: sparse incidence
+#   matrices" of
+#   :doc:`/auto_examples/bipartite/plot_bipartite_projections` shows it on a
+#   planted group; `issue #108
+#   <https://github.com/brianckeegan/networkx_backbone/issues/108>`_). Use
+#   ``pvalue_method="rna"`` to reproduce R, and the default otherwise.
 #
 # The backbone itself
 # -------------------

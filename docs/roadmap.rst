@@ -169,6 +169,13 @@ Correctness gaps found in review
   is now the exact binomial tail of the method's null model (the paper's
   footnote 2), checked by simulation; the ``delta`` rule's p-value is
   ``pvalue_method="delta"``. Les Misérables: 195 -> 126 edges.
+- **done** (`#108 <https://github.com/brianckeegan/networkx_backbone/issues/108>`_): ``sdsm(pvalue_method="auto")`` computes
+  exact Poisson-binomial tails whenever that is affordable, instead of the
+  refined normal approximation above 200 artifacts, whose far upper tail
+  let pure-noise pairs pass a BH correction on sparse data. Truncated
+  convolutions make the exact tails 8-60x cheaper; over budget, the pairs
+  with the smallest expected co-occurrence keep exact tails and a warning
+  names the rest. ``pvalue_method="rna"`` still matches R ``backbone``.
 
 Validation
 ~~~~~~~~~~
