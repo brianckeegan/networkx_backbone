@@ -3,7 +3,9 @@ Bipartite Projection Backbones
 
 This tutorial demonstrates weighted bipartite projections (simple, hyper, ProbS,
 YCN) and backbone scoring with SDSM/FDSM, then extracts significant edges with
-filtering.
+filtering. For the reasoning behind these choices, with figures, read the
+narrative tutorial
+:doc:`/auto_examples/bipartite/plot_bipartite_projections`.
 
 What is a bipartite projection backbone?
 -----------------------------------------

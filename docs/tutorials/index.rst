@@ -22,12 +22,16 @@ docs are built.
 By network type
 ---------------
 
+Narrative tutorials for each kind of network:
+
 .. toctree::
    :maxdepth: 1
 
+   /auto_examples/bipartite/plot_bipartite_projections
+   /auto_examples/hypergraphs/plot_hypergraph_backbones
    /auto_examples/temporal/plot_temporal_backbones
 
-Short how-to pages for each kind of network.
+Short how-to pages for each kind of network:
 
 .. toctree::
    :maxdepth: 2
@@ -49,6 +53,9 @@ Narrative deep dives, and comparing, validating, and benchmarking backbones.
    :maxdepth: 1
 
    /auto_examples/statistical_nulls/plot_statistical_nulls
+   /auto_examples/structural_proximity/plot_structural_proximity_tutorial
+   /auto_examples/r_and_scale/plot_coming_from_r
+   /auto_examples/r_and_scale/plot_scaling_up
 
 .. toctree::
    :maxdepth: 2

@@ -88,6 +88,10 @@ filter using the boolean keep attribute::
     scored = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
     backbone = nb.threshold_filter(scored, "sdsm_pvalue", 0.05, mode="below")
 
+The narrative tutorial
+:doc:`/auto_examples/bipartite/plot_bipartite_projections` explains these
+choices with figures.
+
 **Hypergraph backbone**: Prune nested and redundant hyperedges with the
 parameter-free minimum-description-length backbone::
 
@@ -111,4 +115,5 @@ Next steps
 - :doc:`concepts` -- Learn about the different categories of backbone methods
 - :doc:`user_guide/index` -- Detailed guides on workflows, method selection, and evaluation
 - :doc:`tutorials/index` -- Step-by-step tutorials for each method category
+- :doc:`auto_examples/r_and_scale/plot_coming_from_r` -- Coming from R ``backbone`` or ``netbone``
 - :doc:`api/index` -- Complete API reference
