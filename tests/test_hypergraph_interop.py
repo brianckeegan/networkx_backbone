@@ -138,7 +138,10 @@ def test_xgi_native_roundtrip():
     assert edges == [frozenset("ab"), frozenset("bcd"), frozenset("ab")]
     assert weights == [2.0, 0.5, 1.0]
     H2 = nb.to_xgi(edges, weights=weights)
-    assert list(H2.edges.members()) == list(H.edges.members())
+    # Compare member sets, not ``edges.members()``: from xgi 1.0 a bare
+    # ``members()`` lists edge IDs, which differ here by design.
+    members = H2.edges.members(dtype=dict)
+    assert list(members.values()) == list(H.edges.members(dtype=dict).values())
     assert set(H2.nodes) == set(H.nodes)
     assert [H2.edges[e]["weight"] for e in H2.edges] == weights
 
