@@ -7,7 +7,9 @@ running hundreds of tests at once, comparing it with other backbones,
 finding the edges that every method agrees on, reading a signed backbone,
 and reporting what you did. See the narrative tutorial,
 :doc:`/auto_examples/start_here/plot_hairball_to_backbone`, and its section
-:ref:`Validating <hb-validate>` for the same steps told as one case study.
+:ref:`Validating <hb-validate>` for the same steps told as one case study,
+and :doc:`/auto_examples/validation/plot_compare_validate_report` for robustness, consensus, validation against a planted truth,
+and a methods-section checklist.
 
 The examples use the Les Misérables co-appearance network (77 characters,
 254 weighted edges). Every code block on this page runs as part of the test

@@ -8,7 +8,9 @@ extraction methods on the same network.
 
    See the narrative tutorial: :ref:`Start here, section 4: comparing
    methods <hb-compare>`, a worked case study of why backbones from
-   different methods differ and how to read the comparison.
+   different methods differ and how to read the comparison. For more depth
+   (why agreement is not correctness, robustness, consensus, and checking
+   against a planted truth), see :doc:`/auto_examples/validation/plot_compare_validate_report`.
 
 Setup
 -----
