@@ -5,6 +5,15 @@ This tutorial demonstrates eight statistical backbone extraction methods.
 Each method tests whether an edge's weight is statistically significant under
 a null model.
 
+.. seealso::
+
+   See the narrative tutorials:
+   :ref:`tutorial-statistical-nulls`, with figures on what each null model
+   holds fixed and why their backbones differ; and the "Start here" case
+   study, :doc:`/auto_examples/start_here/plot_hairball_to_backbone`, whose
+   section on :ref:`choosing alpha and correcting for multiple tests
+   <hb-alpha>` explains the threshold and the ``mtc`` argument used below.
+
 Setup
 -----
 
@@ -34,6 +43,11 @@ Edges with unexpectedly large weight receive low p-values::
     # Filter at alpha = 0.05
     backbone = nb.threshold_filter(H, "disparity_pvalue", 0.05)
     print(f"Disparity backbone: {backbone.number_of_edges()} edges")
+
+The filter keeps the edges whose p-value falls below the threshold, so the
+whole distribution of p-values shows how much a threshold matters:
+
+.. page-figure:: statistical_backbone/pvalues
 
 Noise-corrected filter
 ----------------------
@@ -218,6 +232,8 @@ Use :func:`~nx_backbone.compare_backbones` to compare the results::
         ef = metrics["edge_fraction"]
         nf = metrics["node_fraction"]
         print(f"{name:25s}: edges={ef:.1%}, nodes={nf:.1%}")
+
+.. page-figure:: statistical_backbone/methods
 
 Multiple-testing correction
 ---------------------------

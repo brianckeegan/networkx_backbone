@@ -4,6 +4,12 @@ Comparing Multiple Methods
 This tutorial demonstrates how to systematically compare multiple backbone
 extraction methods on the same network.
 
+.. seealso::
+
+   See the narrative tutorial: :ref:`Start here, section 4: comparing
+   methods <hb-compare>`, a worked case study of why backbones from
+   different methods differ and how to read the comparison.
+
 Setup
 -----
 
@@ -70,6 +76,19 @@ accept the original graph and the backbone as arguments::
         r = metrics["reachability"]
         print(f"{name:25s} {ef:8.1%} {nf:8.1%} {r:8.1%}")
 
+Agreement between backbones
+---------------------------
+
+The measures above summarize each backbone on its own. To see whether two
+methods keep the *same* edges, compare their edge sets, for example with the
+Jaccard index: the edges both keep over the edges either keeps::
+
+    edges = {name: {frozenset(e) for e in B.edges()} for name, B in backbones.items()}
+    a, b = edges["metric"], edges["mst"]
+    print(f"Jaccard(metric, mst) = {len(a & b) / len(a | b):.2f}")
+
+.. page-figure:: comparing_methods/agreement
+
 Consensus backbone
 ------------------
 
@@ -84,6 +103,8 @@ multiple methods agree are important::
     consensus = nb.consensus_backbone(b1, b2, b3)
     print(f"Consensus backbone: {consensus.number_of_edges()} edges")
     print(f"Edge fraction: {nb.edge_fraction(G, consensus):.1%}")
+
+.. page-figure:: comparing_methods/consensus
 
 Interpreting results
 --------------------
