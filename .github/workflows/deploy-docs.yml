@@ -41,13 +41,10 @@ jobs:
           python -m pip install matplotlib
           python -m pip install -r docs/requirements.txt
 
-      - name: Generate visualization gallery
+      - name: Build Sphinx documentation (generates the method gallery)
         env:
           MPLCONFIGDIR: /tmp/matplotlib
           XDG_CACHE_HOME: /tmp/.cache
-        run: python scripts/generate_visualizations.py
-
-      - name: Build Sphinx documentation
         run: |
           cd docs
           make html SPHINXOPTS="-W --keep-going -n"

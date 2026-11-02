@@ -625,9 +625,11 @@ def draw_backbone(
             zorder=4,
         )
 
-    ax.set_aspect("equal")
-    ax.autoscale_view()
+    # Equal scales, but keep the axes box: panels of one figure stay the same
+    # size whatever the shape of the drawing.
+    ax.set_aspect("equal", adjustable="datalim")
     ax.margins(0.04)
+    ax.autoscale_view()
     ax.set_axis_off()
     if title:
         ax.set_title(title)
