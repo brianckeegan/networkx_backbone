@@ -481,12 +481,13 @@ def test_scores_need_only_networkx():
             nx.set_edge_attributes(G, 2.0, "weight")
         H = nb.backbone_stability(W, "global_sparsification", s=0.5)
         assert H[0][1]["n_eligible"] == 3
-        try:
-            nb.weight_trend(S)
-        except ImportError as err:
-            assert "numpy" in str(err)
-        else:
-            raise AssertionError("expected ImportError")
+        for func in (nb.weight_trend, nb.edge_persistence_hmm):
+            try:
+                func(S)
+            except ImportError as err:
+                assert "numpy" in str(err)
+            else:
+                raise AssertionError("expected ImportError")
         """
     )
 
