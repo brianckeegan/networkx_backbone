@@ -17,7 +17,18 @@ Unreleased
   the first one is on :doc:`user_guide/workflow`. A new test requires a
   figure on every how-to and user-guide page, with the pages still to do
   listed explicitly. :doc:`contributing` explains how to write figures.
-- Figures for five how-to tutorials (#121): the Davis incidence matrix
+- Figures on six how-to tutorials (#121): the disparity p-value distribution
+  and the eight statistical backbones' sizes
+  (:doc:`tutorials/statistical_backbone`), the structural backbones' edges,
+  nodes and connectivity (:doc:`tutorials/structural_methods`), proximity
+  scores against endpoint degrees (:doc:`tutorials/proximity_scoring`), edges
+  kept as ``s`` varies (:doc:`tutorials/unweighted_sparsification`), an
+  agreement matrix and the consensus backbone
+  (:doc:`tutorials/comparing_methods`), and the benchmark table as a chart
+  (:doc:`tutorials/les_miserables_benchmark`). The statistical, comparing and
+  benchmark pages now link their narrative tutorials, and the comparing page
+  shows how to measure two backbones' agreement.
+- Figures on five how-to tutorials (#121): the Davis incidence matrix
   beside its projection (:doc:`tutorials/bipartite_backbone`), hyperedges and
   their MDL backbones beside the pairwise projection
   (:doc:`tutorials/hypergraph_backbone`), edge activity over the time steps

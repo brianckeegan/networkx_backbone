@@ -22,13 +22,6 @@ SECTIONS = ("tutorials", "user_guide")
 # Pages that have no figure yet, as "<section>/<file stem>".  #121 and #122
 # empty this set; never add to it.
 PENDING = {
-    # How-to tutorials (#121).
-    "tutorials/comparing_methods",
-    "tutorials/les_miserables_benchmark",
-    "tutorials/proximity_scoring",
-    "tutorials/statistical_backbone",
-    "tutorials/structural_methods",
-    "tutorials/unweighted_sparsification",
     # User guide (#122).
     "user_guide/backends",
     "user_guide/choosing_method",

@@ -11,6 +11,12 @@ applies a strict **score-then-filter** workflow for every method:
 If the filtered graph has the same edge count as the original graph, issue a
 warning and re-test the method parameters.
 
+.. seealso::
+
+   See the narrative tutorial: :ref:`Start here, section 4: comparing
+   methods <hb-compare>`, on why methods keep such different backbones and
+   how to compare them beyond edge counts.
+
 Setup
 -----
 
@@ -45,6 +51,10 @@ installed version of the library. Methods marked *unweighted* run on
 ``G_unweighted``; every other method runs on the weighted graph ``G``.
 
 .. les-miserables-table::
+
+The same counts as a chart, grouped by method family:
+
+.. page-figure:: les_miserables_benchmark/edges-kept
 
 Reproducibility Script
 ----------------------
