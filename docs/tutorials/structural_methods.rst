@@ -4,6 +4,12 @@ Structural Backbone Methods
 This tutorial demonstrates the structural methods, which use topological
 properties of the network to identify important edges.
 
+.. seealso::
+
+   :ref:`sphx_glr_auto_examples_structural_proximity_plot_structural_proximity_tutorial.py`,
+   a narrative tutorial with figures on what each structural method
+   guarantees and when to prefer one to a significance test.
+
 Setup
 -----
 

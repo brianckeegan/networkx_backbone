@@ -242,6 +242,15 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   registry that covers every public scorer, and a test enforces that coverage.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
+- New narrative tutorial, "Structural and proximity backbones", executed in
+  the example gallery with eight figures: what spanning trees, the PMFG, the
+  metric and ultrametric backbones, salience, the h-backbone and the doubly
+  stochastic filter guarantee (checked at build time) against the disparity
+  filter; weights as strengths or distances; ties and which methods still
+  depend on input order; proximity scores and sparsifiers for unweighted
+  graphs, including ``lspar(convention="r")``; and Sinkhorn-Knopp convergence
+  with ``smoothing=``. The tutorials index gains "Start here", "By network
+  type" and "Going further" sections (#91).
 - Added ``CITATION.cff``.
 
 **Changes in results (bug fixes)**
