@@ -380,6 +380,6 @@ Documentation
 - **done** (`#124 <https://github.com/brianckeegan/nx-backbone/issues/124>`_): Narrative tutorial: directed and signed
   networks (out- and in-tests, signed tails and ties, signed projections, R
   conventions).
-- **planned** (`#125 <https://github.com/brianckeegan/nx-backbone/issues/125>`_): Narrative tutorial: what your weights mean
+- **done** (`#125 <https://github.com/brianckeegan/nx-backbone/issues/125>`_): Narrative tutorial: what your weights mean
   (counts, strengths or distances; transforms; ``unit=``; generalized nulls;
   checking calibration on structureless data).
