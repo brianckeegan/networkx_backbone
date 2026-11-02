@@ -1,6 +1,15 @@
 # Publish nx-backbone to PyPI when a GitHub Release is published.
 # Uses PyPI trusted publishing as documented at:
 # https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+#
+# The package version comes from the release tag via setuptools-scm, so the
+# build checks out that tag with full history and fails unless the built
+# version equals the tag without its leading "v" (v0.3.0 -> 0.3.0).
+#
+# A manual run (workflow_dispatch) is a dry run: it tests, builds, and checks
+# the distributions but never uploads them.  Earlier manual runs from main
+# uploaded development versions such as 0.2.0.post1.dev9.  To retry a failed
+# upload, re-run the failed jobs of the release run itself.
 
 name: Publish to PyPI
 
@@ -22,6 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'release' && format('refs/tags/{0}', github.event.release.tag_name) || '' }}
 
       - uses: actions/setup-python@v6
         with:
@@ -40,6 +51,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ github.event_name == 'release' && format('refs/tags/{0}', github.event.release.tag_name) || '' }}
+          # setuptools-scm needs the tags and the history to find them.
           fetch-depth: 0
 
       - uses: actions/setup-python@v6
@@ -56,6 +69,26 @@ jobs:
           python -m pip install twine
           twine check --strict dist/*
 
+      - name: Check the version matches the release tag
+        if: github.event_name == 'release'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          expected="${TAG#v}"
+          ls dist/
+          wheels=(dist/*.whl)
+          sdists=(dist/*.tar.gz)
+          if [ "${#wheels[@]}" -ne 1 ] || [ "${#sdists[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one wheel and one sdist in dist/"
+            exit 1
+          fi
+          if [ "${wheels[0]}" != "dist/nx_backbone-${expected}-py3-none-any.whl" ] \
+             || [ "${sdists[0]}" != "dist/nx_backbone-${expected}.tar.gz" ]; then
+            echo "::error::Built version does not match release tag ${TAG} (expected ${expected}). Is the tag on the checked-out commit, and is pyproject.toml free of a static version?"
+            exit 1
+          fi
+          echo "Built nx-backbone ${expected} for tag ${TAG}"
+
       - name: Upload distribution packages
         uses: actions/upload-artifact@v4
         with:
@@ -65,6 +98,8 @@ jobs:
   publish-to-pypi:
     name: Publish to PyPI
     needs: build-distributions
+    # Only a published GitHub Release uploads; manual runs stop after the build.
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
       # Required for trusted publishing.

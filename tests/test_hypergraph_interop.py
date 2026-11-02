@@ -6,7 +6,7 @@ run just these tests with ``pytest -m interop`` (the "Interop" CI workflow does
 this on pull requests and weekly).  ``tests/test_hypergraph_io.py`` covers the
 adapter logic with stand-in modules, so it runs without the libraries.
 
-Set ``NETWORKX_BACKBONE_REQUIRE_INTEROP=1`` (as CI does) to make a library
+Set ``NX_BACKBONE_REQUIRE_INTEROP=1`` (as CI does) to make a library
 that fails to import an error instead of a skip.
 """
 
@@ -30,7 +30,7 @@ pytestmark = [
 def _import(name):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        if os.environ.get("NETWORKX_BACKBONE_REQUIRE_INTEROP"):
+        if os.environ.get("NX_BACKBONE_REQUIRE_INTEROP"):
             return importlib.import_module(name)
         return pytest.importorskip(name)
 

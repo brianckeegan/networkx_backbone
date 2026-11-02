@@ -44,5 +44,5 @@ jobs:
       - name: Run interop tests
         env:
           # A library that fails to import is an error here, not a skip.
-          NETWORKX_BACKBONE_REQUIRE_INTEROP: "1"
+          NX_BACKBONE_REQUIRE_INTEROP: "1"
         run: pytest -m interop -rs

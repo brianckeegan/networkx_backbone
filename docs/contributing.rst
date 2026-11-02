@@ -197,28 +197,54 @@ stack:
 - Use ``:func:`` and ``:mod:`` roles for cross-references within docstrings
 
 
-Publishing to PyPI
-------------------
+Making a release
+----------------
 
-PyPI releases are published automatically from the
-``.github/workflows/publish-to-PyPI.yml`` workflow when a GitHub Release is
-published. The workflow follows the PyPA trusted publishing guide:
+Publishing a GitHub Release triggers three workflows: ``publish-to-PyPI.yml``
+(PyPI), ``publish-to-conda.yml`` (anaconda.org), and ``deploy-docs.yml``
+(GitHub Pages). The PyPI workflow follows the PyPA trusted publishing guide:
 https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
 
-Package versions are derived automatically from Git tags using
-``setuptools-scm``. Do not edit a version string in ``pyproject.toml``.
+The package version comes from the release tag through ``setuptools-scm``:
+tag ``v0.3.0`` builds version ``0.3.0``. Do not set a version in
+``pyproject.toml`` or in the conda recipe. (The ``v0.2.0`` tag never reached
+PyPI because ``pyproject.toml`` still set ``version = "0.1.0"`` there.)
 
-Maintainers should configure PyPI trusted publishing once in the PyPI project
-settings:
+One-time setup:
 
-1. Open the ``nx-backbone`` project on PyPI and add a trusted publisher
-   for this GitHub repository.
-2. Use the workflow filename ``publish-to-PyPI.yml`` and environment name
-   ``pypi``.
-3. Create and push a version tag (for example ``v0.3.0``) and then publish a
-   GitHub Release from that tag; the workflow will run tests, build
-   distributions, verify them with ``twine check``, and publish to PyPI using
-   that tag as the package version.
+1. On PyPI, add a trusted publisher for the ``nx-backbone`` project:
+   owner ``brianckeegan``, repository ``nx-backbone``, workflow filename
+   ``publish-to-PyPI.yml``, environment name ``pypi``. Before the first
+   upload the project does not exist yet, so add it as a *pending*
+   publisher (PyPI account settings, "Publishing"); the first release then
+   creates the project. (Versions 0.2 and earlier were published as
+   ``networkx-backbone``, which is not updated.)
+2. In the repository settings, create the ``pypi`` environment. If it has
+   deployment branch or tag rules, allow tags matching ``v*``: a release
+   run deploys from the tag, not from ``main``.
+3. For anaconda.org uploads, add an ``ANACONDA_TOKEN`` repository secret.
+
+For each release:
+
+1. Merge everything for the release into ``main`` with green CI, and set the
+   release date in the changelog heading (``Version X.Y.Z (YYYY-MM-DD)``).
+2. Draft a GitHub Release whose tag is ``vX.Y.Z`` (the tag can be new; GitHub
+   creates it on ``main`` when the release is published) and paste the
+   release notes. Curated notes for each release live in
+   ``docs/release-notes/``.
+3. Publish the release. The PyPI workflow checks out the tag with its full
+   history, runs the tests, builds the wheel and sdist, checks them with
+   ``twine check --strict``, and **fails before uploading unless both carry
+   version X.Y.Z**. The conda workflow checks the same thing before building.
+4. Check https://pypi.org/project/nx-backbone/ and the documentation
+   site. If an upload fails, fix the cause (for example the trusted
+   publisher or the environment rules) and use "Re-run failed jobs" on the
+   *release* run, which rebuilds from the same tag.
+
+Running either publishing workflow by hand (``workflow_dispatch``) is a dry
+run: it tests and builds, but never uploads. Never publish from a manual run
+on ``main``; it would build a development version such as
+``0.2.0.post1.dev9``.
 
 Submitting changes
 ------------------

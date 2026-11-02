@@ -410,7 +410,6 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   (Hamann et al., 2016) instead of one arbitrary spanning forest, so tied
   scores no longer make the result depend on node order (#32). The union is
   added whenever ``umst=True``, not only when filtering split a component.
-
 - ``ecm_filter``: the solver never converged and every p-value was about 0,
   so every edge was kept (254 of 254). It now fits the ECM by maximum
   likelihood and uses the correct geometric tail; it keeps 72 edges and warns
@@ -421,8 +420,12 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 - ``glab_filter``: now uses per-node shortest-path involvement and
   :math:`(1-I_{ij})^{(k_i-1)^c}` (Zhang et al., 2014) instead of global edge
   betweenness. Les Misérables: 5 -> 56 edges.
-- ``disparity_filter`` on directed graphs also tests the target's incoming
-  links.
+- ``disparity_filter``: the p-value is now :math:`(1 - p_{ij})^{k_i - 1}`
+  (Serrano et al., 2009). Versions 0.1.0 and 0.2.0 computed
+  :math:`1 - (k_i - 1)(1 - p_{ij})^{k_i - 2}`, the integrand of the paper's
+  formula in place of its integral, so almost every edge looked significant.
+  Les Misérables: 247 -> 9 edges. On directed graphs it also tests the
+  target's incoming links.
 - ``lans_filter`` on directed graphs also tests the target's incoming links
   (#11, contributed by @bfs2021 in #34).
 - ``lans_filter(signed=True)``: the lower tail is now ``#{weights < w} / k``,
@@ -728,6 +731,11 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   the two it lacked, the Pólya urn and GloSS filters, were then added (#42,
   #43). The evaluation also notes where the covered methods behave
   differently from ``netbone`` (#29).
+- The PyPI workflow builds from the release tag with its full history and
+  fails unless the wheel and sdist carry the tag's version; manual runs no
+  longer upload (they had published ``0.2.0.post1.dev9``). The conda recipe
+  takes its version from the tag instead of a hardcoded 0.1.0. The
+  ``Development Status`` classifier is now ``4 - Beta`` (#16).
 - New :doc:`roadmap`; full numpydoc sections for the bipartite, hypergraph,
   and structural APIs; corrected citations (Van Nuffel, 2007; Lü et
   al., 2009; Lindner et al., 2015); the docs version is taken from the package
@@ -738,7 +746,9 @@ Version 0.2.0 (2026-02-14)
 --------------------------
 
 Tagged ``v0.2.0`` in git. PyPI has 0.1.0 and a development build
-(``0.2.0.post1.dev9``), but no 0.2.0 release.
+(``0.2.0.post1.dev9``), but no 0.2.0 release: ``pyproject.toml`` at the tag
+still set ``version = "0.1.0"``, so the release workflow built 0.1.0 again,
+and the development build came from a later manual run on ``main``.
 
 - New :mod:`~nx_backbone.visualization` module:
   :func:`~nx_backbone.graph_difference`,
