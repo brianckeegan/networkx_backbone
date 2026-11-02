@@ -2,6 +2,8 @@ Complexity Summary
 ==================
 
 This page summarizes the asymptotic complexity classes used in API docstrings.
+For what they mean in practice, with measured run times, see the guide
+:doc:`/auto_examples/r_and_scale/plot_scaling_up`.
 
 Notation: n = number of nodes, m = number of edges, n_a = agents, n_f = artifacts, e_b = bipartite edges, I = iterations, T = trials; for temporal networks, S = snapshots, B = bins.
 

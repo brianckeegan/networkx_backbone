@@ -124,3 +124,7 @@ checks that the result equals the plain NetworkX result::
 Add ``NETWORKX_FALLBACK_TO_NX=1`` to run with NetworkX the functions a
 backend does not implement, instead of marking their tests as expected
 failures.
+
+The narrative guide :doc:`/auto_examples/r_and_scale/plot_scaling_up` puts
+these timings next to run times measured at build time and the other ways to
+handle large networks.

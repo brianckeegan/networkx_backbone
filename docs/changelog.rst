@@ -452,6 +452,13 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   and helpers that save light and dark variants and write the reST that shows
   the one matching the reader's theme. Sphinx-Gallery examples start from
   this style (#88, #96).
+- Two narrative guides, executed when the docs are built (#95): *Coming from
+  R backbone or netbone* maps each R ``backbone`` 3.0 and netbone function to
+  networkx-backbone, checks the four convention switches against the R
+  fixtures, and reproduces R's fixed row backbone of the Davis Southern Women
+  p-value by p-value; *Scaling up to large networks* covers sparse inputs,
+  cost classes with run times measured at build time, the ECM solver's
+  degree-strength classes, and the committed nx-parallel timings.
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose
