@@ -1,7 +1,7 @@
 Choosing a Method
 =================
 
-With 65 functions available, selecting the right backbone method depends on
+With so many functions available, selecting the right backbone method depends on
 the properties of your network and the goals of your analysis.
 
 Decision guide
