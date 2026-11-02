@@ -38,6 +38,41 @@ def hub_star():
     return G
 
 
+@pytest.fixture
+def heavy_hub_digraph():
+    """The 18-node directed graph of #135, with a heavy hub "Lead".
+
+    Lead writes to and hears from nearly everyone, with large weights both
+    ways, so its own out- and in-multipliers have y_out * y_in > 1 at the
+    ECM optimum.
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(7)
+    members = [f"m{i:02d}" for i in range(1, 15)]
+    G = nx.DiGraph()
+    for u in members[:-1]:
+        others = [m for m in members if m != u]
+        for v in rng.choice(others, size=3, replace=False):
+            G.add_edge(u, str(v), weight=int(rng.integers(1, 7)))
+        G.add_edge(u, "Lead", weight=int(rng.integers(15, 30)))
+    for v in members[:-1]:
+        G.add_edge("m14", v, weight=int(rng.integers(5, 10)))
+    G.add_edge("m14", "Lead", weight=1)
+    for v in members:
+        G.add_edge("Lead", v, weight=int(rng.integers(30, 60)))
+    G.add_edge("Lead", "Admin", weight=1)
+    G.add_edge("Admin", "Lead", weight=40)
+    for v in rng.choice(members, size=3, replace=False):
+        G.add_edge("Admin", str(v), weight=1)
+    for v in [*members, "Visitor"]:
+        G.add_edge("List", v, weight=10)
+    for v in rng.choice(members, size=4, replace=False):
+        G.add_edge(str(v), "Visitor", weight=1)
+    G.add_edge("Visitor", "Lead", weight=2)
+    return G
+
+
 # ---------------------------------------------------------------------------
 # Disparity filter -- Serrano et al. (2009)
 # ---------------------------------------------------------------------------
@@ -356,7 +391,7 @@ class TestMarginalLikelihood:
 def _ecm_expectations(fit, directed):
     import numpy as np
 
-    a_out, b_out, a_in, b_in, act_out, act_in, _ = fit
+    a_out, b_out, a_in, b_in, act_out, act_in, *_ = fit
     n = len(a_out)
     xxyy = np.exp(-(a_out[:, None] + a_in[None, :]))
     yy = np.exp(-(b_out[:, None] + b_in[None, :]))
@@ -409,9 +444,95 @@ class TestECM:
         H = nb.ecm_filter(les_miserables_weighted)
         assert all(0 < p <= 1 for *_, p in H.edges(data="ecm_pvalue"))
 
-    def test_warns_when_solver_does_not_converge(self, les_miserables_weighted):
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_nonconvergence_raises_unless_warn(self, les_miserables_weighted, directed):
+        # #135: p-values of a fit that did not converge can be far off, so
+        # they are only returned on request, with a warning.
+        G = nx.DiGraph(les_miserables_weighted) if directed else les_miserables_weighted
+        side = "out-degree" if directed else "degree"
+        with pytest.raises(nx.ExceededMaxIterations, match=f"{side} of node '"):
+            nb.ecm_filter(G, max_iter=1)
         with pytest.warns(RuntimeWarning, match="did not converge"):
-            nb.ecm_filter(les_miserables_weighted, max_iter=1)
+            H = nb.ecm_filter(G, max_iter=1, nonconvergence="warn")
+        assert all(0 < p <= 1 for *_, p in H.edges(data="ecm_pvalue"))
+        with pytest.raises(ValueError, match="nonconvergence"):
+            nb.ecm_filter(G, nonconvergence="ignore")
+
+    @pytest.mark.parametrize("directed", [True, False])
+    @pytest.mark.parametrize("newton_cg", [False, True])
+    def test_heavy_hub_converges(
+        self, heavy_hub_digraph, directed, newton_cg, monkeypatch
+    ):
+        # #135: the hub's own self-pair, which is not a pair, has
+        # y_out * y_in > 1 at the optimum; it used to stop the line search
+        # with a relative error of 1.37 (1.33 undirected).
+        import nx_backbone.statistical as st
+
+        G = heavy_hub_digraph
+        if not directed:
+            G = nx.Graph()
+            for u, v, w in heavy_hub_digraph.edges(data="weight"):
+                G.add_edge(
+                    u, v, weight=G.get_edge_data(u, v, {"weight": 0})["weight"] + w
+                )
+        if newton_cg:
+            monkeypatch.setattr(st, "_ECM_NEWTON_MAX_PARAMS", 0)
+            monkeypatch.setattr(st, "_ECM_CHUNK", 64)
+        H = nb.ecm_filter(G, tol=1e-9)  # raises if the fit does not converge
+        if directed:
+            # An independent fit (scipy SLSQP over node pairs, then a root
+            # solve) and NEMtropy's expected_decm at it agree to 1e-15.  The
+            # unconverged fit gave 21 edges below 0.05 instead of 1.
+            pvalues = {(u, v): p for u, v, p in H.edges(data="ecm_pvalue")}
+            assert pvalues["List", "Visitor"] == pytest.approx(0.0147160310, rel=1e-6)
+            assert [e for e, p in pvalues.items() if p < 0.05] == [("List", "Visitor")]
+
+    def test_never_linked_pairs_are_left_out(self):
+        # In the path a-b-c-d, degrees (1, 2, 2, 1) allow no graph that links
+        # a and d, and every graph links b and c: the multipliers are
+        # infinite.  The fit is the limit, the ECM without the pair a-d.
+        G = nx.Graph()
+        G.add_weighted_edges_from([("a", "b", 2), ("b", "c", 1), ("c", "d", 3)])
+        H = nb.ecm_filter(G)
+        # Checked against an independent fit of the limit (to 5e-7).
+        assert H["a"]["b"]["ecm_pvalue"] == pytest.approx(0.220182583, rel=1e-5)
+        assert H["c"]["d"]["ecm_pvalue"] == pytest.approx(0.273485588, rel=1e-5)
+        assert H["b"]["c"]["ecm_pvalue"] == pytest.approx(1.0, abs=1e-5)  # p_bc = 1
+        S = nb.ecm_filter(G, signed=True, missing_as_zero=True)
+        assert (S["a"]["d"]["ecm_pvalue"], S["a"]["d"]["sign"]) == (1.0, -1)
+
+    def test_never_linked_matches_linear_program(self):
+        # A pair is never linked iff the largest p_ij over the polytope of
+        # link probabilities with the observed degrees is 0.
+        import numpy as np
+        from scipy.optimize import linprog
+
+        from nx_backbone.statistical import _ecm_never_linked
+
+        graphs = [nx.DiGraph(g) for g in nx.graph_atlas_g()[8:53:3] if g.size()]
+        graphs += [
+            nx.gnp_random_graph(5, 0.35, seed=s, directed=True) for s in range(8)
+        ]
+        for G in graphs:
+            n = len(G)
+            src, dst = (np.array(e, dtype=int) for e in zip(*G.edges()))
+            one = np.ones(n)
+            never = _ecm_never_linked(
+                src, dst, one, one, (np.arange(n), np.arange(n), one)
+            )
+            pairs = [(i, j) for i in range(n) for j in range(n) if i != j]
+            A = np.zeros((2 * n, len(pairs)))
+            for t, (i, j) in enumerate(pairs):
+                A[i, t] = A[n + j, t] = 1
+            b = [G.out_degree(v) for v in range(n)] + [G.in_degree(v) for v in range(n)]
+            for t, (i, j) in enumerate(pairs):
+                if G.has_edge(i, j):
+                    assert not never[i, j]
+                    continue
+                c = np.zeros(len(pairs))
+                c[t] = -1
+                most = -linprog(c, A_eq=A, b_eq=b, bounds=(0, 1)).fun
+                assert never[i, j] == (most < 1e-9), (sorted(G.edges()), i, j)
 
     def test_self_loop_gets_pvalue_one(self, count_graph):
         count_graph.add_edge("a", "a", weight=4)
