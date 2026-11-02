@@ -5,7 +5,9 @@ The other tutorials show how to score edges and filter them. This one covers
 the steps that come after: checking that a backbone is not an artifact of
 running hundreds of tests at once, comparing it with other backbones,
 finding the edges that every method agrees on, reading a signed backbone,
-and reporting what you did.
+and reporting what you did. See the narrative tutorial,
+:doc:`/auto_examples/start_here/plot_hairball_to_backbone`, and its section
+:ref:`Validating <hb-validate>` for the same steps told as one case study.
 
 The examples use the Les Misérables co-appearance network (77 characters,
 254 weighted edges). Every code block on this page runs as part of the test
@@ -73,6 +75,10 @@ once:
 none: 126 edges
 holm: 21 edges
   bh: 100 edges
+
+Over a range of :math:`\alpha`, the two filters behave very differently:
+
+.. page-figure:: validating_backbones/edges-vs-alpha
 
 Choose the correction, and :math:`\alpha`, before looking at the result,
 and report both. Holm is the right choice when every retained edge must be
@@ -170,6 +176,9 @@ is, rather than a single yes-or-no answer:
 
 Thirty-four edges are kept by all four methods; nineteen are kept by only
 one and deserve less weight in any interpretation.
+
+.. page-figure:: validating_backbones/vote-counts
+   :width: 70%
 
 Varying a parameter of a single method is less informative: thresholds at
 several values of :math:`\alpha` are nested, so their consensus is simply

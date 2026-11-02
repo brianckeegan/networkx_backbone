@@ -9,6 +9,8 @@ methods with these measures, consensus across methods, signed backbones and
 generating methods text with :func:`~nx_backbone.describe_backbone` --
 see the :doc:`../tutorials/validating_backbones` tutorial.
 
+.. page-figure:: evaluation/measures
+
 Basic fraction metrics
 ----------------------
 
