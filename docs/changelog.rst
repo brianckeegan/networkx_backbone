@@ -527,6 +527,14 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   ``a=``, the count models' ``unit=``, ``transform_weights``, and signed
   backbones with the R tie convention. It is executed at build time (#90,
   #96).
+- A narrative tutorial, *Bipartite projections and their backbones*, executed
+  when the docs are built: two-mode data and why the raw projection
+  overstates ties, the five projection weights, the five null models compared
+  against the FDSM, the FDSM p-value floor and multiple testing, signed
+  backbones, SDSM-EC constraints (including contradictory ones), a check
+  against R ``backbone`` with ``missing_as_zero``, and sparse incidence
+  input, with seven figures in light and dark variants. It is listed under
+  "By network type" in the tutorials index (#92, #96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose

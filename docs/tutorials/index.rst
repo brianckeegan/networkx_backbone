@@ -27,6 +27,7 @@ Narrative tutorials for each kind of network:
 .. toctree::
    :maxdepth: 1
 
+   /auto_examples/bipartite/plot_bipartite_projections
    /auto_examples/hypergraphs/plot_hypergraph_backbones
 
 Short how-to pages for each kind of network:
