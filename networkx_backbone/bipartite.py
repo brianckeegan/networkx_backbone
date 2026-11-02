@@ -467,15 +467,151 @@ def _rna_tails(mu, s2, s3, k):
     return np.clip(upper, 0.0, 1.0), np.clip(lower, 0.0, 1.0)
 
 
-def _resolve_pvalue_method(method, n_pairs, n_artifacts):
-    """Resolve ``pvalue_method="auto"`` to ``"exact"`` or ``"rna"``."""
-    if method == "auto":
-        nf = n_artifacts
-        cheap = nf <= 200 and n_pairs * (nf + 1) * (nf + 1) <= 2e8
-        return "exact" if cheap else "rna"
-    if method not in ("exact", "rna"):
+# Cost model of the truncated exact recursion (:func:`_pb_tail_table`), in
+# cell updates: one Bernoulli step of one table truncated at ``K`` updates
+# ``K + 2`` cells, and each step of each chunk adds a fixed NumPy overhead
+# worth about ``_PB_STEP_OVERHEAD`` cells.  Measured at 3-10 ns per cell
+# and about 12 us per step (issue #108).
+_PB_CHUNK_CELLS = 1 << 20
+_PB_STEP_OVERHEAD = 2000
+# ``pvalue_method="auto"`` computes exact tails within a budget of this many
+# cell updates (about 4 s), or ``_PB_EXACT_PER_PAIR`` per agent pair if that
+# is larger (scoring a pair costs about 100 ns, i.e. 25 cell updates).
+_PB_EXACT_BUDGET = 1e9
+_PB_EXACT_PER_PAIR = 25
+
+
+def _pb_tail_table(A, ia, ib, K):
+    """Exact Poisson-binomial tails up to ``K``, by truncated convolution.
+
+    Table ``r`` is the law of ``X_r = sum_t Bernoulli(A[t, ia[r]] *
+    A[t, ib[r]])``.  Returns ``(sf, cdf)`` of shape ``(len(ia), K + 1)`` with
+    ``sf[:, k] = P(X >= k)`` and ``cdf[:, k] = P(X <= k)``.  Only
+    ``P(X = 0), ..., P(X = K)`` and the mass above ``K`` are tracked, so a
+    step costs ``O(K)`` instead of ``O(n)``.  The mass above ``K`` is
+    accumulated from what crosses ``K`` at each step (a sum of non-negative
+    terms), so tiny upper tails keep full relative precision.
+    """
+    import numpy as np
+
+    n = A.shape[0]
+    m = len(ia)
+    pmf = np.zeros((m, K + 1), dtype=float)
+    pmf[:, 0] = 1.0
+    above = np.zeros(m, dtype=float)
+    for t in range(n):
+        p = A[t, ia] * A[t, ib]
+        if t >= K:
+            above += pmf[:, K] * p
+        top = min(t + 1, K)
+        if top:
+            pc = p[:, None]
+            pmf[:, 1 : top + 1] = pmf[:, 1 : top + 1] * (1.0 - pc) + pmf[:, :top] * pc
+        pmf[:, 0] *= 1.0 - p
+    sf = np.cumsum(np.concatenate([above[:, None], pmf[:, ::-1]], axis=1), axis=1)
+    sf = sf[:, :0:-1]
+    sf[:, 0] = 1.0
+    return np.clip(sf, 0.0, 1.0), np.clip(np.cumsum(pmf, axis=1), 0.0, 1.0)
+
+
+def _pb_chunks(K):
+    """Group tables by truncation point for :func:`_pb_tail_table`.
+
+    Returns ``(order, chunks)``: ``order`` sorts ``K`` ascending, and each
+    chunk ``(start, stop, Kc)`` covers ``order[start:stop]`` truncated at
+    ``Kc = max K`` of the chunk.  A chunk spans at most a factor of two in
+    ``K + 1`` (so padding at most doubles the work) and about
+    ``_PB_CHUNK_CELLS`` cells.
+    """
+    import numpy as np
+
+    K = np.asarray(K, dtype=np.int64)
+    order = np.argsort(K, kind="stable")
+    Ks = K[order]
+    chunks = []
+    start, n = 0, len(Ks)
+    while start < n:
+        hi = int(np.searchsorted(Ks, 2 * Ks[start] + 1, side="right"))
+        rows = max(1, _PB_CHUNK_CELLS // (int(Ks[hi - 1]) + 1))
+        stop = min(hi, start + rows)
+        chunks.append((start, stop, int(Ks[stop - 1])))
+        start = stop
+    return order, chunks
+
+
+def _pb_cost(K, n_steps, n_zero=0):
+    """Cell updates :func:`_pb_tables` needs for truncation points ``K``.
+
+    ``n_zero`` more pairs need only ``P(X = 0)``, a product of ``n_steps``
+    gathered terms each (measured at about two cell updates per term).
+    """
+    _, chunks = _pb_chunks(K)
+    return n_steps * (
+        sum((stop - start) * (Kc + 2) for start, stop, Kc in chunks)
+        + 2 * n_zero
+        + _PB_STEP_OVERHEAD * len(chunks)
+    )
+
+
+def _warn_rna_fallback(cost, scope):
+    """Warn that ``pvalue_method="auto"`` used the RNA for ``scope``."""
+    from networkx_backbone.statistical import _external_stacklevel
+
+    warnings.warn(
+        f"sdsm: exact Poisson-binomial tails for every pair would take about "
+        f"{cost:.1e} cell updates, so pvalue_method='auto' uses the refined "
+        f"normal approximation (RNA) for {scope}. The RNA's upper tail is "
+        "anti-conservative when the expected co-occurrence is small. Pass "
+        "pvalue_method='exact' to compute every tail exactly, or 'rna' to use "
+        "the RNA everywhere (as R backbone does) without this warning.",
+        RuntimeWarning,
+        stacklevel=_external_stacklevel(),
+    )
+
+
+def _pb_tables(A, ia, ib, K):
+    """Upper and lower exact tails ``P(X_r >= K_r)``, ``P(X_r <= K_r)``.
+
+    ``X_r`` is the Poisson-binomial count of :func:`_pb_tail_table` for the
+    pair ``(ia[r], ib[r])``; tables are truncated at ``K_r`` in chunks of
+    similar ``K`` (:func:`_pb_chunks`).
+    """
+    import numpy as np
+
+    K = np.asarray(K, dtype=np.int64)
+    upper = np.ones(len(K), dtype=float)
+    lower = np.ones(len(K), dtype=float)
+    order, chunks = _pb_chunks(K)
+    for start, stop, Kc in chunks:
+        idx = order[start:stop]
+        sf, cdf = _pb_tail_table(A, ia[idx], ib[idx], Kc)
+        rows = np.arange(len(idx))
+        upper[idx] = sf[rows, K[idx]]
+        lower[idx] = cdf[rows, K[idx]]
+    return upper, lower
+
+
+def _check_pvalue_method(method):
+    if method not in ("auto", "exact", "rna"):
         raise ValueError("pvalue_method must be one of 'auto', 'exact', 'rna'.")
-    return method
+
+
+def _exact_budget(n_pairs):
+    """Cell updates ``pvalue_method="auto"`` may spend on exact tails."""
+    return max(_PB_EXACT_BUDGET, _PB_EXACT_PER_PAIR * n_pairs)
+
+
+def _resolve_pvalue_method(method, cost, n_pairs):
+    """Resolve ``pvalue_method="auto"`` to ``"exact"`` or ``"rna"``.
+
+    ``cost`` is the number of cell updates the exact tails need
+    (:func:`_pb_cost`); ``"auto"`` is exact unless that exceeds
+    :func:`_exact_budget`.
+    """
+    _check_pvalue_method(method)
+    if method != "auto":
+        return method
+    return "exact" if cost <= _exact_budget(n_pairs) else "rna"
 
 
 def _pairwise_pb_tails(P, k, method="auto", need_lower=False, pairs=None):
@@ -485,13 +621,22 @@ def _pairwise_pb_tails(P, k, method="auto", need_lower=False, pairs=None):
     Bernoulli(``P[i, t] * P[j, t]``) variables.  ``pairs`` is an
     ``(iu, ju)`` tuple of pair indices (default: every pair, in
     ``np.triu_indices`` order) aligned with the observed counts ``k``.
+    ``method`` is ``"exact"`` or ``"rna"`` (``"auto"`` resolves on the cost
+    of these pairs).
     """
     import numpy as np
 
     na, nf = P.shape
     iu, ju = np.triu_indices(na, 1) if pairs is None else pairs
+    iu, ju = np.asarray(iu), np.asarray(ju)
     n_pairs = len(iu)
-    method = _resolve_pvalue_method(method, n_pairs, nf)
+    k = np.asarray(k, dtype=np.int64)
+    if method == "auto":
+        kk = np.clip(k, 0, nf)
+        method = _resolve_pvalue_method(
+            method, _pb_cost(kk if need_lower else kk[kk > 0], nf), n_pairs
+        )
+    _check_pvalue_method(method)
     if method == "rna":
         # Products are taken one block of distinct rows at a time.
         rows, pos = np.unique(iu, return_inverse=True)
@@ -503,22 +648,24 @@ def _pairwise_pb_tails(P, k, method="auto", need_lower=False, pairs=None):
         upper, lower = _rna_tails(mu, s2, s3, k)
         return upper, (lower if need_lower else None)
 
-    upper = np.empty(n_pairs, dtype=float)
-    lower = np.empty(n_pairs, dtype=float) if need_lower else None
-    k = np.asarray(k, dtype=int)
-    chunk = max(1, int(2_000_000 // (nf + 1)))
-    for start in range(0, n_pairs, chunk):
-        stop = min(start + chunk, n_pairs)
-        pmf = _poisson_binomial_pmf(P[iu[start:stop]] * P[ju[start:stop]])
-        kk = np.clip(k[start:stop], 0, nf)
-        rows = np.arange(stop - start)
-        sf = np.cumsum(pmf[:, ::-1], axis=1)[:, ::-1]
-        upper[start:stop] = sf[rows, kk]
-        if need_lower:
-            lower[start:stop] = np.cumsum(pmf, axis=1)[rows, kk]
-    upper = np.clip(upper, 0.0, 1.0)
+    # Exact: P(X >= k) needs the law only up to k (P(X <= k) too), so each
+    # pair's table is truncated at its own observed count.  A pair with
+    # k <= 0 has upper tail 1 and lower tail P(X = 0) = prod(1 - p).
+    Pc = np.clip(np.asarray(P, dtype=float), 0.0, 1.0)
+    kk = np.clip(k, 0, nf)
+    upper = np.ones(n_pairs, dtype=float)
+    lower = np.ones(n_pairs, dtype=float) if need_lower else None
+    sel = kk > 0
+    up, lo = _pb_tables(np.ascontiguousarray(Pc.T), iu[sel], ju[sel], kk[sel])
+    upper[sel] = up
     if need_lower:
-        lower = np.clip(lower, 0.0, 1.0)
+        lower[sel] = lo
+        zero = np.flatnonzero(~sel)
+        step = max(1, _PB_CHUNK_CELLS // max(nf, 1))
+        for start in range(0, len(zero), step):
+            z = zero[start : start + step]
+            lower[z] = np.prod(1.0 - Pc[iu[z]] * Pc[ju[z]], axis=1)
+        lower[k < 0] = 0.0
     return upper, lower
 
 
@@ -2933,8 +3080,7 @@ def _sdsm_tails(
     """
     import numpy as np
 
-    if pvalue_method not in ("auto", "exact", "rna"):
-        raise ValueError("pvalue_method must be one of 'auto', 'exact', 'rna'.")
+    _check_pvalue_method(pvalue_method)
     agents, artifacts, R = inc
     na, nf = R.shape
 
@@ -2952,10 +3098,20 @@ def _sdsm_tails(
 
     if na < 2 or R.nnz == 0:
         return None
-    method = _resolve_pvalue_method(pvalue_method, na * (na - 1) // 2, nf)
+    n_pairs = na * (na - 1) // 2
 
     if constrained:
         P = _bicm_fit(Rd, required=req_mask, prohibited=pro_mask)
+        method = pvalue_method
+        if method == "auto":
+            # Each pair's exact table is truncated at its observed count.
+            _, k_obs = _sorted_upper_keys(R @ R.T, na)
+            k_obs = np.minimum(k_obs, nf)
+            n_zero = (n_pairs - len(k_obs)) if signed else 0
+            cost = _pb_cost(k_obs, nf, n_zero=n_zero)
+            method = _resolve_pvalue_method(method, cost, n_pairs)
+            if method == "rna":
+                _warn_rna_fallback(cost, "every pair (edge constraints)")
         return lambda i, j, k: _pairwise_pb_tails(
             P, k, method=method, need_lower=signed, pairs=(i, j)
         )
@@ -2963,7 +3119,48 @@ def _sdsm_tails(
     row_deg, col_deg = _degrees(R)
     Q, row_class, col_class = _bicm_classes(row_deg, col_deg)
     Prow = Q[:, col_class]  # the P row of each agent-degree class
-    if method == "rna":
+    n_cls = Prow.shape[0]
+    # One table per unordered pair of degree classes (P[i] * P[j] is the
+    # same product for both orders).  Two agents of degrees d_a and d_b
+    # co-occur at most min(d_a, d_b) times, so the table stops there.
+    ca, cb = np.triu_indices(n_cls)
+    cls_deg = np.unique(row_deg)
+    K_tab = np.minimum(np.minimum(cls_deg[ca], cls_deg[cb]), nf)
+    # A class with a single agent never pairs with itself.
+    cls_size = np.bincount(row_class, minlength=n_cls)
+    used = np.flatnonzero((ca != cb) | (cls_size[ca] > 1))
+    method = pvalue_method
+    exact_tab = used
+    if method == "auto":
+        method = "exact"
+        cost = _pb_cost(K_tab[used], nf)
+        budget = _exact_budget(n_pairs)
+        if cost > budget:
+            # Over budget: exact tails for the class pairs with the smallest
+            # expected co-occurrence (where the RNA's tail fails), in that
+            # order while they fit, and the RNA for the rest.
+            mu_tab = (Prow @ Prow.T)[ca[used], cb[used]]
+            rank = np.argsort(mu_tab, kind="stable")
+            by_mu = used[rank]
+            spent = np.cumsum(nf * (K_tab[by_mu] + 2.0))
+            n_exact = int(np.searchsorted(spent, budget, side="right"))
+            if n_exact < len(by_mu):
+                exact_tab = np.sort(by_mu[:n_exact])
+                approx = by_mu[n_exact:]
+                size_a, size_b = cls_size[ca[approx]], cls_size[cb[approx]]
+                n_approx = np.where(
+                    ca[approx] == cb[approx],
+                    size_a * (size_a - 1) // 2,
+                    size_a * size_b,
+                ).sum()
+                method = "mixed" if n_exact else "rna"
+                _warn_rna_fallback(
+                    cost,
+                    f"{n_approx / n_pairs:.1%} of agent pairs (those whose "
+                    f"expected co-occurrence is at least {mu_tab[rank[n_exact]]:.3g})",
+                )
+
+    if method in ("rna", "mixed"):
         mu = Prow @ Prow.T
         P2 = Prow * Prow
         s2 = P2 @ P2.T
@@ -2974,37 +3171,52 @@ def _sdsm_tails(
             upper, lower = _rna_tails(mu[a, b], s2[a, b], s3[a, b], k)
             return upper, (lower if signed else None)
 
-        # The tails depend only on (k, class_i, class_j).
-        return lambda i, j, k: _per_distinct(
-            rna_tails, k, row_class[i], row_class[j], len(mu)
-        )
+        if method == "rna":
+            # The tails depend only on (k, class_i, class_j).
+            return lambda i, j, k: _per_distinct(
+                rna_tails, k, row_class[i], row_class[j], len(mu)
+            )
 
-    # Exact: one Poisson-binomial pmf per unordered pair of degree classes
-    # (P[i] * P[j] is the same product for both orders), tabulated up to the
-    # largest possible co-occurrence.
-    n_cls = Prow.shape[0]
-    ca, cb = np.triu_indices(n_cls)
+    # Exact tables are stored back to back, table t at
+    # offsets[t] : offsets[t] + K_tab[t] + 1.
     pair_id = np.zeros((n_cls, n_cls), dtype=np.intp)
     pair_id[ca, cb] = pair_id[cb, ca] = np.arange(len(ca))
-    k_max = min(nf, int(row_deg.max()))
-    sf_tab = np.empty((len(ca), k_max + 1))
-    cdf_tab = np.empty((len(ca), k_max + 1)) if signed else None
-    chunk = max(1, int(2_000_000 // (nf + 1)))
-    for start in range(0, len(ca), chunk):
-        stop = min(start + chunk, len(ca))
-        pmf = _poisson_binomial_pmf(Prow[ca[start:stop]] * Prow[cb[start:stop]])
-        sf_tab[start:stop] = np.cumsum(pmf[:, ::-1], axis=1)[:, ::-1][:, : k_max + 1]
+    is_exact = np.zeros(len(ca), dtype=bool)
+    is_exact[exact_tab] = True
+    width = np.where(is_exact, K_tab + 1, 0)
+    offsets = np.concatenate([[0], np.cumsum(width)])
+    sf_flat = np.ones(int(offsets[-1]) + 1, dtype=float)
+    cdf_flat = np.ones(int(offsets[-1]) + 1, dtype=float) if signed else None
+    A = np.clip(np.ascontiguousarray(Prow.T, dtype=float), 0.0, 1.0)
+    order, chunks = _pb_chunks(K_tab[exact_tab])
+    for start, stop, Kc in chunks:
+        sel = exact_tab[order[start:stop]]
+        sf, cdf = _pb_tail_table(A, ca[sel], cb[sel], Kc)
+        cols = np.arange(Kc + 1)
+        keep = cols[None, :] <= K_tab[sel][:, None]
+        pos = (offsets[sel][:, None] + cols[None, :])[keep]
+        sf_flat[pos] = sf[keep]
         if signed:
-            cdf_tab[start:stop] = np.cumsum(pmf, axis=1)[:, : k_max + 1]
+            cdf_flat[pos] = cdf[keep]
 
-    def exact_tails(i, j, k):
-        pid = pair_id[row_class[i], row_class[j]]
-        kk = np.clip(k, 0, k_max)
-        upper = np.clip(sf_tab[pid, kk], 0.0, 1.0)
-        lower = np.clip(cdf_tab[pid, kk], 0.0, 1.0) if signed else None
+    def tails(i, j, k):
+        a, b = row_class[i], row_class[j]
+        pid = pair_id[a, b]
+        at = offsets[pid] + np.clip(k, 0, np.maximum(width[pid] - 1, 0))
+        upper = sf_flat[at]
+        lower = cdf_flat[at] if signed else None
+        if method == "mixed":
+            approx = ~is_exact[pid]
+            if approx.any():
+                up, lo = _per_distinct(
+                    rna_tails, k[approx], a[approx], b[approx], n_cls
+                )
+                upper[approx] = up
+                if signed:
+                    lower[approx] = lo
         return upper, lower
 
-    return exact_tails
+    return tails
 
 
 def _fdsm_tails(inc, *, trials=1000, seed=None, signed=False, burn_in=None, thin=None):
@@ -3089,10 +3301,10 @@ def sdsm(
     observed agent and artifact degrees.  The co-occurrence count of agents
     ``i`` and ``j`` is then a Poisson-binomial variable with success
     probabilities ``P[i, k] * P[j, k]``, and the p-value is its upper tail at
-    the observed count.  As in R ``backbone``, the tail is evaluated with the
-    refined normal approximation (RNA) of Hong (2013) [3]_; when the exact
-    distribution is cheap (at most 200 artifacts), it is computed exactly by
-    convolution instead (see *pvalue_method*).
+    the observed count.  By default the tail is computed exactly, by
+    convolution; R ``backbone`` evaluates it with the refined normal
+    approximation (RNA) of Hong (2013) [3]_, which is available with
+    ``pvalue_method="rna"`` (see Notes).
 
     Without edge constraints the BiCM probabilities depend only on the
     agent and artifact degrees, so the tails are computed once per pair of
@@ -3147,11 +3359,19 @@ def sdsm(
     projection_tol : float, optional (default=1e-12)
         Convergence tolerance for ``projection="ycn"``.
     pvalue_method : {"auto", "exact", "rna"}, optional (default="auto")
-        How to evaluate Poisson-binomial tails: ``"exact"`` (convolution,
-        ``O(n_artifacts^2)`` per pair of degree classes), ``"rna"`` (refined
-        normal approximation, as in R ``backbone``) or ``"auto"`` (exact
-        when there are at most 200 artifacts and
-        ``n_pairs * (n_artifacts + 1)^2 <= 2e8``, else RNA).
+        How to evaluate Poisson-binomial tails.  ``"exact"``: convolution,
+        truncated at the largest count that can be observed, so
+        ``O(n_artifacts * K)`` per pair of agent-degree classes, with ``K``
+        the smaller of the two degrees (with edge constraints: per agent
+        pair, with ``K`` its observed co-occurrence).  ``"rna"``: the
+        refined normal approximation, as in R ``backbone``; its upper tail
+        is anti-conservative when a pair's expected co-occurrence is small
+        (sparse data), see Notes.  ``"auto"``: exact whenever that is
+        affordable (an estimated cost of at most about ``1e9`` cell
+        updates, a few seconds, or about the cost of scoring the pairs if
+        larger); otherwise exact for the pairs of degree classes with the
+        smallest expected co-occurrence and the RNA for the rest (with edge
+        constraints: the RNA for every pair), with a ``RuntimeWarning``.
     agent_labels, artifact_labels : sequence or None, optional
         Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
 
@@ -3180,7 +3400,8 @@ def sdsm(
         If the BiCM fit does not converge, or if constraints that contradict
         *B* (required non-edges, prohibited edges) are ignored.  One warning
         per call gives the number of ignored pairs of each kind and lists up
-        to five of them.
+        to five of them.  Also if ``pvalue_method="auto"`` uses the RNA for
+        some pairs because exact tails would be too costly.
 
     See Also
     --------
@@ -3203,14 +3424,31 @@ def sdsm(
     being ignored or flagged.
 
 
+    **Exact tails by default.**  The RNA matches the mean, variance and
+    skewness of the Poisson-binomial, but its far upper tail is too light
+    when a pair's expected co-occurrence is small, which is the typical
+    pair of a sparse incidence matrix.  On a 2000 x 500 pure-noise matrix
+    of density 0.01 (``numpy.random.default_rng(0)``) the RNA gives a
+    smallest p-value of 5.7e-37 for a co-occurrence of 2, and
+    Benjamini-Hochberg at 0.05 keeps 1,498 noise pairs; the exact tail's
+    smallest p-value is 3.9e-05 and BH keeps none.  Under SDSM's own null
+    (600 x 300 agents x artifacts at density 0.01, five draws) the share of
+    pairs with RNA p-values below 1e-4 is 7.2e-04 and below 1e-6 is 2.0e-04,
+    against 1.1e-06 and 0 exactly.  ``"auto"`` used to switch to the RNA
+    above 200 artifacts (issue #108).  Truncating each convolution at the
+    largest count that can be observed makes the exact tails cheap enough to
+    be the default: on that 2000 x 500 matrix they take 0.02 s.  The
+    truncation keeps every probability exact: the mass above the truncation
+    point is accumulated as it crosses it, a sum of non-negative terms, so
+    tiny upper tails keep full relative precision.
+
     **Comparison with R backbone.**  With ``pvalue_method="rna"`` the p-values
     equal R ``backbone::sdsm`` up to the BiCM fit (``1e-8``), except that a
     pair that never co-occurs gets the exact value 1 (R evaluates the
     approximation there, but only when ``missing_as_zero = TRUE``).  The
-    default uses the exact tail when it is cheap, as on Davis Southern Women
-    (14 events), where it differs from R's approximation by up to 0.017: the
-    smallest p-value is 0.088 (R: 0.097), and neither finds a significant
-    pair at alpha = 0.05.  With edge constraints R estimates the
+    default uses the exact tail, which on Davis Southern Women (14 events)
+    differs from R's approximation by up to 0.017: the smallest p-value is
+    0.088 (R: 0.097), and neither finds a significant pair at alpha = 0.05.  With edge constraints R estimates the
     probabilities of the unconstrained cells by a logistic regression on the
     row and column sums instead of refitting the BiCM, so its expected
     degrees are not exactly the observed ones; on Davis with a few
@@ -3240,8 +3478,7 @@ def sdsm(
     >>> all("sdsm_pvalue" in data for _, _, data in backbone.edges(data=True))
     True
     """
-    if pvalue_method not in ("auto", "exact", "rna"):
-        raise ValueError("pvalue_method must be one of 'auto', 'exact', 'rna'.")
+    _check_pvalue_method(pvalue_method)
     inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
     tails = _sdsm_tails(
         inc,

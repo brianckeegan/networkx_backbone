@@ -183,3 +183,40 @@ def test_or_rule_is_anti_conservative():
         )
         rates.append(np.mean(p <= 0.05))
     assert 0.07 < np.mean(rates) < 0.09
+
+
+# ---------------------------------------------------------------------------
+# SDSM: discrete p-values are valid (P(p <= alpha) <= alpha) under the null
+# ---------------------------------------------------------------------------
+
+
+def _sdsm_null_pvalues(method, reps=3, shape=(300, 250), density=0.01):
+    """SDSM p-values of every agent pair, for incidences drawn from the null.
+
+    Every cell is an independent Bernoulli(*density*) draw, which is the
+    BiCM with equal degrees; SDSM refits the BiCM on each draw, as in use.
+    """
+    rng = np.random.default_rng(108)
+    out = []
+    for _ in range(reps):
+        R = (rng.random(shape) < density).astype(int)
+        H = nb.sdsm(R, pvalue_method=method)
+        out.append([p for *_, p in H.edges(data="sdsm_pvalue")])
+    return np.concatenate(out)
+
+
+@pytest.mark.parametrize("method", ["auto", "exact"])
+def test_sdsm_sparse_null_is_valid(method):
+    # Issue #108: the counts are discrete, so P(p <= alpha) is at most alpha
+    # (well below it at alpha = 0.05, where most pairs never co-occur).
+    p = _sdsm_null_pvalues(method)
+    for alpha in (0.05, 0.01, 1e-3, 1e-4):
+        se = math.sqrt(alpha / len(p))
+        assert np.mean(p <= alpha) <= alpha + 4 * se, alpha
+
+
+def test_sdsm_rna_sparse_null_is_anti_conservative():
+    # The refined normal approximation's far upper tail is too light when a
+    # pair's expected co-occurrence is small (here about 0.025).
+    p = _sdsm_null_pvalues("rna")
+    assert np.mean(p <= 1e-4) > 3e-4

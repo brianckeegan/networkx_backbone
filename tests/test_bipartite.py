@@ -276,6 +276,83 @@ class TestPoissonBinomial:
         with pytest.raises(ValueError):
             nb.sdsm(bipartite_graph, [1, 2, 3], pvalue_method="normal")
 
+    @pytest.mark.parametrize("K", [0, 1, 4, 11, 12, 20])
+    def test_truncated_table_matches_full_pmf(self, K):
+        rng = np.random.default_rng(K)
+        # Small probabilities put the upper tail far below 1e-16.
+        A = rng.random((12, 3)) * np.array([1.0, 0.05, 0.002])
+        ia, ib = np.array([0, 1, 2, 0]), np.array([1, 1, 2, 2])
+        sf, cdf = bp._pb_tail_table(A, ia, ib, K)
+        pmf = bp._poisson_binomial_pmf((A[:, ia] * A[:, ib]).T)
+        width = min(K, 12) + 1
+        full_sf = np.cumsum(pmf[:, ::-1], axis=1)[:, ::-1]
+        np.testing.assert_allclose(sf[:, :width], full_sf[:, :width], rtol=1e-12)
+        np.testing.assert_allclose(cdf[:, :width], np.cumsum(pmf, 1)[:, :width])
+        assert sf[3, min(K, 12)] < 1e-30 or K < 11
+
+    @pytest.mark.parametrize("signed", [False, True])
+    def test_pairwise_exact_matches_brute_force(self, signed):
+        P = np.random.default_rng(3).random((5, 8)) * 0.7
+        iu, ju = np.triu_indices(5, 1)
+        for k in (np.zeros(len(iu), int), np.arange(len(iu)) % 9 - 1):
+            upper, lower = bp._pairwise_pb_tails(
+                P, k, method="exact", need_lower=signed
+            )
+            for r, (i, j) in enumerate(zip(iu, ju)):
+                pmf = _brute_pb_pmf(P[i] * P[j])
+                assert upper[r] == pytest.approx(pmf[max(k[r], 0) :].sum(), abs=1e-13)
+                if signed:
+                    assert lower[r] == pytest.approx(
+                        pmf[: max(k[r] + 1, 0)].sum(), abs=1e-13
+                    )
+
+    def test_auto_keeps_no_pure_noise_pairs(self):
+        # Issue #108: with more than 200 artifacts "auto" used the RNA, whose
+        # far upper tail made 20 pure-noise pairs survive Benjamini-Hochberg.
+        R = (np.random.default_rng(0).random((300, 250)) < 0.01).astype(int)
+        kw = {"method": "sdsm", "alpha": 0.05, "mtc": "bh"}
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            auto = backbone_from_projection(R, **kw)
+        assert auto.number_of_edges() == 0
+        rna = backbone_from_projection(R, pvalue_method="rna", **kw)
+        assert rna.number_of_edges() >= 10
+
+    def test_auto_over_budget_uses_exact_for_small_means(self, monkeypatch):
+        rng = np.random.default_rng(1)
+        R = (rng.random((60, 40)) < rng.random((60, 1)) * 0.5).astype(int)
+        H = {m: nb.sdsm(R, pvalue_method=m) for m in ("exact", "rna")}
+        monkeypatch.setattr(bp, "_PB_EXACT_BUDGET", 5e4)
+        monkeypatch.setattr(bp, "_PB_EXACT_PER_PAIR", 0)
+        with pytest.warns(RuntimeWarning, match="RNA.*for .*% of agent pairs"):
+            mixed = nb.sdsm(R, pvalue_method="auto")
+        inc = bp._incidence(R)
+        row_deg, col_deg = bp._degrees(inc.R)
+        Q, row_class, col_class = bp._bicm_classes(row_deg, col_deg)
+        mu = (Q[:, col_class] @ Q[:, col_class].T)[row_class][:, row_class]
+        row = {a: r for r, a in enumerate(inc.agents)}
+        source = {"exact": [], "rna": []}
+        for u, v, p in mixed.edges(data="sdsm_pvalue"):
+            ex, rn = H["exact"][u][v]["sdsm_pvalue"], H["rna"][u][v]["sdsm_pvalue"]
+            if ex != pytest.approx(rn, rel=1e-6):
+                is_exact = p == pytest.approx(ex, rel=1e-12)
+                assert is_exact or p == pytest.approx(rn, rel=1e-12)
+                source["exact" if is_exact else "rna"].append(mu[row[u], row[v]])
+        # Both tails are used, and the exact ones are the small means.
+        assert source["exact"] and source["rna"]
+        assert max(source["exact"]) <= min(source["rna"])
+
+    def test_auto_over_budget_with_constraints_uses_rna(self, monkeypatch):
+        R = (np.random.default_rng(2).random((30, 20)) < 0.2).astype(int)
+        i, j = np.argwhere(R == 1)[0]
+        kw = {"required": [(int(i), int(j))], "signed": True}
+        rna = nb.sdsm(R, pvalue_method="rna", **kw)
+        monkeypatch.setattr(bp, "_PB_EXACT_BUDGET", 0)
+        monkeypatch.setattr(bp, "_PB_EXACT_PER_PAIR", 0)
+        with pytest.warns(RuntimeWarning, match="edge constraints"):
+            auto = nb.sdsm(R, pvalue_method="auto", **kw)
+        assert dict(auto.edges) == dict(rna.edges)
+
 
 # ---------------------------------------------------------------------------
 # SDSM-EC
@@ -1233,9 +1310,10 @@ def test_sparse_matches_dense_reference_on_davis(
                 )
                 edges = [H[agents[i]][agents[j]] for i, j in zip(iu, ju)]
                 got = np.array([d[f"{method}_pvalue"] for d in edges])
-                if kw.get("pvalue_method") == "rna":
+                if method == "sdsm":
+                    # RNA, or exact tables truncated at another count.
                     same = np.allclose(got, expected, rtol=1e-12, atol=0)
-                else:  # exact PB, closed forms and Monte Carlo: bit-identical
+                else:  # closed forms and Monte Carlo: bit-identical
                     same = np.array_equal(got, expected)
                 if not same:
                     failures.append(f"{case}: p-values differ")

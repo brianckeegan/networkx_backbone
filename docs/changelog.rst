@@ -405,6 +405,20 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 - ``bicm``/``sdsm``: the BiCM is now actually fitted rather than
   approximated with Chung-Lu, and p-values use exact Poisson-binomial tails
   (or RNA). SDSM-EC refits on the free cells. Davis: 3 -> 0 pairs.
+- ``sdsm`` (and ``backbone_from_projection(method="sdsm")``):
+  ``pvalue_method="auto"`` now computes exact Poisson-binomial tails whenever
+  that is affordable, instead of switching to the refined normal
+  approximation (RNA) above 200 artifacts. The RNA's far upper tail is
+  anti-conservative when a pair's expected co-occurrence is small, as on
+  sparse data. On a 2000 x 500 pure-noise matrix of density 0.01, the
+  smallest p-value goes from 5.7e-37 to 3.9e-05 and Benjamini-Hochberg at
+  0.05 keeps 1,498 -> 0 pairs. Under SDSM's own null (600 x 300, density
+  0.01) the share of p-values below 1e-4 goes from 7.2e-04 to 1.1e-06. When
+  exact tails would be too costly, ``"auto"`` keeps them for the pairs of
+  degree classes with the smallest expected co-occurrence, uses the RNA for
+  the rest and warns. ``pvalue_method="rna"`` is unchanged and still matches
+  R ``backbone``. Davis and other inputs with at most 200 artifacts were
+  already exact; their p-values change only in the last bits (#108).
 - ``fdsm``: the null now preserves degrees (a curveball chain; previously
   197 of 200 samples broke the margins), and p-values are
   ``(count + 1) / (trials + 1)``. Davis: about 10 -> 5 pairs.
@@ -474,6 +488,12 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   edges only for significant pairs. On a 3000x800 projection this cuts run
   time from 40-76 s to under 2 s and peak memory from 2.2 GB to 0.23 GB;
   results are unchanged (#30).
+- Exact SDSM tails truncate each Poisson-binomial convolution at the
+  largest co-occurrence that can be observed (the smaller agent degree, or
+  the observed count with edge constraints), which keeps every probability
+  exact: the mass above the cut is accumulated as it crosses it. Building
+  the tail tables is 8-60x faster (2000 x 2000 at density 0.01: 5.3 s ->
+  0.18 s; 5000 x 5000 at 0.002: 19.7 s -> 0.35 s) (#108).
 - Vectorized ``sdsm``/``fixed*``/``fdsm`` (``sdsm`` on 400x300: 6.4 s ->
   0.36 s); MDL ``"node"`` optimizer with a lazy heap (m = 2000: 8.3 s ->
   0.47 s); vectorized SVC p-values.
