@@ -403,6 +403,95 @@ def test_edge_persistence_hmm_keep_and_pvalue_observations():
     assert "whether the edge was present" in text
 
 
+def _block_and_flicker(seed=0, n_nodes=20, T=20, run=10, p_noise=0.08):
+    """Snapshots with a persistent block, random flicker and light noise.
+
+    Four block edges are present in one run of *run* consecutive steps, four
+    flicker edges in *run* steps drawn at random; every other pair appears
+    with probability *p_noise* in each step (#112).
+    """
+    rng = np.random.default_rng(seed)
+    block = [(0, 1), (2, 3), (4, 5), (6, 7)]
+    flicker = [(8, 9), (10, 11), (12, 13), (14, 15)]
+    S = [nx.Graph() for _ in range(T)]
+    for G in S:
+        G.add_nodes_from(range(n_nodes))
+    for e in block:
+        start = int(rng.integers(0, T - run + 1))
+        for t in range(start, start + run):
+            S[t].add_edge(*e)
+    for e in flicker:
+        for t in rng.choice(T, run, replace=False):
+            S[int(t)].add_edge(*e)
+    planted = set(block) | set(flicker)
+    for G in S:
+        for u, v in itertools.combinations(range(n_nodes), 2):
+            if (u, v) not in planted and rng.random() < p_noise:
+                G.add_edge(u, v)
+    return S, block, flicker
+
+
+def test_edge_persistence_hmm_unobserved_active_diagnostic():
+    # The diagnostic counts the decoded active steps and the share of them
+    # in which the edge was not observed.
+    S = _late_joiner()
+    meta = nb.edge_persistence_hmm(S, params=FIXED).graph["temporal"]["hmm"]
+    n_active = unobserved = 0
+    for obs, elig in (
+        ([1, 1, 1, 0, 1, 1], [1] * 6),
+        ([0, 0, 1, 1, 0, 1], [0, 0, 1, 1, 1, 1]),
+        ([0, 1, 0, 0, 0, 0], [0, 1, 0, 0, 0, 0]),
+    ):
+        _, path = _expected(obs, elig, FIXED)
+        active = (path == 1) & np.array(elig, dtype=bool)
+        n_active += int(active.sum())
+        unobserved += int((active & (np.array(obs) == 0)).sum())
+    assert n_active > unobserved > 0
+    assert meta["n_active_steps"] == n_active
+    assert meta["unobserved_active_share"] == pytest.approx(unobserved / n_active)
+    # No active step: the share is undefined.
+    quiet = nb.edge_persistence_hmm(S, params={**FIXED, "a01": 0.0, "pi1": 0.0})
+    assert quiet.graph["temporal"]["hmm"]["n_active_steps"] == 0
+    assert quiet.graph["temporal"]["hmm"]["unobserved_active_share"] is None
+    # p-values have no "unobserved" flag.
+    H = nb.edge_persistence_hmm(
+        _perturbed_les_mis(), observe="pvalue", method="disparity_filter"
+    )
+    assert H.graph["temporal"]["hmm"]["unobserved_active_share"] is None
+    assert H.graph["temporal"]["hmm"]["n_active_steps"] == sum(
+        d["hmm_n_active"] for _, _, d in H.edges(data=True)
+    )
+
+
+@pytest.mark.parametrize(
+    ("params", "flicker_wins", "share_range"),
+    [
+        # Fitted: a large miss rate with slow switching (#112), so the
+        # flicker gets more decoded active steps than the block, and the
+        # record's share of unobserved active steps is large.
+        (None, True, (0.25, 1.0)),
+        # A fixed small miss rate reads the gaps as inactivity instead.
+        ({"beta": 0.05}, False, (0.0, 0.1)),
+    ],
+)
+def test_edge_persistence_hmm_pooled_miss_rate_tradeoff(
+    params, flicker_wins, share_range
+):
+    S, block, flicker = _block_and_flicker(seed=0)
+    H = nb.edge_persistence_hmm(S, params=params)
+    meta = H.graph["temporal"]["hmm"]
+    assert share_range[0] < meta["unobserved_active_share"] < share_range[1]
+    assert bool(meta["beta"] > 0.25) is flicker_wins
+    assert meta["n_active_steps"] == sum(
+        d["hmm_n_active"] for _, _, d in H.edges(data=True)
+    )
+
+    def n_active(edges):
+        return np.mean([H.edges[e]["hmm_n_active"] for e in edges])
+
+    assert bool(n_active(flicker) > n_active(block)) is flicker_wins
+
+
 def test_edge_persistence_hmm_errors():
     S = _late_joiner()
     call = nb.edge_persistence_hmm

@@ -3029,7 +3029,12 @@ def edge_persistence_hmm(
         ``"hmm"`` entry the model: ``a01``, ``a10``, the emission parameters,
         ``pi1``, ``observation`` (``"binary"`` or ``"pvalue"``), the total
         ``loglik``, ``n_iter``, ``converged``, ``label_swapped``,
-        ``constrained`` and ``fixed`` (the names of the fixed parameters).
+        ``constrained`` and ``fixed`` (the names of the fixed parameters),
+        and two diagnostics: ``n_active_steps``, the number of eligible
+        steps that the most likely state paths mark active, summed over the
+        edges, and ``unobserved_active_share``, the share of those steps in
+        which the edge was not observed (its flag was 0; ``None`` for
+        p-value observations or when no step is active).  See Notes.
 
     Raises
     ------
@@ -3086,6 +3091,41 @@ def edge_persistence_hmm(
     backbone disagrees with the smoothed state, not physical measurement
     errors.
 
+    **Miss rate against switching rate.**  Because all edges share one set
+    of parameters, a pooled fit can explain a gap in an edge's record in two
+    ways: the edge switched off (a transition, ``a10``) or it stayed active
+    and was missed (an emission, ``beta``).  When the edges are a mixture,
+    for example a block of persistent edges plus edges that come and go at
+    random, no single chain fits both, and the likelihood can prefer a large
+    miss rate with slow switching.  An edge seen in about half of its steps
+    then reads as one long active spell that was missed often, and can get
+    more active steps (``hmm_n_active``) than an edge that was truly active
+    in one unbroken run.  More EM starts (*n_init*) need not help: the
+    large miss rate can be the maximum of the likelihood, not a poor local
+    optimum, and more starts can even move a fit from a small-miss-rate
+    local optimum to it.  The data alone cannot tell this case from a
+    genuinely high miss rate (in simulations the two give overlapping
+    fitted values), so no warning is raised.  Instead ``H.graph["temporal"]["hmm"]`` records the
+    fitted ``beta`` and ``unobserved_active_share``, the share of decoded
+    active steps in which the edge was not seen.  When either is large,
+    compare the edges' ``hmm_n_active`` with their observed counts
+    (:func:`observation_fraction`) and runs (:func:`persistence`).
+
+    What counts as "active" is a modeling choice.  If you know the
+    measurement process, for example that an active tie is recorded in
+    nearly every step, fix the miss rate (``params={"beta": 0.05}``, say)
+    and let the gaps be read as inactivity.  Fix ``alpha`` likewise if you
+    know the rate of stray observations.  If you do not know them, report
+    the fitted values with the backbone.  Fixing ``beta`` is not a cure-all:
+    the transitions are still fitted and shared, and when most of the edges
+    in the fit are persistent they come out slow enough that a flickering
+    edge can still read as active.  The model assumes one chain for all
+    edges; when the edges are of different kinds, read its scores next to
+    :func:`persistence`.  A weak Beta prior on the error rates (MAP-EM) was
+    evaluated for issue #112 and not adopted: a prior weak enough not to
+    bias fits with a genuinely high miss rate barely moved this case, and
+    its pull fades as the number of edges and steps grows.
+
     Examples
     --------
     Edge ``("a", "b")`` is present in steps 0-7 except step 4; ``("c",
@@ -3109,6 +3149,13 @@ def edge_persistence_hmm(
     (True, 8)
     >>> round(H["c"]["d"]["hmm_score"], 3), H["c"]["d"]["hmm_keep"]
     (0.132, False)
+
+    The record says how much of the decoded activity was seen: of the 8
+    active steps, one (the dropout) was not observed.
+
+    >>> fit = H.graph["temporal"]["hmm"]
+    >>> fit["n_active_steps"], fit["unobserved_active_share"]
+    (8, 0.125)
     >>> B = nb.boolean_filter(H, "hmm_keep")
     >>> sorted(B.edges)
     [('a', 'b')]
@@ -3197,8 +3244,9 @@ def edge_persistence_hmm(
                     f"sign=-1 keeps significantly weak edges, but {name} added "
                     "no sign attribute; pass signed=True if the method has it."
                 )
+    obs = np.asarray(obs, dtype=float)
     fit = _hmm.fit_hmm(
-        np.asarray(obs, dtype=float),
+        obs,
         table.eligible,
         observation=observation,
         fixed=params,
@@ -3241,6 +3289,12 @@ def edge_persistence_hmm(
     H = _scored_graph(
         table, keep, attrs, "edge_persistence_hmm", parameters, bin_weight
     )
+    # Diagnostic (#112): how much of the decoded activity was never seen.
+    active = (fit["path"] == 1) & elig
+    n_active_steps = int(active.sum())
+    unobserved_share = None
+    if observation == "binary" and n_active_steps:
+        unobserved_share = float((active & (obs == 0)).sum() / n_active_steps)
     model: dict[str, Any] = dict(fit["params"])
     model.update(
         observation=observation,
@@ -3250,6 +3304,8 @@ def edge_persistence_hmm(
         label_swapped=fit["label_swapped"],
         constrained=fit["constrained"],
         fixed=sorted(params or ()),
+        n_active_steps=n_active_steps,
+        unobserved_active_share=unobserved_share,
     )
     H.graph[RECORD]["hmm"] = model
     return H

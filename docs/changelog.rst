@@ -250,6 +250,17 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   ``alpha < 1 - beta`` is imposed by relabeling the states. ``hmm_score`` is
   a persistence-smoothed membership score, not a p-value. The temporal
   tutorial compares it with ``persistence`` (#73).
+- ``edge_persistence_hmm`` records two diagnostics in
+  ``H.graph["temporal"]["hmm"]``: ``n_active_steps``, the number of eligible
+  steps the most likely state paths mark active, and
+  ``unobserved_active_share``, the share of them in which the edge was not
+  observed. Because the parameters are pooled over the edges, a mix of
+  persistent and randomly flickering edges can be fitted with a large miss
+  rate and slow switching, which gives the flickering edges more active
+  steps than the persistent ones. A large share flags this. The Notes
+  explain the trade-off and when to fix ``beta`` with ``params=``. A Beta
+  prior on ``alpha`` and ``beta`` (MAP-EM) was evaluated on planted-truth
+  simulations and not adopted. No fitted values change (#112).
 - New :func:`~networkx_backbone.kalman_backbone` (needs numpy and SciPy), a
   novel adaptation of the Kalman filter and Rauch-Tung-Striebel smoother to
   backboning (#72). It runs a static significance test (``disparity_filter``
