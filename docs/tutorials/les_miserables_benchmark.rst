@@ -15,7 +15,8 @@ warning and re-test the method parameters.
 
    See the narrative tutorial: :ref:`Start here, section 4: comparing
    methods <hb-compare>`, on why methods keep such different backbones and
-   how to compare them beyond edge counts.
+   how to compare them beyond edge counts. The benchmark itself is explained
+   in :doc:`/auto_examples/validation/plot_compare_validate_report`.
 
 Setup
 -----

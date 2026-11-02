@@ -1373,7 +1373,7 @@ def modularity_backbone(
     calls on the same graph agree, but Louvain also visits nodes in graph
     order, so the same network built with its nodes or edges added in a
     different order can still give a different backbone.  On Les Misérables
-    with ``seed=42``, five shuffled rebuilds kept between 65 and 93 edges
+    with ``seed=42``, ten shuffled rebuilds kept between 26 and 93 edges
     (72 on the original).  Report the seed and the input order, or keep the
     edges that several shuffles agree on with
     :func:`~nx_backbone.consensus_backbone`.
