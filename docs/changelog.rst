@@ -233,6 +233,23 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   describes them, including the number of steps and the binning. New tutorial:
   :doc:`tutorials/temporal_backbones`; :ref:`temporal-eligibility` explains
   the eligible steps.
+- New :func:`~networkx_backbone.edge_persistence_hmm` (needs numpy): a
+  two-state hidden Markov model of edge activity. Each edge switches between
+  an inactive and an active state (transition probabilities ``a01`` and
+  ``a10``) and is observed with a false-positive rate ``alpha`` and a miss
+  rate ``beta``, all shared by the edges and fitted by Baum-Welch (EM) pooled
+  over the edges, or fixed with ``params=``. The observations are, in each
+  eligible step, the edge's presence (``observe="presence"``), whether a
+  static method keeps it with ``backbone_stability``'s per-step cut
+  (``observe="keep"``), or its p-value (``observe="pvalue"``: uniform when
+  inactive, Beta(``a``, 1) when active, a modeling choice); ineligible steps
+  carry no evidence. Exact forward-backward and Viterbi give per-edge
+  ``hmm_posterior`` (a dict over the eligible steps), ``hmm_active_fraction``,
+  ``hmm_score``, ``hmm_n_active`` and ``hmm_keep`` (active in at least
+  ``min_steps`` steps); the fitted model is in ``H.graph["temporal"]["hmm"]``.
+  ``alpha < 1 - beta`` is imposed by relabeling the states. ``hmm_score`` is
+  a persistence-smoothed membership score, not a p-value. The temporal
+  tutorial compares it with ``persistence`` (#73).
 
 *Reporting and documentation*
 
@@ -446,8 +463,8 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   and dark variants, and the edges and nodes kept in the caption and alt text.
   New figures cover ``polya_filter``, ``gloss_filter``, a signed backbone
   (``fixedrow(signed=True)``, negative edges dashed), the MDL hypergraph
-  backbones on Davis Southern Women as a hypergraph, and the four temporal
-  scores on the temporal tutorial's snapshots. The graph comparison example
+  backbones on Davis Southern Women as a hypergraph, and the temporal scores
+  (including ``edge_persistence_hmm``) on the temporal tutorial's snapshots. The graph comparison example
   now draws the statistical and structural methods as small multiples, with a
   bar chart of the edges each keeps. The "Generate Visualization Gallery"
   workflow became a strict docs build on pull requests, and the deploy

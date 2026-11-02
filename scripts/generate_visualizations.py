@@ -374,6 +374,15 @@ def method_specs():
         _temporal("persistence", "persistence", 0.8),
         _temporal("backbone_stability", "stability", 0.3, method=nb.disparity_filter),
         _temporal("weight_trend", "weight_mean", 3),
+        MethodSpec(
+            "edge_persistence_hmm",
+            "temporal",
+            "temporal",
+            "hmm_keep (min_steps=8)",
+            lambda c: nb.boolean_filter(
+                nb.edge_persistence_hmm(c["snapshots"], min_steps=8), "hmm_keep"
+            ),
+        ),
     ]
 
 

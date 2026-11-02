@@ -205,6 +205,8 @@ REGISTRY = [
          kwargs={"method": "disparity_filter"}),
     Spec(nb.weight_trend, TM, {"weight_mean": NONNEG, "weight_std": NONNEG,
                                "weight_cv": NONNEG, "weight_slope": ANY}),
+    Spec(nb.edge_persistence_hmm, TM, {"hmm_score": P, "hmm_active_fraction": P,
+                                       "hmm_n_active": NONNEG}, keep=("hmm_keep",)),
 ]  # fmt: skip
 
 IDS = [spec.name for spec in REGISTRY]
