@@ -22,7 +22,14 @@ docs are built.
 By network type
 ---------------
 
-Short how-to pages for each kind of network.
+Narrative tutorials for each kind of network:
+
+.. toctree::
+   :maxdepth: 1
+
+   /auto_examples/hypergraphs/plot_hypergraph_backbones
+
+Short how-to pages for each kind of network:
 
 .. toctree::
    :maxdepth: 2

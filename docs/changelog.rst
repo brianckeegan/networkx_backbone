@@ -483,6 +483,15 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Infrastructure and documentation**
 
+- New narrative tutorial, "Hypergraph backbones: keeping the groups that
+  matter", a Sphinx-Gallery example executed at build time on the Davis
+  Southern Women events and a synthetic meeting log. It covers what the
+  pairwise projection loses, the MDL backbone's description-length
+  trade-off and its optimizers, the local MDL aggregation rules, the
+  statistically validated hypergraphs and cores, the structural helpers, and
+  a HIF round trip, with six figures in light and dark variants. It is
+  listed under "By network type" in the tutorials index and linked from the
+  hypergraph API page and the how-to tutorial (#93, #96).
 - A shared figure style for the docs, ``docs/_figures/style.py`` (docs only,
   not library API): color tokens checked with a palette validator against the
   docs theme's light and dark backgrounds (kept and removed edges, positive
