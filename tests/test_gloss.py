@@ -89,18 +89,13 @@ def small_digraph():
     return D
 
 
-def test_eq4_by_hand(small_graph):
-    # P_obs: P(1) = 3/7, P(2) = 2/7, P(3) = 2/7.  Edge (0, 2) has w = 3;
-    # node 0 has k = 3, s = 5 and node 2 has k = 3, s = 6.  In units of 1/49,
-    # F(s, 2) = 9, 12, 16, 8, 4 for s = 2..6 (Eq. 3), so Eq. (4) is
-    #   P(3) F(2, 2) F(3, 2) / sum_w P(w) F(5 - w, 2) F(6 - w, 2)
-    #   = 2*9*12 / (3*16*8 + 2*12*16 + 2*9*12) = 216 / 984 = 9/41.
-    H = nb.gloss_filter(small_graph)
-    assert H[0][2]["gloss_pvalue"] == pytest.approx(9 / 41, rel=1e-12)
-
-
 def test_matches_enumerated_null_undirected(small_graph):
     expected = _enumerated_pvalues(small_graph)
+    # Eq. (4) by hand: P_obs: P(1) = 3/7, P(2) = 2/7, P(3) = 2/7.  Edge (0, 2)
+    # has w = 3; node 0 has k = 3, s = 5 and node 2 has k = 3, s = 6.  In units
+    # of 1/49, F(s, 2) = 9, 12, 16, 8, 4 for s = 2..6 (Eq. 3), so Eq. (4) is
+    #   P(3) F(2, 2) F(3, 2) / sum_w P(w) F(5 - w, 2) F(6 - w, 2)
+    #   = 2*9*12 / (3*16*8 + 2*12*16 + 2*9*12) = 216 / 984 = 9/41.
     assert expected[(0, 2)] == Fraction(9, 41)
     got = _pvalues(nb.gloss_filter(small_graph))
     for edge, p in expected.items():
@@ -175,28 +170,39 @@ def test_equal_weights_give_one(small_graph):
     assert set(_pvalues(nb.gloss_filter(small_graph)).values()) == {1.0}
 
 
-def test_invariant_to_shifting_and_scaling_weights(small_graph):
+def test_invariances(small_graph):
+    """Same p-values after an affine change of the weights, on a finer lattice,
+    as a symmetric DiGraph, and with a self-loop added."""
     expected = _pvalues(nb.gloss_filter(small_graph))
+
+    def assert_same(got, what):
+        for edge, p in expected.items():
+            assert got[edge] == pytest.approx(p, rel=1e-12), (what, edge)
+
     shifted = small_graph.copy()
     for *_, d in shifted.edges(data=True):
         d["weight"] = 3 * d["weight"] + 2
+    assert_same(_pvalues(nb.gloss_filter(shifted)), "shifted and scaled")
     halves = small_graph.copy()
     for *_, d in halves.edges(data=True):
         d["weight"] = d["weight"] / 2  # non-integer weights on a 0.5 lattice
-    for H in (nb.gloss_filter(shifted), nb.gloss_filter(halves)):
-        got = _pvalues(H)
-        for edge, p in expected.items():
-            assert got[edge] == pytest.approx(p, rel=1e-12)
-
-
-def test_finer_resolution_does_not_change_exact_lattice(small_graph):
-    expected = _pvalues(nb.gloss_filter(small_graph))
+    assert_same(_pvalues(nb.gloss_filter(halves)), "halved")
+    # A finer resolution does not change an exact lattice.
     got = _pvalues(nb.gloss_filter(small_graph, resolution=0.25))
-    for edge, p in expected.items():
-        assert got[edge] == pytest.approx(p, rel=1e-12)
+    assert_same(got, "resolution=0.25")
+    # A symmetric DiGraph gives each direction the undirected p-value.
+    got = _pvalues(nb.gloss_filter(nx.DiGraph(small_graph)))
+    assert_same(got, "directed (u, v)")
+    assert_same({(u, v): p for (v, u), p in got.items()}, "directed (v, u)")
+    # Self-loops are left out of the null.
+    looped = small_graph.copy()
+    looped.add_edge(2, 2, weight=100)
+    H = nb.gloss_filter(looped)
+    assert H[2][2]["gloss_pvalue"] == 1.0
+    assert_same(_pvalues(H), "self-loop added")
 
 
-def test_coarse_resolution_rounds_weights(small_graph):
+def test_coarse_resolution_rounds_weights_and_bad_resolution_raises(small_graph):
     # A spacing of 2 rounds weights 1, 2, 3 to lattice points 0, 1, 1 (weights
     # 1, 3, 3): the two heavier values merge and no edge is significant.
     H = nb.gloss_filter(small_graph, resolution=2)
@@ -204,30 +210,9 @@ def test_coarse_resolution_rounds_weights(small_graph):
     for *_, d in merged.edges(data=True):
         d["weight"] = 1 if d["weight"] == 1 else 3
     assert _pvalues(H) == pytest.approx(_pvalues(nb.gloss_filter(merged)))
-
-
-def test_symmetric_digraph_matches_undirected(small_graph):
-    expected = _pvalues(nb.gloss_filter(small_graph))
-    got = _pvalues(nb.gloss_filter(nx.DiGraph(small_graph)))
-    for (u, v), p in expected.items():
-        assert got[(u, v)] == pytest.approx(p, rel=1e-12)
-        assert got[(v, u)] == pytest.approx(p, rel=1e-12)
-
-
-def test_self_loops_are_left_out_of_the_null(small_graph):
-    expected = _pvalues(nb.gloss_filter(small_graph))
-    looped = small_graph.copy()
-    looped.add_edge(2, 2, weight=100)
-    H = nb.gloss_filter(looped)
-    assert H[2][2]["gloss_pvalue"] == 1.0
-    for edge, p in expected.items():
-        assert H.edges[edge]["gloss_pvalue"] == pytest.approx(p, rel=1e-12)
-
-
-@pytest.mark.parametrize("bad", [0, -1.0, math.inf, math.nan])
-def test_rejects_bad_resolution(small_graph, bad):
-    with pytest.raises(ValueError, match="resolution"):
-        nb.gloss_filter(small_graph, resolution=bad)
+    for bad in (0, -1.0, math.inf, math.nan):
+        with pytest.raises(ValueError, match="resolution"):
+            nb.gloss_filter(small_graph, resolution=bad)
 
 
 def test_iid_weights_give_uniform_pvalues():

@@ -36,9 +36,16 @@ the result against plain NetworkX (see :doc:`user_guide/backends`)::
     NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules networkx_backbone tests
 
 Continuous integration (``.github/workflows/tests.yml``) runs lint, mypy, the test
-suite on Python 3.12-3.14, a job pinned to the oldest supported versions, the
-suite under ``nx_loopback``, and the minimal-dependency smoke tests on every
-push and pull request.
+suite on Python 3.12-3.14 (with doctests and coverage on 3.13), a job pinned to
+the oldest supported versions, the dispatch tests (``tests/test_dispatch.py``
+and ``tests/test_api_contract.py``, which call every dispatchable function)
+under ``nx_loopback``, and the minimal-dependency smoke tests on every push and
+pull request.
+
+A test that sweeps a registry (every method, style, scorer or dispatchable
+function) loops over it inside one test and collects the failures, so that a
+failure message names every failing case; it is not parametrized into one
+test per case.
 
 Benchmarks
 ----------
@@ -147,8 +154,8 @@ stack:
 - Lint and format with `ruff <https://docs.astral.sh/ruff/>`_ (configured in
   ``pyproject.toml``)::
 
-      ruff check networkx_backbone tests
-      ruff format networkx_backbone tests
+      ruff check networkx_backbone tests scripts docs/conf.py docs/_figures docs/examples
+      ruff format networkx_backbone tests scripts docs/conf.py docs/_figures docs/examples
 
 - Take a graph ``G`` as the first argument, return a new graph, and never
   mutate the input.

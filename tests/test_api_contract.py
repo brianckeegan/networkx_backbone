@@ -4,6 +4,8 @@ Each scorer is registered once in :data:`REGISTRY` with the input it expects,
 the attributes it adds and the ways it legitimately differs from the others
 (directed support, weight validation, ...).  :func:`test_contract` then checks
 every invariant that applies, so adding a scorer means adding one registry row.
+It runs once per kind of input and loops over the scorers, so a failure lists
+every scorer that broke the contract instead of stopping at the first.
 
 Method-specific behavior (known answers, paper equations, reference
 implementations) lives in the per-module test files.
@@ -211,21 +213,40 @@ REGISTRY = [
          kwargs={"method": "disparity_filter", "q": 0.5, "n_sim": 99, "seed": 0}),
 ]  # fmt: skip
 
-IDS = [spec.name for spec in REGISTRY]
-
-
 # ---------------------------------------------------------------------------
 # Inputs
 # ---------------------------------------------------------------------------
 
 
-# Input fixture (from conftest.py) for each kind of scorer.
-FIXTURES = {
-    W: ("les_miserables_weighted",),
-    U: ("les_miserables_unweighted",),
-    B: ("davis_southern_women_graph", "davis_women_nodes"),
-    TM: ("les_miserables_weighted",),
-}
+def _inputs(kind):
+    """Fresh input(s) for one scorer of *kind* (as in conftest.py's fixtures)."""
+    if kind == B:
+        Bg = nx.davis_southern_women_graph()
+        return Bg, [n for n, d in Bg.nodes(data=True) if d["bipartite"] == 0]
+    G = nx.les_miserables_graph()
+    if kind == U:
+        U_ = nx.Graph()
+        U_.add_nodes_from(G.nodes(data=True))
+        U_.add_edges_from(G.edges())
+        return (U_,)
+    return (G,)
+
+
+def _label(spec):
+    kwargs = ", ".join(f"{k}={v!r}" for k, v in spec.kwargs.items())
+    return f"{spec.name}({kwargs})" if kwargs else spec.name
+
+
+def _failures(specs, check):
+    """Run *check* on every spec; one line per failing spec (empty if none)."""
+    failures = []
+    for spec in specs:
+        try:
+            check(spec)
+        except (Exception, pytest.fail.Exception) as err:
+            msg = str(err).split("\n", 1)[0]
+            failures.append(f"{_label(spec)}: {type(err).__name__}: {msg}")
+    return failures
 
 
 def _mixed_labels(G):
@@ -433,24 +454,28 @@ def _check_temporal_scorer(spec, G):
     assert set(HE) == {0, 1, 2} and HE.number_of_edges() == 0
 
 
+def _check(spec):
+    if spec.kind == B:
+        _check_bipartite_scorer(spec, *_inputs(B))
+    elif spec.kind == TM:
+        _check_temporal_scorer(spec, *_inputs(W))
+    else:
+        _check_graph_scorer(spec, *_inputs(spec.kind))
+
+
+# One test per input kind, each looping over its scorers; a failure lists every
+# scorer that broke the contract, with the first line of its error.
 # Les Misérables has leaves, so it cannot be scaled to a doubly stochastic matrix.
 @pytest.mark.filterwarnings("ignore:doubly_stochastic_filter:RuntimeWarning")
-@pytest.mark.parametrize("spec", REGISTRY, ids=IDS)
-def test_contract(spec, request):
-    inputs = [request.getfixturevalue(name) for name in FIXTURES[spec.kind]]
-    if spec.kind == B:
-        _check_bipartite_scorer(spec, *inputs)
-    elif spec.kind == TM:
-        _check_temporal_scorer(spec, *inputs)
-    else:
-        _check_graph_scorer(spec, *inputs)
+@pytest.mark.parametrize("kind", [W, U, B, TM])
+def test_contract(kind):
+    specs = [spec for spec in REGISTRY if spec.kind == kind]
+    assert specs
+    failures = _failures(specs, _check)
+    assert not failures, "\n".join(failures)
 
 
-VALIDATING = [spec for spec in REGISTRY if spec.bad_weights]
-
-
-@pytest.mark.parametrize("spec", VALIDATING, ids=[s.name for s in VALIDATING])
-def test_rejects_invalid_weights(spec):
+def _check_rejects_invalid_weights(spec):
     for bad, pattern in spec.bad_weights.items():
         G = nx.path_graph(4)
         nx.set_edge_attributes(G, 1.0, "weight")
@@ -462,7 +487,13 @@ def test_rejects_invalid_weights(spec):
             spec(G)
         except nx.NetworkXError as err:
             assert pattern is None or re.search(pattern, str(err)), (
-                f"{spec.name}: weight {bad!r} raised {err!r}, expected /{pattern}/"
+                f"weight {bad!r} raised {err!r}, expected /{pattern}/"
             )
         else:
-            pytest.fail(f"{spec.name} accepted invalid weight {bad!r}")
+            pytest.fail(f"accepted invalid weight {bad!r}")
+
+
+def test_rejects_invalid_weights():
+    validating = [spec for spec in REGISTRY if spec.bad_weights]
+    failures = _failures(validating, _check_rejects_invalid_weights)
+    assert not failures, "\n".join(failures)
