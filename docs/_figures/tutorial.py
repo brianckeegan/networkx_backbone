@@ -25,9 +25,10 @@ Every figure of a Sphinx-Gallery tutorial goes through one call::
 Make it the last expression of the code block: Sphinx-Gallery then shows its
 ``_repr_html_``, a ``<figure>`` with the light and the dark image (the docs
 theme shows the one matching the reader's theme) and the caption.  Wrap the
-setup and each call in ``# sphinx_gallery_start_ignore`` /
-``# sphinx_gallery_end_ignore``, so that the page shows the figure but not
-its plumbing; the downloaded script and notebook keep the calls.
+``_figures`` imports, the setup, the drawing code and each call in
+``# sphinx_gallery_start_ignore`` / ``# sphinx_gallery_end_ignore``: readers
+cannot import ``_figures``, so the page shows the figure but none of its
+machinery, and the downloaded script and notebook keep it all.
 
 Where the files go
 ------------------

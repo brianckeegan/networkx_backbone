@@ -37,14 +37,10 @@ documentation is built, so the text always matches the code.
 # (for the marginal likelihood filter) and Matplotlib; ``pip install
 # "nx-backbone[full,viz]"`` installs them all.
 #
-# The figures use the documentation's shared figure style,
-# ``docs/_figures/style.py`` in the repository: its colors, a fixed layout per
-# network, and :func:`!draw_backbone`, which draws a backbone over the
-# original graph. Each figure is drawn by a function of the color mode
-# (``"light"`` or ``"dark"``) so that the page can show the version that
-# matches your theme. The code that saves both is left out of the page (it
-# is in the downloadable script and notebook). In your own notebook, call
-# the drawing function and Matplotlib shows the figure.
+# Each figure is drawn in a light and a dark version, and the page shows
+# the one that matches your theme. The plotting code is left out of the page
+# to keep the analysis readable; it is in the script and notebook you can
+# download at the end.
 
 from collections import Counter
 
@@ -52,8 +48,6 @@ import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from _figures import style
-from _figures.tutorial import TutorialFigures
 from matplotlib.cm import ScalarMappable
 from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
@@ -62,6 +56,10 @@ from matplotlib.lines import Line2D
 import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
+
 # Drawings of the larger network, with thousands of edges, are saved as PNG
 # (``fmt="png"``) rather than SVG to keep the page light.
 figures = TutorialFigures("start_here")
@@ -133,6 +131,7 @@ for name, G in NETWORKS.items():
 # collaboration network in particular is a solid tangle: you cannot see the
 # departments, let alone who works with whom.
 
+# sphinx_gallery_start_ignore
 pos_L = style.layout(L, "les_miserables")
 pos_S = style.layout(S, "collaboration_network")
 CENTERS = {
@@ -173,7 +172,6 @@ def draw_hairballs(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_hairballs,
     "hairballs",
@@ -216,6 +214,7 @@ def global_cut_curve(G):
     return np.array(rows)
 
 
+# sphinx_gallery_start_ignore
 def draw_distributions(mode):
     pal = style.palette(mode)
     colors = style.categorical(2, mode)
@@ -269,7 +268,6 @@ def draw_distributions(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_distributions,
     "distributions",
@@ -369,6 +367,7 @@ evidence_L = {e: -np.log10(p) for e, p in pvalues_L.items()}
 LABELED = ["Valjean", "Fauchelevent", "Cosette", "Myriel"]
 
 
+# sphinx_gallery_start_ignore
 def draw_pvalue_map(mode):
     pal = style.palette(mode)
     cmap = style.sequential_cmap(mode)
@@ -412,7 +411,6 @@ def draw_pvalue_map(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_pvalue_map,
     "pvalue_map",
@@ -478,7 +476,6 @@ assert min(p for _, p in tests["Fauchelevent"].values()) > 0.05
 assert min(p for _, p in tests["Valjean"].values()) < 0.05
 assert L.degree("Valjean") == max(k for _, k in L.degree())
 assert 1 - 0.05 ** (1 / (k_median - 1)) > 0.3
-# sphinx_gallery_end_ignore
 
 
 def draw_null(mode):
@@ -543,7 +540,6 @@ def draw_null(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_null,
     "null_model",
@@ -662,7 +658,6 @@ assert (
     nb.threshold_filter(scored_S, "disparity_pvalue", 0.05, mtc="bh").number_of_edges()
     > 0
 )
-# sphinx_gallery_end_ignore
 
 
 def draw_alpha_curves(mode):
@@ -694,7 +689,6 @@ def draw_alpha_curves(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_alpha_curves,
     "alpha_curves",
@@ -778,7 +772,6 @@ print(f"(all edges: {within_department(S, S):.0%} within a department)")
 assert nb.node_fraction(S, backbone) > nb.node_fraction(S, global_cut)
 assert within_department(S, backbone) > within_department(S, S)
 assert within_department(S, backbone) > within_department(S, global_cut)
-# sphinx_gallery_end_ignore
 
 
 def draw_global_vs_local(mode):
@@ -795,7 +788,6 @@ def draw_global_vs_local(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_global_vs_local,
     "global_vs_local",
@@ -868,6 +860,7 @@ backbones = {
 }
 
 
+# sphinx_gallery_start_ignore
 def draw_small_multiples(mode):
     fig, axes = plt.subplots(2, 2, figsize=(8, 8.4), layout="constrained")
     for ax, (name, H) in zip(axes.flat, backbones.items()):
@@ -880,7 +873,6 @@ def draw_small_multiples(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_small_multiples,
     "small_multiples",
@@ -1041,7 +1033,6 @@ _only = {
 }
 assert max(_only, key=_only.get) == "Marginal likelihood"
 assert _only["Marginal likelihood"] > len(singles) / 2
-# sphinx_gallery_end_ignore
 
 
 def draw_votes(mode):
@@ -1093,7 +1084,6 @@ def draw_votes(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_votes,
     "votes",
@@ -1164,7 +1154,6 @@ for sign, H in parts.items():
 
 # sphinx_gallery_start_ignore
 assert within_department(S, parts[1]) > within_department(S, parts[-1])
-# sphinx_gallery_end_ignore
 
 
 def draw_signed(mode):
@@ -1185,7 +1174,6 @@ def draw_signed(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_signed,
     "signed",

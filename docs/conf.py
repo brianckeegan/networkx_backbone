@@ -56,6 +56,9 @@ extensions = [
     # directive and the docs/_figures/pages/ registry ("Writing docs figures"
     # in docs/contributing.rst).
     "page_figures",
+    # Drop the empty code blocks Sphinx-Gallery leaves where a tutorial's
+    # code cell is all hidden (its figure plumbing) or only config comments.
+    "hidden_code",
 ]
 
 templates_path = ["_templates"]

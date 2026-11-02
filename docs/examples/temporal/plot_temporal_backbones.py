@@ -48,8 +48,6 @@ from itertools import combinations
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from _figures import style
-from _figures.tutorial import TutorialFigures
 from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch, Rectangle
@@ -57,6 +55,10 @@ from matplotlib.patches import Patch, Rectangle
 import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
+
 # Figures are saved as light and dark SVG pairs by the docs' tutorial figure
 # helper (docs/_figures/tutorial.py), and the page shows the one that matches
 # the reader's theme.
@@ -167,6 +169,7 @@ assert len(_bc_events) == 1 and len(_bc_spans) > 4
 T_END = 8
 
 
+# sphinx_gallery_start_ignore
 def draw_forms(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(
@@ -222,7 +225,6 @@ def draw_forms(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_forms,
     "temporal_forms",
@@ -283,7 +285,6 @@ print("Heaviest pair by duration:", "–".join(heaviest(by_duration)))
 # sphinx_gallery_start_ignore
 assert key(*heaviest(by_count)) == ("ann", "bob")
 assert key(*heaviest(by_duration)) == ("bob", "cat")
-# sphinx_gallery_end_ignore
 
 
 def draw_flatten(mode):
@@ -319,7 +320,6 @@ def draw_flatten(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_flatten,
     "temporal_flatten",
@@ -544,6 +544,7 @@ for _label, _edges in ROWS:
         _y -= 1
 
 
+# sphinx_gallery_start_ignore
 def draw_heatmap(mode):
     p = style.palette(mode)
     fig = plt.figure(figsize=(9.6, 6.0))
@@ -642,7 +643,6 @@ def draw_heatmap(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_heatmap,
     "temporal_heatmap",
@@ -844,6 +844,7 @@ def series(H, attr, e):
     ]
 
 
+# sphinx_gallery_start_ignore
 def draw_kalman(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 3, figsize=(9.6, 3.4), sharey=True)
@@ -898,7 +899,6 @@ def draw_kalman(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_kalman,
     "temporal_kalman",
@@ -1195,6 +1195,7 @@ EXAMPLES = [
 ]
 
 
+# sphinx_gallery_start_ignore
 def draw_hmm(mode):
     p = style.palette(mode)
     c_fit, c_fixed = style.categorical(2, mode)
@@ -1250,7 +1251,6 @@ def draw_hmm(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_hmm,
     "temporal_hmm",

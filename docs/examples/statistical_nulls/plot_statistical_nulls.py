@@ -54,8 +54,6 @@ from itertools import pairwise
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from _figures import style
-from _figures.tutorial import TutorialFigures
 from matplotlib.lines import Line2D
 from matplotlib.ticker import NullLocator
 from scipy.stats import spearmanr
@@ -63,6 +61,10 @@ from scipy.stats import spearmanr
 import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
+
 # Figures are saved as light and dark SVG pairs by the docs' tutorial figure
 # helper (docs/_figures/tutorial.py), and the page shows the one that matches
 # the reader's theme.
@@ -200,6 +202,7 @@ assert set(backbones["Noise-corrected"].edges()) == set(backbones["MLF"].edges()
 # layout, so the eye can compare them.
 
 
+# sphinx_gallery_start_ignore
 def draw_overview(mode):
     p = style.palette(mode)
     pos = style.layout(G, "les_miserables")
@@ -224,7 +227,6 @@ def draw_overview(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_overview,
     "nulls_overview",
@@ -287,6 +289,7 @@ P_FLOOR = 1e-6
 jitter = weights * np.exp(np.random.default_rng(0).uniform(-0.08, 0.08, weights.size))
 
 
+# sphinx_gallery_start_ignore
 def draw_scatter(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(2, 4, figsize=(9.6, 5.4), sharex=True, sharey=True)
@@ -358,7 +361,6 @@ def draw_scatter(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_scatter,
     "nulls_pvalue_weight",
@@ -412,6 +414,7 @@ overlap = np.array(
 )
 
 
+# sphinx_gallery_start_ignore
 def draw_overlap(mode):
     p = style.palette(mode)
     fig, ax = plt.subplots(figsize=(7.0, 5.4))
@@ -446,7 +449,6 @@ def draw_overlap(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_overlap,
     "nulls_overlap",
@@ -566,6 +568,7 @@ PANELS = [
 ]
 
 
+# sphinx_gallery_start_ignore
 def draw_preserved(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 3, figsize=(9.6, 3.4), sharey=True)
@@ -585,7 +588,6 @@ def draw_preserved(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_preserved,
     "nulls_preserved",
@@ -654,7 +656,6 @@ print(f"Pólya filter's own fitted a: {scored['Pólya'].graph['polya_a']:.3f}")
 # sphinx_gallery_start_ignore
 assert all(x >= y for x, y in pairwise(sweep))
 assert a_hat < 1 and kept_fitted > backbones["Disparity"].number_of_edges()
-# sphinx_gallery_end_ignore
 
 
 def draw_concentration(mode):
@@ -687,7 +688,6 @@ def draw_concentration(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_concentration,
     "nulls_disparity_a",
@@ -744,7 +744,6 @@ table(
 # sphinx_gallery_start_ignore
 for _counts in unit_sweep.values():
     assert all(x <= y for x, y in pairwise(_counts))
-# sphinx_gallery_end_ignore
 
 
 def draw_units(mode):
@@ -781,7 +780,6 @@ def draw_units(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_units,
     "nulls_units",
@@ -924,7 +922,6 @@ table(
 # sphinx_gallery_start_ignore
 _neg = {name: sign_counts(bb)[1] for name, bb in signed_backbones.items()}
 assert _neg["LANS"] > sum(v for k, v in _neg.items() if k != "LANS")
-# sphinx_gallery_end_ignore
 
 
 def draw_signed(mode):
@@ -962,7 +959,6 @@ def draw_signed(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_signed,
     "nulls_signed",

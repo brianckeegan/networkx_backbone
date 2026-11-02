@@ -30,9 +30,9 @@ tutorial :doc:`/tutorials/bipartite_backbone`.
 #
 # Every number on this page is computed when the documentation is built.
 # Every figure is drawn twice, once for the light theme and once for the
-# dark theme, with the shared documentation figure style, and the page shows
-# the one matching your theme. The code that saves and shows each pair is
-# left out of the page; it is in the script and notebook you can download.
+# dark theme, and the page shows the one matching your theme. The plotting
+# code is left out of the page; it is in the script and notebook you can
+# download.
 
 import json
 import sys
@@ -52,6 +52,7 @@ import nx_backbone as nb
 from nx_backbone.describe import REFERENCES
 
 
+# sphinx_gallery_start_ignore
 def _docs_dir():
     """The repository's ``docs/`` folder (Sphinx-Gallery runs examples there)."""
     here = Path.cwd().resolve()
@@ -69,15 +70,13 @@ if str(DOCS) not in sys.path:
 from _figures import style  # noqa: E402
 from _figures.tutorial import TutorialFigures  # noqa: E402
 
-# sphinx_gallery_start_ignore
 # ``figures.show(draw, name, alt=..., caption=...)`` saves the light and dark
 # variants of a figure and shows the one matching your theme.
 figures = TutorialFigures("bipartite")
-# sphinx_gallery_end_ignore
 # The reference list at the end is a reST include written next to the page.
 IMAGES = DOCS / "auto_examples" / "bipartite" / "images"
 IMAGES.mkdir(parents=True, exist_ok=True)
-
+# sphinx_gallery_end_ignore
 
 # The reference list at the end comes from the library's own bibliography,
 # ``nx_backbone.describe.REFERENCES``.
@@ -100,9 +99,11 @@ entries.append(
     "backbones. PLoS ONE, 21(5), e0349258. "
     "https://doi.org/10.1371/journal.pone.0349258"
 )
+# sphinx_gallery_start_ignore
 (IMAGES / "bipartite_references.inc").write_text(
     "\n".join(f"- {e}" for e in sorted(entries)) + "\n", "utf-8"
 )
+# sphinx_gallery_end_ignore
 
 
 def bare(ax):
@@ -137,6 +138,7 @@ print(f"events per woman: {women_degree.min()} to {women_degree.max()}")
 print(f"women per event:  {event_size.min()} to {event_size.max()}")
 
 
+# sphinx_gallery_start_ignore
 def draw_incidence(mode):
     p = style.palette(mode)
     fig, (ax, gx) = plt.subplots(
@@ -235,7 +237,6 @@ def draw_incidence(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_incidence,
     "incidence",
@@ -344,6 +345,7 @@ for key, label in PROJECTIONS:
     print(f"{label:<11} {pair_name(strongest[key]):<18} {rho:>18.2f}  {ranks}")
 
 
+# sphinx_gallery_start_ignore
 def draw_projections(mode):
     p = style.palette(mode)
     cmap = style.sequential_cmap(mode).with_extremes(bad=p.hairline)
@@ -395,7 +397,6 @@ def draw_projections(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_projections,
     "projections",
@@ -498,6 +499,7 @@ for label in pv:
     print(f"{label:<13} {len(kept[label]):>12} {shared:>17} {seconds[label]:>8.3f}")
 
 
+# sphinx_gallery_start_ignore
 def draw_nulls(mode):
     p = style.palette(mode)
     others = [label for label in pv if label != "FDSM"]
@@ -540,7 +542,6 @@ def draw_nulls(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_nulls,
     "nulls",
@@ -647,6 +648,7 @@ for mtc in ("holm", "bh"):
     print(f"  {mtc:<5} FDSM {n_fdsm:>3}   SDSM {n_sdsm:>3}")
 
 
+# sphinx_gallery_start_ignore
 def draw_floor(mode):
     p = style.palette(mode)
     fdsm_color, sdsm_color = style.categorical(2, mode)
@@ -703,7 +705,6 @@ def draw_floor(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_floor,
     "floor",
@@ -763,6 +764,7 @@ for u, v, d in sorted(
     print(
         f"{short[u] + '–' + short[v]:<22} {C[idx[u], idx[v]]:>9} {d['sign']:>+5} {d['fdsm_pvalue']:>7.3f}"
     )
+# sphinx_gallery_start_ignore
 pos_layout = style.layout(S, "davis_women", weight="weight")
 
 
@@ -828,7 +830,6 @@ def draw_signed(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_signed,
     "signed",
@@ -894,6 +895,7 @@ print(f"smallest p-value: SDSM {p_exact.min():.3f}, SDSM-EC {p_ec.min():.3f}", e
 print(f"({pair_name(pairs[int(np.argmin(p_ec))])})")
 
 
+# sphinx_gallery_start_ignore
 def draw_constraints(mode):
     p = style.palette(mode)
     late_color, other_color = style.categorical(2, mode)
@@ -1014,7 +1016,6 @@ def draw_constraints(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_constraints,
     "constraints",
@@ -1091,7 +1092,12 @@ except nx.NetworkXError as err:
 # fit.
 
 fixture = json.loads(
-    (DOCS.parent / "tests" / "fixtures" / "r_backbone.json").read_text("utf-8")
+    (
+        Path(nb.__file__).resolve().parents[1]
+        / "tests"
+        / "fixtures"
+        / "r_backbone.json"
+    ).read_text("utf-8")
 )
 davis_r = fixture["davis"]
 assert davis_r["agents"] == women
@@ -1118,6 +1124,7 @@ for label, ours, theirs, mask in comparisons:
     print(f"{label:<28} largest |difference| {np.abs(ours - theirs)[mask].max():.1e}")
 
 
+# sphinx_gallery_start_ignore
 def draw_r(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 3, figsize=(8.4, 3.3), sharex=True, sharey=True)
@@ -1151,7 +1158,6 @@ def draw_r(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_r,
     "r_match",

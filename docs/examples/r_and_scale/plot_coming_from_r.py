@@ -40,14 +40,19 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from _figures import style
-from _figures.tutorial import TutorialFigures
 from matplotlib.lines import Line2D
 
 import nx_backbone as nb
 
-DOCS = Path(style.__file__).resolve().parents[1]
-FIXTURES = DOCS.parent / "tests" / "fixtures"
+# sphinx_gallery_start_ignore
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
+
+# sphinx_gallery_end_ignore
+
+# The fixtures live in the repository's tests/ folder.
+FIXTURES = Path(nb.__file__).resolve().parents[1] / "tests" / "fixtures"
 # sphinx_gallery_start_ignore
 # Figures are written as light and dark SVG pairs by the docs' tutorial
 # figure helper; the page shows the one that matches the reader's theme.
@@ -386,6 +391,7 @@ print(
 )
 
 
+# sphinx_gallery_start_ignore
 def draw_pvalues(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(
@@ -455,7 +461,6 @@ def draw_pvalues(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_pvalues,
     "coming_from_r_pvalues",
@@ -507,10 +512,13 @@ figures.show(
 # full projection. Every pair in it is also in R's backbone, and the reverse.
 
 projection = nb.simple_projection(B, women)
+# sphinx_gallery_start_ignore
 pos = style.layout(projection, "davis_women", weight="weight")
+# sphinx_gallery_end_ignore
 first_name = {w: w.split()[0] for w in women}
 
 
+# sphinx_gallery_start_ignore
 def draw_davis(mode):
     p = style.palette(mode)
     fig, ax = plt.subplots(figsize=(6.4, 5.6))
@@ -538,7 +546,6 @@ def draw_davis(mode):
 
 
 print(style.backbone_counts(projection, bb).caption)
-# sphinx_gallery_start_ignore
 figures.show(
     draw_davis,
     "coming_from_r_davis",

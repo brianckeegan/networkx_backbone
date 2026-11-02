@@ -187,25 +187,43 @@ graph. The conventions:
 
 **In an executed tutorial**, create one ``TutorialFigures`` per file, named
 after it, and make each ``figures.show(...)`` call the last expression of its
-code block; Sphinx-Gallery then shows the figure below the code. Readers
-should see the narrative and the analysis, not the figure plumbing, so wrap
-the setup and every ``figures.show(...)`` call in
-``# sphinx_gallery_start_ignore`` / ``# sphinx_gallery_end_ignore``: the
-call still runs and its figure still shows, the rendered code leaves it out,
-and the downloaded script and notebook keep it. Keep some visible code in
-each such block (usually the drawing function, or a hidden one too, as the
-hypergraph tutorial does), so that no empty code block is left on the page::
+code block; Sphinx-Gallery then shows the figure below the code.
+
+Readers should see the narrative and the analysis, not the figure machinery:
+``_figures`` lives in the docs, and readers cannot import it. Wrap everything
+that uses it in ``# sphinx_gallery_start_ignore`` /
+``# sphinx_gallery_end_ignore``: the ``_figures`` imports (after a
+``# isort: split`` line, so that ruff keeps them out of the import block),
+the ``TutorialFigures`` setup, every drawing function and plotting helper,
+and every ``figures.show(...)`` call. Hidden code still runs and its figures
+still show; the rendered page leaves it out, and the downloaded script and
+notebook keep it. Visible code must not use a name defined only in hidden
+code. Where a cell is all hidden, the build drops the empty code block
+Sphinx-Gallery would show (``docs/_ext/hidden_code.py``)::
 
     # sphinx_gallery_thumbnail_path = "_static/example_figures/my_topic/thumbnail.png"
 
+    import matplotlib.pyplot as plt
+    import networkx as nx
+
+    import nx_backbone as nb
+
+    # sphinx_gallery_start_ignore
+    # isort: split
     from _figures import style
     from _figures.tutorial import TutorialFigures
 
-    # sphinx_gallery_start_ignore
     figures = TutorialFigures("my_topic")
     # sphinx_gallery_end_ignore
+
     G = nx.les_miserables_graph()
     backbone = nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05)
+    print(f"Kept {backbone.number_of_edges()} of {G.number_of_edges()} edges.")
+
+    # %%
+    # The backbone over the original graph:
+
+    # sphinx_gallery_start_ignore
     counts = style.backbone_counts(G, backbone)
 
 
@@ -215,7 +233,6 @@ hypergraph tutorial does), so that no empty code block is left on the page::
         return fig
 
 
-    # sphinx_gallery_start_ignore
     figures.show(
         draw_backbone,
         "backbone",

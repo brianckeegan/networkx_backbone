@@ -35,12 +35,17 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import scipy.sparse as sp
-from _figures import style
-from _figures.tutorial import TutorialFigures
 
 import nx_backbone as nb
 
-DOCS = Path(style.__file__).resolve().parents[1]
+# sphinx_gallery_start_ignore
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
+
+# sphinx_gallery_end_ignore
+
+DOCS = Path(nb.__file__).resolve().parents[1] / "docs"  # this repository's docs
 # sphinx_gallery_start_ignore
 # Light and dark SVG pairs, from the docs' tutorial figure helper.
 figures = TutorialFigures("scaling_up")
@@ -243,6 +248,7 @@ for name, points in timings.items():
 # read the slopes as rough.
 
 
+# sphinx_gallery_start_ignore
 def draw_timings(mode):
     p = style.palette(mode)
     colors = style.categorical(len(METHODS), mode)
@@ -301,7 +307,6 @@ def draw_timings(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_timings,
     "scaling_up_timings",
@@ -353,6 +358,7 @@ for size in [250, 500, 1000, 2000, 5000, 10000, 20000]:
     print(f"{size:6,} nodes: {classes:5,} degree-strength classes")
 
 
+# sphinx_gallery_start_ignore
 def draw_classes(mode):
     p = style.palette(mode)
     fig, ax = plt.subplots(figsize=(6.0, 3.8), layout="constrained")
@@ -402,7 +408,6 @@ def draw_classes(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_classes,
     "scaling_up_ecm_classes",
@@ -471,6 +476,7 @@ for name, nx_s, par_s in backend_rows:
     print(f"{name:26s} NetworkX {nx_s:5.2f} s   nx-parallel {par_s:5.2f} s")
 
 
+# sphinx_gallery_start_ignore
 def draw_backends(mode):
     p = style.palette(mode)
     base, parallel = style.categorical(2, mode)
@@ -516,7 +522,6 @@ def draw_backends(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_backends,
     "scaling_up_backends",

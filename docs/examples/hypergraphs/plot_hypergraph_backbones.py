@@ -41,14 +41,16 @@ import random
 
 import matplotlib.pyplot as plt
 import networkx as nx
-from _figures import style
-from _figures.tutorial import TutorialFigures
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
 import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
+
 # Figure plumbing, hidden on the rendered page but kept in the downloads.
 #
 # Each figure is drawn twice with the shared docs style (docs/_figures/style.py),

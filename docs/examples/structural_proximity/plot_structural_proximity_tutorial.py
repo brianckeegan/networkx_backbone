@@ -39,11 +39,10 @@ and :doc:`/tutorials/unweighted_sparsification`.
 # Setup
 # -----
 #
-# The figures use the documentation's shared style, which draws each figure
-# in a light and a dark version; your theme shows the matching one.
-# The code that saves the two versions and shows them is left out of the
-# page (it is in the downloadable script and notebook); the small ``Table``
-# class below turns a list of rows into HTML. Neither is part of the library.
+# Each figure is drawn in a light and a dark version; your theme shows the
+# matching one. The plotting code is left out of the page (it is in the
+# script and notebook you can download at the end). The small ``Table``
+# class below turns a list of rows into HTML; it is not part of the library.
 
 import heapq
 import html
@@ -54,14 +53,16 @@ import warnings
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from _figures import style
-from _figures.tutorial import TutorialFigures
 from matplotlib.lines import Line2D
 
 import nx_backbone as nb
 from nx_backbone.describe import METHODS, REFERENCES
 
 # sphinx_gallery_start_ignore
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
+
 # The figures go through the docs' tutorial figure helper
 # (docs/_figures/tutorial.py): in the docs build the files are linked from
 # docs/_static/example_figures/structural_proximity/; run anywhere else (as a
@@ -123,7 +124,9 @@ G = nx.les_miserables_graph()
 U = nx.Graph()
 U.add_nodes_from(G)
 U.add_edges_from(G.edges())
+# sphinx_gallery_start_ignore
 pos = style.layout(G, "les_miserables")
+# sphinx_gallery_end_ignore
 
 weights = [w for _, _, w in G.edges(data="weight")]
 print(f"{G.number_of_nodes()} characters, {G.number_of_edges()} edges")
@@ -183,6 +186,7 @@ guarantee_backbones = {
 panels = {"Original graph": G, **guarantee_backbones}
 
 
+# sphinx_gallery_start_ignore
 def draw_guarantees(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(3, 3, figsize=(9, 6.6))
@@ -211,7 +215,6 @@ def draw_guarantees(mode):
 
 
 mst_counts = style.backbone_counts(G, guarantee_backbones["Maximum spanning tree"])
-# sphinx_gallery_start_ignore
 figures.show(
     draw_guarantees,
     "guarantees",
@@ -286,14 +289,18 @@ checked = {
 }
 rows = []
 for name, backbone in checked.items():
-    counts = style.backbone_counts(G, backbone)
+    # sphinx_gallery_start_ignore
+    _counts = style.backbone_counts(G, backbone)
+    assert _counts.edges_kept == backbone.number_of_edges()
+    assert _counts.nodes_kept == sum(d > 0 for _, d in backbone.degree())
+    # sphinx_gallery_end_ignore
     spanning = backbone.copy()
     spanning.add_nodes_from(G)
     rows.append(
         [
             name,
-            counts.edges_kept,
-            counts.nodes_kept,
+            backbone.number_of_edges(),
+            sum(d > 0 for _, d in backbone.degree()),  # nodes with an edge
             yes_no(nx.is_connected(spanning)),
             yes_no(nx.check_planarity(backbone)[0]),
             yes_no(same_distances(full_sp, shortest_paths(backbone))),
@@ -366,7 +373,9 @@ toy.add_weighted_edges_from(
 )
 for *_, d in toy.edges(data=True):
     d["inverse"] = 1 / d["weight"]
+# sphinx_gallery_start_ignore
 toy_pos = style.layout(toy, "worked_example_paths", seed=7)
+# sphinx_gallery_end_ignore
 toy_views = {
     "Labels read as strengths": nb.boolean_filter(
         nb.metric_backbone(toy), "metric_keep"
@@ -381,6 +390,7 @@ def removed_edges(backbone):
     return sorted("–".join(sorted(e)) for e in toy.edges() if not backbone.has_edge(*e))
 
 
+# sphinx_gallery_start_ignore
 def draw_toy(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 2, figsize=(8, 3.8))
@@ -431,7 +441,6 @@ def draw_toy(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_toy,
     "toy",
@@ -496,6 +505,7 @@ print(
 )
 
 
+# sphinx_gallery_start_ignore
 def draw_salience(mode):
     p = style.palette(mode)
     fig, ax = plt.subplots(figsize=(7.5, 3))
@@ -524,7 +534,6 @@ def draw_salience(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_salience,
     "salience",
@@ -655,6 +664,7 @@ for name, method in order_cases.items():
 order_rows.sort(key=lambda r: (max(r[2]) > 0, max(r[2])))
 
 
+# sphinx_gallery_start_ignore
 def draw_order(mode):
     p = style.palette(mode)
     fig, ax = plt.subplots(figsize=(8, 0.34 * len(order_rows) + 0.9))
@@ -672,6 +682,9 @@ def draw_order(mode):
     ax.grid(axis="x")
     ax.tick_params(axis="y", length=0)
     return fig
+
+
+# sphinx_gallery_end_ignore
 
 
 n_dependent = sum(max(r[2]) > 0 for r in order_rows)
@@ -791,6 +804,7 @@ degree = dict(U.degree())
 hub = max(degree, key=degree.get)
 
 
+# sphinx_gallery_start_ignore
 def draw_proximity_scatter(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 3, figsize=(9, 3.3))
@@ -848,7 +862,6 @@ def draw_proximity_scatter(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_proximity_scatter,
     "proximity_scatter",
@@ -873,6 +886,7 @@ figures.show(
 # labeled:
 
 
+# sphinx_gallery_start_ignore
 def draw_proximity_backbones(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 3, figsize=(9, 3.9))
@@ -910,6 +924,9 @@ def draw_proximity_backbones(mode):
     )
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     return fig
+
+
+# sphinx_gallery_end_ignore
 
 
 hub_edges = {
@@ -1002,6 +1019,7 @@ def components(backbone):
     return nx.number_connected_components(kept) if len(kept) else 0
 
 
+# sphinx_gallery_start_ignore
 def draw_sparsifiers(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(2, 2, figsize=(8, 5.6))
@@ -1029,7 +1047,6 @@ def draw_sparsifiers(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_sparsifiers,
     "sparsifiers",
@@ -1130,6 +1147,7 @@ for smoothing in (0.0, 1e-6, 1e-4):
     ds_runs[smoothing] = {"trace": trace, "warned": bool(caught), "scored": H}
 
 
+# sphinx_gallery_start_ignore
 def draw_convergence(mode):
     p = style.palette(mode)
     colors = style.categorical(len(ds_runs), mode)
@@ -1159,7 +1177,6 @@ def draw_convergence(mode):
     return fig
 
 
-# sphinx_gallery_start_ignore
 figures.show(
     draw_convergence,
     "convergence",
