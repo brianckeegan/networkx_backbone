@@ -31,10 +31,15 @@ rather than one graph.
 
 .. autofunction:: weight_trend
 
-.. rubric:: Model-based temporal backbones
+.. rubric:: Model-based temporal scores and tests
 
-These test every edge in every step and return p-values. They need numpy and
-SciPy.
+These fit a model to every edge's series of observations and need numpy.
+:func:`~networkx_backbone.edge_persistence_hmm` gives posterior activity
+probabilities, which are smoothed membership scores, not p-values.
+:func:`~networkx_backbone.kalman_backbone` (which also needs SciPy) tests
+every edge in every step and returns p-values.
+
+.. autofunction:: edge_persistence_hmm
 
 .. autofunction:: kalman_backbone
 

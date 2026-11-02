@@ -88,13 +88,18 @@ descriptive: they come without p-values.  All but
 :func:`~networkx_backbone.weight_trend` work with NetworkX alone (numpy, when
 installed, vectorizes them).
 
-**Model-based temporal backbones.** :func:`~networkx_backbone.kalman_backbone`
-tests every edge in every step with a static significance test and smooths
-each edge's evidence over time with a Kalman filter and smoother.  It returns
-the same kind of scored graph, with an edge-level ``kalman_pvalue`` and the
-per-step series as dict attributes keyed by time;
+**Model-based scores.** :func:`~networkx_backbone.edge_persistence_hmm`
+(numpy) follows the same input and output conventions.  It treats each edge
+as a two-state hidden Markov chain (inactive or active) observed with error
+in its eligible steps (the other steps carry no evidence), and adds
+posterior activity scores plus a per-step ``hmm_posterior`` dict; the fitted
+model is in ``H.graph["temporal"]["hmm"]``.
+:func:`~networkx_backbone.kalman_backbone` (numpy and SciPy) tests every edge
+in every step with a static significance test and smooths each edge's
+evidence over time with a Kalman filter and smoother.  It adds an edge-level
+``kalman_pvalue`` and per-step series as dict attributes keyed by time;
 :func:`~networkx_backbone.kalman_snapshots` expands those into one graph per
-step.  It needs numpy and SciPy.
+step, and the fitted model is in ``H.graph["temporal"]["kalman"]``.
 """
 
 from __future__ import annotations
@@ -136,6 +141,7 @@ __all__ = [
     "persistence",
     "backbone_stability",
     "weight_trend",
+    "edge_persistence_hmm",
     "kalman_backbone",
     "kalman_snapshots",
 ]
@@ -2432,6 +2438,88 @@ def _resolve_scorer(method, key, caller="backbone_stability"):
     return name, func, key
 
 
+def _cut_settings(key, threshold, mode, mtc, sign):
+    """Validate the per-step cut on *key*; return ``(flag, cut, side)``."""
+    flag = key.endswith("_keep")
+    if flag:
+        if threshold is not None or mode is not None or mtc not in (None, "none"):
+            raise ValueError(
+                f"{key!r} is a keep flag; threshold=, mode= and mtc= do not apply."
+            )
+    pvalue = key.endswith("_pvalue")
+    if threshold is None and not flag and not pvalue:
+        raise ValueError(f"{key!r} is not a p-value; pass threshold= (and mode=).")
+    cut = 0.05 if threshold is None else threshold
+    side = mode or ("below" if pvalue else "above")
+    if sign not in (1, -1, None):
+        raise ValueError(f"sign must be 1, -1 or None; got {sign!r}.")
+    return flag, cut, side
+
+
+def _scored_steps(steps, name, func, key, method_kwargs):
+    """Run *func* on every snapshot with edges; yield ``(k, G_k, scored)``.
+
+    Raises if a snapshot's scored graph has no *key* or a NaN *key*, and
+    notes the snapshot on an exception raised by *func*.
+    """
+    for k, (t, G) in enumerate(zip(steps.times, steps.graphs)):
+        if G.number_of_edges() == 0:
+            continue
+        try:
+            scored = func(G, **method_kwargs)
+        except Exception as err:
+            err.add_note(
+                f"Raised by {name} on the snapshot at time {t!r} "
+                f"({G.number_of_nodes()} nodes, {G.number_of_edges()} edges)."
+            )
+            raise
+        values = [d.get(key) for _, _, d in scored.edges(data=True)]
+        if not any(x is not None for x in values):
+            raise nx.NetworkXError(
+                f"{name} gave no edge a {key!r} attribute in the snapshot at "
+                f"time {t!r}; pass key=, the attribute to cut on."
+            )
+        if any(x != x for x in values if x is not None):
+            raise nx.NetworkXError(
+                f"{name} gave a NaN {key!r} in the snapshot at time {t!r} "
+                f"({G.number_of_nodes()} nodes, {G.number_of_edges()} edges); "
+                "the snapshot may be too small for the method."
+            )
+        yield k, G, scored
+
+
+def _kept_at(table, name, func, key, cut, method_kwargs):
+    """Per step, the edges a static backbone keeps (``backbone_stability``).
+
+    *cut* is ``(flag, threshold, mode, mtc, sign)``: the first three from
+    :func:`_cut_settings`.  Only edges present in a snapshot can be kept.
+    """
+    from networkx_backbone.filters import boolean_filter, threshold_filter
+
+    flag, threshold, mode, mtc, sign = cut
+    steps = table.steps
+    kept_at = [[] for _ in steps.times]  # edge indices kept in each step
+    for k, G, scored in _scored_steps(steps, name, func, key, method_kwargs):
+        signs = [d.get("sign") for _, _, d in scored.edges(data=True)]
+        if sign == -1 and all(s is None for s in signs):
+            raise ValueError(
+                f"sign=-1 keeps significantly weak edges, but {name} added no "
+                "sign attribute; pass signed=True if the method has it."
+            )
+        if flag:
+            kept = boolean_filter(scored, key)
+        else:
+            kept = threshold_filter(
+                scored, key, threshold, mode=mode, mtc=mtc or "none"
+            )
+        for u, v, d in kept.edges(data=True):
+            if sign is not None and d.get("sign", sign) != sign:
+                continue
+            if G.has_edge(u, v):
+                kept_at[k].append(table.index[_pair(u, v, steps.directed)])
+    return kept_at
+
+
 def backbone_stability(
     T: TemporalNetwork,
     method: str | Callable[..., nx.Graph],
@@ -2581,21 +2669,7 @@ def backbone_stability(
     True
     """
     name, func, key = _resolve_scorer(method, key)
-    flag = key.endswith("_keep")
-    if flag:
-        if threshold is not None or mode is not None or mtc not in (None, "none"):
-            raise ValueError(
-                f"{key!r} is a keep flag; threshold=, mode= and mtc= do not apply."
-            )
-    pvalue = key.endswith("_pvalue")
-    if threshold is None and not flag and not pvalue:
-        raise ValueError(f"{key!r} is not a p-value; pass threshold= (and mode=).")
-    cut = 0.05 if threshold is None else threshold
-    side = mode or ("below" if pvalue else "above")
-    if sign not in (1, -1, None):
-        raise ValueError(f"sign must be 1, -1 or None; got {sign!r}.")
-    from networkx_backbone.filters import boolean_filter, threshold_filter
-
+    flag, cut, side = _cut_settings(key, threshold, mode, mtc, sign)
     steps = _steps(
         T,
         freq=freq,
@@ -2607,46 +2681,9 @@ def backbone_stability(
         aggregate=aggregate,
     )
     table = _Table(steps)
-    kept_at: list[list[int]] = []
-    for t, G in zip(steps.times, steps.graphs):
-        kept_at.append([])
-        if G.number_of_edges() == 0:
-            continue
-        try:
-            scored = func(G, **method_kwargs)
-        except Exception as err:
-            err.add_note(
-                f"Raised by {name} on the snapshot at time {t!r} "
-                f"({G.number_of_nodes()} nodes, {G.number_of_edges()} edges)."
-            )
-            raise
-        values = [d.get(key) for _, _, d in scored.edges(data=True)]
-        if not any(x is not None for x in values):
-            raise nx.NetworkXError(
-                f"{name} gave no edge a {key!r} attribute in the snapshot at "
-                f"time {t!r}; pass key=, the attribute to cut on."
-            )
-        if any(x != x for x in values if x is not None):
-            raise nx.NetworkXError(
-                f"{name} gave a NaN {key!r} in the snapshot at time {t!r} "
-                f"({G.number_of_nodes()} nodes, {G.number_of_edges()} edges); "
-                "the snapshot may be too small for the method."
-            )
-        signs = [d.get("sign") for _, _, d in scored.edges(data=True)]
-        if sign == -1 and all(s is None for s in signs):
-            raise ValueError(
-                f"sign=-1 keeps significantly weak edges, but {name} added no "
-                "sign attribute; pass signed=True if the method has it."
-            )
-        if flag:
-            kept = boolean_filter(scored, key)
-        else:
-            kept = threshold_filter(scored, key, cut, mode=side, mtc=mtc or "none")
-        for u, v, d in kept.edges(data=True):
-            if sign is not None and d.get("sign", sign) != sign:
-                continue
-            if G.has_edge(u, v):
-                kept_at[-1].append(table.index[_pair(u, v, steps.directed)])
+    kept_at = _kept_at(
+        table, name, func, key, (flag, cut, side, mtc, sign), method_kwargs
+    )
     n, n_elig, first, last = _counts(table, table.mask(kept_at))
     attrs = [
         {
@@ -2839,6 +2876,383 @@ def weight_trend(
     parameters = {"weight": weight, "pvalue": pvalue, "aggregate": aggregate}
     keep = [True] * m
     return _scored_graph(table, keep, attrs, "weight_trend", parameters, weight)
+
+
+_OBSERVE = ("presence", "keep", "pvalue")
+
+
+def edge_persistence_hmm(
+    T: TemporalNetwork,
+    *,
+    observe: Literal["presence", "keep", "pvalue"] = "presence",
+    method: str | Callable[..., nx.Graph] | None = None,
+    key: str | None = None,
+    threshold: float | None = None,
+    mode: Literal["below", "above"] | None = None,
+    mtc: str | None = None,
+    sign: Literal[1, -1] | None = 1,
+    weight: str | None = None,
+    min_weight: float = 0,
+    params: Mapping[str, float] | None = None,
+    initial: Literal["stationary", "fit"] = "stationary",
+    min_steps: int = 1,
+    max_iter: int = 500,
+    tol: float = 1e-6,
+    n_init: int = 1,
+    seed: Any = None,
+    freq: Frequency | None = None,
+    origin: Any = None,
+    time: str = "time",
+    start: str = "start",
+    end: str = "end",
+    aggregate: str = "sum",
+    **method_kwargs: Any,
+) -> nx.Graph:
+    """Score each edge by a two-state hidden Markov model of its activity.
+
+    Each edge is either inactive (state 0) or active (state 1) in every
+    step, and switches between the two as a Markov chain.  What is seen in a
+    step is a noisy flag of the state: an active edge can be missed and an
+    inactive one can be seen.  The model therefore fills short dropouts
+    inside an active spell and discounts isolated blips, which
+    :func:`observation_fraction` and :func:`persistence` count at face value.
+    One set of parameters is shared by all edges and fitted by Baum-Welch
+    (EM) pooled over the edges, or fixed with *params*.
+
+    Parameters
+    ----------
+    T : dict, list, MultiGraph or MultiDiGraph
+        A temporal network: snapshots (a dict ``{time: graph}`` or a list of
+        graphs), or a multigraph of events or spans (see
+        :mod:`networkx_backbone.temporal`).
+    observe : {"presence", "keep", "pvalue"}, optional (default="presence")
+        What the model observes in each eligible step (both endpoints
+        present):
+
+        - ``"presence"``: whether the edge is present (with *weight*, whether
+          its weight is above *min_weight*), as in
+          :func:`observation_fraction`;
+        - ``"keep"``: whether the static backbone *method* keeps the edge in
+          that step, with the same per-step cut as
+          :func:`backbone_stability` (*key*, *threshold*, *mode*, *mtc*,
+          *sign*);
+        - ``"pvalue"``: the p-value *key* that *method* gives the edge in that
+          step (1 where the edge is absent, is not scored, or has the other
+          *sign*).
+    method : str, callable or None, optional (default=None)
+        The static backbone method for ``observe="keep"`` or ``"pvalue"``,
+        as in :func:`backbone_stability`; called as
+        ``method(G_t, **method_kwargs)`` on each snapshot.
+    key : str or None, optional (default=None)
+        The edge attribute of *method* to cut on (``"keep"``) or read as a
+        p-value (``"pvalue"``, where it must end in ``_pvalue``).  ``None``
+        looks it up as in :func:`backbone_stability`.
+    threshold, mode, mtc : optional (default=None)
+        The per-step cut for ``observe="keep"``, as in
+        :func:`backbone_stability`.
+    sign : {1, -1} or None, optional (default=1)
+        For signed scorers with ``observe="keep"`` or ``"pvalue"``: count
+        only the significantly strong (``1``) or weak (``-1``) edges, or both
+        (``None``), as in :func:`backbone_stability`.
+    weight : str or None, optional (default=None)
+        With ``observe="presence"``, an edge counts as observed only when
+        its *weight* is above *min_weight* (a missing weight counts as 1).
+        With the other modes it is passed to *method*.  It also names the
+        attribute that binning combines.
+    min_weight : float, optional (default=0)
+        The weight an observed edge must exceed (``observe="presence"`` with
+        *weight* only).
+    params : dict or None, optional (default=None)
+        Parameters to hold fixed instead of fitting; any subset of ``a01``
+        (inactive to active), ``a10`` (active to inactive), the emission
+        parameters (``alpha``, the false-positive rate, and ``beta``, the
+        miss rate, for flags; ``a`` for p-values) and ``pi1``.  Fixed
+        ``alpha`` and ``beta`` must satisfy ``alpha < 1 - beta``.
+    initial : {"stationary", "fit"}, optional (default="stationary")
+        The probability ``pi1`` that an edge is active in the first step: the
+        stationary probability of the chain, ``a01 / (a01 + a10)``, or a
+        parameter fitted by EM.
+    min_steps : int, optional (default=1)
+        ``hmm_keep`` is true when the most likely state path has the edge
+        active in at least this many eligible steps.
+    max_iter : int, optional (default=500)
+        Maximum number of EM iterations.
+    tol : float, optional (default=1e-6)
+        EM stops when no fitted parameter changes by more than *tol*.
+    n_init : int, optional (default=1)
+        Number of EM starts; the first uses fixed default starting values,
+        the others random ones drawn with *seed*.  The fit with the highest
+        likelihood wins.
+    seed : integer, random_state, or None (default)
+        Indicator of random number generation state for the extra starts.
+        See :ref:`Randomness<networkx:randomness>`.
+    freq : number, timedelta, str or None, optional (default=None)
+        Step width for binning events or spans into snapshots, as in
+        :func:`snapshots_from_events`.  Snapshots are already steps, so
+        *freq* must be ``None`` for them.
+    origin : time or None, optional (default=None)
+        Start of the first bin (default: the earliest time); with *freq*
+        only.
+    time : str, optional (default="time")
+        Edge attribute holding an event's time.
+    start, end : str, optional (default="start", "end")
+        Edge attributes holding a span's start and end.
+    aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
+        How the weights of a node pair's events or spans in one bin combine
+        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+    **method_kwargs
+        Passed to *method* in every step.
+
+    Returns
+    -------
+    H : Graph or DiGraph
+        The union of the edges present in any step, with the attributes
+        :func:`flatten_temporal` gives them over the steps (the summed
+        *weight*, ``n_obs``, ``first``, ``last``, and the attributes all
+        their observations share), plus
+
+        - ``hmm_posterior``: a dict ``{time: P(active)}`` over the edge's
+          eligible steps, the posterior probability that the edge is active
+          in that step given all of its observations;
+        - ``hmm_active_fraction``: the mean of ``hmm_posterior``, the
+          expected share of eligible steps in the active state;
+        - ``hmm_score``: the largest value of ``hmm_posterior``, the
+          posterior probability that the edge is active in its most active
+          step;
+        - ``hmm_n_active``: the number of eligible steps in which the most
+          likely (Viterbi) state path has the edge active;
+        - ``hmm_keep``: ``hmm_n_active >= min_steps``.
+
+        Nodes are as in :func:`observation_fraction`.
+        ``H.graph["temporal"]`` records the method, the input form, the step
+        times, ``n_steps``, *freq*, *origin* and the parameters, and its
+        ``"hmm"`` entry the model: ``a01``, ``a10``, the emission parameters,
+        ``pi1``, ``observation`` (``"binary"`` or ``"pvalue"``), the total
+        ``loglik``, ``n_iter``, ``converged``, ``label_swapped``,
+        ``constrained`` and ``fixed`` (the names of the fixed parameters).
+
+    Raises
+    ------
+    ImportError
+        If numpy is not installed.
+    ValueError
+        If *observe* is unknown, *method* is missing or given with
+        ``observe="presence"``, an option does not fit *observe* or *key*,
+        *min_steps* is not a positive integer, *freq* or *origin* is given
+        with snapshots, or the input has no steps.
+    NetworkXError
+        If a fixed parameter is out of range or unknown, the fixed
+        parameters make the observations impossible, a weight is not numeric,
+        *method* gives a NaN or no *key*, or *T* is not a temporal network.
+    NetworkXNotImplemented
+        If a snapshot is a multigraph.
+
+    Warns
+    -----
+    RuntimeWarning
+        If EM does not converge in *max_iter* iterations, or if fixed
+        parameters force a fitted emission parameter onto the
+        identifiability constraint.
+
+    See Also
+    --------
+    persistence : Runs of consecutive observed steps, without a model.
+    backbone_stability : The share of steps a static backbone keeps an edge.
+
+    Notes
+    -----
+    The hidden state of edge *e* in step *t* is ``s_t`` in {0, 1}, with
+    ``P(s_t = 1 | s_{t-1} = 0) = a01`` and ``P(s_t = 0 | s_{t-1} = 1) =
+    a10``.  A flag ``o_t`` (presence or keep) has ``P(o_t = 1 | s_t = 0) =
+    alpha`` and ``P(o_t = 1 | s_t = 1) = 1 - beta``.  A p-value is uniform on
+    [0, 1] when the edge is inactive and Beta(``a``, 1) (density ``a p^(a -
+    1)``, ``0 < a < 1``) when it is active; this beta-uniform emission is a
+    modeling choice of this library.  Steps in which an endpoint is absent
+    are unknown: the chain runs through them, but they carry no evidence.
+
+    Forward-backward recursions give the exact posteriors, the Viterbi
+    algorithm the most likely path (ties go to the inactive state), and EM
+    the parameters, pooling the expected counts over all edges.  Swapping
+    the two states' labels leaves the likelihood unchanged, so
+    ``alpha < 1 - beta`` (an active edge is seen more often than an
+    inactive one) is imposed: a fit that violates it is relabeled, which is
+    recorded as ``label_swapped``, or, when fixed parameters forbid
+    relabeling, clipped to the constraint, recorded as ``constrained``.
+
+    ``hmm_score`` is a persistence-smoothed membership score, **not** a
+    p-value: it is a posterior probability under a model fitted to the same
+    data, and it assumes every edge follows the same chain.  Applied to keep
+    flags, ``alpha`` and ``beta`` are the rates at which the per-step
+    backbone disagrees with the smoothed state, not physical measurement
+    errors.
+
+    Examples
+    --------
+    Edge ``("a", "b")`` is present in steps 0-7 except step 4; ``("c",
+    "d")`` appears only in step 2.  With fixed parameters (rare switches,
+    10% observation errors) the dropout is filled in and the blip is
+    discounted:
+
+    >>> import networkx as nx
+    >>> import networkx_backbone as nb
+    >>> S = [nx.Graph() for _ in range(8)]
+    >>> for t, G in enumerate(S):
+    ...     G.add_nodes_from("abcd")
+    ...     if t != 4:
+    ...         G.add_edge("a", "b")
+    >>> S[2].add_edge("c", "d")
+    >>> p = {"a01": 0.1, "a10": 0.1, "alpha": 0.1, "beta": 0.1}
+    >>> H = nb.edge_persistence_hmm(S, params=p)
+    >>> round(H["a"]["b"]["hmm_posterior"][4], 3)
+    0.876
+    >>> H["a"]["b"]["hmm_keep"], H["a"]["b"]["hmm_n_active"]
+    (True, 8)
+    >>> round(H["c"]["d"]["hmm_score"], 3), H["c"]["d"]["hmm_keep"]
+    (0.132, False)
+    >>> B = nb.boolean_filter(H, "hmm_keep")
+    >>> sorted(B.edges)
+    [('a', 'b')]
+    """
+    np = _require_numpy("edge_persistence_hmm")
+    from networkx_backbone import _hmm
+
+    if observe not in _OBSERVE:
+        raise ValueError(f"observe must be one of {_OBSERVE}; got {observe!r}.")
+    if isinstance(min_steps, bool) or not isinstance(min_steps, int) or min_steps < 1:
+        raise ValueError(f"min_steps must be a positive integer; got {min_steps!r}.")
+    if sign not in (1, -1, None):
+        raise ValueError(f"sign must be 1, -1 or None; got {sign!r}.")
+    parameters: dict[str, Any] = {"observe": observe}
+    if observe == "presence":
+        options = {"method": method, "key": key, "threshold": threshold}
+        options.update(mode=mode, mtc=mtc)
+        given = [k for k, v in options.items() if v is not None]
+        given += sorted(method_kwargs)
+        if given:
+            raise ValueError(
+                f"{', '.join(given)} only apply with observe='keep' or 'pvalue'."
+            )
+        parameters.update(weight=weight, min_weight=min_weight)
+        bin_weight = weight or "weight"
+    else:
+        if method is None:
+            raise ValueError(f"observe={observe!r} needs method=.")
+        if min_weight != 0:
+            raise ValueError("min_weight only applies with observe='presence'.")
+        if weight is not None:
+            method_kwargs["weight"] = weight
+        name, func, key = _resolve_scorer(method, key)
+        if observe == "keep":
+            flag, cut, side = _cut_settings(key, threshold, mode, mtc, sign)
+            parameters.update(
+                method=name,
+                key=key,
+                threshold=None if flag else cut,
+                mode=None if flag else side,
+                mtc=mtc,
+                sign=sign,
+            )
+        else:
+            if not key.endswith("_pvalue"):
+                raise ValueError(f"observe='pvalue' needs a p-value key; got {key!r}.")
+            if threshold is not None or mode is not None or mtc is not None:
+                raise ValueError(
+                    "threshold=, mode= and mtc= do not apply with observe='pvalue'."
+                )
+            parameters.update(method=name, key=key, sign=sign)
+        parameters.update(method_kwargs)
+        bin_weight = method_kwargs.get("weight", "weight")
+    steps = _steps(
+        T,
+        freq=freq,
+        origin=origin,
+        time=time,
+        start=start,
+        end=end,
+        weight=bin_weight,
+        aggregate=aggregate,
+    )
+    table = _Table(steps, weight if observe == "presence" else None)
+    observation = "binary"
+    if observe == "presence":
+        obs = table.present if weight is None else table.above(min_weight)
+    elif observe == "keep":
+        cuts = (flag, cut, side, mtc, sign)
+        obs = table.mask(_kept_at(table, name, func, key, cuts, method_kwargs))
+    else:
+        observation = "pvalue"
+        obs = np.ones(table.eligible.shape)
+        for k, G, scored in _scored_steps(steps, name, func, key, method_kwargs):
+            signed = False
+            for u, v, d in scored.edges(data=True):
+                signed = signed or "sign" in d
+                pv = d.get(key)
+                if pv is None or not G.has_edge(u, v):
+                    continue
+                if sign is not None and d.get("sign", sign) != sign:
+                    continue
+                obs[table.index[_pair(u, v, steps.directed)], k] = pv
+            if sign == -1 and not signed:
+                raise ValueError(
+                    f"sign=-1 keeps significantly weak edges, but {name} added "
+                    "no sign attribute; pass signed=True if the method has it."
+                )
+    fit = _hmm.fit_hmm(
+        np.asarray(obs, dtype=float),
+        table.eligible,
+        observation=observation,
+        fixed=params,
+        initial=initial,
+        max_iter=max_iter,
+        tol=tol,
+        n_init=n_init,
+        seed=seed,
+    )
+    elig = table.eligible
+    post = fit["posterior"]
+    n_elig = elig.sum(axis=1)
+    frac = np.where(elig, post, 0.0).sum(axis=1) / np.maximum(n_elig, 1)
+    score = np.where(elig, post, -np.inf).max(axis=1, initial=-np.inf)
+    n_active = ((fit["path"] == 1) & elig).sum(axis=1)
+    times = steps.times
+    attrs = [
+        {
+            "hmm_posterior": {
+                times[k]: float(post[j, k]) for k in np.flatnonzero(elig[j])
+            },
+            "hmm_active_fraction": float(frac[j]),
+            "hmm_score": float(score[j]),
+            "hmm_n_active": int(n_active[j]),
+            "hmm_keep": bool(n_active[j] >= min_steps),
+        }
+        for j in range(len(table.ends))
+    ]
+    parameters.update(
+        params=None if params is None else dict(params),
+        initial=initial,
+        min_steps=min_steps,
+        max_iter=max_iter,
+        tol=tol,
+        n_init=n_init,
+        seed=seed if seed is None or isinstance(seed, int) else repr(seed),
+        aggregate=aggregate,
+    )
+    keep = [True] * len(table.ends)
+    H = _scored_graph(
+        table, keep, attrs, "edge_persistence_hmm", parameters, bin_weight
+    )
+    model: dict[str, Any] = dict(fit["params"])
+    model.update(
+        observation=observation,
+        loglik=fit["loglik"],
+        n_iter=fit["n_iter"],
+        converged=fit["converged"],
+        label_swapped=fit["label_swapped"],
+        constrained=fit["constrained"],
+        fixed=sorted(params or ()),
+    )
+    H.graph[RECORD]["hmm"] = model
+    return H
 
 
 #: Static scorers whose p-values are continuous under their null model, so
@@ -3057,6 +3471,10 @@ def kalman_backbone(
         cannot be used, *q* must be estimated but no edge has two scored
         steps, *freq* or *origin* is given with snapshots, or the input has
         no steps.
+    NetworkXError
+        If *method* gives an edge of a snapshot a NaN p-value (common on very
+        small snapshots), or gives no edge a *key*, as in
+        :func:`backbone_stability`.
     NetworkXNotImplemented
         If a snapshot is a multigraph, or *method* does not support the
         snapshots' graph type.
@@ -3084,8 +3502,8 @@ def kalman_backbone(
     snapshot; pass ``missing_as_zero=False`` to treat such steps as unknown
     instead.  A method without ``missing_as_zero`` is run as is, with the
     same effect and a warning.  Steps in which an endpoint is absent, or in
-    which *method* leaves a pair untested or gives it a NaN p-value, are
-    unknown: the filter predicts through them without an update, so
+    which *method* leaves a pair untested, are unknown: the filter predicts
+    through them without an update, so
     missing steps are handled exactly.  An observed zero is the weakest
     possible outcome; under a continuous test its p-value is 1, whose probit
     score is clipped to about −8.22 (``Φ⁻¹(1e-16)``), as is a p-value of 0
@@ -3260,29 +3678,16 @@ def kalman_backbone(
     m, n_steps = len(table.ends), len(steps.times)
     P = np.full((m, n_steps), np.nan)
     signs = np.full((m, n_steps), np.nan)
-    for k, (t, G) in enumerate(zip(steps.times, steps.graphs)):
-        if m == 0 or G.number_of_edges() == 0:
-            continue
-        try:
-            scored = func(G, **kwargs)
-        except Exception as err:
-            err.add_note(
-                f"Raised by {name} on the snapshot at time {t!r} "
-                f"({G.number_of_nodes()} nodes, {G.number_of_edges()} edges)."
-            )
-            raise
+    for k, _, scored in _scored_steps(steps, name, func, key, kwargs):
+        # Every eligible pair the method scored: present, or absent and
+        # tested as weight 0 (missing_as_zero).
         adj = scored.adj
         for j in np.flatnonzero(table.eligible[:, k]):
             u, v = table.ends[j]
             d = adj[u].get(v)
-            if d is None:
+            if d is None or d.get(key) is None:
                 continue
-            p = d.get(key)
-            if p is None or p != p:
-                continue
-            if not table.present[j, k] and absent == "unknown":
-                continue
-            P[j, k] = p
+            P[j, k] = d[key]
             if "sign" in d:
                 signs[j, k] = d["sign"]
     scored_steps = ~np.isnan(P)
@@ -3509,6 +3914,15 @@ _COMPLEXITY = {
         "time": "O(n_S + m_S + m T)",
         "space": "O(n T + m T)",
         "notes": "T steps, m distinct edges; plus binning for events and spans.",
+    },
+    "edge_persistence_hmm": {
+        "time": "O(n_S + m_S + n_init I m T) plus T runs of the method",
+        "space": "O(n T + m T)",
+        "notes": (
+            "T steps, m distinct edges, I EM iterations (at most max_iter); "
+            "plus binning for events and spans.  The method runs only with "
+            'observe="keep" or "pvalue".'
+        ),
     },
     "kalman_backbone": {
         "time": "O(n_S + m_S + I m T + P n_sim T) plus T runs of the method",

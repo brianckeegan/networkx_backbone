@@ -190,7 +190,8 @@ figure style.
 - **next** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
   on the API pages, whose images date from 0.2.0 and show pre-fix results
   (the ECM image keeps nearly every edge), and generate it at build time so
-  it cannot go stale.
+  it cannot go stale. Done so far: the shared figure style
+  (``docs/_figures/style.py``) that the gallery, examples, and tutorials use.
 - **next** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
   backbone, end to end (why a backbone, scoring vs filtering, choosing alpha
   and corrections, comparing, validating, reporting).
@@ -317,8 +318,9 @@ the method proposals are in the `temporal backbones proposal
 - **done** (`#72 <https://github.com/brianckeegan/networkx_backbone/issues/72>`_): ``kalman_backbone``: Kalman smoothing of
   per-step edge significance, tested against an exact null, with an
   edge-level test across steps and ``kalman_snapshots`` for per-step graphs.
-- **planned** (`#73 <https://github.com/brianckeegan/networkx_backbone/issues/73>`_): ``edge_persistence_hmm``: a two-state hidden
-  Markov model for persistent edge activity.
+- **done** (`#73 <https://github.com/brianckeegan/networkx_backbone/issues/73>`_): ``edge_persistence_hmm``: a two-state hidden
+  Markov model for persistent edge activity, observing presence, per-step
+  keep flags, or p-values.
 - **idea** (`#74 <https://github.com/brianckeegan/networkx_backbone/issues/74>`_): ``wavelet_denoise``: wavelet shrinkage of
   edge-weight time series before backboning.
 - **idea** (`#75 <https://github.com/brianckeegan/networkx_backbone/issues/75>`_): ``poisson_lift_filter``: a Gamma-Poisson

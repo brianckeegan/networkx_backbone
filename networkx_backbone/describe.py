@@ -888,6 +888,15 @@ METHODS = {
         "deviation, coefficient of variation and least-squares slope",
         kind=TEMPORAL,
     ),
+    "edge_persistence_hmm": Method(
+        "a two-state hidden Markov model of edge activity",
+        "in which each edge switches between an inactive and an active state "
+        "as a Markov chain and is observed with false-positive and miss "
+        "rates, all parameters being shared by the edges, and which scores "
+        "each edge by its posterior probability of being active in each of "
+        "its eligible steps",
+        kind=TEMPORAL,
+    ),
     "kalman_backbone": Method(
         "Kalman smoothing of per-step edge significance",
         "which tests each edge in every step with a static backbone method, "
@@ -1243,10 +1252,14 @@ def _temporal_sentences(name, params, original, backbone, md):
         "both of its endpoints were present (its eligible steps); in the other "
         "steps it was treated as unknown."
     )
-    if name in ("backbone_stability", "kalman_backbone"):
+    stored = meta.get("parameters", {})
+    observe = params.get("observe", stored.get("observe", "presence"))
+    if name in ("backbone_stability", "kalman_backbone") or (
+        name == "edge_persistence_hmm" and observe != "presence"
+    ):
         inner = params.pop("method", None)
         if inner is None:
-            inner = meta.get("parameters", {}).get("method")
+            inner = stored.get("method")
         try:
             _, entry = _resolve(inner)
         except (TypeError, ValueError):
@@ -1254,17 +1267,19 @@ def _temporal_sentences(name, params, original, backbone, md):
         if entry is not None:
             cites = "; ".join(REFERENCES[k].cite() for k in entry.refs)
             keys += list(entry.refs)
-            sentences.append(
-                f"In every step the edges were scored with {entry.label}"
-                + (f" ({cites})" if cites else "")
-                + (
-                    ", and the same cut was applied in each step."
-                    if name == "backbone_stability"
-                    else "."
-                )
-            )
+            text = f"In every step the edges were scored with {entry.label}"
+            text += f" ({cites})" if cites else ""
+            if name == "kalman_backbone":
+                text += "."
+            elif name == "edge_persistence_hmm" and observe == "pvalue":
+                text += ", and its p-values were the observations of the model."
+            else:
+                text += ", and the same cut was applied in each step."
+            sentences.append(text)
+    if name == "edge_persistence_hmm":
+        sentences += _hmm_sentences(meta.get("hmm"), observe)
     if name == "kalman_backbone":
-        sentences.extend(_kalman_sentences(meta.get("kalman", {})))
+        sentences += _kalman_sentences(meta.get("kalman", {}))
     return sentences, keys, params
 
 
@@ -1295,8 +1310,38 @@ def _kalman_sentences(fit):
         )
     if fit.get("absent") == "unknown":
         sentences.append(
-            "Steps in which an eligible edge was absent were treated as unknown."
+            "For this method, steps in which an eligible edge was absent were "
+            "treated as unknown instead."
         )
+    return sentences
+
+
+def _hmm_sentences(model, observe):
+    """Sentences on the model that ``edge_persistence_hmm`` fitted."""
+    what = {
+        "keep": "whether the per-step backbone kept the edge",
+        "pvalue": "the edge's p-value",
+    }.get(observe, "whether the edge was present")
+    sentences = [
+        f"In each eligible step the model observed {what}; the other steps "
+        "carried no evidence."
+    ]
+    if not isinstance(model, dict) or "a01" not in model:
+        return sentences
+    names = ["a01", "a10", *(("a",) if "a" in model else ("alpha", "beta"))]
+    values = ", ".join(f"{n} = {model[n]:.3g}" for n in names)
+    fixed = set(model.get("fixed", ()))
+    if fixed >= set(names):
+        how = "were fixed at"
+    else:
+        how = "were estimated by expectation-maximization pooled over all edges"
+        if fixed & set(names):
+            how += f" (with {', '.join(sorted(fixed & set(names)))} fixed)"
+        how += " as"
+    sentences.append(
+        "Its transition probabilities (a01 from inactive to active, a10 back) "
+        f"and emission parameters {how} {values}."
+    )
     return sentences
 
 
