@@ -187,21 +187,24 @@ Longer, narrative documentation with figures, tracked in
 numbers and figures cannot drift from the code, and uses one colorblind-safe
 figure style.
 
-- **next** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
-  on the API pages, whose images date from 0.2.0 and show pre-fix results
-  (the ECM image keeps nearly every edge), and generate it at build time so
-  it cannot go stale. Done so far: the shared figure style
-  (``docs/_figures/style.py``) that the gallery, examples, and tutorials use.
-- **next** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
+- **done** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
+  on the API pages, whose images dated from 0.2.0 and showed pre-fix results,
+  and generate it at build time so it cannot go stale. Every figure uses the
+  shared figure style (``docs/_figures/style.py``) that the examples and
+  tutorials also use.
+- **done** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
   backbone, end to end (why a backbone, scoring vs filtering, choosing alpha
-  and corrections, comparing, validating, reporting).
+  and corrections, comparing, validating, reporting), the "Start here" entry
+  point of the tutorials.
 - **done** (`#90 <https://github.com/brianckeegan/networkx_backbone/issues/90>`_): Narrative tutorial: the statistical null models
   side by side, including generalized nulls and signed backbones.
 - **next** (`#91 <https://github.com/brianckeegan/networkx_backbone/issues/91>`_): Narrative tutorial: structural and proximity
   backbones, and when topology-based guarantees beat significance tests.
 - **done** (`#92 <https://github.com/brianckeegan/networkx_backbone/issues/92>`_): Narrative tutorial: bipartite projections and
   their backbones.
-- **next** (`#93 <https://github.com/brianckeegan/networkx_backbone/issues/93>`_): Narrative tutorial: hypergraph backbones.
+- **done** (`#93 <https://github.com/brianckeegan/networkx_backbone/issues/93>`_): Narrative tutorial: hypergraph backbones
+  (groups versus pairs, the MDL and local MDL backbones, SVH and SVC, the
+  structural helpers, and HIF interchange), executed with six figures.
 - **next** (`#94 <https://github.com/brianckeegan/networkx_backbone/issues/94>`_): Narrative tutorial: temporal backbones, from
   snapshots to smoothing.
 - **next** (`#95 <https://github.com/brianckeegan/networkx_backbone/issues/95>`_): Narrative guides: coming from R ``backbone`` or

@@ -67,9 +67,9 @@ and sparse input), see
    networkx_backbone.fixedcol
    :add-heading: Gallery Examples
 
-.. rubric:: Function Image Reference
+.. rubric:: Method gallery
 
-.. include:: ../_includes/gallery/bipartite.rst
+.. include:: ../_gallery/bipartite.inc
 
 .. rubric:: High-Level Wrappers
 

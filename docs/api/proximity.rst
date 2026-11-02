@@ -50,6 +50,6 @@ Complexity classes are provided in each function docstring.
    networkx_backbone.local_path_index
    :add-heading: Gallery Examples
 
-.. rubric:: Function Image Reference
+.. rubric:: Method gallery
 
-.. include:: ../_includes/gallery/proximity.rst
+.. include:: ../_gallery/proximity.inc
