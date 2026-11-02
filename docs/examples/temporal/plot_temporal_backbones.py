@@ -1160,13 +1160,20 @@ assert group_mean(hmm, "hmm_n_active", noise) < 0.5
 # sphinx_gallery_end_ignore
 
 # %%
-# But it reads the flicker edges as *active*: an edge seen in half of the
-# steps all the way through looks, to a model fitted on these data, like a
-# long active spell observed with a high miss rate (the fitted ``beta``),
-# so the flicker edges get more active steps than the block.  What counts
-# as "active" is a modeling choice.  If an active tie should be seen in
-# nearly every step, say so: fixing the miss rate with ``params=`` makes
-# the model read the gaps as inactivity instead.
+# But it reads the flicker edges as *active*.  One set of parameters is
+# shared by every edge, so a gap in an edge's record has two explanations:
+# the edge switched off (the switching rate ``a10``) or it stayed active
+# and was missed (the miss rate ``beta``).  No single chain fits both a
+# block that stays on and flicker that comes and goes at random, and on
+# these data the likelihood prefers a large miss rate with slow switching.
+# An edge seen in half of the steps all the way through then looks like one
+# long active spell that was often missed, so the flicker edges get more
+# active steps than the block.  This is the best fit, not a bad start:
+# more EM starts (``n_init=``) find the same one.
+#
+# What counts as "active" is a modeling choice.  If an active tie should be
+# seen in nearly every step, say so: fixing the miss rate with ``params=``
+# makes the model read the gaps as inactivity instead.
 
 BETA = 0.05
 hmm_fixed = nb.edge_persistence_hmm(snaps, params={"beta": BETA})
@@ -1186,7 +1193,50 @@ assert group_mean(hmm, "hmm_n_active", flicker) > group_mean(hmm, "hmm_n_active"
 assert group_mean(hmm_fixed, "hmm_n_active", flicker) < group_mean(
     hmm_fixed, "hmm_n_active", block
 )
+_restarts = nb.edge_persistence_hmm(snaps, n_init=10, seed=0).graph["temporal"]["hmm"]
+assert abs(_restarts["beta"] - fit["beta"]) < 1e-3
 # sphinx_gallery_end_ignore
+
+# %%
+# You can spot this case without knowing the truth.  Next to the fitted
+# parameters, ``H.graph["temporal"]["hmm"]`` records ``n_active_steps``,
+# the number of steps the most likely paths mark active, and
+# ``unobserved_active_share``, the share of them in which the edge was not
+# seen.  A large share means that much of the "activity" is inferred
+# rather than observed:
+
+fit_fixed = hmm_fixed.graph["temporal"]["hmm"]
+table(
+    ["Model", "beta", "a10", "Active steps", "Share not observed"],
+    [
+        [
+            name,
+            f"{m['beta']:.2f}",
+            f"{m['a10']:.3f}",
+            f"{m['n_active_steps']}",
+            f"{m['unobserved_active_share']:.2f}",
+        ]
+        for name, m in (
+            ("Fitted model", fit),
+            (f"Miss rate fixed at {BETA}", fit_fixed),
+        )
+    ],
+)
+
+# sphinx_gallery_start_ignore
+assert fit["beta"] > 0.2 and fit["a10"] < fit_fixed["a10"]
+assert fit["unobserved_active_share"] > 2 * fit_fixed["unobserved_active_share"]
+# sphinx_gallery_end_ignore
+
+# %%
+# The data alone cannot always tell this case from a measurement process
+# that really does miss that many active steps, so the function does not
+# warn: it records the numbers and leaves the call to you.  When the share
+# is large, compare ``hmm_n_active`` with the observation fraction and the
+# longest run, and fix ``beta`` if you know how the ties were recorded.
+# Fixing it is not a cure-all: the switching rates are still shared, and
+# when nearly every edge in the fit is persistent they come out so slow
+# that a flickering edge can still read as active.
 
 # %%
 # The figure compares the raw presence of three edges with both models'

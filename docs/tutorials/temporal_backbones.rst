@@ -201,6 +201,33 @@ steps:
 >>> round(MH.graph["temporal"]["hmm"]["beta"], 2), mean(MH, flicker, "hmm_n_active")
 (0.36, 20.0)
 
+With one set of parameters for all edges, the fit can explain a gap either as
+a switch to the inactive state or as a miss, and here a large miss rate wins.
+The record shows how much of the decoded activity was never seen: the share
+of the steps that the most likely paths mark active in which the edge was
+absent.
+
+>>> round(MH.graph["temporal"]["hmm"]["unobserved_active_share"], 2)
+0.35
+
+If you know that an active tie is recorded in nearly every step, fix the miss
+rate with ``params={"beta": ...}``. That is not a cure-all: the switching
+rates are still fitted and shared, and with no noise left, the block makes
+them so slow that even a 1% miss rate leaves the flicker with more active
+steps than the block:
+
+>>> for beta in (0.05, 0.01):
+...     MB = nb.edge_persistence_hmm(
+...         snaps, weight="weight", min_weight=1, params={"beta": beta}
+...     )
+...     print(beta, mean(MB, flicker, "hmm_n_active"), mean(MB, block, "hmm_n_active"))
+0.05 17.2 10.0
+0.01 11.4 10.0
+
+The model assumes that every edge follows one chain. When the edges are of
+different kinds, as here, read its scores next to ``persistence``, which
+separates the block from the flicker without a model.
+
 The model can also smooth the per-step backbones. With ``observe="keep"`` it
 observes whether the disparity filter keeps each edge in each step (with the
 same cut as ``backbone_stability``). Taking the edges whose posterior is

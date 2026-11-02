@@ -324,6 +324,12 @@ the method proposals are in the `temporal backbones proposal
 - **done** (`#73 <https://github.com/brianckeegan/networkx_backbone/issues/73>`_): ``edge_persistence_hmm``: a two-state hidden
   Markov model for persistent edge activity, observing presence, per-step
   keep flags, or p-values.
+- **idea** (`#112 <https://github.com/brianckeegan/networkx_backbone/issues/112>`_): Edge classes or a mixture over edges for
+  ``edge_persistence_hmm``, so that persistent and flickering edges need not
+  share one chain. Done for 0.3.0: Notes on the trade-off between miss rate
+  and switching rate, and an ``unobserved_active_share`` diagnostic in the
+  fitted record; a Beta prior on the error rates (MAP-EM) was evaluated and
+  not adopted.
 - **idea** (`#74 <https://github.com/brianckeegan/networkx_backbone/issues/74>`_): ``wavelet_denoise``: wavelet shrinkage of
   edge-weight time series before backboning.
 - **idea** (`#75 <https://github.com/brianckeegan/networkx_backbone/issues/75>`_): ``poisson_lift_filter``: a Gamma-Poisson
