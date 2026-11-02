@@ -212,7 +212,13 @@ def draw_overview(mode):
             ax, G, backbones[name], pos, mode=mode, legend=False, title=name
         )
         ax.text(
-            0.0, 0.0, counts.short, transform=ax.transAxes, color=p.muted, fontsize=8
+            0.0,
+            -0.02,
+            counts.short,
+            transform=ax.transAxes,
+            va="top",
+            color=p.muted,
+            fontsize=8,
         )
     key = axes.flat[-1]
     key.set_axis_off()
@@ -314,11 +320,13 @@ def draw_scatter(mode):
         ax.set_yscale("log")
         ax.set_title(name)
         ax.text(
-            0.04,
-            0.05,
+            1.0,
+            1.0,
             f"rho = {rho[name]:+.2f}",
             transform=ax.transAxes,
-            color=p.ink,
+            ha="right",
+            va="bottom",
+            color=p.muted,
             fontsize=8.5,
         )
         ax.grid(True)
@@ -701,7 +709,7 @@ def draw_concentration(mode):
         (a_hat, kept_fitted, f"fitted a = {a_hat:.2f}"),
     ]
     for a, kept, label in marks:
-        ax.axvline(a, color=p.muted, lw=0.75)
+        ax.axvline(a, color=p.removed, lw=0.75)
         ax.scatter([a], [kept], s=60, c=p.node, edgecolors=p.surface, zorder=3)
         ax.annotate(
             f"{label}: {kept} edges",
@@ -794,11 +802,16 @@ def draw_units(mode):
     p = style.palette(mode)
     colors = style.categorical(len(COUNT_MODELS), mode)
     fig, ax = plt.subplots(figsize=(7.0, 3.4))
+    # Direct labels at the line ends, nudged apart where the lines end close.
+    label_y, floor = {}, -math.inf
+    for name in sorted(COUNT_MODELS, key=lambda n: unit_sweep[n][-1]):
+        floor = max(unit_sweep[name][-1], floor + 16)
+        label_y[name] = floor
     for name, color, marker in zip(COUNT_MODELS, colors, ["o", "s", "^"]):
         ax.plot(EVENTS, unit_sweep[name], color=color, marker=marker, label=name)
         ax.annotate(
             name,
-            (EVENTS[-1], unit_sweep[name][-1]),
+            (EVENTS[-1], label_y[name]),
             xytext=(8, 0),
             textcoords="offset points",
             va="center",
@@ -991,9 +1004,10 @@ def draw_signed(mode):
         plus, minus = sign_counts(signed_backbones[name])
         ax.text(
             0.0,
-            0.0,
+            -0.02,
             f"{plus} strong, {minus} weak",
             transform=ax.transAxes,
+            va="top",
             color=p.muted,
             fontsize=8.5,
         )
