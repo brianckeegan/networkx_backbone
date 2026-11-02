@@ -483,8 +483,8 @@ def draw_ends(mode):
         fontsize=7.5,
     )
     for e, (dx, dy) in {
-        ("Admin", "Lead"): (-6, -26),
-        ("List", "Visitor"): (-40, -30),
+        ("Admin", "Lead"): (0, 16),
+        ("List", "Visitor"): (-8, -34),
     }.items():
         ax.annotate(
             f"{e[0]} → {e[1]}",
