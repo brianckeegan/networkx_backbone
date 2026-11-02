@@ -14,7 +14,9 @@ union of the observed edges with score attributes, so the usual filters such
 as :func:`~networkx_backbone.threshold_filter` pick the backbone. See
 :doc:`../user_guide/temporal` for the three input forms (snapshots, events and
 spans) and the conversions between them, and :ref:`temporal-eligibility` for
-how absent edges are counted.
+how absent edges are counted. The narrative tutorial
+:ref:`tutorial-temporal-backbones` explains, with figures, when to use each
+score and what each one misses.
 
 .. contents:: On this page
    :local:

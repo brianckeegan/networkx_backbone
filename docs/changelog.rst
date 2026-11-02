@@ -550,6 +550,16 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   against R ``backbone`` with ``missing_as_zero``, and sparse incidence
   input, with seven figures in light and dark variants. It is listed under
   "By network type" in the tutorials index (#92, #96).
+- New narrative tutorial, *Temporal backbones, from snapshots to
+  smoothing*: snapshots, events and spans and binning with ``freq=``;
+  ``flatten_temporal`` by count and by duration, and what a static backbone
+  of the flattened graph misses; observation fraction, persistence and
+  backbone stability on a persistent block among random flicker; the Kalman
+  backbone on a planted rising block (smoother against filter, the
+  edge-level test, the Šidák correction and temporal leakage); the
+  persistence HMM's posterior against raw presence; and a table for choosing
+  among them. Five figures, executed at build time; it is listed under "By
+  network type" in the tutorials index (#94, #96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose

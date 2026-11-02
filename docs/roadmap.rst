@@ -205,7 +205,7 @@ figure style.
 - **done** (`#93 <https://github.com/brianckeegan/networkx_backbone/issues/93>`_): Narrative tutorial: hypergraph backbones
   (groups versus pairs, the MDL and local MDL backbones, SVH and SVC, the
   structural helpers, and HIF interchange), executed with six figures.
-- **next** (`#94 <https://github.com/brianckeegan/networkx_backbone/issues/94>`_): Narrative tutorial: temporal backbones, from
+- **done** (`#94 <https://github.com/brianckeegan/networkx_backbone/issues/94>`_): Narrative tutorial: temporal backbones, from
   snapshots to smoothing.
 - **done** (`#95 <https://github.com/brianckeegan/networkx_backbone/issues/95>`_): Narrative guides: coming from R ``backbone`` or
   ``netbone``, and scaling up to large networks.
