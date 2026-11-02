@@ -29,7 +29,7 @@ calls themselves, method by method, see the short how-to tutorial
 :doc:`/tutorials/statistical_backbone`.
 """
 
-# sphinx_gallery_thumbnail_path = "auto_examples/statistical_nulls/images/nulls_overview-light.png"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/statistical_nulls/thumbnail.png"
 
 # %%
 # The network
@@ -50,12 +50,12 @@ calls themselves, method by method, see the short how-to tutorial
 import math
 import warnings
 from itertools import pairwise
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from _figures import style
+from _figures.tutorial import TutorialFigures
 from matplotlib.lines import Line2D
 from matplotlib.ticker import NullLocator
 from scipy.stats import spearmanr
@@ -63,23 +63,10 @@ from scipy.stats import spearmanr
 import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
-# Figures are saved as light and dark SVG pairs next to the generated page,
-# and the text below shows the one that matches the reader's theme.
-# Sphinx-Gallery runs this file from its own directory, docs/examples/<topic>.
-_here = Path.cwd()
-if (_here.parents[1] / "conf.py").exists() and _here.parent.name == "examples":
-    FIG_DIR = _here.parents[1] / "auto_examples" / _here.name / "images"
-else:  # run by hand: write the figures to a temporary directory
-    import tempfile
-
-    FIG_DIR = Path(tempfile.mkdtemp())
-
-
-def save(name, draw, **kw):
-    """Write ``<name>-light.svg`` and ``<name>-dark.svg``."""
-    style.save_variants(draw, FIG_DIR / name, **kw)
-
-
+# Figures are saved as light and dark SVG pairs by the docs' tutorial figure
+# helper (docs/_figures/tutorial.py), and the page shows the one that matches
+# the reader's theme.
+figures = TutorialFigures("statistical_nulls")
 # sphinx_gallery_end_ignore
 
 G = nx.les_miserables_graph()
@@ -237,35 +224,25 @@ def draw_overview(mode):
     return fig
 
 
-save("nulls_overview", draw_overview)
-save("nulls_overview", draw_overview, fmt="png", modes=("light",))  # thumbnail
+figures.show(
+    draw_overview,
+    "nulls_overview",
+    thumbnail=True,
+    # Backbone nodes are dark blue in the light theme, light blue in the dark.
+    alt=lambda mode: (
+        "Seven small network drawings of Les Misérables on one shared layout, "
+        "one per statistical method. Kept edges are drawn as solid blue lines "
+        "over the faint gray original; backbone nodes are "
+        f"{'dark' if mode == 'light' else 'light'} blue and dropped nodes gray. "
+        "Each panel's caption gives its edge and node counts."
+    ),
+    caption=(
+        f"The seven backbones at alpha = {ALPHA}, drawn over the original "
+        "network (kept edges solid, removed edges faint; counts under each "
+        "panel)."
+    ),
+)
 
-# %%
-# .. figure:: images/nulls_overview-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 100%
-#    :alt: Seven small network drawings of Les Misérables on one shared
-#          layout, one per statistical method. Kept edges are drawn as solid
-#          blue lines over the faint gray original; backbone nodes are dark
-#          blue and dropped nodes gray. Each panel's caption gives its edge
-#          and node counts.
-#
-#    The seven backbones at alpha = 0.05, drawn over the original network
-#    (kept edges solid, removed edges faint; counts under each panel).
-#
-# .. figure:: images/nulls_overview-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 100%
-#    :alt: Seven small network drawings of Les Misérables on one shared
-#          layout, one per statistical method. Kept edges are drawn as solid
-#          blue lines over the faint gray original; backbone nodes are light
-#          blue and dropped nodes gray. Each panel's caption gives its edge
-#          and node counts.
-#
-#    The seven backbones at alpha = 0.05, drawn over the original network
-#    (kept edges solid, removed edges faint; counts under each panel).
 
 # %%
 # P-value against weight
@@ -379,35 +356,22 @@ def draw_scatter(mode):
     return fig
 
 
-save("nulls_pvalue_weight", draw_scatter)
+figures.show(
+    draw_scatter,
+    "nulls_pvalue_weight",
+    alt=(
+        "Seven scatter plots, one per method, of edge p-value (log scale, "
+        "vertical) against edge weight (log scale, horizontal), with a dashed "
+        f"line at alpha = {ALPHA}. Kept edges are filled blue dots and removed "
+        "edges hollow gray circles. Each panel states its Spearman correlation."
+    ),
+    caption=(
+        "Each edge's p-value against its weight.  Filled dots are kept, hollow "
+        "circles removed; rho is the Spearman rank correlation printed above."
+    ),
+)
 
 # %%
-# .. figure:: images/nulls_pvalue_weight-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 100%
-#    :alt: Seven scatter plots, one per method, of edge p-value (log scale,
-#          vertical) against edge weight (log scale, horizontal), with a
-#          dashed line at alpha = 0.05. Kept edges are filled blue dots and
-#          removed edges hollow gray circles. Each panel states its Spearman
-#          correlation.
-#
-#    Each edge's p-value against its weight.  Filled dots are kept, hollow
-#    circles removed; rho is the Spearman rank correlation printed above.
-#
-# .. figure:: images/nulls_pvalue_weight-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 100%
-#    :alt: Seven scatter plots, one per method, of edge p-value (log scale,
-#          vertical) against edge weight (log scale, horizontal), with a
-#          dashed line at alpha = 0.05. Kept edges are filled blue dots and
-#          removed edges hollow gray circles. Each panel states its Spearman
-#          correlation.
-#
-#    Each edge's p-value against its weight.  Filled dots are kept, hollow
-#    circles removed; rho is the Spearman rank correlation printed above.
-#
 # Three groups appear.  The disparity, Pólya and GloSS p-values fall almost
 # in lockstep with the weight: on this network they behave much like a
 # weight threshold, with the cut-off set by each node's share or by the
@@ -478,33 +442,24 @@ def draw_overlap(mode):
     return fig
 
 
-save("nulls_overlap", draw_overlap)
+figures.show(
+    draw_overlap,
+    "nulls_overlap",
+    width="85%",
+    alt=lambda mode: (
+        "A seven by seven heatmap. Rows and columns are the seven methods, "
+        "ordered from the smallest backbone to the largest; each cell is "
+        "labeled with the share of the row backbone's edges that the column "
+        "backbone also keeps, "
+        f"{'darker' if mode == 'light' else 'lighter'} for higher shares."
+    ),
+    caption=(
+        "Overlap between backbones, smallest backbone first.  Read along a row: "
+        "the share of that backbone's edges found in each other backbone."
+    ),
+)
 
 # %%
-# .. figure:: images/nulls_overlap-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 85%
-#    :alt: A seven by seven heatmap. Rows and columns are the seven methods,
-#          ordered from the smallest backbone to the largest; each cell is
-#          labeled with the share of the row backbone's edges that the
-#          column backbone also keeps, darker for higher shares.
-#
-#    Overlap between backbones, smallest backbone first.  Read along a row:
-#    the share of that backbone's edges found in each other backbone.
-#
-# .. figure:: images/nulls_overlap-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 85%
-#    :alt: A seven by seven heatmap. Rows and columns are the seven methods,
-#          ordered from the smallest backbone to the largest; each cell is
-#          labeled with the share of the row backbone's edges that the
-#          column backbone also keeps, lighter for higher shares.
-#
-#    Overlap between backbones, smallest backbone first.  Read along a row:
-#    the share of that backbone's edges found in each other backbone.
-#
 # The three small backbones (GloSS, disparity and Pólya) lie entirely inside
 # the noise-corrected and marginal likelihood backbones: on this network
 # those methods agree on the strongest ties and differ in how far beyond
@@ -624,35 +579,23 @@ def draw_preserved(mode):
     return fig
 
 
-save("nulls_preserved", draw_preserved)
+figures.show(
+    draw_preserved,
+    "nulls_preserved",
+    alt=(
+        "Three dot plots sharing one row per method, smallest backbone at the "
+        "top: the share of edges kept, the KS distance between the backbone's "
+        "and the original's weight distributions, and the same for degree "
+        "distributions, each on a scale from 0 to 1."
+    ),
+    caption=(
+        "What each backbone keeps (left) and how far its weight and degree "
+        "distributions move from the original's (middle, right; lower is "
+        "closer).  The values are in the table above."
+    ),
+)
 
 # %%
-# .. figure:: images/nulls_preserved-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 100%
-#    :alt: Three dot plots sharing one row per method, smallest backbone at
-#          the top: the share of edges kept, the KS distance between the
-#          backbone's and the original's weight distributions, and the same
-#          for degree distributions, each on a scale from 0 to 1.
-#
-#    What each backbone keeps (left) and how far its weight and degree
-#    distributions move from the original's (middle, right; lower is
-#    closer).  The values are in the table above.
-#
-# .. figure:: images/nulls_preserved-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 100%
-#    :alt: Three dot plots sharing one row per method, smallest backbone at
-#          the top: the share of edges kept, the KS distance between the
-#          backbone's and the original's weight distributions, and the same
-#          for degree distributions, each on a scale from 0 to 1.
-#
-#    What each backbone keeps (left) and how far its weight and degree
-#    distributions move from the original's (middle, right; lower is
-#    closer).  The values are in the table above.
-#
 # Size explains part of this.  The small backbones keep only heavy edges
 # between a few characters, so both of their distributions move a long
 # way, and the largest backbones (noise-corrected and marginal likelihood,
@@ -736,33 +679,23 @@ def draw_concentration(mode):
     return fig
 
 
-save("nulls_disparity_a", draw_concentration)
+figures.show(
+    draw_concentration,
+    "nulls_disparity_a",
+    width="85%",
+    alt=(
+        "A line chart of the number of edges the disparity filter keeps "
+        "(vertical) against the parameter a on a log scale (horizontal). The "
+        "count falls steadily as a grows. Two labeled points mark a = 1, the "
+        "original filter, and the fitted value of a."
+    ),
+    caption=(
+        "Disparity backbone size against *a*.  The labeled points are the "
+        "original filter (``a=1``) and the maximum-likelihood fit."
+    ),
+)
 
 # %%
-# .. figure:: images/nulls_disparity_a-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 85%
-#    :alt: A line chart of the number of edges the disparity filter keeps
-#          (vertical) against the parameter a on a log scale (horizontal).
-#          The count falls steadily as a grows. Two labeled points mark
-#          a = 1, the original filter, and the fitted value of a.
-#
-#    Disparity backbone size against *a*.  The labeled points are the
-#    original filter (``a=1``) and the maximum-likelihood fit.
-#
-# .. figure:: images/nulls_disparity_a-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 85%
-#    :alt: A line chart of the number of edges the disparity filter keeps
-#          (vertical) against the parameter a on a log scale (horizontal).
-#          The count falls steadily as a grows. Two labeled points mark
-#          a = 1, the original filter, and the fitted value of a.
-#
-#    Disparity backbone size against *a*.  The labeled points are the
-#    original filter (``a=1``) and the maximum-likelihood fit.
-#
 # The fitted *a* is below 1: Les Misérables' weight shares are more even
 # than the original null model assumes, so an edge needs less of a node's
 # strength to stand out, and the fitted filter keeps more edges.  The
@@ -838,35 +771,25 @@ def draw_units(mode):
     return fig
 
 
-save("nulls_units", draw_units)
+figures.show(
+    draw_units,
+    "nulls_units",
+    width="85%",
+    alt=(
+        "A line chart with three labeled lines, marginal likelihood filter "
+        "(circles), ECM (squares) and noise-corrected filter (triangles), "
+        "showing the number of edges kept (vertical) against the number of "
+        f"events per unit of weight ({', '.join(map(str, EVENTS))}; log scale). "
+        "Every line rises "
+        "or stays level."
+    ),
+    caption=(
+        "Edges kept by the three count models as each unit of weight counts as "
+        "more events.  The values are in the table above."
+    ),
+)
 
 # %%
-# .. figure:: images/nulls_units-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 85%
-#    :alt: A line chart with three labeled lines, marginal likelihood filter
-#          (circles), ECM (squares) and noise-corrected filter (triangles),
-#          showing the number of edges kept (vertical) against the number of
-#          events per unit of weight (1, 2, 4, 10; log scale). Every line
-#          rises or stays level.
-#
-#    Edges kept by the three count models as each unit of weight counts as
-#    more events.  The values are in the table above.
-#
-# .. figure:: images/nulls_units-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 85%
-#    :alt: A line chart with three labeled lines, marginal likelihood filter
-#          (circles), ECM (squares) and noise-corrected filter (triangles),
-#          showing the number of edges kept (vertical) against the number of
-#          events per unit of weight (1, 2, 4, 10; log scale). Every line
-#          rises or stays level.
-#
-#    Edges kept by the three count models as each unit of weight counts as
-#    more events.  The values are in the table above.
-#
 # The unit is part of the model, not a detail: if your weights are minutes,
 # dollars or shares rather than counts, decide what one event is before you
 # trust these three methods, and report it.
@@ -1027,33 +950,22 @@ def draw_signed(mode):
     return fig
 
 
-save("nulls_signed", draw_signed)
+figures.show(
+    draw_signed,
+    "nulls_signed",
+    alt=(
+        "Two network drawings of Les Misérables on the shared layout: the "
+        "signed marginal likelihood backbone and the signed LANS backbone. "
+        "Significantly strong edges are solid blue lines and significantly weak "
+        "edges dashed red lines, over the faint gray original."
+    ),
+    caption=(
+        f"Signed backbones at alpha = {ALPHA}: strong edges solid, weak edges "
+        "dashed.  The counts are in the table above."
+    ),
+)
 
 # %%
-# .. figure:: images/nulls_signed-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 100%
-#    :alt: Two network drawings of Les Misérables on the shared layout: the
-#          signed marginal likelihood backbone and the signed LANS backbone.
-#          Significantly strong edges are solid blue lines and significantly
-#          weak edges dashed red lines, over the faint gray original.
-#
-#    Signed backbones at alpha = 0.05: strong edges solid, weak edges
-#    dashed.  The counts are in the table above.
-#
-# .. figure:: images/nulls_signed-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 100%
-#    :alt: Two network drawings of Les Misérables on the shared layout: the
-#          signed marginal likelihood backbone and the signed LANS backbone.
-#          Significantly strong edges are solid blue lines and significantly
-#          weak edges dashed red lines, over the faint gray original.
-#
-#    Signed backbones at alpha = 0.05: strong edges solid, weak edges
-#    dashed.  The counts are in the table above.
-#
 # The parametric models rarely call an edge weak on this network: an edge
 # can only be weak if the model expected it to be heavy, which needs two
 # prominent endpoints.  LANS calls many edges weak, because it is

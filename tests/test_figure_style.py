@@ -89,3 +89,75 @@ def test_save_variants_writes_light_and_dark(style, tmp_path):
     assert counts[0].caption == "Kept 2 of 3 edges (67%) and 3 of 4 nodes."
     rst = "\n".join(style.figure_rst("/_static/fig", "Alt text."))
     assert ":class: only-light" in rst and "fig-dark.svg" in rst
+
+
+@pytest.fixture(scope="module")
+def tutorial(style):
+    from _figures import tutorial
+
+    return tutorial
+
+
+def test_tutorial_figure_embeds_both_variants_outside_sphinx(tutorial, monkeypatch):
+    pytest.importorskip("matplotlib")
+    import matplotlib.pyplot as plt
+
+    # Outside the docs build the images are inlined, so a downloaded
+    # notebook stays self-contained.
+    monkeypatch.delitem(sys.modules, "sphinx_gallery.gen_rst", raising=False)
+    figures = tutorial.TutorialFigures("test-tutorial")
+
+    def draw(mode):
+        fig, ax = plt.subplots(figsize=(2, 1))
+        ax.plot([0, 1], [0, 1])
+        return fig
+
+    shown = figures.show(
+        draw,
+        "line",
+        alt=lambda mode: f"A {mode} line.",
+        caption="A ``line``, *rising*, :math:`y = x`.",
+        thumbnail=True,
+    )
+    html = shown._repr_html_()
+    assert html.count("data:image/svg+xml;base64,") == 2
+    assert 'class="only-light" alt="A light line."' in html
+    assert 'class="only-dark" alt="A dark line."' in html
+    assert 'loading="lazy"' in html and 'width="' in html
+    # The caption follows a wrapper <div>, never an only-dark image (#116).
+    assert "</div><figcaption><p>A <code" in html
+    assert "<em>rising</em>" in html and r"\(y = x\)" in html
+    # The repr names the figure, never the build machine's paths (#119).
+    assert repr(shown) == "<ThemedFigure 'line'>"
+    assert (figures.directory / "thumbnail.png").is_file()
+    with pytest.raises(ValueError, match="already has a thumbnail"):
+        figures.show(draw, "again", alt="a", caption="b", thumbnail=True)
+    with pytest.raises(ValueError, match="alt text and a caption"):
+        figures.show(draw, "empty", alt=" ", caption="b")
+
+
+def test_render_caption_links_docs_only_in_the_build(tutorial):
+    text = "See :doc:`Backends </user_guide/backends>` & more."
+    assert tutorial.render_caption(text) == "See Backends &amp; more."
+    assert (
+        '<a class="reference internal" href="../../user_guide/backends.html">'
+        "Backends</a>" in tutorial.render_caption(text, "../../")
+    )
+    with pytest.raises(ValueError, match="title </path>"):
+        tutorial.render_caption(":doc:`/user_guide/backends`")
+
+
+def test_page_figure_registry_builds_and_caches(style, tmp_path):
+    pytest.importorskip("matplotlib")
+    from _figures import pages
+
+    manifest = pages.build(tmp_path)
+    entry = manifest["workflow/score-then-filter"]
+    assert set(entry["files"]) == {"light", "dark"}
+    assert entry["alt"] and entry["caption"]
+    for uri in entry["files"].values():
+        assert (tmp_path / uri.removeprefix("/_page_figures/")).is_file()
+    # Unchanged code: the second build reuses the files and the text.
+    stamp = {p: p.stat().st_mtime_ns for p in tmp_path.rglob("*.png")}
+    assert pages.build(tmp_path) == manifest
+    assert stamp == {p: p.stat().st_mtime_ns for p in tmp_path.rglob("*.png")}

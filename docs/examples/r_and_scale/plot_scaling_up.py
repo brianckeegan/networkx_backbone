@@ -36,12 +36,13 @@ import networkx as nx
 import numpy as np
 import scipy.sparse as sp
 from _figures import style
+from _figures.tutorial import TutorialFigures
 
 import nx_backbone as nb
 
 DOCS = Path(style.__file__).resolve().parents[1]
-# Light and dark SVG pairs, next to the gallery's own images.
-OUT = DOCS / "auto_examples" / "r_and_scale" / "images"
+# Light and dark SVG pairs, from the docs' tutorial figure helper.
+figures = TutorialFigures("scaling_up")
 
 
 def weighted_graph(n, m=3, max_weight=20, seed=0):
@@ -298,41 +299,27 @@ def draw_timings(mode):
     return fig
 
 
-_ = style.save_variants(draw_timings, OUT / "scaling_up_timings")
+figures.show(
+    draw_timings,
+    "scaling_up_timings",
+    thumbnail=True,
+    width="90%",
+    alt=(
+        "Log-log line chart of run time in seconds against number of edges for "
+        "three methods, each line labeled at its end with the method name and "
+        "fitted slope. The disparity filter line is lowest and reaches the "
+        "largest graphs; the high salience skeleton line is steepest and stops "
+        "at the smallest graphs; the ECM filter sits between them."
+    ),
+    caption=(
+        "Run time against the number of edges on log-log axes, measured during "
+        "this documentation build (the printed output above gives the machine "
+        "and every value). Each line stops once a run takes more than a third "
+        "of a second. A steeper line means a cost that grows faster."
+    ),
+)
 
 # %%
-# .. figure:: /auto_examples/r_and_scale/images/scaling_up_timings-light.svg
-#    :figclass: only-light
-#    :class: only-light
-#    :width: 90%
-#    :alt: Log-log line chart of run time in seconds against number of
-#          edges for three methods, each line labeled at its end with the
-#          method name and fitted slope. The disparity filter line is
-#          lowest and reaches the largest graphs; the high salience skeleton
-#          line is steepest and stops at the smallest graphs; the ECM filter
-#          sits between them.
-#
-#    Run time against the number of edges on log-log axes, measured during
-#    this documentation build (the printed output above gives the machine
-#    and every value). Each line stops once a run takes more than a third of
-#    a second. A steeper line means a cost that grows faster.
-#
-# .. figure:: /auto_examples/r_and_scale/images/scaling_up_timings-dark.svg
-#    :figclass: only-dark
-#    :class: only-dark
-#    :width: 90%
-#    :alt: Log-log line chart of run time in seconds against number of
-#          edges for three methods, each line labeled at its end with the
-#          method name and fitted slope. The disparity filter line is
-#          lowest and reaches the largest graphs; the high salience skeleton
-#          line is steepest and stops at the smallest graphs; the ECM filter
-#          sits between them.
-#
-#    Run time against the number of edges on log-log axes, measured during
-#    this documentation build (the printed output above gives the machine
-#    and every value). Each line stops once a run takes more than a third of
-#    a second. A steeper line means a cost that grows faster.
-#
 # The shortest-path methods are the ones to plan for. A slope near 2 means
 # that ten times more edges take about a hundred times longer, so a method
 # that takes a second at a few thousand edges takes minutes at tens of
@@ -411,37 +398,25 @@ def draw_classes(mode):
     return fig
 
 
-_ = style.save_variants(draw_classes, OUT / "scaling_up_ecm_classes")
+figures.show(
+    draw_classes,
+    "scaling_up_ecm_classes",
+    width="80%",
+    alt=(
+        "Log-log line chart of the number of degree-strength classes against "
+        "the number of nodes, with a reference line for one class per node. The "
+        "class count rises much more slowly than the reference line, and the "
+        "gap widens as the graphs grow."
+    ),
+    caption=(
+        "Distinct (degree, strength) classes in the seeded Barabási-Albert "
+        "graphs, against the number of nodes. The gray line is one class per "
+        "node, the cost before classes were used. The printed output above "
+        "gives every value."
+    ),
+)
 
 # %%
-# .. figure:: /auto_examples/r_and_scale/images/scaling_up_ecm_classes-light.svg
-#    :figclass: only-light
-#    :class: only-light
-#    :width: 80%
-#    :alt: Log-log line chart of the number of degree-strength classes
-#          against the number of nodes, with a reference line for one class
-#          per node. The class count rises much more slowly than the
-#          reference line, and the gap widens as the graphs grow.
-#
-#    Distinct (degree, strength) classes in the seeded Barabási-Albert
-#    graphs, against the number of nodes. The gray line is one class per
-#    node, the cost before classes were used. The printed output above
-#    gives every value.
-#
-# .. figure:: /auto_examples/r_and_scale/images/scaling_up_ecm_classes-dark.svg
-#    :figclass: only-dark
-#    :class: only-dark
-#    :width: 80%
-#    :alt: Log-log line chart of the number of degree-strength classes
-#          against the number of nodes, with a reference line for one class
-#          per node. The class count rises much more slowly than the
-#          reference line, and the gap widens as the graphs grow.
-#
-#    Distinct (degree, strength) classes in the seeded Barabási-Albert
-#    graphs, against the number of nodes. The gray line is one class per
-#    node, the cost before classes were used. The printed output above
-#    gives every value.
-#
 # Each solver step costs about C squared operations, done in fixed-size
 # chunks so that memory does not grow with C. Up to 4,000 parameters a step
 # is a dense linear solve; above that, the solver switches to conjugate
@@ -535,37 +510,27 @@ def draw_backends(mode):
     return fig
 
 
-_ = style.save_variants(draw_backends, OUT / "scaling_up_backends")
+figures.show(
+    draw_backends,
+    "scaling_up_backends",
+    width="85%",
+    alt=(
+        "Dot plot with one row per method, comparing seconds without and with "
+        "nx-parallel, each row labeled with its speed-up. Edge betweenness and "
+        "the h-backbone are several times faster with nx-parallel; the metric "
+        "backbone, high salience skeleton and GLAB are about the same either "
+        "way."
+    ),
+    caption=(
+        "The committed nx-parallel measurements from "
+        ":doc:`Backends </user_guide/backends>` (circles: NetworkX alone; "
+        "squares: with "
+        "nx-parallel). The label on each row is the NetworkX time divided by "
+        "the nx-parallel time."
+    ),
+)
 
 # %%
-# .. figure:: /auto_examples/r_and_scale/images/scaling_up_backends-light.svg
-#    :figclass: only-light
-#    :class: only-light
-#    :width: 85%
-#    :alt: Dot plot with one row per method, comparing seconds without and
-#          with nx-parallel, each row labeled with its speed-up. Edge
-#          betweenness and the h-backbone are several times
-#          faster with nx-parallel; the metric backbone, high salience
-#          skeleton and GLAB are about the same either way.
-#
-#    The committed nx-parallel measurements from :doc:`/user_guide/backends`
-#    (circles: NetworkX alone; squares: with nx-parallel). The label on each
-#    row is the NetworkX time divided by the nx-parallel time.
-#
-# .. figure:: /auto_examples/r_and_scale/images/scaling_up_backends-dark.svg
-#    :figclass: only-dark
-#    :class: only-dark
-#    :width: 85%
-#    :alt: Dot plot with one row per method, comparing seconds without and
-#          with nx-parallel, each row labeled with its speed-up. Edge
-#          betweenness and the h-backbone are several times
-#          faster with nx-parallel; the metric backbone, high salience
-#          skeleton and GLAB are about the same either way.
-#
-#    The committed nx-parallel measurements from :doc:`/user_guide/backends`
-#    (circles: NetworkX alone; squares: with nx-parallel). The label on each
-#    row is the NetworkX time divided by the nx-parallel time.
-#
 # Only the methods built on edge betweenness gain: nx-parallel implements
 # edge betweenness, but not the single-source search that the high salience
 # skeleton and GLAB run once per node. The results were the same with and
@@ -619,4 +584,4 @@ _ = style.save_variants(draw_backends, OUT / "scaling_up_backends")
 #   network backbones: unbiased graph filtering via maximum entropy.
 #   arXiv:1706.00230.
 
-# sphinx_gallery_thumbnail_path = "auto_examples/r_and_scale/images/scaling_up_timings-light.svg"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/scaling_up/thumbnail.png"

@@ -25,6 +25,9 @@ if str(ROOT) not in sys.path:
 DOCS = Path(__file__).resolve().parent
 if str(DOCS) not in sys.path:
     sys.path.insert(0, str(DOCS))
+# ...and the docs' own Sphinx extensions (docs/_ext/).
+if str(DOCS / "_ext") not in sys.path:
+    sys.path.insert(0, str(DOCS / "_ext"))
 
 # -- Project information -----------------------------------------------------
 
@@ -49,10 +52,14 @@ extensions = [
     "numpydoc",
     "sphinx_copybutton",
     "sphinx_gallery.gen_gallery",
+    # Build-time light/dark figures on reST pages: the ``page-figure``
+    # directive and the docs/_figures/pages/ registry ("Writing docs figures"
+    # in docs/contributing.rst).
+    "page_figures",
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "_gallery", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "_gallery", "_page_figures", "Thumbs.db", ".DS_Store"]
 
 # -- numpydoc settings -------------------------------------------------------
 # numpydoc alone parses the NumPy-style docstrings.  (sphinx.ext.napoleon used
@@ -239,7 +246,9 @@ def _build_roadmap_figures(app):
 # scripts/generate_visualizations.py runs every public method and draws its
 # backbone over the original graph (light and dark variants), plus one reST
 # include per API module, into the gitignored _gallery/ on every build, so the
-# gallery on the API pages always shows what the current code returns.
+# gallery on the API pages always shows what the current code returns.  Its
+# manifest.json lets reST pages reuse a gallery figure with
+# ``.. page-figure:: gallery:<module>/<name>``.
 
 
 def _build_gallery(app):

@@ -31,23 +31,18 @@ shorter, code-first reference to the same functions, see
 :doc:`/tutorials/hypergraph_backbone`.
 """
 
-# sphinx_gallery_thumbnail_path = "auto_examples/hypergraphs/images/thumb_mdl-backbone-light.png"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/hypergraphs/thumbnail.png"
 
-import base64
-import html
 import io
 import itertools
 import json
 import math
 import random
-import re
-import shutil
-import tempfile
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import networkx as nx
 from _figures import style
+from _figures.tutorial import TutorialFigures
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
@@ -61,65 +56,13 @@ import nx_backbone as nb
 # classes let the docs theme display the variant that matches the reader's
 # theme.
 #
-# Sphinx-Gallery runs this file from docs/examples/hypergraphs/ when it builds
-# the docs.  The figure files then go to the gitignored
-# docs/_static/example_figures/hypergraphs/, which Sphinx copies with the rest
-# of _static, and the page links to them, so they are not embedded in the
-# HTML.  Run anywhere else (as a script, or as the downloaded notebook), the
-# files go to a temporary folder and are embedded in the output as data URIs.
-# Every figure here is light enough to stay SVG: the drawings have at most a
-# few hundred marks, and PNG would be larger.
-_here = Path.cwd()
-if _here.parent.name == "examples" and (_here.parents[1] / "conf.py").is_file():
-    _FIGURE_DIR = _here.parents[1] / "_static" / "example_figures" / _here.name
-    shutil.rmtree(_FIGURE_DIR, ignore_errors=True)  # no stale files from earlier builds
-    _FIGURE_URL = f"../../_static/example_figures/{_here.name}/"
-    # The gallery thumbnail (see sphinx_gallery_thumbnail_path at the top).
-    _THUMB_DIR = _here.parents[1] / "auto_examples" / _here.name / "images"
-else:
-    _FIGURE_DIR = Path(tempfile.mkdtemp(prefix="nxbb-hypergraph-tutorial-"))
-    _FIGURE_URL = None
-    _THUMB_DIR = None
-
-
-def _img(path, mode, alt):
-    """An <img> for one variant: a link to the file, or the file inlined."""
-    data = path.read_bytes()
-    # matplotlib writes the SVG size in points; 1 pt = 4/3 px.
-    size = re.search(r'width="([\d.]+)pt" height="([\d.]+)pt"', data[:1000].decode())
-    width, height = (round(float(v) * 4 / 3) for v in size.groups())
-    if _FIGURE_URL is None:
-        src = f"data:image/svg+xml;base64,{base64.b64encode(data).decode('ascii')}"
-    else:
-        src = _FIGURE_URL + path.name
-    # Lazy loading: the browser fetches only the variant the theme shows, and
-    # the width and height reserve the space before it arrives.
-    return (
-        f'<img class="only-{mode}" alt="{html.escape(alt)}" src="{src}" '
-        f'width="{width}" height="{height}" loading="lazy" '
-        'style="width: 100%; height: auto;">'
-    )
-
-
-class ThemedFigure:
-    """A light and a dark rendering of one figure, with alt text and a caption."""
-
-    def __init__(self, draw, name, alt, caption):
-        self.paths = style.save_variants(draw, _FIGURE_DIR / name)
-        self.alt = " ".join(alt.split())
-        self.caption = " ".join(caption.split())
-
-    def _repr_html_(self):
-        images = [_img(path, mode, self.alt) for mode, path in self.paths.items()]
-        # The caption follows a wrapper <div>, not the images themselves: the
-        # theme hides a <figcaption> that directly follows an ``only-dark``
-        # image in light mode.
-        return (
-            '<figure class="nxbb-tutorial-figure"><div>'
-            + "".join(images)
-            + f"</div><figcaption><p>{html.escape(self.caption)}</p>"
-            "</figcaption></figure>"
-        )
+# The figures go through the docs' tutorial figure helper
+# (docs/_figures/tutorial.py): in the docs build the files are linked from
+# docs/_static/example_figures/hypergraphs/; run anywhere else (as a script,
+# or as the downloaded notebook), they are embedded in the output.  Every
+# figure here is light enough to stay SVG: the drawings have at most a few
+# hundred marks, and PNG would be larger.
+figures = TutorialFigures("hypergraphs")
 
 
 _SQUARE = 64.0  # marker area (pt^2) of a hyperedge (event) square
@@ -325,7 +268,7 @@ def _draw_groups_vs_pairs(mode):
     return fig
 
 
-ThemedFigure(
+figures.show(
     _draw_groups_vs_pairs,
     "groups-vs-pairs",
     alt="Three panels. Left: three people, A, B and C, joined to one square "
@@ -468,7 +411,7 @@ def _draw_davis_views(mode):
     return fig
 
 
-ThemedFigure(
+figures.show(
     _draw_davis_views,
     "davis-views",
     alt=f"Two network drawings with the same positions for the women. Left: the "
@@ -697,7 +640,7 @@ def _draw_tradeoff(mode):
 
 
 _lowest = min(_bars, key=lambda n: sum(_bars[n]))
-ThemedFigure(
+figures.show(
     _draw_tradeoff,
     "description-length",
     alt="Horizontal stacked bars, one per candidate backbone, split into the "
@@ -779,20 +722,11 @@ def _draw_mdl_backbone(mode):
     return fig, counts
 
 
-# The gallery thumbnail.  It comes first: the figure must stay the last
-# statement of the block for Sphinx-Gallery to show its HTML.
-if _THUMB_DIR is not None:
-    style.save_variants(
-        lambda mode: _draw_mdl_backbone(mode)[0],
-        _THUMB_DIR / "thumb_mdl-backbone",
-        fmt="png",
-        modes=("light",),
-        dpi=80,
-    )
 _mdl_counts = style.backbone_counts(davis, _davis_backbone)
-ThemedFigure(
+figures.show(
     lambda mode: _draw_mdl_backbone(mode)[0],
     "mdl-backbone",
+    thumbnail=True,
     alt=f"The Davis incidence graph with the {len(_kept_events)} backbone events "
     f"({', '.join(_kept_events)}) drawn as filled squares with solid lines to "
     f"their guests, and the other events as hollow squares with faint lines.",
@@ -971,7 +905,7 @@ def _draw_local_votes(mode):
     return fig
 
 
-ThemedFigure(
+figures.show(
     _draw_local_votes,
     "local-votes",
     alt=f"A grid with one row per distinct guest list ({len(_rows)} rows) and "
@@ -1153,7 +1087,7 @@ def _draw_svh(mode):
     return fig
 
 
-ThemedFigure(
+figures.show(
     _draw_svh,
     "svh",
     alt="Three scatter plots, for pairs, trios and quartets, of how many times "

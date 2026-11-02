@@ -145,6 +145,166 @@ seconds, without building the docs, with::
 
     python -m numpydoc lint nx_backbone/*.py
 
+Writing docs figures
+--------------------
+
+Every figure in the documentation is drawn when the docs are built, from the
+current code, in a light and a dark variant; the theme shows the one that
+matches the reader's theme. Nothing generated is committed. There are two
+helpers, one for each kind of page:
+
+- executed tutorials (Sphinx-Gallery files in ``docs/examples/``) use
+  :class:`!TutorialFigures` from ``docs/_figures/tutorial.py``;
+- plain reST pages (the how-to tutorials in ``docs/tutorials/`` and the user
+  guide) use the ``page-figure`` directive, with one registry module per page
+  in ``docs/_figures/pages/``.
+
+Both draw with the shared style, ``docs/_figures/style.py``
+(``from _figures import style``): take every color from
+``style.palette(mode)``, at most ``style.ALL_PAIRS_CAP`` (3) categorical
+series in a small multiple or scatter, ``style.layout(G, key)`` for the fixed
+layout of each dataset, and ``style.draw_backbone`` for a backbone over its
+graph. The conventions:
+
+- **A drawing function of the mode.** ``draw(mode) -> Figure``, called once
+  per mode (``"light"``, ``"dark"``) inside the matching Matplotlib style.
+- **Alt text and a caption, computed.** Alt text says what the figure shows
+  for a reader who cannot see it; the caption says what to take from it.
+  Format every number in either from the variables the code computes, never
+  as a literal, so the text stays true when the code changes.
+- **Not by color alone.** Kept and removed edges, positive and negative
+  edges, and series differ in line style, marker or label too. Three of the
+  light-mode categorical colors are below 3:1 contrast, so label series
+  directly or print a table of the plotted values.
+- **Formats.** SVG for charts; PNG (about 144 dpi, the helpers' default) for
+  dense network drawings, whose SVG would be large.
+- **Linked, not embedded.** The page links the image files and loads them
+  lazily, so a reader downloads only the variant the theme shows (#116).
+- **Fast.** Use the small bundled datasets (Les Misérables, karate club,
+  Davis, Florentine families) or small seeded synthetic graphs, no
+  downloads; an executed tutorial should build in under about 30 s
+  (``docs/sg_execution_times.rst`` lists the times after a build).
+
+**In an executed tutorial**, create one ``TutorialFigures`` per file, named
+after it, and make each ``figures.show(...)`` call the last expression of its
+code block; Sphinx-Gallery then shows the figure below the code::
+
+    # sphinx_gallery_thumbnail_path = "_static/example_figures/my_topic/thumbnail.png"
+
+    from _figures import style
+    from _figures.tutorial import TutorialFigures
+
+    figures = TutorialFigures("my_topic")
+    G = nx.les_miserables_graph()
+    backbone = nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05)
+    counts = style.backbone_counts(G, backbone)
+
+
+    def draw_backbone(mode):
+        fig, ax = plt.subplots(figsize=(6, 4))
+        style.draw_backbone(ax, G, backbone, style.layout(G, "les_miserables"), mode=mode)
+        return fig
+
+
+    figures.show(
+        draw_backbone,
+        "backbone",
+        alt=f"Les Misérables with the {counts.edges_kept} backbone edges in solid "
+        f"blue over the {counts.edges_total - counts.edges_kept} removed ones.",
+        caption=f"The disparity backbone at p < 0.05. {counts.caption}",
+        fmt="png",
+        thumbnail=True,
+    )
+
+In the docs build the files go to the gitignored
+``docs/_static/example_figures/<name>/``; run anywhere else (as a script or
+as the downloaded notebook), the figure is embedded in the output instead, so
+it stays self-contained. ``figures.show`` takes:
+
+- ``alt`` and ``caption``: strings, or functions of the mode where the words
+  differ between the variants ("darker" in light, "brighter" in dark).
+  Captions may use a little reST markup: inline literals (double
+  backquotes), emphasis (``*...*``), ``:math:``, and ``:doc:`` with an
+  explicit title (``title </path>``). Alt text is plain text.
+- ``fmt``, ``dpi`` and ``width`` (a CSS width such as ``"85%"``; ``None``
+  keeps the file's own size, at most the column's width).
+- ``thumbnail=True`` on exactly one figure: it also saves the light variant as
+  ``_static/example_figures/<name>/thumbnail.png``, which the
+  ``sphinx_gallery_thumbnail_path`` comment at the top of the file must name.
+
+``figures.show`` returns an object that renders as HTML, and whose plain
+``repr`` names the figure only, so a cell never prints the build machine's
+paths. Do not print the paths the style functions return.
+
+**On a reST page**, register the figure in ``docs/_figures/pages/<page>.py``,
+named after the page's file (``workflow.py`` for
+``docs/user_guide/workflow.rst``), so that work on different pages never
+touches the same file. The module is discovered automatically::
+
+    """Figures of ``docs/user_guide/workflow.rst``."""
+
+    import functools
+
+    import matplotlib.pyplot as plt
+    import networkx as nx
+
+    import nx_backbone as nb
+    from _figures import style
+    from _figures.pages import figure
+
+
+    @functools.cache
+    def _backbone():
+        G = nx.les_miserables_graph()
+        H = nb.disparity_filter(G)
+        return G, nb.threshold_filter(H, "disparity_pvalue", 0.05)
+
+
+    def _caption():
+        return f"The disparity backbone at p < 0.05. {style.backbone_counts(*_backbone()).caption}"
+
+
+    @figure("backbone", alt="Les Misérables with its disparity backbone ...", caption=_caption, fmt="png")
+    def draw_backbone(mode):
+        G, backbone = _backbone()
+        fig, ax = plt.subplots(figsize=(6, 4))
+        style.draw_backbone(ax, G, backbone, style.layout(G, "les_miserables"), mode=mode)
+        return fig
+
+and show it on the page with::
+
+    .. page-figure:: workflow/backbone
+       :width: 80%
+
+The ``alt`` and ``caption`` of a page figure are strings, or functions with no
+arguments called at build time; the caption is reST inline markup, so it can
+link with ``:func:``. Page figures have one alt text for both variants, so
+describe them in words that fit both. Do the work inside the drawing function
+or a cached helper, not at import time: every build imports every page module.
+The build draws the figures on ``builder-inited`` into the gitignored
+``docs/_page_figures/`` and redraws a page's figures only when its module, the
+shared figure code (``docs/_figures/*.py``) or ``nx_backbone`` changes;
+delete ``docs/_page_figures/`` to force a redraw.
+
+A page can also show any figure of the method gallery on the API pages at no
+cost, since the build draws those anyway (``scripts/generate_visualizations.py``
+lists them; the name is ``<API module>/<method>``)::
+
+    .. page-figure:: gallery:statistical/disparity_filter
+
+**Figure coverage.** ``tests/test_docs_figures.py`` requires a figure (a
+``page-figure``, ``figure`` or ``image`` directive, or a gallery include) on
+every page of ``docs/tutorials/`` and ``docs/user_guide/`` except their
+indexes. The pages not done yet are listed in its ``PENDING`` set. When you
+give a page its first figure, delete the page from ``PENDING`` in the same
+pull request: the test fails while a page listed there has a figure, and
+while an entry names a page that does not exist. Never add a page to
+``PENDING``. The same test checks that every tutorial using
+``TutorialFigures`` sets its thumbnail as above.
+
+Look at every figure in the built pages in both themes (the theme switcher is
+at the top right) before opening a pull request.
+
 Code style
 ----------
 
@@ -154,8 +314,8 @@ stack:
 - Lint and format with `ruff <https://docs.astral.sh/ruff/>`_ (configured in
   ``pyproject.toml``)::
 
-      ruff check nx_backbone tests scripts docs/conf.py docs/_figures docs/examples
-      ruff format nx_backbone tests scripts docs/conf.py docs/_figures docs/examples
+      ruff check nx_backbone tests scripts docs/conf.py docs/_figures docs/_ext docs/examples
+      ruff format nx_backbone tests scripts docs/conf.py docs/_figures docs/_ext docs/examples
 
 - Take a graph ``G`` as the first argument, return a new graph, and never
   mutate the input.

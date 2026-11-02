@@ -22,7 +22,7 @@ This page is the narrative. For short recipes of each call, see the how-to
 tutorial :doc:`/tutorials/bipartite_backbone`.
 """
 
-# sphinx_gallery_thumbnail_path = "auto_examples/bipartite/images/bipartite_thumb-light.png"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/bipartite/thumbnail.png"
 
 # %%
 # Setup
@@ -31,8 +31,8 @@ tutorial :doc:`/tutorials/bipartite_backbone`.
 # Every number on this page is computed when the documentation is built.
 # Every figure is drawn twice, once for the light theme and once for the
 # dark theme, with the shared documentation figure style. The few lines below
-# save each pair of files and the reST that shows the one matching your
-# theme.
+# set up the helper that saves each pair of files and shows the one matching
+# your theme.
 
 import json
 import sys
@@ -67,17 +67,14 @@ DOCS = _docs_dir()
 if str(DOCS) not in sys.path:
     sys.path.insert(0, str(DOCS))
 from _figures import style  # noqa: E402
+from _figures.tutorial import TutorialFigures  # noqa: E402
 
+# ``figures.show(draw, name, alt=..., caption=...)`` saves the light and dark
+# variants of a figure and shows the one matching your theme.
+figures = TutorialFigures("bipartite")
+# The reference list at the end is a reST include written next to the page.
 IMAGES = DOCS / "auto_examples" / "bipartite" / "images"
 IMAGES.mkdir(parents=True, exist_ok=True)
-WEB = "/auto_examples/bipartite/images"
-
-
-def publish(name, draw, alt, caption):
-    """Save light and dark variants of a figure and the reST that shows them."""
-    style.save_variants(draw, IMAGES / f"bipartite_{name}")
-    rst = style.figure_rst(f"{WEB}/bipartite_{name}", alt, caption)
-    (IMAGES / f"bipartite_{name}.inc").write_text("\n".join(rst) + "\n", "utf-8")
 
 
 # The reference list at the end comes from the library's own bibliography,
@@ -236,9 +233,9 @@ def draw_incidence(mode):
     return fig
 
 
-publish(
-    "incidence",
+figures.show(
     draw_incidence,
+    "incidence",
     alt=(
         f"Left: an {n_women} by {n_events} grid, women as rows and events as "
         "columns, with a blue cell where a woman attended an event and row and "
@@ -255,8 +252,6 @@ publish(
 )
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_incidence.inc
-#
 # Why the raw projection overstates ties
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
@@ -396,9 +391,9 @@ def draw_projections(mode):
     return fig
 
 
-publish(
-    "projections",
+figures.show(
     draw_projections,
+    "projections",
     alt=(
         "Five matrices of pair weights for the women, one per weighting: "
         "simple, hyperbolic, Newman, ProbS and YCN, each scaled to its own "
@@ -416,8 +411,6 @@ publish(
 )
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_projections.inc
-#
 # The weightings change *which* ties look strongest: a pair that shares many
 # crowded events leads the simple projection but drops under the hyperbolic
 # weight. Yet none of them says whether a tie is stronger than chance. A weight
@@ -541,14 +534,14 @@ def draw_nulls(mode):
     return fig
 
 
-publish(
-    "nulls",
+figures.show(
     draw_nulls,
+    "nulls",
     alt=(
         "Four log-log scatter plots, one per model (SDSM, fixed fill, fixed "
         "row, fixed column), each with one dot per pair of women: FDSM p-value "
         "across, the model's p-value up, a diagonal line of agreement and "
-        "dotted lines at 0.05. SDSM dots follow the diagonal from above and "
+        f"dotted lines at {ALPHA}. SDSM dots follow the diagonal from above and "
         "fixed row dots follow it closely; fixed fill and fixed column dots "
         "scatter widely."
     ),
@@ -556,14 +549,12 @@ publish(
         "Each pair of women's p-value under four null models against its FDSM "
         "p-value. Dots above the diagonal are more conservative than the "
         "FDSM; the bottom-left quadrant holds pairs both models keep at "
-        "alpha = 0.05. The counts above each panel match the table printed "
+        f"alpha = {ALPHA}. The counts above each panel match the table printed "
         "above."
     ),
 )
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_nulls.inc
-#
 # The SDSM tracks the FDSM closely but sits above it: on a matrix this small
 # it keeps no pair at :math:`\alpha = 0.05`, which is Neal et al.'s
 # "conservative" in action. The fixed fill and fixed column models ignore the
@@ -704,9 +695,9 @@ def draw_floor(mode):
     return fig
 
 
-publish(
-    "floor",
+figures.show(
     draw_floor,
+    "floor",
     alt=(
         f"Log-log line chart of p-value against FDSM trials for a {R.shape[0]} "
         f"by {R.shape[1]} planted-block matrix. The smallest FDSM p-value sits "
@@ -724,8 +715,6 @@ publish(
 )
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_floor.inc
-#
 # The FDSM's smallest p-value is never a measurement here: it is the floor,
 # shared by a whole group of pairs at once. A family-wise correction then
 # keeps nothing. The BH correction compares the :math:`k`-th smallest p-value
@@ -829,9 +818,10 @@ def draw_signed(mode):
     return fig
 
 
-publish(
-    "signed",
+figures.show(
     draw_signed,
+    "signed",
+    thumbnail=True,
     alt=(
         f"Left: an {n_women} by {n_women} matrix of the women with {n_pos} "
         f"pairs marked + on blue (significantly strong) and {n_neg} pairs "
@@ -840,18 +830,13 @@ publish(
         "blue and negative ties dashed red."
     ),
     caption=(
-        "A signed FDSM backbone of the Davis projection at alpha = 0.05 "
+        f"A signed FDSM backbone of the Davis projection at alpha = {ALPHA} "
         "(two-sided). Positive ties are blue with a + (solid lines); negative "
         "ties are red with a − (dashed lines)."
     ),
 )
-_ = style.save_variants(
-    draw_signed, IMAGES / "bipartite_thumb", fmt="png", modes=("light",)
-)
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_signed.inc
-#
 # The negative ties are as informative as the positive ones: they mark women
 # who move in different circles. A one-tailed backbone would show only the
 # strong ties within each circle. Signed backbones are available for
@@ -1017,9 +1002,9 @@ def draw_constraints(mode):
     return fig
 
 
-publish(
-    "constraints",
+figures.show(
     draw_constraints,
+    "constraints",
     alt=(
         "Left: the incidence matrix with crosses on the cells of the women who "
         "arrived late, for every event before the largest one, and white rings "
@@ -1037,8 +1022,6 @@ publish(
 )
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_constraints.inc
-#
 # Fixing cells moves each pair's expected co-occurrence, and the p-values
 # move in both directions. Once the late arrivals *could not* have gone to
 # the early events, their attendance is concentrated on fewer events, so two
@@ -1154,9 +1137,9 @@ def draw_r(mode):
     return fig
 
 
-publish(
-    "r_match",
+figures.show(
     draw_r,
+    "r_match",
     alt=(
         "Three scatter plots of nx-backbone p-values up against R "
         "backbone p-values across, one dot per pair of Davis women, with a "
@@ -1171,8 +1154,6 @@ publish(
 )
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_r_match.inc
-#
 # Which pairs are tested: ``missing_as_zero``
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #

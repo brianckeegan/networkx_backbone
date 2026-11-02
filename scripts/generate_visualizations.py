@@ -8,7 +8,9 @@ with the shared docs style (``docs/_figures/style.py``): kept edges
 emphasized, removed edges faint, one fixed layout per dataset so the methods
 can be compared at a glance, in a light and a dark variant.  It also writes,
 per API module, a reStructuredText include (``<module>.inc``) with each
-figure, its caption and alt text, both carrying the counts.
+figure, its caption and alt text, both carrying the counts, and
+``manifest.json``, which lets a reST page reuse a figure with
+``.. page-figure:: gallery:<module>/<name>`` (``docs/_ext/page_figures.py``).
 
 ``docs/conf.py`` calls :func:`build` on every Sphinx build (like
 ``scripts/roadmap_figures.py``), writing into the gitignored
@@ -22,6 +24,7 @@ to render them by hand.
 from __future__ import annotations
 
 import argparse
+import json
 import random
 import sys
 import warnings
@@ -605,7 +608,9 @@ def _draw_hypergraph(name, ctx, pos):
 
 
 def _rst_figure(lines, stem, alt, caption):
+    """Append the figure's reST to *lines*; return its alt text and caption."""
     lines += style.figure_rst(stem, alt, caption)
+    return {"alt": " ".join(alt.split()), "caption": " ".join(caption.split())}
 
 
 def _method_rst(spec, counts, dataset, stem):
@@ -627,8 +632,8 @@ def _method_rst(spec, counts, dataset, stem):
     )
     if spec.sign:
         alt += " Positive backbone edges are solid lines, negative ones dashed."
-    _rst_figure(lines, stem, alt, caption)
-    return lines
+    text = _rst_figure(lines, stem, alt, caption)
+    return lines, text
 
 
 def _hypergraph_rst(name, info, stem):
@@ -647,8 +652,8 @@ def _hypergraph_rst(name, info, stem):
         "(squares) linked to the 18 women who attended them (circles), with the "
         f"hyperedges kept by {name} highlighted. {summary}"
     )
-    _rst_figure(lines, stem, alt, f"Kept hyperedges in blue. {summary}")
-    return lines
+    text = _rst_figure(lines, stem, alt, f"Kept hyperedges in blue. {summary}")
+    return lines, text
 
 
 # Every figure is saved at its full, fixed size (no tight crop), so the text is
@@ -659,14 +664,30 @@ _SAVE = {"bbox_inches": None}
 # -- build ------------------------------------------------------------------------
 
 
+def _add_to_manifest(manifest, key, stem, text):
+    """Record a figure for ``.. page-figure:: gallery:<module>/<name>``.
+
+    ``docs/_ext/page_figures.py`` reads ``manifest.json`` so that a reST page
+    can show a gallery figure, with its alt text and caption, at no cost.
+    """
+    if key in manifest:
+        raise RuntimeError(f"two gallery figures are named {key!r}")
+    manifest[key] = {
+        "files": {mode: f"{stem}-{mode}.svg" for mode in style.MODES},
+        "fmt": "svg",
+        **text,
+    }
+
+
 def build(out_dir, *, static_prefix="/_gallery"):
     """Render every gallery figure and the per-module includes into *out_dir*.
 
     Parameters
     ----------
     out_dir : path-like
-        Directory for ``<dataset>/<method>-{light,dark}.svg`` and
-        ``<module>.inc``; created if needed.
+        Directory for ``<dataset>/<method>-{light,dark}.svg``,
+        ``<module>.inc`` and ``manifest.json`` (each figure's files, alt text
+        and caption, for the ``page-figure`` directive); created if needed.
     static_prefix : str, optional
         How the includes refer to *out_dir* (absolute docs path).
 
@@ -685,6 +706,7 @@ def build(out_dir, *, static_prefix="/_gallery"):
     validate_coverage(specs)
 
     includes = {m: [] for m in MODULES}
+    manifest = {}
     rows = []
     for spec in specs:
         dataset = DATASETS[spec.dataset]
@@ -706,9 +728,10 @@ def build(out_dir, *, static_prefix="/_gallery"):
         draw, counts = _draw_method(spec, original, backbone, pos)
         style.save_variants(draw, out / spec.dataset / spec.file, **_SAVE)
         c = counts["light"]
-        includes[spec.module] += _method_rst(
-            spec, c, dataset, f"{static_prefix}/{spec.dataset}/{spec.file}"
-        )
+        stem = f"{static_prefix}/{spec.dataset}/{spec.file}"
+        lines, text = _method_rst(spec, c, dataset, stem)
+        includes[spec.module] += lines
+        _add_to_manifest(manifest, f"{spec.module}/{spec.file}", stem, text)
         rows.append(
             {
                 "name": spec.file,
@@ -725,9 +748,10 @@ def build(out_dir, *, static_prefix="/_gallery"):
     for name in HYPERGRAPH_METHODS:
         draw, info = _draw_hypergraph(name, ctx, pos)
         style.save_variants(draw, out / "davis_hypergraph" / name, **_SAVE)
-        includes["hypergraph"] += _hypergraph_rst(
-            name, info, f"{static_prefix}/davis_hypergraph/{name}"
-        )
+        stem = f"{static_prefix}/davis_hypergraph/{name}"
+        lines, text = _hypergraph_rst(name, info, stem)
+        includes["hypergraph"] += lines
+        _add_to_manifest(manifest, f"hypergraph/{name}", stem, text)
         rows.append(
             {
                 "name": name,
@@ -742,6 +766,9 @@ def build(out_dir, *, static_prefix="/_gallery"):
     out.mkdir(parents=True, exist_ok=True)
     for module, lines in includes.items():
         (out / f"{module}.inc").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (out / "manifest.json").write_text(
+        json.dumps(manifest, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
     return rows
 
 

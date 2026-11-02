@@ -1,0 +1,8 @@
+/* Light/dark figure pairs from the page-figure directive (docs/_ext/page_figures.py).
+   The <img> elements carry their intrinsic width and height so the browser
+   reserves their space before the lazily loaded file arrives; scale them to
+   the figure's width (100% of the text column unless :width: says otherwise). */
+figure.nxbb-figure img {
+  width: 100%;
+  height: auto;
+}

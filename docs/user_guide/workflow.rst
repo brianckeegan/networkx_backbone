@@ -29,6 +29,8 @@ Most backbone methods follow a two-step process:
     # Step 2: Filter
     backbone = nb.threshold_filter(H, "disparity_pvalue", 0.05)
 
+.. page-figure:: workflow/score-then-filter
+
 Score attributes by method
 --------------------------
 

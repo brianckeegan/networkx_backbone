@@ -33,108 +33,41 @@ built.  For the function-by-function reference, see the short tutorials
 and :doc:`/tutorials/unweighted_sparsification`.
 """
 
-# sphinx_gallery_thumbnail_path = "_static/example_figures/structural_proximity/guarantees-light.png"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/structural_proximity/thumbnail.png"
 
 # %%
 # Setup
 # -----
 #
 # The figures use the documentation's shared style, which draws each figure
-# in a light and a dark version; your theme shows the matching one.  The two
-# small helper classes below only turn a drawing function, or a list of rows,
-# into HTML for this page; ``Figure`` saves the two versions as image files.
+# in a light and a dark version; your theme shows the matching one.
+# ``figures.show`` saves the two versions as image files and shows them on
+# this page; the small ``Table`` class below turns a list of rows into HTML.
 # They are not part of the library.
 
-import base64
 import heapq
 import html
 import math
 import random
-import re
-import shutil
-import struct
-import tempfile
 import warnings
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from _figures import style
+from _figures.tutorial import TutorialFigures
 from matplotlib.lines import Line2D
 
 import nx_backbone as nb
 from nx_backbone.describe import METHODS, REFERENCES
 
-# sphinx_gallery_start_ignore
-# Sphinx-Gallery runs this file from docs/examples/structural_proximity/ when
-# it builds the docs.  The figure files then go to the gitignored
-# docs/_static/example_figures/structural_proximity/, which Sphinx copies with
-# the rest of _static, and the page links to them, so they are not embedded
-# in the HTML.  Run anywhere else (as a script, or as the downloaded
-# notebook), the files go to a temporary folder and are embedded in the output.
-_here = Path.cwd()
-if _here.parent.name == "examples" and (_here.parents[1] / "conf.py").is_file():
-    FIGURES = _here.parents[1] / "_static" / "example_figures" / _here.name
-    shutil.rmtree(FIGURES, ignore_errors=True)  # no stale files from earlier builds
-    _FIGURE_URL = f"../../_static/example_figures/{_here.name}/"
-else:
-    FIGURES = Path(tempfile.mkdtemp())
-    _FIGURE_URL = None
-PNG_DPI = 144  # network drawings are PNG; this keeps them sharp at full width
-
-
-def _img(path, mode, alt):
-    """An <img> for one variant: a link to the file, or the file inlined."""
-    data = path.read_bytes()
-    if path.suffix == ".png":  # the size is in the IHDR chunk
-        width, height = struct.unpack(">II", data[16:24])
-        mime = "image/png"
-    else:  # matplotlib writes the SVG size in points
-        size = re.search(
-            r'width="([\d.]+)pt" height="([\d.]+)pt"', data[:1000].decode()
-        )
-        width, height = (round(float(v) * 4 / 3) for v in size.groups())
-        mime = "image/svg+xml"
-    if _FIGURE_URL is None:
-        src = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
-    else:
-        src = _FIGURE_URL + path.name
-    # Lazy loading: the browser fetches only the variant the theme shows, and
-    # the width and height reserve the space before it arrives.
-    return (
-        f'<img class="only-{mode}" alt="{html.escape(alt)}" src="{src}" '
-        f'width="{width}" height="{height}" loading="lazy" '
-        'style="width: 100%; height: auto;">'
-    )
-
-
-# sphinx_gallery_end_ignore
-
-
-class Figure:
-    """Light and dark renderings of one figure, with alt text and a caption.
-
-    Network drawings with hundreds of edges are saved as PNG (``fmt="png"``),
-    which is much lighter than SVG for them; charts stay SVG.
-    """
-
-    def __init__(self, draw, name, alt, caption, fmt="svg"):
-        dpi = {"dpi": PNG_DPI} if fmt == "png" else {}
-        self.paths = style.save_variants(draw, FIGURES / name, fmt=fmt, **dpi)
-        self.alt, self.caption = alt, caption
-
-    def _repr_html_(self):
-        images = "".join(
-            _img(path, mode, self.alt) for mode, path in self.paths.items()
-        )
-        # The caption follows a wrapper <div>, not the images themselves: the
-        # theme hides a <figcaption> that directly follows an ``only-dark``
-        # image in light mode.
-        return (
-            f"<figure><div>{images}</div>"
-            f"<figcaption>{html.escape(self.caption)}</figcaption></figure>"
-        )
+# The figures go through the docs' tutorial figure helper
+# (docs/_figures/tutorial.py): in the docs build the files are linked from
+# docs/_static/example_figures/structural_proximity/; run anywhere else (as a
+# script, or as the downloaded notebook), they are embedded in the output.
+# Network drawings with hundreds of edges are saved as PNG (``fmt="png"``),
+# which is much lighter than SVG for them; charts stay SVG.
+figures = TutorialFigures("structural_proximity")
 
 
 class Table:
@@ -276,10 +209,11 @@ def draw_guarantees(mode):
 
 
 mst_counts = style.backbone_counts(G, guarantee_backbones["Maximum spanning tree"])
-Figure(
+figures.show(
     draw_guarantees,
     "guarantees",
     fmt="png",
+    thumbnail=True,
     alt=(
         "Nine network drawings of Les Misérables on the same layout: the "
         "original graph and eight backbones. Kept edges are drawn thick and "
@@ -493,7 +427,7 @@ def draw_toy(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_toy,
     "toy",
     alt=(
@@ -584,7 +518,7 @@ def draw_salience(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_salience,
     "salience",
     alt=(
@@ -733,7 +667,7 @@ def draw_order(mode):
 
 
 n_dependent = sum(max(r[2]) > 0 for r in order_rows)
-Figure(
+figures.show(
     draw_order,
     "order",
     alt=(
@@ -904,7 +838,7 @@ def draw_proximity_scatter(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_proximity_scatter,
     "proximity_scatter",
     alt=(
@@ -970,7 +904,7 @@ hub_edges = {
     name: sum(hub in e for e in backbone.edges())
     for name, backbone in proximity_backbones.items()
 }
-Figure(
+figures.show(
     draw_proximity_backbones,
     "proximity_backbones",
     fmt="png",
@@ -1081,7 +1015,7 @@ def draw_sparsifiers(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_sparsifiers,
     "sparsifiers",
     fmt="png",
@@ -1209,7 +1143,7 @@ def draw_convergence(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_convergence,
     "convergence",
     alt=(
