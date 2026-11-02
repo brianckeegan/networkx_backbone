@@ -145,23 +145,19 @@ def test_local_degree_ties_kept_together():
 
 
 class TestSparsifyOptions:
-    def test_unknown_filter_raises(self, karate):
+    def test_unknown_options_raise(self, karate):
         with pytest.raises(ValueError):
             sparsify(karate, filter="invalid")
+        with pytest.raises(ValueError, match="normalize"):
+            sparsify(karate, normalize="zscore")
+        with pytest.raises(ValueError, match="scoring"):
+            sparsify(karate, escore="bogus")
 
     def test_scoring_methods_sparsify(self, karate):
         for method in ["jaccard", "degree", "triangles"]:
             H = sparsify(karate, escore=method, s=0.5)
             backbone = boolean_filter(H, "sparsify_keep")
             assert backbone.number_of_edges() < karate.number_of_edges(), method
-
-    def test_unknown_normalize_raises(self, karate):
-        with pytest.raises(ValueError, match="normalize"):
-            sparsify(karate, normalize="zscore")
-
-    def test_unknown_escore_raises(self, karate):
-        with pytest.raises(ValueError, match="scoring"):
-            sparsify(karate, escore="bogus")
 
     def test_does_not_mutate_input(self, karate):
         before = {e: dict(d) for e, d in karate.edges.items()}
@@ -281,82 +277,85 @@ class TestSparsifyOptions:
         single = nx.maximum_spanning_edges(G, weight="w", data=False)
         assert {frozenset(e) for e in single} == expected
 
-    @pytest.mark.parametrize(
-        "kw",
-        [
+    def test_umst_independent_of_insertion_order(self, karate):
+        for kw in [
             {"escore": "degree", "normalize": None, "filter": "threshold", "s": 99},
             {"escore": "jaccard", "s": 0.0},
             {"escore": "triangles", "s": 0.2},
-        ],
-    )
-    def test_umst_independent_of_insertion_order(self, karate, kw):
-        reference = _kept(sparsify(karate, umst=True, **kw))
-        rng = random.Random(42)
-        for _ in range(5):
-            nodes = list(karate)
-            edges = list(karate.edges())
-            rng.shuffle(nodes)
-            rng.shuffle(edges)
-            edges = [(v, u) if rng.random() < 0.5 else (u, v) for u, v in edges]
-            G = nx.Graph()
-            G.add_nodes_from(nodes)
-            G.add_edges_from(edges)
-            assert _kept(sparsify(G, umst=True, **kw)) == reference
+        ]:
+            reference = _kept(sparsify(karate, umst=True, **kw))
+            rng = random.Random(42)
+            for _ in range(5):
+                nodes = list(karate)
+                edges = list(karate.edges())
+                rng.shuffle(nodes)
+                rng.shuffle(edges)
+                edges = [(v, u) if rng.random() < 0.5 else (u, v) for u, v in edges]
+                G = nx.Graph()
+                G.add_nodes_from(nodes)
+                G.add_edges_from(edges)
+                assert _kept(sparsify(G, umst=True, **kw)) == reference, kw
 
-    @pytest.mark.parametrize("seed", range(12))
-    def test_umst_matches_brute_force(self, seed):
+    @staticmethod
+    def _connected_gnp(n, p, rng):
+        while True:
+            G = nx.gnp_random_graph(n, p, seed=rng.randrange(10**6))
+            if nx.is_connected(G):
+                return G
+
+    def test_umst_matches_brute_force(self):
         # Enumerate every spanning tree of a small connected graph and take
         # the union of those of maximum total triangle score.  The s=inf
         # threshold keeps nothing, so the backbone is exactly the UMST.
-        rng = random.Random(seed)
-        while True:
-            G = nx.gnp_random_graph(7, 0.5, seed=rng.randrange(10**6))
-            if nx.is_connected(G):
-                break
-        H = sparsify(
-            G,
-            escore="triangles",
-            normalize=None,
-            filter="threshold",
-            s=math.inf,
-            umst=True,
-        )
-        score = {frozenset(e): H.edges[e]["sparsify_score"] for e in G.edges()}
-        n = G.number_of_nodes()
-        best, union = -math.inf, set()
-        for tree in itertools.combinations(score, n - 1):
-            T = nx.Graph(tuple(e) for e in tree)
-            if T.number_of_nodes() != n or not nx.is_tree(T):
-                continue
-            total = sum(score[e] for e in tree)
-            if total > best:
-                best, union = total, set(tree)
-            elif total == best:
-                union |= set(tree)
-        assert _kept(H) == union
+        failed = []
+        for seed in range(12):
+            G = self._connected_gnp(7, 0.5, random.Random(seed))
+            H = sparsify(
+                G,
+                escore="triangles",
+                normalize=None,
+                filter="threshold",
+                s=math.inf,
+                umst=True,
+            )
+            score = {frozenset(e): H.edges[e]["sparsify_score"] for e in G.edges()}
+            n = G.number_of_nodes()
+            best, union = -math.inf, set()
+            for tree in itertools.combinations(score, n - 1):
+                T = nx.Graph(tuple(e) for e in tree)
+                if T.number_of_nodes() != n or not nx.is_tree(T):
+                    continue
+                total = sum(score[e] for e in tree)
+                if total > best:
+                    best, union = total, set(tree)
+                elif total == best:
+                    union |= set(tree)
+            if _kept(H) != union:
+                failed.append(seed)
+        assert not failed, f"UMST differs from brute force for seeds {failed}"
 
-    @pytest.mark.parametrize("seed", range(8))
-    def test_umst_helper_matches_spanning_tree_iterator(self, seed):
+    def test_umst_helper_matches_spanning_tree_iterator(self):
         from networkx_backbone.unweighted import _umst_edges
 
-        rng = random.Random(seed)
-        while True:
-            G = nx.gnp_random_graph(6, 0.6, seed=rng.randrange(10**6))
-            if nx.is_connected(G):
-                break
-        for u, v in G.edges():
-            G[u][v]["w"] = rng.randint(0, 2)
-        badness = {frozenset(e): w for *e, w in G.edges(data="w")}
-        # iter() is required on networkx < 3.5, where __iter__ sets up state.
-        trees = iter(nx.SpanningTreeIterator(G, weight="w", minimum=True))
-        first = next(trees)
-        best = first.size(weight="w")
-        union = {frozenset(e) for e in first.edges()}
-        for T in trees:
-            if T.size(weight="w") != best:
-                break
-            union |= {frozenset(e) for e in T.edges()}
-        assert _umst_edges(G, badness) == union
+        failed = []
+        for seed in range(8):
+            rng = random.Random(seed)
+            G = self._connected_gnp(6, 0.6, rng)
+            for u, v in G.edges():
+                G[u][v]["w"] = rng.randint(0, 2)
+            badness = {frozenset(e): w for *e, w in G.edges(data="w")}
+            # iter() is required on networkx < 3.5, where __iter__ sets up state.
+            trees = iter(nx.SpanningTreeIterator(G, weight="w", minimum=True))
+            first = next(trees)
+            best = first.size(weight="w")
+            union = {frozenset(e) for e in first.edges()}
+            for T in trees:
+                if T.size(weight="w") != best:
+                    break
+                union |= {frozenset(e) for e in T.edges()}
+            if _umst_edges(G, badness) != union:
+                failed.append(seed)
+        assert not failed, f"_umst_edges differs for seeds {failed}"
 
     def test_umst_noop_when_connected(self, karate):
         H1 = sparsify(karate, s=1.0)
@@ -397,13 +396,11 @@ class TestSparsifyOptions:
 # ---------------------------------------------------------------------
 
 
-def test_lspar_invalid_convention():
-    with pytest.raises(ValueError, match="convention"):
-        lspar(nx.karate_club_graph(), convention="netbone")
-
-
-def test_lspar_default_convention_unchanged():
+def test_lspar_convention_argument():
     G = nx.karate_club_graph()
+    with pytest.raises(ValueError, match="convention"):
+        lspar(G, convention="netbone")
+    # "satuluri" is the default.
     for s in EXPONENTS:
         assert _kept(lspar(G, s=s, convention="satuluri")) == _kept(lspar(G, s=s))
 

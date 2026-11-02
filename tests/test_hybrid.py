@@ -113,23 +113,19 @@ class TestGLABDirected:
         got = {(u, v): p for u, v, p in H.edges(data="glab_pvalue")}
         assert got == pytest.approx(expected)
 
-    @pytest.mark.parametrize("c", [0.0, 0.5, 1.0])
-    def test_out_star_uses_out_involvement(self, c):
-        # The hub has out-degree 3 and I_out = 1/3 for each spoke; leaves
-        # have in-degree 1, so only SI^(out) = (2/3) ** (2 ** c) applies.
-        H = glab_filter(_out_star(3), weight=None, c=c)
-        assert H.number_of_edges() == 3
-        for *_, p in H.edges(data="glab_pvalue"):
-            assert p == pytest.approx((2 / 3) ** (2**c))
-
-    @pytest.mark.parametrize("c", [0.0, 0.5, 1.0])
-    def test_in_star_uses_in_involvement(self, c):
-        # Leaves -> hub: the hub has in-degree 3 and I_in = 1/3 per spoke.
-        G = _out_star(3).reverse()
-        H = glab_filter(G, weight=None, c=c)
-        assert all(v == 0 for _, v in H.edges())
-        for *_, p in H.edges(data="glab_pvalue"):
-            assert p == pytest.approx((2 / 3) ** (2**c))
+    def test_stars_use_out_and_in_involvement(self):
+        for c in (0.0, 0.5, 1.0):
+            # The hub has out-degree 3 and I_out = 1/3 for each spoke; leaves
+            # have in-degree 1, so only SI^(out) = (2/3) ** (2 ** c) applies.
+            H = glab_filter(_out_star(3), weight=None, c=c)
+            assert H.number_of_edges() == 3
+            for *_, p in H.edges(data="glab_pvalue"):
+                assert p == pytest.approx((2 / 3) ** (2**c)), c
+            # Leaves -> hub: the hub has in-degree 3 and I_in = 1/3 per spoke.
+            H = glab_filter(_out_star(3).reverse(), weight=None, c=c)
+            assert all(v == 0 for _, v in H.edges())
+            for *_, p in H.edges(data="glab_pvalue"):
+                assert p == pytest.approx((2 / 3) ** (2**c)), c
 
     def test_in_involvement_follows_reverse_paths(self):
         # In-star into 0 plus 1 -> 2.  Node 1 reaches 0 more cheaply via 2
@@ -147,25 +143,24 @@ class TestGLABDirected:
         # Out of 1 (k_out = 2): both 0 and 2 are reached via (1, 2).
         assert H[1][2]["glab_pvalue"] == pytest.approx(0.0)
 
-    @pytest.mark.parametrize("graph", ["les_miserables_weighted", "karate", "split"])
-    def test_symmetric_digraph_matches_undirected(self, graph, request):
+    def test_symmetric_digraph_matches_undirected(
+        self, les_miserables_weighted, karate
+    ):
         # On a symmetric DiGraph, I_out(i,j) = I_ij, I_in(i,j) = I_ji and the
         # out-/in-degrees equal the undirected degree, so Eq. 6 reduces to Eq. 4.
-        if graph == "split":
-            G = nx.disjoint_union(nx.star_graph(3), nx.path_graph(4))
-            G.add_edge(7, 8)
-            weight = None
-        else:
-            G = request.getfixturevalue(graph)
-            weight = "weight" if graph == "les_miserables_weighted" else None
-        undirected = glab_filter(G, weight=weight)
-        directed = glab_filter(nx.DiGraph(G), weight=weight)
-        assert directed.number_of_edges() == 2 * undirected.number_of_edges()
-        for u, v, p in directed.edges(data="glab_pvalue"):
-            assert p == pytest.approx(undirected[u][v]["glab_pvalue"], abs=1e-12)
+        split = nx.disjoint_union(nx.star_graph(3), nx.path_graph(4))
+        split.add_edge(7, 8)
+        for name, G, weight in [
+            ("les_miserables", les_miserables_weighted, "weight"),
+            ("karate", karate, None),
+            ("split", split, None),
+        ]:
+            undirected = glab_filter(G, weight=weight)
+            directed = glab_filter(nx.DiGraph(G), weight=weight)
+            assert directed.number_of_edges() == 2 * undirected.number_of_edges()
+            for u, v, p in directed.edges(data="glab_pvalue"):
+                expected = undirected[u][v]["glab_pvalue"]
+                assert p == pytest.approx(expected, abs=1e-12), (name, u, v)
 
-    def test_directed_result_is_directed_copy(self):
-        G = nx.DiGraph([(0, 1), (1, 2), (0, 2)])
-        H = glab_filter(G, weight=None)
-        assert H.is_directed()
-        assert all("glab_pvalue" not in d for *_, d in G.edges(data=True))
+    # A directed input gives a directed copy (input untouched): see
+    # test_api_contract.py.

@@ -623,10 +623,17 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   doctests on Python 3.12-3.14, a job pinned to the oldest supported
   versions, and a NetworkX-only job that checks the optional dependencies
   stay optional. Test coverage is 97%.
-- A CI job (and a step in the oldest-versions job) runs the tests and
-  doctests under NetworkX's dispatch test harness,
+- A CI job (and a step in the oldest-versions job) runs the dispatch tests
+  (``tests/test_dispatch.py`` and ``tests/test_api_contract.py``, which call
+  every dispatchable function) under NetworkX's dispatch test harness,
   ``NETWORKX_TEST_BACKEND=nx_loopback``, which checks that every dispatchable
-  call gives the same result through a backend as without one (#19).
+  call gives the same result through a backend as without one (#19). The
+  whole suite also passes under the harness.
+- The test suite was condensed from 1,732 to 804 collected tests (with
+  doctests) at unchanged line and branch coverage: sweeps over a registry
+  (every method, style, scorer or dispatchable function) are one test per
+  axis whose failure message names every failing case, and duplicated tests
+  were merged. Doctests and coverage run on one Python version in CI.
 - An "Interop" workflow (pull requests, weekly, and on demand) installs
   ``.[interop,test]`` and runs ``pytest -m interop``: round trips of
   hyperedges, weights, and node labels through the real xgi, HyperNetX,
