@@ -463,27 +463,33 @@ def test_edge_persistence_hmm_unobserved_active_diagnostic():
     )
 
 
-def test_edge_persistence_hmm_pooled_miss_rate_tradeoff():
-    # #112: on a mixture of persistent and randomly flickering edges, the
-    # pooled fit trades switching for a large miss rate, so the flicker gets
-    # more decoded active steps than the block.  The record exposes this.
+@pytest.mark.parametrize(
+    ("params", "flicker_wins", "share_range"),
+    [
+        # Fitted: a large miss rate with slow switching (#112), so the
+        # flicker gets more decoded active steps than the block, and the
+        # record's share of unobserved active steps is large.
+        (None, True, (0.25, 1.0)),
+        # A fixed small miss rate reads the gaps as inactivity instead.
+        ({"beta": 0.05}, False, (0.0, 0.1)),
+    ],
+)
+def test_edge_persistence_hmm_pooled_miss_rate_tradeoff(
+    params, flicker_wins, share_range
+):
     S, block, flicker = _block_and_flicker(seed=0)
+    H = nb.edge_persistence_hmm(S, params=params)
+    meta = H.graph["temporal"]["hmm"]
+    assert share_range[0] < meta["unobserved_active_share"] < share_range[1]
+    assert bool(meta["beta"] > 0.25) is flicker_wins
+    assert meta["n_active_steps"] == sum(
+        d["hmm_n_active"] for _, _, d in H.edges(data=True)
+    )
 
-    def n_active(H, edges):
+    def n_active(edges):
         return np.mean([H.edges[e]["hmm_n_active"] for e in edges])
 
-    fitted = nb.edge_persistence_hmm(S)
-    meta = fitted.graph["temporal"]["hmm"]
-    assert meta["beta"] > 0.25
-    assert meta["unobserved_active_share"] > 0.25
-    assert meta["n_active_steps"] == sum(
-        d["hmm_n_active"] for _, _, d in fitted.edges(data=True)
-    )
-    assert n_active(fitted, flicker) > n_active(fitted, block)
-    # Fixing the miss rate reads the gaps as inactivity instead.
-    fixed = nb.edge_persistence_hmm(S, params={"beta": 0.05})
-    assert fixed.graph["temporal"]["hmm"]["unobserved_active_share"] < 0.1
-    assert n_active(fixed, flicker) < n_active(fixed, block)
+    assert bool(n_active(flicker) > n_active(block)) is flicker_wins
 
 
 def test_edge_persistence_hmm_errors():
