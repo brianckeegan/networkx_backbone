@@ -126,9 +126,12 @@ Fixes and release hygiene
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - **next** (`#16 <https://github.com/brianckeegan/nx-backbone/issues/16>`_): Publish the 0.3.0 conda package. The release's
-  conda build failed (``conda-verify`` has no Python 3.12 build); drop it and
-  let a manual run of ``publish-to-conda.yml`` build and upload an existing
-  tag, since a re-run uses the workflow file as it was at the tag.
+  conda build failed (``conda-verify`` has no Python 3.12 build). The
+  workflow now drops it, and a manual run of ``publish-to-conda.yml`` with
+  ``tag`` set builds and uploads an existing tag, since a re-run uses the
+  workflow file as it was at the tag; the recipe builds and passes its tests
+  locally for ``v0.3.0``. Still to do: the maintainer's manual run for
+  ``v0.3.0``.
 - **next** (`#135 <https://github.com/brianckeegan/nx-backbone/issues/135>`_): ``ecm_filter`` does not converge on a small
   directed graph with a near-saturated hub: decide whether the solver or the
   constraints are at fault, fix or raise a specific error, and decide whether

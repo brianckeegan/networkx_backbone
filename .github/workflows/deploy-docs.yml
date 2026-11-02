@@ -1,5 +1,11 @@
 # Build and deploy Sphinx documentation to GitHub Pages.
-# Triggered when a GitHub Release is published.
+# Triggered when a GitHub Release is published (it builds the release tag) and
+# manually (it builds and deploys the selected branch, normally main).
+#
+# "Re-run jobs" on a release run uses this workflow file as it was at the tag.
+# That helps when the cause lies outside the file (for example the
+# github-pages environment's tag rules); after a fix to this file, run the
+# workflow by hand on main instead, while main is still at the release commit.
 
 name: Deploy Documentation
 
