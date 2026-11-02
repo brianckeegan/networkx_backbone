@@ -58,6 +58,8 @@ whether the shares of the weights are.  That can be a deliberate modeling
 choice, for example log-flows in gravity-type data, but it is a different
 test, and it should be reported as such.
 
+.. page-figure:: weight_transforms/shares
+
 Which methods a transform changes
 ---------------------------------
 
@@ -210,6 +212,8 @@ and 215 instead of 126 for the noise-corrected filter.
 The three scorers warn when ``weight / unit`` is not an integer count.  MLF
 rounds a count below 0.5 to 0 (the edge then gets p-value 1), and the ECM
 raises a count below 1.5 to 1.
+
+.. page-figure:: weight_transforms/edge-counts
 
 .. code-block:: python
 

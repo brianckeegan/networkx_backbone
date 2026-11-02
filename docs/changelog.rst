@@ -17,6 +17,19 @@ Unreleased
   the first one is on :doc:`user_guide/workflow`. A new test requires a
   figure on every how-to and user-guide page, with the pages still to do
   listed explicitly. :doc:`contributing` explains how to write figures.
+- Every user guide page now has a figure, drawn at build time in light and
+  dark (#122): the method decision diagram on :doc:`user_guide/choosing_method`,
+  out- and in-tests on :doc:`user_guide/directed_graphs`, weight shares and
+  backbone sizes under transforms and ``unit=`` on
+  :doc:`user_guide/weight_transforms`, the three temporal forms and binning on
+  :doc:`user_guide/temporal`, every evaluation measure on one backbone on
+  :doc:`user_guide/evaluation`, what the cost classes predict on
+  :doc:`user_guide/complexity`, and the measured nx-parallel speed-ups (read
+  from the page's table) on :doc:`user_guide/backends`. The figures check the
+  pages' numbers and claims as they are drawn. :doc:`user_guide/directed_graphs`
+  now lists all eight statistical and six structural methods that accept
+  directed graphs, and says which test both endpoints;
+  :doc:`user_guide/backends` gives the date of its timings.
 
 Version 0.3.0 (2026-11-02)
 --------------------------

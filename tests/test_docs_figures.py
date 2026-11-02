@@ -34,14 +34,6 @@ PENDING = {
     "tutorials/temporal_backbones",
     "tutorials/unweighted_sparsification",
     "tutorials/validating_backbones",
-    # User guide (#122).
-    "user_guide/backends",
-    "user_guide/choosing_method",
-    "user_guide/complexity",
-    "user_guide/directed_graphs",
-    "user_guide/evaluation",
-    "user_guide/temporal",
-    "user_guide/weight_transforms",
 }
 
 _FIGURE = re.compile(

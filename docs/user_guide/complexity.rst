@@ -7,6 +7,8 @@ For what they mean in practice, with measured run times, see the guide
 
 Notation: n = number of nodes, m = number of edges, n_a = agents, n_f = artifacts, e_b = bipartite edges, I = iterations, T = trials; for temporal networks, S = snapshots, B = bins.
 
+.. page-figure:: complexity/growth
+
 Statistical
 -----------
 
