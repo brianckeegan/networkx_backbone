@@ -361,3 +361,23 @@ Documentation
   Sphinx-Gallery example, so its edge counts cannot go stale.
 - **done** (`#56 <https://github.com/brianckeegan/nx-backbone/pull/56>`_): Generate the "Roadmap at a glance" figures and
   table on this page from the roadmap itself on every docs build.
+- **planned** (`#126 <https://github.com/brianckeegan/nx-backbone/issues/126>`_): Documentation revision, round 2
+  (tracking): figures for the pages that still have none and narrative
+  tutorials for the topics 0.3.0 did not cover, built the same way as the
+  0.3.0 tutorials (executed at build time, shared figure style, light and
+  dark variants).
+- **planned** (`#121 <https://github.com/brianckeegan/nx-backbone/issues/121>`_): Figures for every how-to tutorial. None of
+  the eleven pages under "Tutorials" has a figure yet; each gets one or two
+  executed figures and a link to its narrative tutorial.
+- **planned** (`#122 <https://github.com/brianckeegan/nx-backbone/issues/122>`_): Figures for the user guide: the
+  score-then-filter workflow, a method decision diagram, weight transforms,
+  the three temporal input forms, evaluation measures, and directed tests.
+- **planned** (`#123 <https://github.com/brianckeegan/nx-backbone/issues/123>`_): Narrative tutorial: comparing, validating,
+  and reporting backbones (robustness to alpha, correction and input order;
+  consensus; the Les Misérables benchmark explained; methods-section text).
+- **planned** (`#124 <https://github.com/brianckeegan/nx-backbone/issues/124>`_): Narrative tutorial: directed and signed
+  networks (out- and in-tests, signed tails and ties, signed projections, R
+  conventions).
+- **planned** (`#125 <https://github.com/brianckeegan/nx-backbone/issues/125>`_): Narrative tutorial: what your weights mean
+  (counts, strengths or distances; transforms; ``unit=``; generalized nulls;
+  checking calibration on structureless data).
