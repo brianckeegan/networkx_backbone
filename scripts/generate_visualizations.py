@@ -388,6 +388,18 @@ def method_specs():
                 nb.edge_persistence_hmm(c["snapshots"], min_steps=8), "hmm_keep"
             ),
         ),
+        MethodSpec(
+            "kalman_backbone",
+            "temporal",
+            "temporal",
+            "kalman_pvalue < 0.05 (disparity_filter per step)",
+            lambda c: nb.threshold_filter(
+                nb.kalman_backbone(c["snapshots"], nb.disparity_filter, seed=0),
+                "kalman_pvalue",
+                0.05,
+                mode="below",
+            ),
+        ),
     ]
 
 
@@ -399,6 +411,8 @@ HYPERGRAPH_METHODS = {
 
 # Public names that are not scorers, or are drawn under another name.
 NOT_DRAWN = {
+    # expands kalman_backbone's per-step series; drawn as kalman_backbone
+    "kalman_snapshots",
     # short aliases of drawn methods
     "disparity",
     "mlf",
