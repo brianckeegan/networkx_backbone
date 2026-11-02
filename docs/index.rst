@@ -11,6 +11,14 @@ backends (see :doc:`user_guide/backends`).
 Core usage follows a score-then-filter pattern: methods score edges on a full
 graph first, then filtering utilities extract the final sparse backbone.
 
+.. tip::
+
+   **New here?** After the :doc:`quickstart`, start with
+   :doc:`auto_examples/start_here/plot_hairball_to_backbone`, a worked case
+   study of the whole workflow: why a backbone, scoring versus filtering,
+   choosing alpha and corrections, comparing and validating backbones, and
+   reporting them.
+
 .. list-table::
    :header-rows: 1
    :widths: 20 50 30

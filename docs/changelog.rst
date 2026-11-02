@@ -284,6 +284,21 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   registry that covers every public scorer, and a test enforces that coverage.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
+- New narrative tutorial, "From a hairball to a backbone, end to end", the
+  "Start here" entry point linked from the home page, the quick start, the
+  tutorials index, and the statistical, filters, measures and describe API
+  pages. A worked case study on Les Misérables and a seeded, simulated
+  collaboration network with planted departments: why a global weight cut
+  fails, scoring versus filtering and the disparity filter's null model for
+  one node, choosing alpha with Bonferroni and Benjamini-Hochberg
+  corrections, four backbones compared in small multiples with
+  ``compare_backbones``, robustness to alpha and to the method
+  (``consensus_backbone``), a signed backbone, and ``describe_backbone``
+  output. It is a Sphinx-Gallery example, so its nine figures (light and dark
+  variants, in the shared figure style) and every number are computed when
+  the docs are built, and hidden checks fail the build if a claim in the
+  text stops holding. The tutorials index is reorganized into "Start here",
+  "By network type", and "Going further" (#89, #96).
 - Added ``CITATION.cff``.
 
 **Changes in results (bug fixes)**
@@ -468,6 +483,15 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
 
 **Infrastructure and documentation**
 
+- New narrative tutorial, "Hypergraph backbones: keeping the groups that
+  matter", a Sphinx-Gallery example executed at build time on the Davis
+  Southern Women events and a synthetic meeting log. It covers what the
+  pairwise projection loses, the MDL backbone's description-length
+  trade-off and its optimizers, the local MDL aggregation rules, the
+  statistically validated hypergraphs and cores, the structural helpers, and
+  a HIF round trip, with six figures in light and dark variants. It is
+  listed under "By network type" in the tutorials index and linked from the
+  hypergraph API page and the how-to tutorial (#93, #96).
 - A shared figure style for the docs, ``docs/_figures/style.py`` (docs only,
   not library API): color tokens checked with a palette validator against the
   docs theme's light and dark backgrounds (kept and removed edges, positive
@@ -510,6 +534,14 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   ``a=``, the count models' ``unit=``, ``transform_weights``, and signed
   backbones with the R tie convention. It is executed at build time (#90,
   #96).
+- A narrative tutorial, *Bipartite projections and their backbones*, executed
+  when the docs are built: two-mode data and why the raw projection
+  overstates ties, the five projection weights, the five null models compared
+  against the FDSM, the FDSM p-value floor and multiple testing, signed
+  backbones, SDSM-EC constraints (including contradictory ones), a check
+  against R ``backbone`` with ``missing_as_zero``, and sparse incidence
+  input, with seven figures in light and dark variants. It is listed under
+  "By network type" in the tutorials index (#92, #96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose

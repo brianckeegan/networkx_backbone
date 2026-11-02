@@ -4,6 +4,13 @@ Quick Start
 This guide walks through the basic workflow of extracting a backbone from
 a network using ``networkx-backbone``.
 
+.. tip::
+
+   **Next, read** :doc:`auto_examples/start_here/plot_hairball_to_backbone`.
+   This page shows the calls; that worked case study, with figures, explains
+   why each step is needed and how to choose alpha and a multiple-testing
+   correction, compare methods, validate the result, and report it.
+
 Import
 ------
 
@@ -81,6 +88,10 @@ filter using the boolean keep attribute::
     scored = nb.sdsm(B, agent_nodes=women_nodes, projection="hyper")
     backbone = nb.threshold_filter(scored, "sdsm_pvalue", 0.05, mode="below")
 
+The narrative tutorial
+:doc:`/auto_examples/bipartite/plot_bipartite_projections` explains these
+choices with figures.
+
 **Hypergraph backbone**: Prune nested and redundant hyperedges with the
 parameter-free minimum-description-length backbone::
 
@@ -99,6 +110,8 @@ parameter-free minimum-description-length backbone::
 Next steps
 ----------
 
+- :doc:`auto_examples/start_here/plot_hairball_to_backbone` -- **Start
+  here**: the whole workflow as a worked case study, with figures
 - :doc:`concepts` -- Learn about the different categories of backbone methods
 - :doc:`user_guide/index` -- Detailed guides on workflows, method selection, and evaluation
 - :doc:`tutorials/index` -- Step-by-step tutorials for each method category
