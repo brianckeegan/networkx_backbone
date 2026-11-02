@@ -132,9 +132,9 @@ def _caption() -> str:
 @figure("overview", alt=_alt, caption=_caption, fmt="png")
 def draw_overview(mode):
     p = style.palette(mode)
-    fig, axes = plt.subplots(2, 4, figsize=(7.2, 5.0))
+    fig, axes = plt.subplots(2, 4, figsize=(7.2, 5.4))
     fig.subplots_adjust(
-        left=0.01, right=0.99, top=0.87, bottom=0.13, wspace=0.06, hspace=0.42
+        left=0.01, right=0.99, top=0.85, bottom=0.12, wspace=0.06, hspace=0.5
     )
     for ax, panel in zip(axes.flat, _panels(), strict=True):
         style.draw_backbone(
@@ -165,11 +165,11 @@ def draw_overview(mode):
                     linewidths=1.0,
                     zorder=5,
                 )
-        ax.set_title(panel["module"], pad=25)
+        ax.set_title(panel["module"], pad=34)
         ax.text(
             0.0,
             1.0,
-            f"{panel['name']}\n{panel['short']}",
+            "\n".join([panel["name"], *panel["short"].split(", ")]),
             transform=ax.transAxes,
             ha="left",
             va="bottom",
