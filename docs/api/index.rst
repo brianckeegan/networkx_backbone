@@ -56,7 +56,7 @@ an aggregate summary in :doc:`../user_guide/complexity`.
      - NumPy/SciPy adjacency matrices and pandas edge lists to NetworkX graphs (``to_graph``)
    * - :doc:`temporal`
      - 15
-     - Temporal networks as snapshots, events, or spans: form detection, conversions, binning, pandas event tables, and temporal backbone scores (observation fraction, persistence, backbone stability, weight trend)
+     - Temporal networks as snapshots, events, or spans: form detection, conversions, binning, pandas event tables, and temporal backbone scores (observation fraction, persistence, backbone stability, weight trend, hidden Markov model of edge activity)
 
 .. toctree::
    :maxdepth: 1
