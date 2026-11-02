@@ -47,6 +47,10 @@ every edge in every step and returns p-values.
 
 .. autofunction:: kalman_snapshots
 
+.. rubric:: Method gallery
+
+.. include:: ../_gallery/temporal.inc
+
 .. rubric:: Forms
 
 .. autofunction:: temporal_form

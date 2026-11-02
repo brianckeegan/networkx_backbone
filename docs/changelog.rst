@@ -284,6 +284,21 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   registry that covers every public scorer, and a test enforces that coverage.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
+- New narrative tutorial, "From a hairball to a backbone, end to end", the
+  "Start here" entry point linked from the home page, the quick start, the
+  tutorials index, and the statistical, filters, measures and describe API
+  pages. A worked case study on Les Misérables and a seeded, simulated
+  collaboration network with planted departments: why a global weight cut
+  fails, scoring versus filtering and the disparity filter's null model for
+  one node, choosing alpha with Bonferroni and Benjamini-Hochberg
+  corrections, four backbones compared in small multiples with
+  ``compare_backbones``, robustness to alpha and to the method
+  (``consensus_backbone``), a signed backbone, and ``describe_backbone``
+  output. It is a Sphinx-Gallery example, so its nine figures (light and dark
+  variants, in the shared figure style) and every number are computed when
+  the docs are built, and hidden checks fail the build if a claim in the
+  text stops holding. The tutorials index is reorganized into "Start here",
+  "By network type", and "Going further" (#89, #96).
 - Added ``CITATION.cff``.
 
 **Changes in results (bug fixes)**
@@ -477,6 +492,25 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   and helpers that save light and dark variants and write the reST that shows
   the one matching the reader's theme. Sphinx-Gallery examples start from
   this style (#88, #96).
+- The method gallery on the API pages is regenerated and redesigned. The
+  images committed for 0.2.0 showed pre-fix results (the ECM image kept
+  nearly every edge, where the fixed ECM keeps 72 of 254). The gallery is now
+  generated on every docs build by ``scripts/generate_visualizations.py`` into
+  the gitignored ``docs/_gallery/``; no gallery image is committed any more,
+  and the build fails when a public method has no figure. Each figure draws the
+  backbone over its original graph (kept edges in blue, removed edges faint),
+  in one layout per dataset, under the method's own name, with a legend, light
+  and dark variants, and the edges and nodes kept in the caption and alt text.
+  New figures cover ``polya_filter``, ``gloss_filter``, a signed backbone
+  (``fixedrow(signed=True)``, negative edges dashed), the MDL hypergraph
+  backbones on Davis Southern Women as a hypergraph, and the temporal scores
+  (including ``edge_persistence_hmm``) on the temporal tutorial's snapshots. The graph comparison example
+  now draws the statistical and structural methods as small multiples, with a
+  bar chart of the edges each keeps. The "Generate Visualization Gallery"
+  workflow became a strict docs build on pull requests, and the deploy
+  workflow no longer runs a separate gallery step. Generating the gallery
+  takes about 15 s; with the lighter comparison example, a full docs build
+  takes about 35 s instead of about 27 s (#88).
 - New narrative tutorial, *Statistical null models side by side*: the seven
   statistical scorers on Les Misérables, with figures of p-value against
   weight, backbone overlap (checked against the hierarchy reported by Yassin
