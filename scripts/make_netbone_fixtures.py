@@ -11,8 +11,9 @@ one-directional pivot of the edge list with 1e-4 added to every cell, which
 is a different matrix from the symmetric adjacency matrix that
 :func:`networkx_backbone.doubly_stochastic_filter` scales, so the scores are
 not comparable.  netbone's ``noise_corrected(approximation=True)`` binomial
-p-value has no counterpart in networkx-backbone either; its
-``approximation=False`` score and standard deviation are compared.
+p-value is not compared either: it uses W trials and the strict tail
+P(X > w), unlike ``noise_corrected_filter``'s default ``nc_pvalue`` (see its
+Notes); its ``approximation=False`` score and standard deviation are compared.
 ``tests/test_reference_implementations.py`` compares against the fixture, so
 the test suite does not need netbone installed.
 

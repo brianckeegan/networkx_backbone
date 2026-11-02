@@ -205,7 +205,7 @@ models use the counts ``weight / unit`` (rounded to integers by MLF and ECM).
 The default, ``unit=1``, uses the weights themselves, as before.  On Les
 Misérables, ``unit=0.1`` (each co-appearance counted as ten events) keeps 215
 instead of 126 edges for MLF at ``alpha = 0.05``, 89 instead of 72 for the ECM,
-and 222 instead of 195 for the noise-corrected filter.
+and 215 instead of 126 for the noise-corrected filter.
 
 The three scorers warn when ``weight / unit`` is not an integer count.  MLF
 rounds a count below 0.5 to 0 (the edge then gets p-value 1), and the ECM

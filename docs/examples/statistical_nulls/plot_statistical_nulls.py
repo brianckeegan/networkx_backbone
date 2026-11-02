@@ -193,14 +193,24 @@ table(
 # sphinx_gallery_start_ignore
 _size = {name: bb.number_of_edges() for name, bb in backbones.items()}
 assert min(_size, key=_size.get) == "GloSS"
-assert max(_size, key=_size.get) == "Noise-corrected"
+assert _size["Noise-corrected"] == _size["MLF"] == max(_size.values())
+assert 0.4 < _size["MLF"] / G.number_of_edges() < 0.6
+assert set(backbones["Noise-corrected"].edges()) == set(backbones["MLF"].edges())
 # sphinx_gallery_end_ignore
 
 # %%
 # Same question, very different answers: the strictest backbone keeps a
-# handful of edges and the most permissive keeps most of the network.  The
-# figure puts every backbone on the same layout, so the eye can compare
-# them.
+# handful of edges and the most permissive keeps about half of the network.
+# Two of them coincide.  The noise-corrected and marginal likelihood filters
+# test a weight against the same binomial null model, in which every unit
+# of weight picks a pair in proportion to both endpoints' strengths; they
+# count an undirected pair slightly differently, and on this network they
+# keep the same edges.  (The noise-corrected filter adds a score and its
+# standard deviation, which the paper thresholds with a rule that keeps far
+# more edges; see the Notes of
+# :func:`~networkx_backbone.noise_corrected_filter` for why its default
+# p-value is the binomial one.)  The figure puts every backbone on the same
+# layout, so the eye can compare them.
 
 
 def draw_overview(mode):
@@ -285,7 +295,8 @@ table(
 
 # sphinx_gallery_start_ignore
 assert all(rho[n] < -0.75 for n in ("Disparity", "Pólya", "GloSS"))
-assert all(rho[n] > -0.5 for n in ("Noise-corrected", "ECM", "LANS"))
+assert all(-0.75 < rho[n] < -0.5 for n in ("Noise-corrected", "MLF"))
+assert all(rho[n] > -0.5 for n in ("ECM", "LANS"))
 # sphinx_gallery_end_ignore
 
 # %%
@@ -397,13 +408,16 @@ save("nulls_pvalue_weight", draw_scatter)
 #    Each edge's p-value against its weight.  Filled dots are kept, hollow
 #    circles removed; rho is the Spearman rank correlation printed above.
 #
-# Two families appear.  The disparity, Pólya and GloSS p-values fall almost
+# Three groups appear.  The disparity, Pólya and GloSS p-values fall almost
 # in lockstep with the weight: on this network they behave much like a
 # weight threshold, with the cut-off set by each node's share or by the
-# global weight distribution.  The noise-corrected, ECM and LANS p-values
-# are only loosely tied to the weight: those methods keep many light edges
-# and drop some heavy ones, because they judge a weight against what the
-# endpoints' strengths (or the node's other weights) lead one to expect.
+# global weight distribution.  The ECM and LANS p-values are only loosely
+# tied to the weight: those methods keep many light edges and drop some
+# heavy ones, because they judge a weight against what the endpoints'
+# degrees and strengths (or the node's other weights) lead one to expect.
+# The noise-corrected and marginal likelihood p-values sit in between:
+# they also judge a weight against its endpoints' strengths, yet the
+# heaviest edges still tend to be the most significant.
 #
 # This is one network.  Yassin et al. (2025) report that, across their 27
 # networks, the Pólya filter's p-values are nearly uncorrelated with weight;
@@ -515,37 +529,24 @@ table(
     ],
 )
 
-nc_binomial = nb.threshold_filter(
-    nb.noise_corrected_filter(G, method="zscore"),
-    "nc_pvalue",
-    ALPHA,
-    include_all_nodes=False,
-)
-nc_binomial_edges = {frozenset(e) for e in nc_binomial.edges()}
-print(
-    f"\nNoise-corrected with method='zscore': {len(nc_binomial_edges)} edges, "
-    f"overlap in Pólya {len(nc_binomial_edges & edge_sets['Pólya']) / len(nc_binomial_edges):.2f}"
-)
-
 # sphinx_gallery_start_ignore
 for _small in ("GloSS", "Disparity", "Pólya"):
     for _big in ("Noise-corrected", "MLF"):
         assert edge_sets[_small] <= edge_sets[_big], (_small, _big)
 assert overlap[order.index("Noise-corrected"), order.index("Pólya")] < 0.5
-assert len(nc_binomial_edges) < len(edge_sets["Noise-corrected"])
+assert len(edge_sets["Noise-corrected"]) > 5 * len(edge_sets["Pólya"])
 # sphinx_gallery_end_ignore
 
 # %%
 # The chain breaks at its second link: the noise-corrected backbone is far
 # larger than the Pólya backbone here, so most of its edges cannot be in it.
-# Two reasons, both worth knowing.  First, the paper's noise-corrected
-# p-value is the binomial approximation of Coscia and Neffke (2017), while
-# :func:`~networkx_backbone.noise_corrected_filter` defaults to their
-# Bayesian score, which is permissive on small, dense graphs; the
-# ``method="zscore"`` variant above, a normal approximation to that binomial,
-# is stricter but still not nested in the Pólya backbone.  Second, a mean
-# over 27 networks says little about any one of them.  Treat published
-# hierarchies as hypotheses to check, which takes one line with Python sets.
+# The p-value is not the reason: like Yassin et al., who used the binomial
+# p-value of Coscia and Neffke (2017),
+# :func:`~networkx_backbone.noise_corrected_filter` uses a binomial
+# p-value by default (the implementation they used counts the trials and
+# the tail slightly differently; see its Notes).  A mean over 27 networks
+# says little about any one of them.  Treat published hierarchies as
+# hypotheses to check, which takes one line with Python sets.
 
 # %%
 # What each backbone preserves
@@ -588,9 +589,12 @@ table(
 # sphinx_gallery_start_ignore
 _ksw = {n: m["ks_weight"] for n, m in preserved.items()}
 _ksd = {n: m["ks_degree"] for n, m in preserved.items()}
-assert min(_ksw, key=_ksw.get) == "Noise-corrected"
-assert min(_ksd, key=_ksd.get) == "Noise-corrected"
-assert _ksw["ECM"] < _ksw["MLF"] and _ksd["ECM"] > _ksd["MLF"]
+assert _ksd["Noise-corrected"] == _ksd["MLF"] == min(_ksd.values())
+assert max(_ksw["LANS"], _ksw["ECM"]) < _ksw["MLF"] == _ksw["Noise-corrected"]
+assert _ksd["ECM"] > _ksd["MLF"]
+_ratio = {n: m["weight"] / m["edges"] for n, m in preserved.items()}
+assert max(_ratio["LANS"], _ratio["ECM"]) < _ratio["MLF"]
+assert all(_ksw[n] > 0.5 and _ksd[n] > 0.5 for n in ("GloSS", "Disparity", "Pólya"))
 assert backbones["ECM"].number_of_nodes() < backbones["MLF"].number_of_nodes()
 # sphinx_gallery_end_ignore
 
@@ -649,15 +653,17 @@ save("nulls_preserved", draw_preserved)
 #    distributions move from the original's (middle, right; lower is
 #    closer).  The values are in the table above.
 #
-# Size explains much of this: a backbone that keeps most edges cannot stray
-# far from the original, and the noise-corrected backbone, the largest, is
-# closest on both counts.  The small backbones keep only heavy edges between
-# a few characters, so both of their distributions move a long way.  The
-# interesting cases are the middle-sized ones.  The ECM keeps the weight
-# distribution better than the marginal likelihood filter but the degree
-# distribution worse.  Its null model already accounts for each node's
-# number of links, so the edges it keeps are the ones that degrees and
-# strengths do not explain, and on this network they touch fewer nodes.
+# Size explains part of this.  The small backbones keep only heavy edges
+# between a few characters, so both of their distributions move a long
+# way, and the largest backbones (noise-corrected and marginal likelihood,
+# which coincide here) keep the degree distribution best.  But the ECM and
+# LANS, with fewer edges, keep the weight distribution better than those
+# two, because the edges they keep are lighter on average (their share of
+# the weight is closer to their share of the edges).  The ECM keeps the
+# degree distribution worse than the marginal likelihood filter, though.
+# Its null model already accounts for each node's number of links, so the
+# edges it keeps are the ones that degrees and strengths do not explain,
+# and on this network they touch fewer nodes.
 #
 # On so small a network the KS distance is coarse: Yassin et al. (2025)
 # computed it only for networks with at least 1,000 edges.  Read it as a

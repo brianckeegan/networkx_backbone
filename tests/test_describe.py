@@ -260,6 +260,22 @@ def test_count_unit_is_described():
     assert "Other parameters: unit=2." in nb.describe_backbone("lans_filter", unit=2)
 
 
+def test_noise_corrected_pvalue_method_is_described():
+    default = nb.describe_backbone("noise_corrected_filter", alpha=0.05)
+    assert "exact binomial p-value" in default
+    assert (
+        nb.describe_backbone(
+            "noise_corrected_filter", alpha=0.05, pvalue_method="binomial"
+        )
+        == default
+    )
+    delta = nb.describe_backbone(
+        "noise_corrected_filter", alpha=0.05, pvalue_method="delta"
+    )
+    assert "the paper's delta rule), which is not calibrated" in delta
+    assert "Other parameters" not in delta
+
+
 def test_bibtex_entries():
     bib = nb.describe_backbone("fdsm", alpha=0.05, mtc="bh", style="bibtex")
     keys = re.findall(r"@\w+\{(\w+),", bib)
