@@ -17,6 +17,17 @@ Unreleased
   the first one is on :doc:`user_guide/workflow`. A new test requires a
   figure on every how-to and user-guide page, with the pages still to do
   listed explicitly. :doc:`contributing` explains how to write figures.
+- Figures for five how-to tutorials (#121): the Davis incidence matrix
+  beside its projection (:doc:`tutorials/bipartite_backbone`), hyperedges and
+  their MDL backbones beside the pairwise projection
+  (:doc:`tutorials/hypergraph_backbone`), edge activity over the time steps
+  with observation fraction and persistence
+  (:doc:`tutorials/temporal_backbones`), edges kept against alpha for each
+  multiple-testing correction and the consensus vote counts
+  (:doc:`tutorials/validating_backbones`), and an overview of one backbone
+  per API module (:doc:`tutorials/graph_gallery`), plus method-gallery
+  figures where they fit. The temporal and validating pages now link their
+  narrative tutorials.
 
 Version 0.3.0 (2026-11-02)
 --------------------------

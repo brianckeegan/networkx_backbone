@@ -23,17 +23,12 @@ SECTIONS = ("tutorials", "user_guide")
 # empty this set; never add to it.
 PENDING = {
     # How-to tutorials (#121).
-    "tutorials/bipartite_backbone",
     "tutorials/comparing_methods",
-    "tutorials/graph_gallery",
-    "tutorials/hypergraph_backbone",
     "tutorials/les_miserables_benchmark",
     "tutorials/proximity_scoring",
     "tutorials/statistical_backbone",
     "tutorials/structural_methods",
-    "tutorials/temporal_backbones",
     "tutorials/unweighted_sparsification",
-    "tutorials/validating_backbones",
     # User guide (#122).
     "user_guide/backends",
     "user_guide/choosing_method",
