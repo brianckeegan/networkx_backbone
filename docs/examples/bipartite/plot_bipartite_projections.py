@@ -845,7 +845,7 @@ publish(
         "ties are red with a − (dashed lines)."
     ),
 )
-style.save_variants(
+_ = style.save_variants(
     draw_signed, IMAGES / "bipartite_thumb", fmt="png", modes=("light",)
 )
 

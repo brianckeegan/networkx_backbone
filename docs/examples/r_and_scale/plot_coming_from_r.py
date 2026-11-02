@@ -452,7 +452,7 @@ def draw_pvalues(mode):
     return fig
 
 
-style.save_variants(draw_pvalues, OUT / "coming_from_r_pvalues")
+_ = style.save_variants(draw_pvalues, OUT / "coming_from_r_pvalues")
 
 # %%
 # .. figure:: /auto_examples/r_and_scale/images/coming_from_r_pvalues-light.svg
@@ -548,7 +548,7 @@ def draw_davis(mode):
     return fig
 
 
-style.save_variants(draw_davis, OUT / "coming_from_r_davis")
+_ = style.save_variants(draw_davis, OUT / "coming_from_r_davis")
 print(draw_davis.caption)
 
 # %%

@@ -298,7 +298,7 @@ def draw_timings(mode):
     return fig
 
 
-style.save_variants(draw_timings, OUT / "scaling_up_timings")
+_ = style.save_variants(draw_timings, OUT / "scaling_up_timings")
 
 # %%
 # .. figure:: /auto_examples/r_and_scale/images/scaling_up_timings-light.svg
@@ -411,7 +411,7 @@ def draw_classes(mode):
     return fig
 
 
-style.save_variants(draw_classes, OUT / "scaling_up_ecm_classes")
+_ = style.save_variants(draw_classes, OUT / "scaling_up_ecm_classes")
 
 # %%
 # .. figure:: /auto_examples/r_and_scale/images/scaling_up_ecm_classes-light.svg
@@ -535,7 +535,7 @@ def draw_backends(mode):
     return fig
 
 
-style.save_variants(draw_backends, OUT / "scaling_up_backends")
+_ = style.save_variants(draw_backends, OUT / "scaling_up_backends")
 
 # %%
 # .. figure:: /auto_examples/r_and_scale/images/scaling_up_backends-light.svg

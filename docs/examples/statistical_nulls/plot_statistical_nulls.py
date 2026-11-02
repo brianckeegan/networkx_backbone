@@ -77,7 +77,7 @@ else:  # run by hand: write the figures to a temporary directory
 
 def save(name, draw, **kw):
     """Write ``<name>-light.svg`` and ``<name>-dark.svg``."""
-    return style.save_variants(draw, FIG_DIR / name, **kw)
+    style.save_variants(draw, FIG_DIR / name, **kw)
 
 
 # sphinx_gallery_end_ignore
