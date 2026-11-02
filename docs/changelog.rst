@@ -17,6 +17,13 @@ Unreleased
   the first one is on :doc:`user_guide/workflow`. A new test requires a
   figure on every how-to and user-guide page, with the pages still to do
   listed explicitly. :doc:`contributing` explains how to write figures.
+- A narrative tutorial, :ref:`tutorial-weight-meaning` (#125): telling counts,
+  strengths and distances apart and which methods assume which; how the
+  metric backbone, the disparity filter and LANS move under power transforms
+  of the weights; ``unit=`` for weights recorded in hours or minutes; when the
+  disparity filter's uniform null is wrong; and checking a test's calibration
+  on data with no structure, with the 0.3.0 noise-corrected and SDSM fixes as
+  examples. Six figures.
 
 Version 0.3.0 (2026-11-02)
 --------------------------
