@@ -229,12 +229,10 @@ for (u, v), (source, target) in ends.items():
         rel_tol=1e-12,
         abs_tol=1e-300,
     )
-src = {e: ends[e][0][0] for e in ends}
-tgt = {e: ends[e][1][0] for e in ends}
 # Admin -> Lead: significant from the source only; List -> Visitor: from the
 # target only.
-assert src["Admin", "Lead"] < ALPHA <= tgt["Admin", "Lead"]
-assert tgt["List", "Visitor"] < ALPHA <= src["List", "Visitor"]
+assert ends["Admin", "Lead"][0][0] < ALPHA <= ends["Admin", "Lead"][1][0]
+assert ends["List", "Visitor"][1][0] < ALPHA <= ends["List", "Visitor"][0][0]
 # sphinx_gallery_end_ignore
 
 # %%
@@ -253,6 +251,8 @@ assert tgt["List", "Visitor"] < ALPHA <= src["List", "Visitor"]
 # list's output but most of the visitor's inbox: only the target test sees
 # it. Here is the backbone that the two tests keep together:
 
+src = {e: ends[e][0][0] for e in ends}  # source test p-values
+tgt = {e: ends[e][1][0] for e in ends}  # target test p-values
 quadrant = {
     "both": [e for e in G.edges if src[e] < ALPHA and tgt[e] < ALPHA],
     "source only": [e for e in G.edges if src[e] < ALPHA <= tgt[e]],
@@ -955,8 +955,9 @@ figures.show(
 #        (or ``method="zscore"``) signs by its standardized score instead: +1
 #        when it is positive.
 #      - The two tails overlap at :math:`X = w`, so they add up to more than 1:
-#        a tie needs both at least 1/2, a p-value of 1. Untestable edges (an
-#        ECM self-loop, a noise-corrected score of exactly 0) tie too.
+#        a tie needs both at least 1/2, a p-value of 1. Untestable edges,
+#        such as an ECM self-loop, tie too, and so does a standardized
+#        noise-corrected score of exactly 0.
 #    * - :func:`~nx_backbone.lans_filter`
 #      - Per end :math:`\#\{\text{weights} > w\}/k` and
 #        :math:`\#\{\text{weights} < w\}/k`, neither counting the edge itself;
@@ -1213,7 +1214,8 @@ figures.show(
     ),
     caption=(
         "The sign rule of the signed LANS test. Marker size grows with the number "
-        "of edges at a point. Ties on the diagonal are signed -1; those at the "
+        f"of edges at a point, and the legend counts all {G.number_of_edges()} "
+        "edges, kept or not. Ties on the diagonal are signed -1; those at the "
         f"origin have p-value 0 and are all kept, which is why {len(ties)} of the "
         f"{len(weak)} weak edges in the LANS backbone are ties."
     ),
@@ -1383,6 +1385,11 @@ print(
 # sphinx_gallery_start_ignore
 for e, (source, target) in ends.items():
     assert min(source[1], target[1]) <= 1 - min(source[0], target[0]) + 1e-15
+    if G.out_degree(e[0]) == 1 or G.in_degree(e[1]) == 1:
+        # An end with a single link: both rules give the same lower tail.
+        assert math.isclose(
+            min(source[1], target[1]), 1 - min(source[0], target[0]), abs_tol=1e-15
+        )
     assert math.isclose(
         D.edges[e]["disparity_pvalue"],
         min(1, 2 * min(min(source[0], target[0]), min(source[1], target[1]))),
