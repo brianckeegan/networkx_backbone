@@ -590,6 +590,8 @@ print(draw_davis.caption)
 #
 # - :doc:`/auto_examples/r_and_scale/plot_scaling_up`, the companion guide,
 #   for running these methods on large networks.
+# - :doc:`/auto_examples/statistical_nulls/plot_statistical_nulls`, for what
+#   the weighted null models assume, including signed backbones.
 # - The how-to tutorials :doc:`/tutorials/bipartite_backbone` and
 #   :doc:`/tutorials/statistical_backbone`.
 # - :doc:`/user_guide/choosing_method` and :doc:`/user_guide/evaluation`.
