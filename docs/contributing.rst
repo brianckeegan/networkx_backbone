@@ -222,7 +222,15 @@ One-time setup:
 2. In the repository settings, create the ``pypi`` environment. If it has
    deployment branch or tag rules, allow tags matching ``v*``: a release
    run deploys from the tag, not from ``main``.
-3. For anaconda.org uploads, add an ``ANACONDA_TOKEN`` repository secret.
+3. Do the same for the ``github-pages`` environment, which GitHub creates
+   for Pages with a rule that allows only the default branch: under
+   *Deployment branches and tags*, add a tag rule ``v*``. Without it the
+   documentation deploy of a release fails with "Tag "vX.Y.Z" is not
+   allowed to deploy to github-pages due to environment protection rules"
+   (as for v0.3.0). To publish the docs after such a failure, run the
+   *Deploy Documentation* workflow by hand on ``main`` while ``main`` is
+   still at the release commit.
+4. For anaconda.org uploads, add an ``ANACONDA_TOKEN`` repository secret.
 
 For each release:
 
