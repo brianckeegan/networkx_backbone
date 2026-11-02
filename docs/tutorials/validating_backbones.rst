@@ -11,10 +11,10 @@ The examples use the Les Misérables co-appearance network (77 characters,
 254 weighted edges). Every code block on this page runs as part of the test
 suite (``tests/test_describe.py``), so the printed output is what you will
 see. The statistical tests and the Kolmogorov-Smirnov measures need SciPy
-(``pip install networkx-backbone[full]``).
+(``pip install nx-backbone[full]``).
 
 >>> import networkx as nx
->>> import networkx_backbone as nb
+>>> import nx_backbone as nb
 >>> G = nx.les_miserables_graph()
 >>> G.number_of_nodes(), G.number_of_edges()
 (77, 254)
@@ -27,9 +27,9 @@ A statistical backbone runs one hypothesis test per edge. At
 *no* edge is truly significant: here, roughly :math:`0.05 \times 254
 \approx 13` false positives. A multiple-testing correction adjusts the
 p-values for the number of tests before they are compared with
-:math:`\alpha`. :func:`~networkx_backbone.threshold_filter` applies one with
+:math:`\alpha`. :func:`~nx_backbone.threshold_filter` applies one with
 its ``mtc`` argument (the corrections of R's ``p.adjust``, see
-:func:`~networkx_backbone.adjust_pvalues`):
+:func:`~nx_backbone.adjust_pvalues`):
 
 - ``"bonferroni"`` and ``"holm"`` control the *family-wise error rate*, the
   chance of keeping even one false edge;
@@ -97,9 +97,9 @@ settling on one. Build several backbones of the same graph:
 ...     ),
 ... }
 
-:func:`~networkx_backbone.compare_backbones` evaluates each backbone with
+:func:`~nx_backbone.compare_backbones` evaluates each backbone with
 any measures that take ``(original, backbone)``.
-:func:`~networkx_backbone.reachability` takes a single graph, so wrap it:
+:func:`~nx_backbone.reachability` takes a single graph, so wrap it:
 
 >>> def backbone_reachability(original, backbone):
 ...     return nb.reachability(backbone)
@@ -126,17 +126,17 @@ salience    1.000  0.299  0.404  1.000  0.571  0.132
 How to read the columns:
 
 - **nodes, edges, weight** -- the share of non-isolated nodes, edges and
-  total weight kept (:func:`~networkx_backbone.node_fraction`,
-  :func:`~networkx_backbone.edge_fraction`,
-  :func:`~networkx_backbone.weight_fraction`). A good backbone keeps few
+  total weight kept (:func:`~nx_backbone.node_fraction`,
+  :func:`~nx_backbone.edge_fraction`,
+  :func:`~nx_backbone.weight_fraction`). A good backbone keeps few
   edges but much of the weight.
 - **reach** -- the share of node pairs still joined by a path
-  (:func:`~networkx_backbone.reachability`); the original network is
+  (:func:`~nx_backbone.reachability`); the original network is
   connected, so it scores 1. The metric backbone and the salience skeleton
   keep the network connected; the statistical backbones break it apart.
 - **KS deg, KS w** -- Kolmogorov-Smirnov distances between the degree and
   weight distributions of the original and the backbone
-  (:func:`~networkx_backbone.ks_degree`, :func:`~networkx_backbone.ks_weight`);
+  (:func:`~nx_backbone.ks_degree`, :func:`~nx_backbone.ks_weight`);
   lower means the distribution is better preserved.
 
 No single row wins. The metric backbone preserves connectivity and the
@@ -149,7 +149,7 @@ statistical backbones are sparser but fragment the network. See
 
 Edges kept by several methods with different assumptions are less likely to
 be artefacts of any one null model.
-:func:`~networkx_backbone.consensus_backbone` keeps the edges present in
+:func:`~nx_backbone.consensus_backbone` keeps the edges present in
 every backbone it is given:
 
 >>> core = nb.consensus_backbone(
@@ -198,7 +198,9 @@ likelihood and LANS filters (and the bipartite null models ``sdsm``,
 ``fdsm``, ``fixedfill``, ``fixedrow`` and ``fixedcol``) run a two-tailed
 test. An edge can then be significantly strong *or* significantly weak, and
 each scored edge gets a ``sign`` attribute: ``+1`` for stronger than
-expected, ``-1`` for weaker.
+expected, ``-1`` for weaker. An edge whose upper and lower tails are exactly
+equal (for example the only link of a degree-1 node under LANS) is signed
+``-1``, as in R ``backbone``.
 
 >>> signed = nb.marginal_likelihood_filter(G, signed=True)
 >>> signed_bb = nb.threshold_filter(signed, "ml_pvalue", 0.05)
@@ -225,7 +227,7 @@ its positive and negative parts:
 >>> positive.number_of_edges()
 106
 
-:func:`~networkx_backbone.boolean_filter` keeps edges whose attribute is
+:func:`~nx_backbone.boolean_filter` keeps edges whose attribute is
 *truthy*, and ``-1`` is truthy, so this kept every edge. Compare the sign
 explicitly instead:
 
@@ -246,7 +248,7 @@ same way.
 A methods section should name the method and its null model, give
 :math:`\alpha` and the correction, say how much of the network was kept
 and cite the method and the software.
-:func:`~networkx_backbone.describe_backbone` writes that paragraph from the
+:func:`~nx_backbone.describe_backbone` writes that paragraph from the
 same arguments you passed to the filter (its version number comes from the
 installed package):
 
@@ -254,13 +256,13 @@ installed package):
 >>> print(nb.describe_backbone(
 ...     "marginal_likelihood_filter", alpha=0.05, mtc="bh", original=G, backbone=bb
 ... ))  # doctest: +ELLIPSIS
-We extracted the backbone with the marginal likelihood filter (Dianati, 2016), which tests each edge's weight against a binomial null model in which unit edges choose their endpoints with probability proportional to node strength. Edges were kept if their p-value was below alpha = 0.05 after a Benjamini-Hochberg false discovery rate correction for multiple comparisons (Benjamini & Hochberg, 1995). The backbone retains 100 of 254 edges (39.4%) and 65 of 77 non-isolated nodes (84.4%), and 60.5% of the total edge weight. Backbones were computed with networkx-backbone version ... (Keegan, n.d.).
+We extracted the backbone with the marginal likelihood filter (Dianati, 2016), which tests each edge's weight against a binomial null model in which unit edges choose their endpoints with probability proportional to node strength. Edges were kept if their p-value was below alpha = 0.05 after a Benjamini-Hochberg false discovery rate correction for multiple comparisons (Benjamini & Hochberg, 1995). The backbone retains 100 of 254 edges (39.4%) and 65 of 77 non-isolated nodes (84.4%), and 60.5% of the total edge weight. Backbones were computed with nx-backbone version ... (Keegan, n.d.).
 <BLANKLINE>
 References
 <BLANKLINE>
 Benjamini, Y., & Hochberg, Y. (1995). Controlling the false discovery rate: a practical and powerful approach to multiple testing. Journal of the Royal Statistical Society: Series B, 57(1), 289-300.
 Dianati, N. (2016). Unwinding the hairball graph: Pruning algorithms for weighted complex networks. Physical Review E, 93, 012304. https://doi.org/10.1103/PhysRevE.93.012304
-Keegan, B. C. (n.d.). networkx-backbone: Backbone extraction algorithms for complex networks (Version ...) [Python package]. https://github.com/brianckeegan/networkx_backbone
+Keegan, B. C. (n.d.). nx-backbone: Backbone extraction algorithms for complex networks (Version ...) [Python package]. https://github.com/brianckeegan/nx-backbone
 
 ``style="markdown"`` returns the same text formatted for Markdown, and
 ``style="bibtex"`` returns the BibTeX entries for your reference manager:
@@ -280,13 +282,13 @@ Keegan, B. C. (n.d.). networkx-backbone: Backbone extraction algorithms for comp
 <BLANKLINE>
 @article{benjamini1995,
 ...
-@misc{keegan_networkx_backbone,
+@misc{keegan_nx_backbone,
 ...
 }
 
 For a signed backbone, pass ``signed=True`` and the paragraph also reports
 how many retained edges are positive and negative. Pass any other
-parameters you set (such as ``s`` for :func:`~networkx_backbone.lspar`) as
+parameters you set (such as ``s`` for :func:`~nx_backbone.lspar`) as
 keyword arguments and they are listed too. The ``CITATION.cff`` file in
 the repository holds the same citation metadata for the package.
 
@@ -305,4 +307,4 @@ Before reporting a backbone:
 #. For a signed backbone, analyze the positive and negative edges
    separately.
 #. Generate the methods text and citations with
-   :func:`~networkx_backbone.describe_backbone`.
+   :func:`~nx_backbone.describe_backbone`.

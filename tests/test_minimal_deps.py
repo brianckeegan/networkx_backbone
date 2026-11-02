@@ -40,7 +40,7 @@ def _run(code):
 def test_import_without_optional_dependencies():
     _run(
         """
-        import networkx_backbone as nb
+        import nx_backbone as nb
         assert "disparity_filter" in nb.__all__
         """
     )
@@ -80,7 +80,7 @@ def test_pure_python_methods():
         f"""
         import traceback
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         G = nx.les_miserables_graph()
         failures = []
         for name in {PURE_PYTHON_WEIGHTED!r}:
@@ -99,7 +99,7 @@ def test_pure_python_pipeline():
     _run(
         """
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         G = nx.les_miserables_graph()
         scored = nb.disparity_filter(G)
         bb = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
@@ -117,11 +117,36 @@ def test_pure_python_pipeline():
     )
 
 
+def test_default_disparity_and_callable_transform_need_no_scipy():
+    # disparity_filter(a=1) keeps the closed form; transform_weights with a
+    # plain callable runs per edge in pure Python.  a != 1 needs SciPy.
+    _run(
+        """
+        import math
+        import networkx as nx
+        import nx_backbone as nb
+        G = nx.les_miserables_graph()
+        H = nb.transform_weights(G, math.log1p)
+        assert H.graph["weight_transforms"][0]["transform"] == "math.log1p"
+        for a in (1, 1.0):
+            bb = nb.threshold_filter(nb.disparity_filter(G, a=a), "disparity_pvalue", 0.05)
+            assert bb.number_of_edges() == 9
+        nb.disparity_filter(H)
+        try:
+            nb.disparity_filter(G, a=2.0)
+        except ImportError:
+            pass
+        else:
+            raise AssertionError("expected ImportError for a != 1")
+        """
+    )
+
+
 def test_missing_optional_dependency_raises_importerror():
     _run(
         """
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         try:
             nb.ecm_filter(nx.les_miserables_graph())
         except ImportError as exc:

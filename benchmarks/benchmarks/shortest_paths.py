@@ -4,7 +4,7 @@ All three run all-pairs shortest paths, so they are timed on a mid-size
 synthetic weighted graph.
 """
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 from ._data import weighted_graph
 

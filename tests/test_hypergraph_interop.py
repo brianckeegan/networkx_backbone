@@ -6,7 +6,7 @@ run just these tests with ``pytest -m interop`` (the "Interop" CI workflow does
 this on pull requests and weekly).  ``tests/test_hypergraph_io.py`` covers the
 adapter logic with stand-in modules, so it runs without the libraries.
 
-Set ``NETWORKX_BACKBONE_REQUIRE_INTEROP=1`` (as CI does) to make a library
+Set ``NX_BACKBONE_REQUIRE_INTEROP=1`` (as CI does) to make a library
 that fails to import an error instead of a skip.
 """
 
@@ -17,7 +17,7 @@ import warnings
 
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 pytestmark = [
     pytest.mark.interop,
@@ -30,13 +30,16 @@ pytestmark = [
 def _import(name):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        if os.environ.get("NETWORKX_BACKBONE_REQUIRE_INTEROP"):
+        if os.environ.get("NX_BACKBONE_REQUIRE_INTEROP"):
             return importlib.import_module(name)
         return pytest.importorskip(name)
 
 
 # Hypergraphs with integer, string, tuple, and mixed-type node labels; the
-# first repeats a hyperedge and the second has a singleton hyperedge.
+# first repeats a hyperedge and the second has a singleton hyperedge.  The
+# round trip of "int" is the regression test for HAT dropping repeated
+# hyperedges (compress=False), and of "tuple" for xgi reading a hyperedge of
+# two tuple labels as (members, edge_id).
 CASES = {
     "int": ([(1, 2, 3), (2, 3, 4), (5, 6), (1, 2, 3)], [2.5, 1, 4, 0.5]),
     "str": ([("a", "b"), ("b", "c", "d"), ("d",)], [1, 2, 3]),
@@ -72,29 +75,33 @@ def _adapters():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("case", list(CASES))
 @pytest.mark.parametrize("lib", list(_adapters()))
-def test_to_from_roundtrip(lib, case):
+def test_to_from_roundtrip(lib):
+    # One test per library (each is skipped on its own when missing), looping
+    # over the label types of CASES.
     module, to_fn, from_fn = _adapters()[lib]
     _import(module)
-    edges, weights = _expected(case)
-    if lib == "hypergraphx" and case == "mixed":
-        # HypergraphX sorts each hyperedge's nodes.
-        with pytest.raises(TypeError, match="mutually comparable"):
-            to_fn(edges)
-        return
-    if lib == "hypergraphx":
-        # No multi-edges: repeats merge and their weights add up.
-        edges, weights = _merged(edges, weights)
+    for case in CASES:
+        edges, weights = _expected(case)
+        if lib == "hypergraphx" and case == "mixed":
+            # HypergraphX sorts each hyperedge's nodes.
+            with pytest.raises(TypeError, match="mutually comparable"):
+                to_fn(edges)
+            continue
+        if lib == "hypergraphx":
+            # No multi-edges: repeats merge and their weights add up.
+            edges, weights = _merged(edges, weights)
 
-    got_edges, got_weights = from_fn(to_fn(edges, weights=weights), return_weights=True)
-    assert got_edges == edges
-    assert got_weights == pytest.approx(weights)
-    # Unweighted: every weight reads back as 1, and labels are unchanged.
-    plain_edges, plain_weights = from_fn(to_fn(edges), return_weights=True)
-    assert plain_edges == edges
-    assert plain_weights == [1] * len(edges)
-    assert from_fn(to_fn(edges)) == edges
+        got_edges, got_weights = from_fn(
+            to_fn(edges, weights=weights), return_weights=True
+        )
+        assert got_edges == edges, case
+        assert got_weights == pytest.approx(weights), case
+        # Unweighted: every weight reads back as 1, and labels are unchanged.
+        plain_edges, plain_weights = from_fn(to_fn(edges), return_weights=True)
+        assert plain_edges == edges, case
+        assert plain_weights == [1] * len(edges), case
+        assert from_fn(to_fn(edges)) == edges, case
 
 
 def test_hypergraphx_repeated_hyperedges_become_weight():
@@ -180,23 +187,6 @@ def test_hat_native_roundtrip():
     # An unlabeled HAT hypergraph reads back with positional labels.
     H3 = HAT.Hypergraph(edge_list=[[0, 1], [1, 2, 3]])
     assert nb.from_hat(H3) == [frozenset({0, 1}), frozenset({1, 2, 3})]
-
-
-def test_hat_keeps_repeated_hyperedges():
-    # Regression: HAT drops duplicate columns unless compress=False.
-    _import("HAT")
-    H = nb.to_hat([(1, 2), (2, 3), (1, 2)])
-    assert H.nedges == 3
-    assert nb.from_hat(H) == [frozenset({1, 2}), frozenset({2, 3}), frozenset({1, 2})]
-
-
-def test_xgi_tuple_node_labels():
-    # Regression: xgi read a hyperedge of two tuple labels as (members, edge_id).
-    _import("xgi")
-    edges = [((0, 1), (0, 2)), ((0, 2), (1, 1))]
-    H = nb.to_xgi(edges)
-    assert H.num_edges == 2
-    assert set(H.nodes) == {(0, 1), (0, 2), (1, 1)}
 
 
 # ---------------------------------------------------------------------------

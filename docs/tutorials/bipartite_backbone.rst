@@ -3,7 +3,9 @@ Bipartite Projection Backbones
 
 This tutorial demonstrates weighted bipartite projections (simple, hyper, ProbS,
 YCN) and backbone scoring with SDSM/FDSM, then extracts significant edges with
-filtering.
+filtering. For the reasoning behind these choices, with figures, read the
+narrative tutorial
+:doc:`/auto_examples/bipartite/plot_bipartite_projections`.
 
 What is a bipartite projection backbone?
 -----------------------------------------
@@ -22,7 +24,7 @@ Setup
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     # Davis Southern Women graph from NetworkX social generators
     B = nx.davis_southern_women_graph()
@@ -136,7 +138,7 @@ significantly weak pairs too::
 
     bb = nb.backbone_from_projection(B, women_nodes, method="sdsm", alpha=0.05, mtc="bh")
 
-Calling :func:`~networkx_backbone.sdsm` or :func:`~networkx_backbone.fdsm`
+Calling :func:`~nx_backbone.sdsm` or :func:`~nx_backbone.fdsm`
 directly instead returns the full scored projection, so you can choose the
 threshold yourself.
 
@@ -146,8 +148,12 @@ Comparing SDSM and FDSM
 - **SDSM** is faster (analytical) and works well for large networks. It fits
   the bipartite configuration model (BiCM), in which node degrees hold in
   expectation rather than exactly. It then evaluates each co-occurrence count
-  with the exact Poisson-binomial distribution, or with its refined normal
-  approximation (RNA) for large inputs, as R ``backbone`` does.
+  with the exact Poisson-binomial distribution. ``pvalue_method="rna"``
+  uses the refined normal approximation (RNA) instead, as R ``backbone``
+  does; it matches R's p-values, but its far upper tail is too small for
+  pairs with a small expected co-occurrence, so on sparse data noise pairs
+  can pass even a corrected test. The default ``"auto"`` falls back to the
+  RNA, with a warning, only for pairs whose exact tail would be too costly.
 
 - **FDSM** is more conservative and statistically rigorous. It preserves the
   exact degree sequence by sampling a curveball Markov chain that starts from
@@ -197,7 +203,7 @@ products, and agent pairs are scored in blocks of rows, so no dense agents x
 agents matrix is built. ``backbone_from_projection`` only turns significant
 pairs into edges, which keeps memory bounded for tens of thousands of agents
 (with ``mtc`` it also keeps one float per pair for the correction). By
-contrast, :func:`~networkx_backbone.sdsm` and :func:`~networkx_backbone.fdsm`
+contrast, :func:`~nx_backbone.sdsm` and :func:`~nx_backbone.fdsm`
 return *every* pair as an edge, which is only practical for a few thousand
 agents::
 
@@ -231,9 +237,15 @@ Pass them to ``sdsm`` as iterables of ``(agent, artifact)`` pairs::
     H = nb.sdsm(
         B,
         agent_nodes=women_nodes,
-        prohibited=[(women_nodes[0], event_nodes[0])],
+        prohibited=[(women_nodes[0], event_nodes[13])],
         required=[(women_nodes[1], event_nodes[1])],
     )
+
+A constraint must agree with the data: a ``prohibited`` pair must not be an
+edge of ``B`` and a ``required`` pair must be one. Pairs that contradict the
+data are ignored with a ``RuntimeWarning`` that lists them; pairs naming nodes
+that are not an ``(agent, artifact)`` pair of ``B``, or listed as both
+required and prohibited, raise ``NetworkXError``.
 
 References
 ----------

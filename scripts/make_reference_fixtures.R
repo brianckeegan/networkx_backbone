@@ -3,7 +3,7 @@
 # The fixture pins the p-values (both tails) and the retained edges of
 # R backbone (CRAN package "backbone", version 3.0 or later) on the shared
 # reference datasets, so tests/test_reference_implementations.py can compare
-# networkx-backbone against R without R installed.
+# nx-backbone against R without R installed.
 #
 # Usage (from the repository root):
 #
@@ -200,6 +200,15 @@ for (model in c("lspar", "degree")) {
   }
 }
 
+# lspar on the binary Les Miserables graph, where R's dense ranks and
+# zero-Jaccard rule matter more than on the karate club (issue #59).
+les_U <- (les_A > 0) * 1
+les$unweighted <- list()
+for (s in c(0.3, 0.5, 0.7)) {
+  les$unweighted[[paste0("lspar_", s)]] <- retained(
+    backbone_from_unweighted(les_U, model = "lspar", parameter = s))
+}
+
 # ---------------------------------------------------------------------------
 # Bipartite projections: Davis Southern Women (women as agents)
 # ---------------------------------------------------------------------------
@@ -271,6 +280,33 @@ fdsm_mixed <- function(I, trials, trades_per_row) {
        upper = pair_values(upper / trials), lower = pair_values(lower / trials))
 }
 davis$fdsm_mixed <- fdsm_mixed(I, FDSM_TRIALS, FDSM_TRADES)
+
+# Which pairs count as tests for `mtc` (issue #59).  With missing_as_zero =
+# FALSE (R's default) pairs that never co-occur get no p-value, so they are
+# not counted by p.adjust and never retained; with TRUE every pair is tested.
+# At alpha = 0.05 no Davis backbone depends on this, so these backbones use
+# larger alphas at which it does.
+MAZ_ALPHAS <- c(0.06, 0.6, 0.8)
+davis$missing_as_zero <- list(alphas = MAZ_ALPHAS)
+for (model in c("fixedfill", "fixedrow")) {
+  davis$missing_as_zero[[model]] <- list()
+  for (maz in c(FALSE, TRUE)) {
+    by_alpha <- list()
+    for (a in MAZ_ALPHAS) {
+      out <- list()
+      for (signed in c(FALSE, TRUE)) {
+        for (mtc in MTC) {
+          key <- paste0(if (signed) "signed_" else "", mtc)
+          out[[key]] <- retained(backbone_from_projection(
+            I, model = model, alpha = a, signed = signed, mtc = mtc,
+            missing_as_zero = maz))
+        }
+      }
+      by_alpha[[as.character(a)]] <- out
+    }
+    davis$missing_as_zero[[model]][[tolower(as.character(maz))]] <- by_alpha
+  }
+}
 
 # ---------------------------------------------------------------------------
 # Write the fixture

@@ -1,10 +1,11 @@
-"""Tests for networkx_backbone.bipartite: projections, null models, wrappers.
+"""Tests for nx_backbone.bipartite: projections, null models, wrappers.
 
 Shared behavior of every projection scorer (attributes, p-value ranges,
 agent-set validation, directed/multigraph rejection, generator input, empty
 graphs, mixed labels, no input mutation) is covered by ``test_api_contract.py``.
 """
 
+import importlib.util
 import itertools
 import warnings
 
@@ -13,8 +14,8 @@ import numpy as np
 import pytest
 from scipy import stats
 
-import networkx_backbone as nb
-from networkx_backbone import (
+import nx_backbone as nb
+from nx_backbone import (
     backbone,
     backbone_from_projection,
     backbone_from_unweighted,
@@ -28,7 +29,7 @@ from networkx_backbone import (
     simple_projection,
     ycn_projection,
 )
-from networkx_backbone import bipartite as bp
+from nx_backbone import bipartite as bp
 
 AGENTS = [1, 2, 3]
 
@@ -66,23 +67,20 @@ def test_davis_southern_women_fixture(davis_southern_women_graph, davis_women_no
     assert len(davis_women_nodes) == 18
 
 
-@pytest.mark.parametrize(
-    ("func", "method", "weight"),
-    [
-        (simple_projection, "simple", 1.0),
-        (hyper_projection, "hyper", 0.5),
-        (probs_projection, "probs", 0.25),
-        (ycn_projection, "ycn", 1.0 / 12.0),
-    ],
-)
-def test_projection_weights(bipartite_graph, func, method, weight):
-    projection = func(bipartite_graph, agent_nodes=AGENTS)
-    assert projection.number_of_nodes() == 3
-    assert projection.number_of_edges() == 3
-    for _, _, data in projection.edges(data=True):
-        assert data["weight"] == pytest.approx(weight)
-    dispatched = bipartite_projection(bipartite_graph, AGENTS, method=method)
-    assert _weights(dispatched) == _weights(projection)
+def test_projection_weights(bipartite_graph):
+    # Function == bipartite_projection(method=...): see
+    # test_projection_functions_match_dispatch.
+    for func, weight in [
+        (simple_projection, 1.0),
+        (hyper_projection, 0.5),
+        (probs_projection, 0.25),
+        (ycn_projection, 1.0 / 12.0),
+    ]:
+        projection = func(bipartite_graph, agent_nodes=AGENTS)
+        assert projection.number_of_nodes() == 3, func.__name__
+        assert projection.number_of_edges() == 3, func.__name__
+        for _, _, data in projection.edges(data=True):
+            assert data["weight"] == pytest.approx(weight), func.__name__
 
 
 def test_probs_projection_directed():
@@ -278,6 +276,83 @@ class TestPoissonBinomial:
         with pytest.raises(ValueError):
             nb.sdsm(bipartite_graph, [1, 2, 3], pvalue_method="normal")
 
+    @pytest.mark.parametrize("K", [0, 1, 4, 11, 12, 20])
+    def test_truncated_table_matches_full_pmf(self, K):
+        rng = np.random.default_rng(K)
+        # Small probabilities put the upper tail far below 1e-16.
+        A = rng.random((12, 3)) * np.array([1.0, 0.05, 0.002])
+        ia, ib = np.array([0, 1, 2, 0]), np.array([1, 1, 2, 2])
+        sf, cdf = bp._pb_tail_table(A, ia, ib, K)
+        pmf = bp._poisson_binomial_pmf((A[:, ia] * A[:, ib]).T)
+        width = min(K, 12) + 1
+        full_sf = np.cumsum(pmf[:, ::-1], axis=1)[:, ::-1]
+        np.testing.assert_allclose(sf[:, :width], full_sf[:, :width], rtol=1e-12)
+        np.testing.assert_allclose(cdf[:, :width], np.cumsum(pmf, 1)[:, :width])
+        assert sf[3, min(K, 12)] < 1e-30 or K < 11
+
+    @pytest.mark.parametrize("signed", [False, True])
+    def test_pairwise_exact_matches_brute_force(self, signed):
+        P = np.random.default_rng(3).random((5, 8)) * 0.7
+        iu, ju = np.triu_indices(5, 1)
+        for k in (np.zeros(len(iu), int), np.arange(len(iu)) % 9 - 1):
+            upper, lower = bp._pairwise_pb_tails(
+                P, k, method="exact", need_lower=signed
+            )
+            for r, (i, j) in enumerate(zip(iu, ju)):
+                pmf = _brute_pb_pmf(P[i] * P[j])
+                assert upper[r] == pytest.approx(pmf[max(k[r], 0) :].sum(), abs=1e-13)
+                if signed:
+                    assert lower[r] == pytest.approx(
+                        pmf[: max(k[r] + 1, 0)].sum(), abs=1e-13
+                    )
+
+    def test_auto_keeps_no_pure_noise_pairs(self):
+        # Issue #108: with more than 200 artifacts "auto" used the RNA, whose
+        # far upper tail made 20 pure-noise pairs survive Benjamini-Hochberg.
+        R = (np.random.default_rng(0).random((300, 250)) < 0.01).astype(int)
+        kw = {"method": "sdsm", "alpha": 0.05, "mtc": "bh"}
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            auto = backbone_from_projection(R, **kw)
+        assert auto.number_of_edges() == 0
+        rna = backbone_from_projection(R, pvalue_method="rna", **kw)
+        assert rna.number_of_edges() >= 10
+
+    def test_auto_over_budget_uses_exact_for_small_means(self, monkeypatch):
+        rng = np.random.default_rng(1)
+        R = (rng.random((60, 40)) < rng.random((60, 1)) * 0.5).astype(int)
+        H = {m: nb.sdsm(R, pvalue_method=m) for m in ("exact", "rna")}
+        monkeypatch.setattr(bp, "_PB_EXACT_BUDGET", 5e4)
+        monkeypatch.setattr(bp, "_PB_EXACT_PER_PAIR", 0)
+        with pytest.warns(RuntimeWarning, match="RNA.*for .*% of agent pairs"):
+            mixed = nb.sdsm(R, pvalue_method="auto")
+        inc = bp._incidence(R)
+        row_deg, col_deg = bp._degrees(inc.R)
+        Q, row_class, col_class = bp._bicm_classes(row_deg, col_deg)
+        mu = (Q[:, col_class] @ Q[:, col_class].T)[row_class][:, row_class]
+        row = {a: r for r, a in enumerate(inc.agents)}
+        source = {"exact": [], "rna": []}
+        for u, v, p in mixed.edges(data="sdsm_pvalue"):
+            ex, rn = H["exact"][u][v]["sdsm_pvalue"], H["rna"][u][v]["sdsm_pvalue"]
+            if ex != pytest.approx(rn, rel=1e-6):
+                is_exact = p == pytest.approx(ex, rel=1e-12)
+                assert is_exact or p == pytest.approx(rn, rel=1e-12)
+                source["exact" if is_exact else "rna"].append(mu[row[u], row[v]])
+        # Both tails are used, and the exact ones are the small means.
+        assert source["exact"] and source["rna"]
+        assert max(source["exact"]) <= min(source["rna"])
+
+    def test_auto_over_budget_with_constraints_uses_rna(self, monkeypatch):
+        R = (np.random.default_rng(2).random((30, 20)) < 0.2).astype(int)
+        i, j = np.argwhere(R == 1)[0]
+        kw = {"required": [(int(i), int(j))], "signed": True}
+        rna = nb.sdsm(R, pvalue_method="rna", **kw)
+        monkeypatch.setattr(bp, "_PB_EXACT_BUDGET", 0)
+        monkeypatch.setattr(bp, "_PB_EXACT_PER_PAIR", 0)
+        with pytest.warns(RuntimeWarning, match="edge constraints"):
+            auto = nb.sdsm(R, pvalue_method="auto", **kw)
+        assert dict(auto.edges) == dict(rna.edges)
+
 
 # ---------------------------------------------------------------------------
 # SDSM-EC
@@ -355,20 +430,133 @@ class TestSDSMEC:
         with pytest.raises(nx.NetworkXError):
             nb.sdsm(davis_southern_women_graph, davis_women_nodes, prohibited=[pair])
 
-    def test_contradictory_constraints_raise(
+    @staticmethod
+    def _pvalues(H):
+        return {frozenset((u, v)): p for u, v, p in H.edges(data="sdsm_pvalue")}
+
+    def test_contradictory_constraints_warn_and_are_ignored(
         self, davis_southern_women_graph, davis_women_nodes
     ):
-        _, _, _, required, prohibited = self._cells(
-            davis_southern_women_graph, davis_women_nodes
-        )
-        with pytest.raises(nx.NetworkXError):
-            nb.sdsm(
-                davis_southern_women_graph, davis_women_nodes, prohibited=required[:1]
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        base = self._pvalues(nb.sdsm(B, women))
+        with pytest.warns(RuntimeWarning, match=r"1 prohibited pair\(s\)") as rec:
+            H = nb.sdsm(B, women, prohibited=edges[:1])
+        assert len(rec) == 1 and repr(edges[0]) in str(rec[0].message)
+        assert "required" not in str(rec[0].message)
+        assert self._pvalues(H) == base
+        with pytest.warns(RuntimeWarning, match=r"1 required pair\(s\)") as rec:
+            H = nb.sdsm(B, women, required=non_edges[:1])
+        assert len(rec) == 1 and repr(non_edges[0]) in str(rec[0].message)
+        assert self._pvalues(H) == base
+
+    def test_all_dropped_equals_unconstrained_signed(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        base = nb.sdsm(B, women, signed=True, pvalue_method="rna")
+        with pytest.warns(RuntimeWarning):
+            H = nb.sdsm(
+                B,
+                women,
+                signed=True,
+                pvalue_method="rna",
+                required=non_edges,
+                prohibited=edges,
             )
-        with pytest.raises(nx.NetworkXError):
-            nb.sdsm(
-                davis_southern_women_graph, davis_women_nodes, required=prohibited[:1]
+        assert dict(H.edges) == dict(base.edges)
+
+    def test_one_warning_counts_and_lists_both_kinds(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        assert len(non_edges) > 5
+        with pytest.warns(RuntimeWarning) as rec:
+            nb.sdsm(B, women, required=non_edges + non_edges, prohibited=edges)
+        assert len(rec) == 1
+        msg = str(rec[0].message)
+        # Duplicates count once; at most five pairs are listed per kind.
+        assert f"{len(non_edges)} required pair(s)" in msg
+        assert f"{len(edges)} prohibited pair(s)" in msg
+        assert sum(repr(p) in msg for p in non_edges) == 5
+        assert "..." in msg
+        assert all(repr(p) in msg for p in edges)
+
+    def test_valid_constraints_kept_when_others_dropped(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        valid = nb.sdsm(B, women, required=edges[1:], prohibited=non_edges[2:])
+        with pytest.warns(RuntimeWarning, match="ignoring"):
+            mixed = nb.sdsm(
+                B,
+                women,
+                required=edges[1:] + non_edges[:2],
+                prohibited=non_edges[2:] + edges[:1],
             )
+        assert self._pvalues(mixed) == self._pvalues(valid)
+        assert self._pvalues(valid) != self._pvalues(nb.sdsm(B, women))
+
+    def test_contradiction_warning_points_at_caller(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, _ = self._cells(B, women)
+        calls = [
+            lambda: nb.sdsm(B, women, prohibited=edges[:1]),
+            lambda: nb.backbone_from_projection(B, women, prohibited=edges[:1]),
+            lambda: nb.backbone(B, agent_nodes=women, prohibited=edges[:1]),
+            lambda: nb.backbone(
+                B, method="sdsm", agent_nodes=women, prohibited=edges[:1]
+            ),
+        ]
+        for call in calls:
+            with pytest.warns(RuntimeWarning, match="prohibited") as rec:
+                call()
+            assert len(rec) == 1
+            assert rec[0].filename == __file__
+
+    def test_wrappers_ignore_contradictions_like_sdsm(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, _, non_edges = self._cells(B, women)
+        kwargs = {"agent_nodes": women, "alpha": 0.5, "required": non_edges[:3]}
+        base = nb.backbone_from_projection(B, women, alpha=0.5)
+        with pytest.warns(RuntimeWarning, match="required"):
+            H = nb.backbone_from_projection(B, **kwargs)
+        assert dict(H.edges) == dict(base.edges)
+        with pytest.warns(RuntimeWarning, match="required"):
+            H = nb.backbone(B, method="sdsm", **kwargs)
+        assert dict(H.edges) == dict(base.edges)
+
+    def test_matrix_input_contradiction_warns(self):
+        M = np.array([[1, 1, 0, 0], [1, 0, 1, 0], [0, 1, 1, 1], [1, 1, 1, 0]])
+        with pytest.warns(RuntimeWarning, match=r"\(0, 0\)"):
+            H = nb.sdsm(M, prohibited=[(0, 0)])
+        assert dict(H.edges) == dict(nb.sdsm(M).edges)
+
+    def test_required_and_prohibited_pair_raises(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, non_edges = self._cells(B, women)
+        for pair in (edges[0], non_edges[0]):
+            with pytest.raises(nx.NetworkXError, match="both required and prohib"):
+                nb.sdsm(B, women, required=[pair], prohibited=[pair])
+
+    def test_unknown_node_raises_even_with_contradictions(
+        self, davis_southern_women_graph, davis_women_nodes
+    ):
+        B, women = davis_southern_women_graph, davis_women_nodes
+        _, _, _, edges, _ = self._cells(B, women)
+        with pytest.raises(nx.NetworkXError, match="not an"):
+            nb.sdsm(B, women, prohibited=[*edges[:1], ("missing", "E1")])
+        with pytest.raises(nx.NetworkXError, match="not an"):
+            nb.backbone_from_projection(B, women, required=[(women[0], "missing")])
 
     def test_empty_constraints_equal_unconstrained(
         self, davis_southern_women_graph, davis_women_nodes
@@ -403,21 +591,21 @@ class TestFDSMNull:
         # The chain actually moves.
         assert any(not np.array_equal(M, R) for M in samples)
 
-    @pytest.mark.parametrize("signed", [False, True])
     def test_pvalues_strictly_positive(
-        self, davis_southern_women_graph, davis_women_nodes, signed
+        self, davis_southern_women_graph, davis_women_nodes
     ):
         trials = 50
-        H = nb.fdsm(
-            davis_southern_women_graph,
-            davis_women_nodes,
-            trials=trials,
-            seed=0,
-            signed=signed,
-        )
-        pvals = [p for *_, p in H.edges(data="fdsm_pvalue")]
-        assert min(pvals) >= 1 / (trials + 1) - 1e-12
-        assert max(pvals) <= 1.0
+        for signed in (False, True):
+            H = nb.fdsm(
+                davis_southern_women_graph,
+                davis_women_nodes,
+                trials=trials,
+                seed=0,
+                signed=signed,
+            )
+            pvals = [p for *_, p in H.edges(data="fdsm_pvalue")]
+            assert min(pvals) >= 1 / (trials + 1) - 1e-12, signed
+            assert max(pvals) <= 1.0, signed
 
     def test_pvalue_matches_exact_null_on_tiny_graph(self):
         # 2x2 identity-like matrix: the FDSM space is {I, anti-I}, both with
@@ -463,20 +651,20 @@ def _random_bipartite(n_agents, n_artifacts, density, seed):
 
 
 class TestFixedModels:
-    @pytest.mark.parametrize(
-        "dims", [(3, 3, 4), (4, 3, 7), (3, 4, 5), (2, 4, 6), (4, 4, 3)]
-    )
-    def test_fixedfill_pmf_matches_enumeration(self, dims):
-        na, nf, T = dims
-        counts = np.zeros(nf + 1)
-        for cells in itertools.combinations(range(na * nf), T):
-            M = np.zeros(na * nf, dtype=int)
-            M[list(cells)] = 1
-            M = M.reshape(na, nf)
-            counts[M[0] @ M[1]] += 1
-        np.testing.assert_allclose(
-            bp._fixedfill_pmf(na, nf, T), counts / counts.sum(), atol=1e-12
-        )
+    def test_fixedfill_pmf_matches_enumeration(self):
+        for na, nf, T in [(3, 3, 4), (4, 3, 7), (3, 4, 5), (2, 4, 6), (4, 4, 3)]:
+            counts = np.zeros(nf + 1)
+            for cells in itertools.combinations(range(na * nf), T):
+                M = np.zeros(na * nf, dtype=int)
+                M[list(cells)] = 1
+                M = M.reshape(na, nf)
+                counts[M[0] @ M[1]] += 1
+            np.testing.assert_allclose(
+                bp._fixedfill_pmf(na, nf, T),
+                counts / counts.sum(),
+                atol=1e-12,
+                err_msg=f"{(na, nf, T)}",
+            )
 
     def test_fixedfill_pvalues(self):
         B, agents, _, R = _random_bipartite(3, 4, 0.5, seed=2)
@@ -545,64 +733,61 @@ class TestAgentInference:
 
 
 class TestWrapperThresholding:
-    @pytest.mark.parametrize(
-        "method", ["sdsm", "fdsm", "fixedfill", "fixedrow", "fixedcol"]
-    )
-    @pytest.mark.parametrize("signed", [False, True])
     def test_threshold_consistent_across_methods(
-        self, davis_southern_women_graph, davis_women_nodes, method, signed
+        self, davis_southern_women_graph, davis_women_nodes
     ):
-        kw = {"trials": 100, "seed": 4} if method == "fdsm" else {}
+        B, women = davis_southern_women_graph, davis_women_nodes
         alpha = 0.2
-        H = nb.backbone_from_projection(
-            davis_southern_women_graph,
-            davis_women_nodes,
-            method=method,
-            alpha=alpha,
-            signed=signed,
-            **kw,
-        )
-        attr = f"{method}_pvalue"
-        assert all(d[attr] < alpha for *_, d in H.edges(data=True))
-        if signed:
-            assert all(d["sign"] in (-1, 1) for *_, d in H.edges(data=True))
-        # Same set as scoring every pair and thresholding by hand.
-        scored = getattr(nb, method)(
-            davis_southern_women_graph,
-            davis_women_nodes,
-            alpha=np.inf,
-            signed=signed,
-            **kw,
-        )
-        expected = {
-            frozenset((u, v)) for u, v, p in scored.edges(data=attr) if p < alpha
-        }
-        assert {frozenset(e) for e in H.edges()} == expected
-        assert (
-            H.number_of_edges()
-            < len(davis_women_nodes) * (len(davis_women_nodes) - 1) // 2
-        )
+        failures = []
+        for method in ("sdsm", "fdsm", "fixedfill", "fixedrow", "fixedcol"):
+            kw = {"trials": 100, "seed": 4} if method == "fdsm" else {}
+            attr = f"{method}_pvalue"
+            for signed in (False, True):
+                case = f"{method} signed={signed}"
+                H = nb.backbone_from_projection(
+                    B, women, method=method, alpha=alpha, signed=signed, **kw
+                )
+                if not all(d[attr] < alpha for *_, d in H.edges(data=True)):
+                    failures.append(f"{case}: kept a p-value >= alpha")
+                if signed and not all(
+                    d["sign"] in (-1, 1) for *_, d in H.edges(data=True)
+                ):
+                    failures.append(f"{case}: sign not in (-1, 1)")
+                # Same set as scoring every pair and thresholding by hand.
+                scored = getattr(nb, method)(
+                    B, women, alpha=np.inf, signed=signed, **kw
+                )
+                expected = {
+                    frozenset((u, v))
+                    for u, v, p in scored.edges(data=attr)
+                    if p < alpha
+                }
+                if {frozenset(e) for e in H.edges()} != expected:
+                    failures.append(f"{case}: differs from thresholding by hand")
+                if H.number_of_edges() >= len(women) * (len(women) - 1) // 2:
+                    failures.append(f"{case}: kept every pair")
+        assert not failures, "\n".join(failures)
 
-    @pytest.mark.parametrize("method", ["sdsm", "fixedrow"])
-    def test_mtc_forwarded(self, davis_southern_women_graph, davis_women_nodes, method):
+    def test_mtc_forwarded(self, davis_southern_women_graph, davis_women_nodes):
         alpha = 0.3
-        scored = getattr(nb, method)(
-            davis_southern_women_graph, davis_women_nodes, alpha=np.inf
-        )
-        attr = f"{method}_pvalue"
-        edges = list(scored.edges(data=attr))
-        adjusted = nb.adjust_pvalues([p for *_, p in edges], "bonferroni")
-        expected = {
-            frozenset((u, v)) for (u, v, _), q in zip(edges, adjusted) if q < alpha
-        }
-        H = nb.backbone_from_projection(
-            davis_southern_women_graph,
-            davis_women_nodes,
-            method=method,
-            alpha=alpha,
-            mtc="bonferroni",
-        )
-        assert {frozenset(e) for e in H.edges()} == expected
+        for method in ("sdsm", "fixedrow"):
+            scored = getattr(nb, method)(
+                davis_southern_women_graph, davis_women_nodes, alpha=np.inf
+            )
+            attr = f"{method}_pvalue"
+            edges = list(scored.edges(data=attr))
+            adjusted = nb.adjust_pvalues([p for *_, p in edges], "bonferroni")
+            expected = {
+                frozenset((u, v)) for (u, v, _), q in zip(edges, adjusted) if q < alpha
+            }
+            H = nb.backbone_from_projection(
+                davis_southern_women_graph,
+                davis_women_nodes,
+                method=method,
+                alpha=alpha,
+                mtc="bonferroni",
+            )
+            assert {frozenset(e) for e in H.edges()} == expected, method
 
     def test_backbone_auto_dispatch_thresholds(self, davis_southern_women_graph):
         H = nb.backbone(davis_southern_women_graph, alpha=0.1)
@@ -699,7 +884,7 @@ class TestWeightedMissingAsZero:
         assert self._zeros(H) == {("a", "d"): -1, ("b", "c"): -1}
 
     def test_backbone_dispatch_forwards_flag(self, two_pairs):
-        from networkx_backbone import backbone
+        from nx_backbone import backbone
 
         H = backbone(two_pairs, method="mlf", signed=True, missing_as_zero=True)
         assert len(self._zeros(H)) == 3
@@ -782,6 +967,40 @@ class TestSignedProjections:
             (u, v): d["sign"] for u, v, d in b.edges(data=True)
         }
 
+    def test_tied_tails_are_signed_negative(self):
+        # Agent a uses every artifact, so its co-occurrence with any agent is
+        # that agent's degree under the null as well: both tails are exactly
+        # 1 (fdsm: every sample is >= and <= the observed count).  A tie
+        # upper == lower is signed -1, as in R backbone (#59).
+        B = nx.Graph()
+        B.add_nodes_from("abc", bipartite=0)
+        B.add_nodes_from([1, 2, 3, 4], bipartite=1)
+        B.add_edges_from([("a", 1), ("a", 2), ("a", 3), ("a", 4)])
+        B.add_edges_from([("b", 1), ("b", 2), ("c", 3)])
+        for model in ("fixedrow", "fdsm"):
+            kw = {"trials": 50, "seed": 1} if model == "fdsm" else {}
+            H = getattr(nb, model)(B, "abc", alpha=np.inf, signed=True, **kw)
+            for other in "bc":
+                assert H["a"][other][f"{model}_pvalue"] == 1.0, model
+                assert H["a"][other]["sign"] == -1, model
+
+    def test_fixedrow_symmetric_null_is_an_exact_tie(self):
+        # b and d each use 2 of the 4 artifacts, so their co-occurrence is
+        # hypergeometric and symmetric about its mean 2 * 2 / 4 = 1, which is
+        # the observed count: P(X >= 1) == P(X <= 1) in exact arithmetic.
+        B = nx.Graph()
+        B.add_nodes_from("bde", bipartite=0)
+        B.add_nodes_from([1, 2, 3, 4], bipartite=1)
+        B.add_edges_from([("b", 1), ("b", 2), ("d", 1), ("d", 3), ("e", 4)])
+        B.add_edges_from([("e", 3), ("e", 2)])
+        H = nb.fixedrow(B, "bde", alpha=np.inf, signed=True)
+        assert (H["b"]["d"]["fixedrow_pvalue"], H["b"]["d"]["sign"]) == (1.0, -1)
+        # The tails do not depend on the order of the agents.
+        R = nb.fixedrow(B, "edb", alpha=np.inf, signed=True)
+        assert {frozenset(e): d for e, d in H.edges.items()} == {
+            frozenset(e): d for e, d in R.edges.items()
+        }
+
 
 class TestSDSMEdgeConstraints:
     def test_constraints_change_null(
@@ -859,11 +1078,11 @@ def _tiny():
     return nx.Graph(TINY_EDGES)
 
 
-@pytest.mark.parametrize("method", list(TINY_EXPECTED))
-def test_projection_hand_computed(method):
-    P = bipartite_projection(_tiny(), TINY_AGENTS, method=method)
-    got = {"".join(sorted((u, v))): w for u, v, w in P.edges(data="weight")}
-    assert got == pytest.approx(TINY_EXPECTED[method], rel=1e-12)
+def test_projection_hand_computed():
+    for method, expected in TINY_EXPECTED.items():
+        P = bipartite_projection(_tiny(), TINY_AGENTS, method=method)
+        got = {"".join(sorted((u, v))): w for u, v, w in P.edges(data="weight")}
+        assert got == pytest.approx(expected, rel=1e-12), method
 
 
 def test_projection_functions_match_dispatch():
@@ -1011,10 +1230,11 @@ def _dense_tails(method, R, **kw):
         return bp._pmf_tails(pmf, k)
     if method == "fixedrow":
         d = R.sum(axis=1)
-        return (
-            stats.hypergeom.sf(k - 1, nf, d[iu], d[ju]),
-            stats.hypergeom.cdf(k, nf, d[iu], d[ju]),
-        )
+        # Smaller degree first; a symmetric law observed at its mean is a tie.
+        lo, hi = np.minimum(d[iu], d[ju]), np.maximum(d[iu], d[ju])
+        upper = stats.hypergeom.sf(k - 1, nf, lo, hi)
+        tie = ((2 * lo == nf) | (2 * hi == nf)) & (k * nf == lo * hi)
+        return upper, np.where(tie, upper, stats.hypergeom.cdf(k, nf, lo, hi))
     if method == "fdsm":
         rng = np.random.default_rng(kw["seed"])
         exceed = np.zeros(len(iu), dtype=np.int64)
@@ -1064,70 +1284,82 @@ DENSE_CASES = [
 ]
 
 
-@pytest.mark.parametrize(("method", "kw"), DENSE_CASES)
-@pytest.mark.parametrize("signed", [False, True])
-@pytest.mark.parametrize("projection", ["simple", "hyper", "probs", "ycn"])
 def test_sparse_matches_dense_reference_on_davis(
-    davis_southern_women_graph, davis_women_nodes, method, kw, signed, projection
+    davis_southern_women_graph, davis_women_nodes
 ):
+    # Every model x signed x projection; a failure lists every combination
+    # that differs from the dense reference.
     B, women = davis_southern_women_graph, davis_women_nodes
     agents, _, R, _ = _davis_matrix(B, women)
-    p_hi, p_lo = _dense_tails(method, R, **kw)
-    if signed:
-        expected, sign = bp._signed_pvalues(p_hi, p_lo)
-    else:
-        expected, sign = np.clip(p_hi, 0, 1), None
-    W = _dense_weights(R, projection)
-
-    H = getattr(nb, method)(
-        B, women, alpha=np.inf, signed=signed, projection=projection, **kw
-    )
     iu, ju = np.triu_indices(len(agents), 1)
-    edges = [H[agents[i]][agents[j]] for i, j in zip(iu, ju)]
-    got = np.array([d[f"{method}_pvalue"] for d in edges])
-    if kw.get("pvalue_method") == "rna":
-        np.testing.assert_allclose(got, expected, rtol=1e-12, atol=0)
-    else:  # exact Poisson-binomial, closed forms and Monte Carlo: bit-identical
-        np.testing.assert_array_equal(got, expected)
-    if signed:
-        np.testing.assert_array_equal([d["sign"] for d in edges], sign)
-    got_w = [d["weight"] for d in edges]
-    np.testing.assert_allclose(got_w, W[iu, ju], rtol=1e-12, atol=0)
+    weights = {
+        p: _dense_weights(R, p)[iu, ju] for p in ("simple", "hyper", "probs", "ycn")
+    }
+    failures = []
+    for method, kw in DENSE_CASES:
+        p_hi, p_lo = _dense_tails(method, R, **kw)
+        for signed in (False, True):
+            if signed:
+                expected, sign = bp._signed_pvalues(p_hi, p_lo)
+            else:
+                expected, sign = np.clip(p_hi, 0, 1), None
+            for projection, W in weights.items():
+                case = f"{method}{kw or ''} signed={signed} projection={projection}"
+                H = getattr(nb, method)(
+                    B, women, alpha=np.inf, signed=signed, projection=projection, **kw
+                )
+                edges = [H[agents[i]][agents[j]] for i, j in zip(iu, ju)]
+                got = np.array([d[f"{method}_pvalue"] for d in edges])
+                if method == "sdsm":
+                    # RNA, or exact tables truncated at another count.
+                    same = np.allclose(got, expected, rtol=1e-12, atol=0)
+                else:  # closed forms and Monte Carlo: bit-identical
+                    same = np.array_equal(got, expected)
+                if not same:
+                    failures.append(f"{case}: p-values differ")
+                if signed and not np.array_equal([d["sign"] for d in edges], sign):
+                    failures.append(f"{case}: signs differ")
+                got_w = [d["weight"] for d in edges]
+                if not np.allclose(got_w, W, rtol=1e-12, atol=0):
+                    failures.append(f"{case}: weights differ")
+    assert not failures, "\n".join(failures)
 
 
-@pytest.mark.parametrize("method", ["sdsm", "fixedrow", "fixedcol", "fdsm"])
 def test_row_blocks_do_not_change_results(
-    davis_southern_women_graph, davis_women_nodes, monkeypatch, method
+    davis_southern_women_graph, davis_women_nodes, monkeypatch
 ):
     B, women = davis_southern_women_graph, davis_women_nodes
-    kw = {"trials": 30, "seed": 1} if method == "fdsm" else {}
-    common = {"method": method, "alpha": 0.5, "signed": True, "projection": "ycn"}
 
-    def run():
+    def run(method):
+        kw = {"trials": 30, "seed": 1} if method == "fdsm" else {}
+        common = {"method": method, "alpha": 0.5, "signed": True, "projection": "ycn"}
         return (
             backbone_from_projection(B, women, mtc="bh", **common, **kw),
             backbone_from_projection(B, women, **common, **kw),
             bipartite_projection(B, women, method="probs", directed=True),
         )
 
-    one_block = run()
+    methods = ("sdsm", "fixedrow", "fixedcol", "fdsm")
+    one_block = {method: run(method) for method in methods}
     monkeypatch.setattr(bp, "_MAX_BLOCK_CELLS", 40)  # blocks of 2 agent rows
-    many_blocks = run()
-    for G, H in zip(one_block, many_blocks):
-        assert list(H.edges(data=True)) == list(G.edges(data=True))
+    for method in methods:
+        for G, H in zip(one_block[method], run(method)):
+            assert list(H.edges(data=True)) == list(G.edges(data=True)), method
 
 
-@pytest.mark.parametrize("seed", range(6))
-def test_bicm_classes_bit_identical_to_dense_fit(seed):
-    rng = np.random.default_rng(seed)
-    R = (rng.random((9, 7)) < 0.4).astype(int)
-    R[0] = 1  # full row
-    R[1] = 0  # empty row
-    R[:, 2] = 0  # empty column
-    if seed % 2:
-        R[:, 3] = 1  # full column
-    Q, row_class, col_class = bp._bicm_classes(R.sum(axis=1), R.sum(axis=0))
-    np.testing.assert_array_equal(Q[row_class][:, col_class], bp._bicm_fit(R))
+def test_bicm_classes_bit_identical_to_dense_fit():
+    for seed in range(6):
+        rng = np.random.default_rng(seed)
+        R = (rng.random((9, 7)) < 0.4).astype(int)
+        R[0] = 1  # full row
+        R[1] = 0  # empty row
+        R[:, 2] = 0  # empty column
+        if seed % 2:
+            R[:, 3] = 1  # full column
+        Q, row_class, col_class = bp._bicm_classes(R.sum(axis=1), R.sum(axis=0))
+        np.testing.assert_array_equal(
+            Q[row_class][:, col_class], bp._bicm_fit(R), err_msg=f"seed {seed}"
+        )
 
 
 def test_bicm_classes_on_davis(davis_southern_women_graph, davis_women_nodes):
@@ -1137,15 +1369,15 @@ def test_bicm_classes_on_davis(davis_southern_women_graph, davis_women_nodes):
     assert Q.shape[0] < R.shape[0]  # degree classes compress the fit
 
 
-@pytest.mark.parametrize(
-    "method", ["none", "bonferroni", "holm", "hochberg", "bh", "fdr", "by"]
-)
-def test_adjust_array_matches_adjust_pvalues(method):
+def test_adjust_array_matches_adjust_pvalues():
     rng = np.random.default_rng(3)
     p = np.round(rng.random(200) ** 3, 2)  # many ties
-    np.testing.assert_array_equal(
-        bp._adjust_array(p, method), nb.adjust_pvalues(p.tolist(), method)
-    )
+    for method in ("none", "bonferroni", "holm", "hochberg", "bh", "fdr", "by"):
+        np.testing.assert_array_equal(
+            bp._adjust_array(p, method),
+            nb.adjust_pvalues(p.tolist(), method),
+            err_msg=method,
+        )
 
 
 def test_invalid_mtc_raises(davis_southern_women_graph, davis_women_nodes):
@@ -1193,7 +1425,9 @@ def _davis_incidence(B, women, kind):
     return M, {"agent_labels": women, "artifact_labels": events}
 
 
-MATRIX_KINDS = ["numpy", "bool", "csr_array", "csr_matrix", "coo_array", "pandas"]
+MATRIX_KINDS = ["numpy", "bool", "csr_array", "csr_matrix", "coo_array"]
+if importlib.util.find_spec("pandas") is not None:  # pandas is optional
+    MATRIX_KINDS.append("pandas")
 
 
 def _same_graph(G, H):
@@ -1201,46 +1435,53 @@ def _same_graph(G, H):
     assert list(G.edges(data=True)) == list(H.edges(data=True))
 
 
-@pytest.mark.parametrize("kind", MATRIX_KINDS)
-@pytest.mark.parametrize(
-    "method", ["sdsm", "fdsm", "fixedfill", "fixedrow", "fixedcol"]
-)
-def test_matrix_input_identical_to_graph(
-    davis_southern_women_graph, davis_women_nodes, kind, method
-):
+def _is_same_graph(G, H):
+    return list(G.nodes) == list(H.nodes) and list(G.edges(data=True)) == list(
+        H.edges(data=True)
+    )
+
+
+def test_matrix_input_identical_to_graph(davis_southern_women_graph, davis_women_nodes):
+    # Every model, from every matrix container; the graph-input results are
+    # computed once per model.  A failure lists every (container, model).
     B, women = davis_southern_women_graph, davis_women_nodes
-    M, labels = _davis_incidence(B, women, kind)
-    kw = {"trials": 30, "seed": 2} if method == "fdsm" else {}
-    common = {"method": method, "alpha": 0.3, "projection": "ycn", "signed": True}
-    _same_graph(
-        backbone_from_projection(M, **labels, **common, **kw),
-        backbone_from_projection(B, women, **common, **kw),
-    )
-    _same_graph(
-        getattr(nb, method)(M, **labels, alpha=np.inf, **kw),
-        getattr(nb, method)(B, women, alpha=np.inf, **kw),
-    )
+    matrices = {kind: _davis_incidence(B, women, kind) for kind in MATRIX_KINDS}
+    failures = []
+    for method in ("sdsm", "fdsm", "fixedfill", "fixedrow", "fixedcol"):
+        kw = {"trials": 30, "seed": 2} if method == "fdsm" else {}
+        common = {"method": method, "alpha": 0.3, "projection": "ycn", "signed": True}
+        wrapped = backbone_from_projection(B, women, **common, **kw)
+        scored = getattr(nb, method)(B, women, alpha=np.inf, **kw)
+        for kind, (M, labels) in matrices.items():
+            if not _is_same_graph(
+                backbone_from_projection(M, **labels, **common, **kw), wrapped
+            ):
+                failures.append(f"backbone_from_projection({kind}, {method})")
+            if not _is_same_graph(
+                getattr(nb, method)(M, **labels, alpha=np.inf, **kw), scored
+            ):
+                failures.append(f"{method}({kind})")
+    assert not failures, "\n".join(failures)
 
 
-@pytest.mark.parametrize("kind", MATRIX_KINDS)
 def test_matrix_input_projections_and_bicm(
-    davis_southern_women_graph, davis_women_nodes, kind
+    davis_southern_women_graph, davis_women_nodes
 ):
     B, women = davis_southern_women_graph, davis_women_nodes
-    M, labels = _davis_incidence(B, women, kind)
-    for method in ("simple", "hyper", "newman", "probs", "ycn"):
-        _same_graph(
-            bipartite_projection(M, method=method, **labels),
-            bipartite_projection(B, women, method=method),
-        )
-    _same_graph(
-        hyper_projection(M, newman=True, **labels),
-        hyper_projection(B, women, newman=True),
-    )
-    P, agents, artifacts = nb.bicm(M, return_labels=True, **labels)
+    methods = ("simple", "hyper", "newman", "probs", "ycn")
+    expected = {m: bipartite_projection(B, women, method=m) for m in methods}
+    newman = hyper_projection(B, women, newman=True)
     P0, agents0, artifacts0 = nb.bicm(B, women, return_labels=True)
-    np.testing.assert_array_equal(P, P0)
-    assert (agents, artifacts) == (agents0, artifacts0)
+    for kind in MATRIX_KINDS:
+        M, labels = _davis_incidence(B, women, kind)
+        for method in methods:
+            got = bipartite_projection(M, method=method, **labels)
+            assert _is_same_graph(got, expected[method]), (kind, method)
+        got = hyper_projection(M, newman=True, **labels)
+        assert _is_same_graph(got, newman), (kind, "hyper_projection(newman=True)")
+        P, agents, artifacts = nb.bicm(M, return_labels=True, **labels)
+        np.testing.assert_array_equal(P, P0, err_msg=kind)
+        assert (agents, artifacts) == (agents0, artifacts0), kind
 
 
 def test_matrix_default_labels_and_constraints():
@@ -1264,9 +1505,8 @@ def test_agent_nodes_inferred_by_scorers(davis_southern_women_graph):
     _same_graph(simple_projection(B), simple_projection(B, women))
 
 
-@pytest.mark.parametrize(
-    ("M", "kw", "match"),
-    [
+def test_invalid_matrix_input_raises():
+    for M, kw, match in [
         (np.array([[1, 2], [0, 1]]), {}, "binary"),
         (np.array([[1.0, np.nan], [0, 1]]), {}, "binary"),
         (np.array([1, 0, 1]), {}, "two-dimensional"),
@@ -1275,11 +1515,9 @@ def test_agent_nodes_inferred_by_scorers(davis_southern_women_graph):
         (np.eye(2), {"artifact_labels": ["x", "x"]}, "duplicates"),
         (np.eye(2), {"agent_labels": [[1], [2]]}, "hashable"),
         (np.eye(2), {"agent_nodes": [0, 1]}, "agent_labels"),
-    ],
-)
-def test_invalid_matrix_input_raises(M, kw, match):
-    with pytest.raises(ValueError, match=match):
-        backbone_from_projection(M, **kw)
+    ]:
+        with pytest.raises(ValueError, match=match):
+            backbone_from_projection(M, **kw)
 
 
 def test_sparse_duplicates_and_explicit_zeros():
@@ -1296,3 +1534,52 @@ def test_sparse_duplicates_and_explicit_zeros():
 def test_labels_rejected_for_graph_input(bipartite_graph):
     with pytest.raises(ValueError, match="incidence matrix"):
         simple_projection(bipartite_graph, AGENTS, agent_labels=AGENTS)
+
+
+# ---------------------------------------------------------------------------
+# missing_as_zero: which agent pairs are tests (exactness against R is
+# tested in test_reference_implementations.py)
+# ---------------------------------------------------------------------------
+
+
+def _cooccur(B, u, v):
+    return len(set(B[u]) & set(B[v]))
+
+
+def test_missing_as_zero_signed_drops_non_cooccurring_pairs(
+    davis_southern_women_graph, davis_women_nodes
+):
+    B, women = davis_southern_women_graph, davis_women_nodes
+    kw = {"agent_nodes": women, "method": "fixedrow", "alpha": 0.6, "signed": True}
+    every = backbone_from_projection(B, **kw)
+    tested = backbone_from_projection(B, missing_as_zero=False, **kw)
+    never = {frozenset(e) for e in every.edges if _cooccur(B, *e) == 0}
+    assert never  # some pairs that never meet are significantly weak
+    assert all(every.edges[tuple(e)]["sign"] == -1 for e in never)
+    kept = {frozenset(e) for e in tested.edges}
+    assert kept == {frozenset(e) for e in every.edges} - never
+    for u, v, d in tested.edges(data=True):
+        assert d == every.edges[u, v]  # same p-values, signs and weights
+
+
+def test_missing_as_zero_counts_only_tested_pairs(
+    davis_southern_women_graph, davis_women_nodes
+):
+    B, women = davis_southern_women_graph, davis_women_nodes
+    H = nb.fixedfill(B, women, alpha=1.01)
+    p = {frozenset(e): d["fixedfill_pvalue"] for *e, d in H.edges(data=True)}
+    n_all = len(p)
+    n_tested = sum(1 for e in p if _cooccur(B, *e) > 0)
+    assert n_tested < n_all
+    best = min(p.values())
+    # Bonferroni keeps the best pair only if n * best < alpha.
+    alpha = (n_tested + n_all) / 2 * best
+    kw = {"agent_nodes": women, "method": "fixedfill", "alpha": alpha}
+    every = backbone_from_projection(B, mtc="bonferroni", **kw)
+    tested = backbone_from_projection(B, mtc="bonferroni", missing_as_zero=False, **kw)
+    assert every.number_of_edges() == 0
+    assert tested.number_of_edges() == 1
+    # Without mtc an unsigned backbone does not depend on it.
+    assert set(backbone_from_projection(B, **kw).edges) == set(
+        backbone_from_projection(B, missing_as_zero=False, **kw).edges
+    )

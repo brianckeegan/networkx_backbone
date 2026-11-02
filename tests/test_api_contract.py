@@ -4,6 +4,8 @@ Each scorer is registered once in :data:`REGISTRY` with the input it expects,
 the attributes it adds and the ways it legitimately differs from the others
 (directed support, weight validation, ...).  :func:`test_contract` then checks
 every invariant that applies, so adding a scorer means adding one registry row.
+It runs once per kind of input and loops over the scorers, so a failure lists
+every scorer that broke the contract instead of stopping at the first.
 
 Method-specific behavior (known answers, paper equations, reference
 implementations) lives in the per-module test files.
@@ -18,7 +20,7 @@ import networkx as nx
 import numpy as np
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 P = (0.0, 1.0)  # bounds of a p-value or other unit-interval score
 NONNEG = (0.0, math.inf)
@@ -52,8 +54,9 @@ class Spec:
 
     kind
         ``"weighted"`` (Les Misérables), ``"unweighted"`` (Les Misérables
-        without weights) or ``"bipartite"`` (Davis Southern Women; called as
-        ``func(B, agent_nodes, **kwargs)``).
+        without weights), ``"bipartite"`` (Davis Southern Women; called as
+        ``func(B, agent_nodes, **kwargs)``) or ``"temporal"`` (called on
+        snapshots of Les Misérables, see :func:`_check_temporal_scorer`).
     scores
         Numeric edge attributes added to every edge, mapped to ``(lo, hi)``.
     keep
@@ -64,7 +67,8 @@ class Spec:
         Accepts directed graphs; otherwise must raise NetworkXNotImplemented.
     order_invariant
         Scores do not depend on node/edge insertion order (false when ties
-        are broken by input order).
+        are broken by input order).  Checked by comparing *G* with a copy
+        built in reverse node and edge order, with every edge flipped.
     label_ties
         Ties are broken by node label, so relabeling may change which tied
         edge is kept.
@@ -98,12 +102,16 @@ class Spec:
         return self.func(G, *args, **self.kwargs)
 
 
-W, U, B = "weighted", "unweighted", "bipartite"
+W, U, B, TM = "weighted", "unweighted", "bipartite", "temporal"
 
 REGISTRY = [
     # --- statistical -------------------------------------------------------
     Spec(nb.disparity_filter, W, {"disparity_pvalue": P}, directed=True,
          bad_weights=STATISTICAL_BAD),
+    Spec(nb.disparity_filter, W, {"disparity_pvalue": P}, kwargs={"a": 2.0},
+         directed=True, bad_weights=STATISTICAL_BAD),
+    Spec(nb.disparity_filter, W, {"disparity_pvalue": P}, kwargs={"a": "ml"},
+         directed=True, bad_weights=STATISTICAL_BAD),
     Spec(nb.noise_corrected_filter, W,
          {"nc_score": (-1.0, 1.0), "nc_sdev": NONNEG, "nc_pvalue": P},
          directed=True, bad_weights=STATISTICAL_BAD),
@@ -127,14 +135,13 @@ REGISTRY = [
     # --- structural --------------------------------------------------------
     Spec(nb.global_threshold_filter, W, keep=("global_threshold_keep",),
          kwargs={"threshold": 2.0}, directed=True),
-    Spec(nb.strongest_n_ties, W, keep=("strongest_n_ties_keep",), directed=True,
-         order_invariant=False),
+    Spec(nb.strongest_n_ties, W, keep=("strongest_n_ties_keep",), directed=True),
     Spec(nb.global_sparsification, W, keep=("global_sparsification_keep",),
-         directed=True, order_invariant=False),
+         directed=True, label_ties=True),
     Spec(nb.primary_linkage_analysis, W, keep=("primary_linkage_keep",),
          directed=True, label_ties=True),
     Spec(nb.edge_betweenness_filter, W, {"edge_betweenness": P},
-         keep=("edge_betweenness_keep",), directed=True, order_invariant=False),
+         keep=("edge_betweenness_keep",), directed=True, label_ties=True),
     Spec(nb.node_degree_filter, W, keep=("node_degree_keep",),
          node_attrs=("node_degree_keep",), directed=True),
     Spec(nb.high_salience_skeleton, W, {"salience": P}, bad_weights=POSITIVE_BAD),
@@ -142,7 +149,6 @@ REGISTRY = [
     Spec(nb.ultrametric_backbone, W, keep=("ultrametric_keep",),
          bad_weights=POSITIVE_BAD),
     Spec(nb.doubly_stochastic_filter, W, {"ds_weight": P}, keep=("ds_keep",),
-         order_invariant=False,
          bad_weights=NONNEGATIVE_BAD),
     Spec(nb.h_backbone, W, {"h_bridge": NONNEG}, keep=("h_backbone_keep",),
          bad_weights=_NON_NUMERIC),
@@ -192,22 +198,55 @@ REGISTRY = [
     Spec(nb.fixedcol, B, {"fixedcol_pvalue": P, "weight": NONNEG}),
     Spec(nb.backbone_from_projection, B, {"fixedrow_pvalue": P, "weight": NONNEG},
          kwargs={"method": "fixedrow"}),
+    # --- temporal (snapshots of Les Misérables) ------------------------------
+    Spec(nb.observation_fraction, TM,
+         {"obs_fraction": P, "n_obs": NONNEG, "n_eligible": NONNEG}),
+    Spec(nb.persistence, TM, {"persistence": P, "max_run": NONNEG,
+                              "mean_run": NONNEG, "n_runs": NONNEG}),
+    Spec(nb.backbone_stability, TM, {"stability": P, "n_kept": NONNEG},
+         kwargs={"method": "disparity_filter"}),
+    Spec(nb.weight_trend, TM, {"weight_mean": NONNEG, "weight_std": NONNEG,
+                               "weight_cv": NONNEG, "weight_slope": ANY}),
+    Spec(nb.edge_persistence_hmm, TM, {"hmm_score": P, "hmm_active_fraction": P,
+                                       "hmm_n_active": NONNEG}, keep=("hmm_keep",)),
+    Spec(nb.kalman_backbone, TM, {"kalman_pvalue": P, "kalman_score": ANY},
+         kwargs={"method": "disparity_filter", "q": 0.5, "n_sim": 99, "seed": 0}),
 ]  # fmt: skip
-
-IDS = [spec.name for spec in REGISTRY]
-
 
 # ---------------------------------------------------------------------------
 # Inputs
 # ---------------------------------------------------------------------------
 
 
-# Input fixture (from conftest.py) for each kind of scorer.
-FIXTURES = {
-    W: ("les_miserables_weighted",),
-    U: ("les_miserables_unweighted",),
-    B: ("davis_southern_women_graph", "davis_women_nodes"),
-}
+def _inputs(kind):
+    """Fresh input(s) for one scorer of *kind* (as in conftest.py's fixtures)."""
+    if kind == B:
+        Bg = nx.davis_southern_women_graph()
+        return Bg, [n for n, d in Bg.nodes(data=True) if d["bipartite"] == 0]
+    G = nx.les_miserables_graph()
+    if kind == U:
+        U_ = nx.Graph()
+        U_.add_nodes_from(G.nodes(data=True))
+        U_.add_edges_from(G.edges())
+        return (U_,)
+    return (G,)
+
+
+def _label(spec):
+    kwargs = ", ".join(f"{k}={v!r}" for k, v in spec.kwargs.items())
+    return f"{spec.name}({kwargs})" if kwargs else spec.name
+
+
+def _failures(specs, check):
+    """Run *check* on every spec; one line per failing spec (empty if none)."""
+    failures = []
+    for spec in specs:
+        try:
+            check(spec)
+        except (Exception, pytest.fail.Exception) as err:
+            msg = str(err).split("\n", 1)[0]
+            failures.append(f"{_label(spec)}: {type(err).__name__}: {msg}")
+    return failures
 
 
 def _mixed_labels(G):
@@ -378,22 +417,65 @@ def _check_bipartite_scorer(spec, Bg, women):
             spec(cls(small), ["a", "b", "c"])
 
 
+def _check_temporal_scorer(spec, G):
+    """Snapshot k of G lacks every third edge from the k-th; all nodes present.
+
+    Every edge is then eligible in all three steps and observed in two, so
+    no score is NaN.
+    """
+    name = spec.name
+    edges = list(G.edges(data=True))
+    S = {}
+    for k in range(3):
+        S[k] = G.__class__()
+        S[k].add_nodes_from(G.nodes(data=True))
+        S[k].add_edges_from(e for i, e in enumerate(edges) if i % 3 != k)
+    before = {t: _snapshot(g) for t, g in S.items()}
+    H = spec(S)
+    assert {t: _snapshot(g) for t, g in S.items()} == before, f"{name}: mutated"
+    _check_scored_graph(spec, nx.Graph(), H, nodes=G, edges=_edge_set(G))
+    scores = _scores(spec, H)
+    reverse = {t: _reversed(S[t]) for t in reversed(S)}
+    for other, what in ((reverse, "in reverse order"), (list(S.values()), "as a list")):
+        _assert_same_scores(spec, scores, _scores(spec, spec(other)), what)
+
+    _, labels = _mixed_labels(G)
+    HM = spec({t: nx.relabel_nodes(g, labels) for t, g in S.items()})
+    relabeled = {frozenset(labels[n] for n in e): x for e, x in scores.items()}
+    _assert_same_scores(spec, relabeled, _scores(spec, HM), "with mixed labels")
+
+    D = {t: nx.DiGraph(g) for t, g in S.items()}
+    HD = spec(D)
+    _check_scored_graph(spec, nx.DiGraph(), HD, nodes=G, edges=_edge_set(nx.DiGraph(G)))
+
+    with pytest.raises(nx.NetworkXNotImplemented):
+        spec({**S, 1: nx.MultiGraph(S[1])})
+    HE = spec([nx.empty_graph(3), nx.Graph()])
+    assert set(HE) == {0, 1, 2} and HE.number_of_edges() == 0
+
+
+def _check(spec):
+    if spec.kind == B:
+        _check_bipartite_scorer(spec, *_inputs(B))
+    elif spec.kind == TM:
+        _check_temporal_scorer(spec, *_inputs(W))
+    else:
+        _check_graph_scorer(spec, *_inputs(spec.kind))
+
+
+# One test per input kind, each looping over its scorers; a failure lists every
+# scorer that broke the contract, with the first line of its error.
 # Les Misérables has leaves, so it cannot be scaled to a doubly stochastic matrix.
 @pytest.mark.filterwarnings("ignore:doubly_stochastic_filter:RuntimeWarning")
-@pytest.mark.parametrize("spec", REGISTRY, ids=IDS)
-def test_contract(spec, request):
-    inputs = [request.getfixturevalue(name) for name in FIXTURES[spec.kind]]
-    if spec.kind == B:
-        _check_bipartite_scorer(spec, *inputs)
-    else:
-        _check_graph_scorer(spec, *inputs)
+@pytest.mark.parametrize("kind", [W, U, B, TM])
+def test_contract(kind):
+    specs = [spec for spec in REGISTRY if spec.kind == kind]
+    assert specs
+    failures = _failures(specs, _check)
+    assert not failures, "\n".join(failures)
 
 
-VALIDATING = [spec for spec in REGISTRY if spec.bad_weights]
-
-
-@pytest.mark.parametrize("spec", VALIDATING, ids=[s.name for s in VALIDATING])
-def test_rejects_invalid_weights(spec):
+def _check_rejects_invalid_weights(spec):
     for bad, pattern in spec.bad_weights.items():
         G = nx.path_graph(4)
         nx.set_edge_attributes(G, 1.0, "weight")
@@ -405,7 +487,13 @@ def test_rejects_invalid_weights(spec):
             spec(G)
         except nx.NetworkXError as err:
             assert pattern is None or re.search(pattern, str(err)), (
-                f"{spec.name}: weight {bad!r} raised {err!r}, expected /{pattern}/"
+                f"weight {bad!r} raised {err!r}, expected /{pattern}/"
             )
         else:
-            pytest.fail(f"{spec.name} accepted invalid weight {bad!r}")
+            pytest.fail(f"accepted invalid weight {bad!r}")
+
+
+def test_rejects_invalid_weights():
+    validating = [spec for spec in REGISTRY if spec.bad_weights]
+    failures = _failures(validating, _check_rejects_invalid_weights)
+    assert not failures, "\n".join(failures)

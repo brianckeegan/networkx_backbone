@@ -3,7 +3,7 @@
 Guards the vectorized pair loops: ``sdsm`` once took 6.4 s on this size.
 """
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 from ._data import bipartite_graph
 

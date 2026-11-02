@@ -2,8 +2,10 @@ Complexity Summary
 ==================
 
 This page summarizes the asymptotic complexity classes used in API docstrings.
+For what they mean in practice, with measured run times, see the guide
+:doc:`/auto_examples/r_and_scale/plot_scaling_up`.
 
-Notation: n = number of nodes, m = number of edges, n_a = agents, n_f = artifacts, e_b = bipartite edges, I = iterations, T = trials.
+Notation: n = number of nodes, m = number of edges, n_a = agents, n_f = artifacts, e_b = bipartite edges, I = iterations, T = trials; for temporal networks, S = snapshots, B = bins.
 
 Statistical
 -----------
@@ -408,3 +410,87 @@ Convert
      - ``O(n + m)``
      - ``O(n + m)``
      - Sparse input; a dense n x n array is O(n^2).
+
+Temporal
+--------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 24 24 20
+
+   * - Function
+     - Time
+     - Space
+     - Notes
+   * - ``convert_temporal``
+     - ``that of the converter``
+     - ``that of the converter``
+     - 
+   * - ``events_from_snapshots``
+     - ``O(S log S + n_S + m_S)``
+     - ``O(n_S + m_S)``
+     - n_S, m_S nodes and edges summed over snapshots.
+   * - ``events_from_spans``
+     - ``O(n + m log B + m_B)``
+     - ``O(n + m_B)``
+     - m_B span-bin overlaps (m with freq=None).
+   * - ``flatten_temporal``
+     - ``O(n + m + S log S)``
+     - ``O(n + m)``
+     - m observations (snapshot edges, events or spans), S snapshots.
+   * - ``backbone_stability``
+     - ``O(n_S + m_S + m T) plus T runs of the method``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges; plus binning for events and spans.
+   * - ``observation_fraction``
+     - ``O(n_S + m_S + m T)``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges; plus binning for events and spans.
+   * - ``persistence``
+     - ``O(n_S + m_S + m T)``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges; plus binning for events and spans.
+   * - ``weight_trend``
+     - ``O(n_S + m_S + m T)``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges; plus binning for events and spans.
+   * - ``edge_persistence_hmm``
+     - ``O(n_S + m_S + n_init I m T) plus T runs of the method``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges, I EM iterations (at most max_iter); plus binning for events and spans.  The method runs only with observe="keep" or "pvalue".
+   * - ``kalman_backbone``
+     - ``O(n_S + m_S + I m T + P n_sim T) plus T runs of the method``
+     - ``O(n T + m T + n_sim T)``
+     - T steps, m distinct edges, P distinct missingness patterns, I likelihood evaluations when q is estimated; with missing_as_zero the method also tests the O(n^2) absent pairs of each snapshot.
+   * - ``kalman_snapshots``
+     - ``O(m T)``
+     - ``O(m T)``
+     -
+   * - ``from_event_table``
+     - ``O(r)``
+     - ``O(r)``
+     - r rows.
+   * - ``snapshots_from_events``
+     - ``O(n + m log m + B)``
+     - ``O(n + m + B)``
+     - B bins.
+   * - ``snapshots_from_spans``
+     - ``O(n + m log m + m_B + B)``
+     - ``O(n + m_B + B)``
+     - m_B span-bin overlaps.
+   * - ``spans_from_events``
+     - ``O(n + m log m)``
+     - ``O(n + m)``
+     - 
+   * - ``spans_from_snapshots``
+     - ``O(S log S + n_S + m_S)``
+     - ``O(n_S + m_S)``
+     - n_S, m_S nodes and edges summed over snapshots.
+   * - ``temporal_form``
+     - ``O(m + S log S)``
+     - ``O(S)``
+     - m multigraph edges, S snapshots.
+   * - ``to_event_table``
+     - ``O(m log m)``
+     - ``O(m)``
+     - Snapshots are first converted to events.

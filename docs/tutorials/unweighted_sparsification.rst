@@ -2,7 +2,13 @@ Unweighted Graph Sparsification
 ================================
 
 This tutorial demonstrates methods for sparsifying unweighted graphs using the
-:mod:`~networkx_backbone.unweighted` module.
+:mod:`~nx_backbone.unweighted` module.
+
+.. seealso::
+
+   :ref:`sphx_glr_auto_examples_structural_proximity_plot_structural_proximity_tutorial.py`,
+   a narrative tutorial with figures comparing ``lspar`` (both conventions),
+   ``local_degree`` and ``sparsify(umst=True)`` on one layout.
 
 Setup
 -----
@@ -10,7 +16,7 @@ Setup
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G_full = nx.les_miserables_graph()
     G = nx.Graph()
@@ -21,7 +27,7 @@ Setup
 The sparsify pipeline
 ---------------------
 
-The :func:`~networkx_backbone.sparsify` function implements a four-step pipeline:
+The :func:`~nx_backbone.sparsify` function implements a four-step pipeline:
 
 1. **Score**: Assign a score to each edge based on a chosen metric
 2. **Normalize**: Optionally rank-transform scores within each node's neighborhood

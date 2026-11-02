@@ -1,11 +1,11 @@
-"""Tests for networkx_backbone.filters."""
+"""Tests for nx_backbone.filters."""
 
 import math
 
 import networkx as nx
 import pytest
 
-from networkx_backbone import (
+from nx_backbone import (
     adjust_pvalues,
     boolean_filter,
     consensus_backbone,
@@ -44,15 +44,15 @@ class TestAdjustPvalues:
             [0.04, 0.06, 0.06, 0.5]
         )
 
-    @pytest.mark.parametrize("method", ["bh", "fdr", "by"])
-    def test_matches_scipy(self, method):
+    def test_matches_scipy(self):
         sp = pytest.importorskip("scipy.stats")
         import numpy as np
 
-        expected = sp.false_discovery_control(
-            self.PS, method="by" if method == "by" else "bh"
-        )
-        assert np.allclose(adjust_pvalues(self.PS, method), expected)
+        for method in ("bh", "fdr", "by"):
+            expected = sp.false_discovery_control(
+                self.PS, method="by" if method == "by" else "bh"
+            )
+            assert np.allclose(adjust_pvalues(self.PS, method), expected), method
 
     def test_clips_to_unit_interval(self):
         assert adjust_pvalues([0.2, 1.5, -0.1], "none") == [0.2, 1.0, 0.0]
@@ -65,12 +65,12 @@ class TestAdjustPvalues:
             assert len(adj) == len(raw)
             assert all(r - 1e-12 <= a <= 1.0 for a, r in zip(adj, raw)), method
 
-    @pytest.mark.parametrize("method", ["bonferroni", "holm", "hochberg", "bh", "by"])
-    def test_nan_is_kept_and_not_counted(self, method):
-        with_nan = adjust_pvalues([0.01, math.nan, 0.04, 0.03], method)
-        without = adjust_pvalues([0.01, 0.04, 0.03], method)
-        assert math.isnan(with_nan[1])
-        assert [with_nan[0], with_nan[2], with_nan[3]] == pytest.approx(without)
+    def test_nan_is_kept_and_not_counted(self):
+        for method in ("bonferroni", "holm", "hochberg", "bh", "by"):
+            with_nan = adjust_pvalues([0.01, math.nan, 0.04, 0.03], method)
+            without = adjust_pvalues([0.01, 0.04, 0.03], method)
+            assert math.isnan(with_nan[1]), method
+            assert [with_nan[0], with_nan[2], with_nan[3]] == pytest.approx(without)
 
     def test_empty(self):
         assert adjust_pvalues([], "bh") == []
@@ -155,26 +155,21 @@ class TestThresholdFilter:
         assert list(H.edges(keys=True)) == [(0, 1, "x")]
 
 
-class TestThresholdFilterMTC:
-    def test_mtc_reduces_or_equal_edges(self, les_miserables_weighted):
-        H = disparity_filter(les_miserables_weighted)
-        raw = threshold_filter(H, "disparity_pvalue", 0.05).number_of_edges()
-        for method in ("bonferroni", "bh"):
-            corrected = threshold_filter(
-                H, "disparity_pvalue", 0.05, mtc=method
-            ).number_of_edges()
-            assert corrected <= raw
-
-    def test_mtc_requires_below_mode(self, les_miserables_weighted):
-        H = disparity_filter(les_miserables_weighted)
-        with pytest.raises(ValueError):
-            threshold_filter(H, "disparity_pvalue", 0.05, mode="above", mtc="bh")
-
-    def test_mtc_none_matches_plain(self, les_miserables_weighted):
-        H = disparity_filter(les_miserables_weighted)
-        a = threshold_filter(H, "disparity_pvalue", 0.3).number_of_edges()
-        b = threshold_filter(H, "disparity_pvalue", 0.3, mtc="none").number_of_edges()
-        assert a == b
+def test_threshold_filter_mtc(les_miserables_weighted):
+    H = disparity_filter(les_miserables_weighted)
+    raw = threshold_filter(H, "disparity_pvalue", 0.05).number_of_edges()
+    for method in ("bonferroni", "bh"):
+        corrected = threshold_filter(
+            H, "disparity_pvalue", 0.05, mtc=method
+        ).number_of_edges()
+        assert corrected <= raw, method
+    # mtc="none" is the plain filter.
+    a = threshold_filter(H, "disparity_pvalue", 0.3).number_of_edges()
+    b = threshold_filter(H, "disparity_pvalue", 0.3, mtc="none").number_of_edges()
+    assert a == b
+    # A correction needs mode="below".
+    with pytest.raises(ValueError):
+        threshold_filter(H, "disparity_pvalue", 0.05, mode="above", mtc="bh")
 
 
 class TestFractionFilter:
@@ -275,17 +270,13 @@ class TestMultigraphToWeighted:
         H = multigraph_to_weighted(G)
         assert H[0][1]["weight"] == 1
 
-    @pytest.mark.parametrize(
-        ("aggregate", "expected"),
-        [("count", 2), ("sum", 30), ("max", 20), ("min", 10), ("mean", 15)],
-    )
-    def test_aggregate(self, aggregate, expected):
+    def test_aggregate(self):
         M = nx.MultiGraph([(0, 1, {"weight": 10}), (0, 1, {"weight": 20})])
-        assert (
-            multigraph_to_weighted(M, aggregate=aggregate)[0][1]["weight"] == expected
-        )
-
-    def test_bad_aggregate(self):
+        got = {
+            aggregate: multigraph_to_weighted(M, aggregate=aggregate)[0][1]["weight"]
+            for aggregate in ("count", "sum", "max", "min", "mean")
+        }
+        assert got == {"count": 2, "sum": 30, "max": 20, "min": 10, "mean": 15}
         with pytest.raises(ValueError):
             multigraph_to_weighted(nx.MultiGraph(), aggregate="median")
 

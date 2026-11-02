@@ -3,20 +3,20 @@ Hybrid Methods
 
 Examples in this module use ``nx.les_miserables_graph()``.
 Methods return scored full graphs; apply
-:func:`~networkx_backbone.threshold_filter` to extract final backbones.
+:func:`~nx_backbone.threshold_filter` to extract final backbones.
 Complexity classes are provided in each function docstring.
 
-.. automodule:: networkx_backbone.hybrid
+.. automodule:: nx_backbone.hybrid
    :no-members:
 
-.. currentmodule:: networkx_backbone
+.. currentmodule:: nx_backbone
 
 .. autofunction:: glab_filter
 
 .. minigallery::
-   networkx_backbone.glab_filter
+   nx_backbone.glab_filter
    :add-heading: Gallery Examples
 
-.. rubric:: Function Image Reference
+.. rubric:: Method gallery
 
-.. include:: ../_includes/gallery/hybrid.rst
+.. include:: ../_gallery/hybrid.inc

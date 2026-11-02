@@ -3,15 +3,15 @@ Structural Methods
 
 Examples in this module use ``nx.les_miserables_graph()``.
 These functions return scored full graphs. Extract final backbones with
-:func:`~networkx_backbone.boolean_filter` on ``*_keep`` flags (or
-:func:`~networkx_backbone.threshold_filter` for continuous scores such as
+:func:`~nx_backbone.boolean_filter` on ``*_keep`` flags (or
+:func:`~nx_backbone.threshold_filter` for continuous scores such as
 ``salience`` and ``ds_weight``).
 Complexity classes are provided in each function docstring.
 
-.. automodule:: networkx_backbone.structural
+.. automodule:: nx_backbone.structural
    :no-members:
 
-.. currentmodule:: networkx_backbone
+.. currentmodule:: nx_backbone
 
 .. autofunction:: global_threshold_filter
 
@@ -42,22 +42,22 @@ Complexity classes are provided in each function docstring.
 .. autofunction:: maximum_spanning_tree_backbone
 
 .. minigallery::
-   networkx_backbone.global_threshold_filter
-   networkx_backbone.strongest_n_ties
-   networkx_backbone.global_sparsification
-   networkx_backbone.primary_linkage_analysis
-   networkx_backbone.edge_betweenness_filter
-   networkx_backbone.node_degree_filter
-   networkx_backbone.high_salience_skeleton
-   networkx_backbone.metric_backbone
-   networkx_backbone.ultrametric_backbone
-   networkx_backbone.doubly_stochastic_filter
-   networkx_backbone.h_backbone
-   networkx_backbone.modularity_backbone
-   networkx_backbone.planar_maximally_filtered_graph
-   networkx_backbone.maximum_spanning_tree_backbone
+   nx_backbone.global_threshold_filter
+   nx_backbone.strongest_n_ties
+   nx_backbone.global_sparsification
+   nx_backbone.primary_linkage_analysis
+   nx_backbone.edge_betweenness_filter
+   nx_backbone.node_degree_filter
+   nx_backbone.high_salience_skeleton
+   nx_backbone.metric_backbone
+   nx_backbone.ultrametric_backbone
+   nx_backbone.doubly_stochastic_filter
+   nx_backbone.h_backbone
+   nx_backbone.modularity_backbone
+   nx_backbone.planar_maximally_filtered_graph
+   nx_backbone.maximum_spanning_tree_backbone
    :add-heading: Gallery Examples
 
-.. rubric:: Function Image Reference
+.. rubric:: Method gallery
 
-.. include:: ../_includes/gallery/structural.rst
+.. include:: ../_gallery/structural.inc

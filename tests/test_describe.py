@@ -9,9 +9,9 @@ from pathlib import Path
 import networkx as nx
 import pytest
 
-import networkx_backbone as nb
-from networkx_backbone import describe
-from networkx_backbone.describe import (
+import nx_backbone as nb
+from nx_backbone import describe
+from nx_backbone.describe import (
     ALIASES,
     EXCLUDED,
     HELPER_MODULES,
@@ -36,7 +36,7 @@ def _ascii(text):
 # ---------------------------------------------------------------------------
 
 
-def test_every_public_scorer_has_a_registry_entry():
+def test_registry_matches_public_api():
     # A new public method must be described (or explicitly excluded).
     missing = [
         name
@@ -47,22 +47,20 @@ def test_every_public_scorer_has_a_registry_entry():
         and name not in EXCLUDED
     ]
     assert not missing, (
-        f"add these to networkx_backbone.describe.METHODS (or EXCLUDED): {missing}"
+        f"add these to nx_backbone.describe.METHODS (or EXCLUDED): {missing}"
     )
-
-
-def test_registry_names_are_public():
+    # Every registry name is public, and none lives in a helper module.
     public = set(nb.__all__)
     assert set(METHODS) <= public
     assert set(EXCLUDED) <= public
     assert not set(METHODS) & set(EXCLUDED)
     for alias, target in ALIASES.items():
         assert target in METHODS, alias
-
-
-def test_helper_modules_hold_no_described_methods():
     for name in METHODS:
         assert _module(name) not in HELPER_MODULES, name
+    # The module docstring lists every described method.
+    for name in METHODS:
+        assert f"nx_backbone.{name}`" in describe.__doc__, name
 
 
 def test_references_exist_and_are_used():
@@ -105,25 +103,42 @@ def test_dois_are_documented_in_the_repository():
             assert ref.doi in text, f"{key}: DOI {ref.doi} not found in README"
 
 
-def test_module_docstring_lists_registry():
-    for name in METHODS:
-        assert f"networkx_backbone.{name}`" in describe.__doc__
-
-
-@pytest.mark.parametrize("name", sorted(METHODS))
-@pytest.mark.parametrize("style", ["text", "markdown", "bibtex"])
-def test_every_method_renders(name, style):
+def _render_problems(name, style):
     entry = METHODS[name]
     kwargs = {"alpha": 0.05} if entry.test else {}
-    out = nb.describe_backbone(name, style=style, **kwargs)
+    try:
+        out = nb.describe_backbone(name, style=style, **kwargs)
+    except Exception as err:
+        return [f"raised {type(err).__name__}: {err}"]
+    problems = []
     if style == "bibtex":
-        assert out.count("@") == len(entry.refs) + 1 + bool(entry.builtin_mtc)
-        assert "keegan_networkx_backbone" in out
+        n_entries = len(entry.refs) + 1 + bool(entry.builtin_mtc)
+        if out.count("@") != n_entries:
+            problems.append(f"{out.count('@')} BibTeX entries, expected {n_entries}")
+        if "keegan_nx_backbone" not in out:
+            problems.append("does not cite the package")
     else:
-        assert entry.label in out
-        assert "networkx-backbone version" in out
-        for key in entry.refs:
-            assert REFERENCES[key].cite() in out
+        if entry.label not in out:
+            problems.append(f"label {entry.label!r} missing")
+        if "nx-backbone version" not in out:
+            problems.append("package version missing")
+        problems += [
+            f"citation {key!r} missing"
+            for key in entry.refs
+            if REFERENCES[key].cite() not in out
+        ]
+    return problems
+
+
+def test_every_method_renders():
+    # Every registered method, in every style; one line per failing pair.
+    failures = [
+        f"{name} ({style}): {problem}"
+        for name in sorted(METHODS)
+        for style in ("text", "markdown", "bibtex")
+        for problem in _render_problems(name, style)
+    ]
+    assert not failures, "\n".join(failures)
 
 
 # ---------------------------------------------------------------------------
@@ -160,27 +175,24 @@ def test_aliases_and_callables_resolve(les_mis):
     assert "(SVH)" in nb.describe_backbone("svh", alpha=0.01)
 
 
-@pytest.mark.parametrize(
-    ("mtc", "phrase", "cite"),
-    [
+def test_mtc_wording():
+    for mtc, phrase, cite in [
         ("bonferroni", "a Bonferroni correction", None),
         ("holm", "a Holm step-down correction", "Holm, 1979"),
         ("hochberg", "a Hochberg step-up correction", "Hochberg, 1988"),
         ("bh", "Benjamini-Hochberg", "Benjamini & Hochberg, 1995"),
         ("fdr", "Benjamini-Hochberg", "Benjamini & Hochberg, 1995"),
         ("BY", "Benjamini-Yekutieli", "Benjamini & Yekutieli, 2001"),
-    ],
-)
-def test_mtc_wording(mtc, phrase, cite):
-    text = nb.describe_backbone("lans_filter", alpha=0.05, mtc=mtc)
-    assert phrase in text
-    assert "for multiple comparisons" in text
-    bib = nb.describe_backbone("lans_filter", alpha=0.05, mtc=mtc, style="bibtex")
-    if cite:
-        assert cite in text
-        assert bib.count("@") == 3
-    else:
-        assert bib.count("@") == 2
+    ]:
+        text = nb.describe_backbone("lans_filter", alpha=0.05, mtc=mtc)
+        assert phrase in text, mtc
+        assert "for multiple comparisons" in text, mtc
+        bib = nb.describe_backbone("lans_filter", alpha=0.05, mtc=mtc, style="bibtex")
+        if cite:
+            assert cite in text, mtc
+            assert bib.count("@") == 3, mtc
+        else:
+            assert bib.count("@") == 2, mtc
 
 
 def test_alpha_none_mentions_pvalues():
@@ -208,6 +220,62 @@ def test_parameters_are_listed():
     assert "`n=2`" in md
 
 
+def test_disparity_concentration_is_described():
+    G = nx.les_miserables_graph()
+    scored = nb.disparity_filter(G, a="ml")
+    bb = nb.threshold_filter(scored, "disparity_pvalue", 0.05)
+    text = nb.describe_backbone(
+        "disparity", alpha=0.05, a="ml", original=G, backbone=bb
+    )
+    assert (
+        "symmetric Dirichlet distribution of each node's weight shares with "
+        "concentration 1/a, estimated by maximum likelihood (a = 0.525)"
+    ) in text
+    assert "Marcaccioli & Livan, 2019" in text
+    assert "Marcaccioli, R., & Livan, G. (2019)" in text  # reference list
+    assert "Other parameters" not in text
+    bib = nb.describe_backbone("disparity_filter", a=2, style="bibtex")
+    assert "@article{marcaccioli2019" in bib
+    md = nb.describe_backbone("disparity_filter", a=2, style="markdown")
+    assert "concentration 1/a, `a = 2`" in md
+    # Without a backbone the estimate is unknown; a = 1 is the original filter.
+    assert "estimated by maximum likelihood;" in nb.describe_backbone(
+        "disparity_filter", a="ml"
+    )
+    assert nb.describe_backbone("disparity_filter", a=1) == nb.describe_backbone(
+        "disparity_filter"
+    )
+
+
+def test_count_unit_is_described():
+    for name in ("marginal_likelihood_filter", "ecm_filter", "noise_corrected_filter"):
+        text = nb.describe_backbone(name, alpha=0.05, unit=0.25)
+        assert (
+            "Edge weights were converted to counts in units of unit = 0.25 "
+            "(count = weight / unit) before testing."
+        ) in text, name
+        assert "Other parameters" not in text, name
+        assert nb.describe_backbone(name, unit=1) == nb.describe_backbone(name), name
+    # Other methods list unit like any other parameter.
+    assert "Other parameters: unit=2." in nb.describe_backbone("lans_filter", unit=2)
+
+
+def test_noise_corrected_pvalue_method_is_described():
+    default = nb.describe_backbone("noise_corrected_filter", alpha=0.05)
+    assert "exact binomial p-value" in default
+    assert (
+        nb.describe_backbone(
+            "noise_corrected_filter", alpha=0.05, pvalue_method="binomial"
+        )
+        == default
+    )
+    delta = nb.describe_backbone(
+        "noise_corrected_filter", alpha=0.05, pvalue_method="delta"
+    )
+    assert "the paper's delta rule), which is not calibrated" in delta
+    assert "Other parameters" not in delta
+
+
 def test_bibtex_entries():
     bib = nb.describe_backbone("fdsm", alpha=0.05, mtc="bh", style="bibtex")
     keys = re.findall(r"@\w+\{(\w+),", bib)
@@ -215,7 +283,7 @@ def test_bibtex_entries():
         "neal2021",
         "godard2022",
         "benjamini1995",
-        "keegan_networkx_backbone",
+        "keegan_nx_backbone",
     ]
     assert "doi = {10.1038/s41598-021-03238-3}" in bib
     misc = nb.describe_backbone("ecm_filter", style="bibtex")
@@ -332,7 +400,7 @@ def test_describe_without_optional_dependencies():
     _run(
         """
         import networkx as nx
-        import networkx_backbone as nb
+        import nx_backbone as nb
         G = nx.les_miserables_graph()
         bb = nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05)
         text = nb.describe_backbone("disparity", alpha=0.05, mtc="holm",

@@ -21,8 +21,8 @@ dispatchable, as NetworkX's own algorithms are:
   ``h_backbone``, ``maximum_spanning_tree_backbone``, ...);
 - proximity scores, ``glab_filter``, and the unweighted sparsifiers
   (``sparsify``, ``lspar``, ``local_degree``);
-- ``multigraph_to_weighted``, ``threshold_filter``, ``fraction_filter``, and
-  ``boolean_filter``.
+- ``multigraph_to_weighted``, ``threshold_filter``, ``fraction_filter``,
+  ``boolean_filter``, and ``transform_weights``.
 
 These functions accept the ``backend=`` keyword and follow
 ``nx.config.backend_priority``. They are registered under the dispatch name
@@ -33,8 +33,9 @@ link-prediction functions, which nx-parallel implements.
 
 The other functions are not dispatchable. The bipartite functions accept
 incidence matrices as well as graphs, the hypergraph functions take lists of
-hyperedges, the evaluation measures return numbers, and
-``consensus_backbone`` takes any number of graphs.
+hyperedges, the evaluation measures return numbers,
+``consensus_backbone`` takes any number of graphs, and the temporal functions
+take snapshots (several graphs) or a multigraph of events or spans.
 
 Using a backend
 ---------------
@@ -46,7 +47,7 @@ No backend implements a ``backbone_*`` function yet, so
 .. code-block:: python
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G = nx.les_miserables_graph()
     H = nb.metric_backbone(G, backend="networkx")
@@ -118,8 +119,12 @@ own tests do. With ``nx_loopback``, the test backend that ships with
 NetworkX, every dispatchable call converts its input graphs, runs, and
 checks that the result equals the plain NetworkX result::
 
-    NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules networkx_backbone tests
+    NETWORKX_TEST_BACKEND=nx_loopback pytest --doctest-modules nx_backbone tests
 
 Add ``NETWORKX_FALLBACK_TO_NX=1`` to run with NetworkX the functions a
 backend does not implement, instead of marking their tests as expected
 failures.
+
+The narrative guide :doc:`/auto_examples/r_and_scale/plot_scaling_up` puts
+these timings next to run times measured at build time and the other ways to
+handle large networks.

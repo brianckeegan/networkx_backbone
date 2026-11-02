@@ -11,7 +11,7 @@ Setup
 We use a weighted graph for this tutorial::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     # Create a weighted graph
     G = nx.les_miserables_graph()
@@ -44,10 +44,15 @@ weight with the weight expected from its endpoints' strengths.  The score
 ``(-1, 1)``: 0 means exactly as expected, positive means stronger.  Because
 weights are noisy counts, the method also estimates the score's standard
 deviation ``nc_sdev`` from a Bayesian (beta-binomial) model, and keeps an edge
-when ``nc_score > delta * nc_sdev``.  The paper uses ``delta = 1.64``, roughly
-a one-tailed test at the 5% level; ``nc_pvalue`` is the matching
-normal-approximation p-value, so it works with
-:func:`~networkx_backbone.threshold_filter` and multiple-testing corrections::
+when ``nc_score > delta * nc_sdev``, with ``delta = 1.64``.  The paper calls
+this roughly a one-tailed test at the 5% level, but it is not calibrated: on
+low-count graphs it keeps most edges even when the weights are pure noise.
+``nc_pvalue`` is therefore, by default, the exact p-value of the model's null,
+:math:`P(X \ge n_{ij})` for a binomial count with the expected weight as its
+mean (the alternative the paper itself gives), so it works with
+:func:`~nx_backbone.threshold_filter` and multiple-testing corrections.
+``pvalue_method="delta"`` gives the normal-approximation p-value of the
+``delta`` rule instead::
 
     H = nb.noise_corrected_filter(G)
 
@@ -55,21 +60,25 @@ normal-approximation p-value, so it works with
     d = H[u][v]
     print(f"Edge ({u}, {v}): score = {d['nc_score']:.3f} +/- {d['nc_sdev']:.3f}")
 
-    # The paper's rule, delta = 1.64
-    kept = [(u, v) for u, v, d in H.edges(data=True)
-            if d["nc_score"] > 1.64 * d["nc_sdev"]]
-    print(f"Noise-corrected backbone (delta=1.64): {len(kept)} edges")
-
-    # The same rule as a p-value threshold (delta = 1.645 <=> p < 0.05)
+    # Exact binomial p-values (the default)
     backbone = nb.threshold_filter(H, "nc_pvalue", 0.05)
     print(f"Noise-corrected backbone: {backbone.number_of_edges()} edges")
 
+    # The paper's rule, delta = 1.64, and its p-value reading
+    kept = [(u, v) for u, v, d in H.edges(data=True)
+            if d["nc_score"] > 1.64 * d["nc_sdev"]]
+    print(f"Noise-corrected backbone (delta=1.64): {len(kept)} edges")
+    D = nb.noise_corrected_filter(G, pvalue_method="delta")
+    print(nb.threshold_filter(D, "nc_pvalue", 0.05).number_of_edges())
+
 An undirected graph is treated as a symmetric weight matrix, so each edge is
-counted in both directions, as in the authors' reference implementation.  The
-noise-corrected backbone is permissive on small, dense graphs such as Les
-Misérables (195 of 254 edges at ``delta = 1.64``); it is designed for large,
-noisy count data.  The binomial z-score of networkx-backbone 0.2 and earlier is
-still available as ``method="zscore"``.
+counted in both directions, as in the authors' reference implementation.  On
+Les Misérables the default keeps 126 of 254 edges at 0.05, the same edges as
+the marginal likelihood filter below, whose null is the same binomial model;
+the ``delta`` rule keeps 195.  The Notes of
+:func:`~nx_backbone.noise_corrected_filter` show why the ``delta`` rule
+over-rejects, with simulations from the model's null.  The binomial z-score of
+networkx-backbone 0.2 and earlier is still available as ``method="zscore"``.
 
 Marginal likelihood filter
 --------------------------
@@ -175,7 +184,7 @@ networkx-backbone 0.2 and earlier)::
 Comparing all statistical methods
 ----------------------------------
 
-Use :func:`~networkx_backbone.compare_backbones` to compare the results::
+Use :func:`~nx_backbone.compare_backbones` to compare the results::
 
     backbones = {
         "disparity": nb.threshold_filter(
@@ -215,8 +224,8 @@ Multiple-testing correction
 
 Because a statistical backbone tests every edge, correcting for multiple
 comparisons avoids retaining edges by chance. Pass ``mtc`` to
-:func:`~networkx_backbone.threshold_filter` (or use
-:func:`~networkx_backbone.adjust_pvalues` directly). Supported corrections match
+:func:`~nx_backbone.threshold_filter` (or use
+:func:`~nx_backbone.adjust_pvalues` directly). Supported corrections match
 R's ``p.adjust``: ``"bonferroni"``, ``"holm"``, ``"hochberg"``, ``"bh"``/``"fdr"``
 (Benjamini-Hochberg), and ``"by"`` (Benjamini-Yekutieli)::
 
@@ -240,7 +249,8 @@ p-value becomes two-sided, and each edge gains a ``"sign"`` attribute that is
 ``+1`` for a significantly strong edge and ``-1`` for a significantly weak one.
 For the ECM the lower tail is :math:`P(w_{ij} \le w) = 1 - p_{ij} (y_i y_j)^w`
 under the fitted model; for the noise-corrected backbone both tails come from
-the normal approximation to ``nc_score / nc_sdev``::
+its binomial null (or, with ``pvalue_method="delta"``, from the normal
+approximation to ``nc_score / nc_sdev``)::
 
     signed = nb.disparity_filter(G, signed=True)
     backbone = nb.threshold_filter(signed, "disparity_pvalue", 0.05, mtc="bh")

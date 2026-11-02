@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 import networkx as nx
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 ALPHA = 0.05  # significance level of the p-value filters
 TOP_FRACTION = 0.3  # fraction of edges the proximity scores keep
@@ -29,7 +29,7 @@ class Case:
     Parameters
     ----------
     method : str
-        Name of the scoring function in ``networkx_backbone``.
+        Name of the scoring function in ``nx_backbone``.
     filter : {"threshold", "fraction", "boolean"}
         Which filter extracts the backbone from the scored graph.
     attr : str
@@ -105,6 +105,15 @@ WEIGHTED_CASES = [
     # Statistical
     _pvalue("disparity_filter", "disparity_pvalue"),
     _pvalue("noise_corrected_filter", "nc_pvalue"),
+    Case(
+        "noise_corrected_filter",
+        "threshold",
+        "nc_pvalue",
+        ALPHA,
+        "below",
+        kwargs={"pvalue_method": "delta"},
+        label="noise_corrected_filter(pvalue_method='delta')",
+    ),
     Case(
         "noise_corrected_filter",
         "threshold",

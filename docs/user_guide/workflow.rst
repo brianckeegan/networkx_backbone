@@ -13,13 +13,13 @@ Most backbone methods follow a two-step process:
    the graph with a new edge attribute containing a score (p-value, similarity
    coefficient, salience, etc.).
 
-2. **Apply a filter** from the :mod:`~networkx_backbone.filters` module to
+2. **Apply a filter** from the :mod:`~nx_backbone.filters` module to
    select the edges that form the backbone.
 
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G = nx.les_miserables_graph()
 
@@ -42,128 +42,128 @@ attribute name when calling a filter function.
    * - Method
      - Edge Attribute
      - Interpretation
-   * - :func:`~networkx_backbone.disparity_filter`
+   * - :func:`~nx_backbone.disparity_filter`
      - ``disparity_pvalue``
      - p-value (lower = more significant)
-   * - :func:`~networkx_backbone.noise_corrected_filter`
+   * - :func:`~nx_backbone.noise_corrected_filter`
      - ``nc_score``, ``nc_sdev``, ``nc_pvalue``
      - Lift score in (-1, 1) and its standard deviation (keep
        ``nc_score > 1.64 * nc_sdev``); p-value (lower = more significant)
-   * - :func:`~networkx_backbone.marginal_likelihood_filter`
+   * - :func:`~nx_backbone.marginal_likelihood_filter`
      - ``ml_pvalue``
      - p-value (lower = more significant)
-   * - :func:`~networkx_backbone.ecm_filter`
+   * - :func:`~nx_backbone.ecm_filter`
      - ``ecm_pvalue``
      - p-value (lower = more significant)
-   * - :func:`~networkx_backbone.lans_filter`
+   * - :func:`~nx_backbone.lans_filter`
      - ``lans_pvalue``
      - p-value (lower = more significant)
-   * - :func:`~networkx_backbone.multiple_linkage_analysis`
+   * - :func:`~nx_backbone.multiple_linkage_analysis`
      - ``mla_keep`` (node attribute ``mla_rank``)
      - Boolean keep flag; ``method="lans"`` gives ``mla_pvalue`` + ``mla_keep``
-   * - :func:`~networkx_backbone.global_threshold_filter`
+   * - :func:`~nx_backbone.global_threshold_filter`
      - ``global_threshold_keep``
      - Boolean keep flag
-   * - :func:`~networkx_backbone.strongest_n_ties`
+   * - :func:`~nx_backbone.strongest_n_ties`
      - ``strongest_n_ties_keep``
      - Boolean keep flag
-   * - :func:`~networkx_backbone.global_sparsification`
+   * - :func:`~nx_backbone.global_sparsification`
      - ``global_sparsification_keep``
      - Boolean keep flag
-   * - :func:`~networkx_backbone.primary_linkage_analysis`
+   * - :func:`~nx_backbone.primary_linkage_analysis`
      - ``primary_linkage_keep``
      - Boolean keep flag
-   * - :func:`~networkx_backbone.edge_betweenness_filter`
+   * - :func:`~nx_backbone.edge_betweenness_filter`
      - ``edge_betweenness`` + ``edge_betweenness_keep``
      - centrality score + boolean keep flag
-   * - :func:`~networkx_backbone.node_degree_filter`
+   * - :func:`~nx_backbone.node_degree_filter`
      - ``node_degree_keep`` (node + edge)
      - Boolean keep flag
-   * - :func:`~networkx_backbone.high_salience_skeleton`
+   * - :func:`~nx_backbone.high_salience_skeleton`
      - ``salience``
      - Fraction in [0, 1] (higher = more important)
-   * - :func:`~networkx_backbone.metric_backbone`
+   * - :func:`~nx_backbone.metric_backbone`
      - ``metric_keep``
      - Boolean keep flag
-   * - :func:`~networkx_backbone.ultrametric_backbone`
+   * - :func:`~nx_backbone.ultrametric_backbone`
      - ``ultrametric_keep``
      - Boolean keep flag
-   * - :func:`~networkx_backbone.doubly_stochastic_filter`
+   * - :func:`~nx_backbone.doubly_stochastic_filter`
      - ``ds_weight``, ``ds_keep``
      - Normalized weight (higher = more important); boolean keep flag from
        the connectivity stage
-   * - :func:`~networkx_backbone.h_backbone`
+   * - :func:`~nx_backbone.h_backbone`
      - ``h_backbone_keep``
      - Boolean keep flag
-   * - :func:`~networkx_backbone.glab_filter`
+   * - :func:`~nx_backbone.glab_filter`
      - ``glab_pvalue``
      - p-value (lower = more significant)
-   * - :func:`~networkx_backbone.neighborhood_overlap`
+   * - :func:`~nx_backbone.neighborhood_overlap`
      - ``overlap``
      - Count (higher = more embedded)
-   * - :func:`~networkx_backbone.jaccard_backbone`
+   * - :func:`~nx_backbone.jaccard_backbone`
      - ``jaccard``
      - Coefficient in [0, 1] (higher = more embedded)
-   * - :func:`~networkx_backbone.dice_backbone`
+   * - :func:`~nx_backbone.dice_backbone`
      - ``dice``
      - Coefficient in [0, 1] (higher = more embedded)
-   * - :func:`~networkx_backbone.cosine_backbone`
+   * - :func:`~nx_backbone.cosine_backbone`
      - ``cosine``
      - Coefficient in [0, 1] (higher = more embedded)
-   * - :func:`~networkx_backbone.hub_promoted_index`
+   * - :func:`~nx_backbone.hub_promoted_index`
      - ``hpi``
      - Index (higher = more embedded)
-   * - :func:`~networkx_backbone.hub_depressed_index`
+   * - :func:`~nx_backbone.hub_depressed_index`
      - ``hdi``
      - Index (higher = more embedded)
-   * - :func:`~networkx_backbone.lhn_local_index`
+   * - :func:`~nx_backbone.lhn_local_index`
      - ``lhn_local``
      - Index (higher = more embedded)
-   * - :func:`~networkx_backbone.preferential_attachment_score`
+   * - :func:`~nx_backbone.preferential_attachment_score`
      - ``pa``
      - Score (higher = more expected)
-   * - :func:`~networkx_backbone.adamic_adar_index`
+   * - :func:`~nx_backbone.adamic_adar_index`
      - ``adamic_adar``
      - Score (higher = more embedded)
-   * - :func:`~networkx_backbone.resource_allocation_index`
+   * - :func:`~nx_backbone.resource_allocation_index`
      - ``resource_allocation``
      - Score (higher = more embedded)
-   * - :func:`~networkx_backbone.graph_distance_proximity`
+   * - :func:`~nx_backbone.graph_distance_proximity`
      - ``dist``
      - Reciprocal distance (higher = closer)
-   * - :func:`~networkx_backbone.local_path_index`
+   * - :func:`~nx_backbone.local_path_index`
      - ``lp``
      - Score (higher = more embedded)
-   * - :func:`~networkx_backbone.sparsify` / :func:`~networkx_backbone.lspar` / :func:`~networkx_backbone.local_degree`
+   * - :func:`~nx_backbone.sparsify` / :func:`~nx_backbone.lspar` / :func:`~nx_backbone.local_degree`
      - ``sparsify_score`` + ``sparsify_keep``
      - score + boolean keep flag
-   * - :func:`~networkx_backbone.sdsm`
+   * - :func:`~nx_backbone.sdsm`
      - ``sdsm_pvalue``
      - p-value (lower = more significant)
-   * - :func:`~networkx_backbone.fdsm`
+   * - :func:`~nx_backbone.fdsm`
      - ``fdsm_pvalue``
      - p-value (lower = more significant)
-   * - :func:`~networkx_backbone.modularity_backbone`
+   * - :func:`~nx_backbone.modularity_backbone`
      - ``vitality`` (node) + ``modularity_keep`` (edge)
      - node score + boolean keep flag
 
 Filtering functions
 -------------------
 
-The :mod:`~networkx_backbone.filters` module provides filtering functions and
+The :mod:`~nx_backbone.filters` module provides filtering functions and
 graph-preparation support utilities.
 
-:func:`~networkx_backbone.multigraph_to_weighted`
+:func:`~nx_backbone.multigraph_to_weighted`
     Convert ``MultiGraph`` / ``MultiDiGraph`` inputs into weighted simple
     graphs by collapsing parallel edges. Use ``edge_type_attr`` to count
     distinct edge types per node pair::
 
         weighted_simple = nb.multigraph_to_weighted(MG, edge_type_attr="edge_type")
 
-    The high-level :func:`~networkx_backbone.backbone_from_weighted` wrapper
+    The high-level :func:`~nx_backbone.backbone_from_weighted` wrapper
     applies this conversion automatically for multigraph inputs by default.
 
-:func:`~networkx_backbone.threshold_filter`
+:func:`~nx_backbone.threshold_filter`
     Keep edges where the score is below (for p-values) or above (for importance
     scores) a given threshold. Use ``mode="below"`` for p-values and
     ``mode="above"`` for importance scores. By default, all input nodes are
@@ -178,7 +178,7 @@ graph-preparation support utilities.
         # Optionally remove isolate nodes after edge filtering
         backbone = nb.threshold_filter(H, "disparity_pvalue", 0.05, include_all_nodes=False)
 
-:func:`~networkx_backbone.fraction_filter`
+:func:`~nx_backbone.fraction_filter`
     Keep a fixed fraction of edges, sorted by score. Use ``ascending=True``
     to keep the smallest scores (p-values) or ``ascending=False`` to keep
     the largest scores::
@@ -186,13 +186,13 @@ graph-preparation support utilities.
         # Keep the 20% most significant edges
         backbone = nb.fraction_filter(H, "disparity_pvalue", 0.2, ascending=True)
 
-:func:`~networkx_backbone.boolean_filter`
+:func:`~nx_backbone.boolean_filter`
     Keep edges where a boolean attribute is truthy::
 
         H = nb.global_sparsification(G, s=0.4)
         backbone = nb.boolean_filter(H, "global_sparsification_keep")
 
-:func:`~networkx_backbone.consensus_backbone`
+:func:`~nx_backbone.consensus_backbone`
     Take the intersection of multiple backbones -- only edges present in
     all input backbones are kept::
 
@@ -205,10 +205,10 @@ Matrices and edge lists
 
 Networks held as a NumPy or SciPy sparse adjacency matrix, or as a pandas
 edge-list ``DataFrame``, can be passed straight to
-:func:`~networkx_backbone.backbone`,
-:func:`~networkx_backbone.backbone_from_weighted` and
-:func:`~networkx_backbone.backbone_from_unweighted`. They are converted with
-:func:`~networkx_backbone.to_graph`, which uses NetworkX's own converters and
+:func:`~nx_backbone.backbone`,
+:func:`~nx_backbone.backbone_from_weighted` and
+:func:`~nx_backbone.backbone_from_unweighted`. They are converted with
+:func:`~nx_backbone.to_graph`, which uses NetworkX's own converters and
 takes ``nodelist`` (matrix row and column labels), ``directed``, and
 ``source`` / ``target`` / ``weight`` (edge-list column names). An undirected
 graph must come from a symmetric matrix, and an edge list must not repeat a
@@ -218,7 +218,7 @@ score::
 
     import networkx as nx
     import pandas as pd
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     edges = pd.DataFrame(
         {"from": ["a", "a", "b", "c"], "to": ["b", "c", "c", "d"],
@@ -229,13 +229,13 @@ score::
     )
     nx.to_pandas_edgelist(backbone, source="from", target="to")
 
-The individual scorers such as :func:`~networkx_backbone.disparity_filter`
+The individual scorers such as :func:`~nx_backbone.disparity_filter`
 keep graph-only signatures, as NetworkX functions do: convert once with
-:func:`~networkx_backbone.to_graph` and pass the graph to as many scorers and
+:func:`~nx_backbone.to_graph` and pass the graph to as many scorers and
 filters as you like. Bipartite functions are the exception; they take an
 agents x artifacts incidence matrix directly (see :doc:`../api/bipartite`).
 
-When no ``method`` is given, :func:`~networkx_backbone.backbone` treats a
+When no ``method`` is given, :func:`~nx_backbone.backbone` treats a
 ``DataFrame`` with the ``source`` and ``target`` columns as an edge list and
 any other matrix as a bipartite incidence matrix. Name a weighted or
 unweighted method to read a matrix as an adjacency matrix.
@@ -243,7 +243,7 @@ unweighted method to read a matrix as an adjacency matrix.
 Visual comparison
 -----------------
 
-Use :mod:`~networkx_backbone.visualization` helpers to compare an original
+Use :mod:`~nx_backbone.visualization` helpers to compare an original
 graph with a backbone and highlight dropped structure::
 
     backbone = nb.threshold_filter(
@@ -256,63 +256,35 @@ Methods with boolean keep flags
 -------------------------------
 
 Several methods provide built-in boolean edge attributes specifically for
-the filter step. Apply :func:`~networkx_backbone.boolean_filter` to extract
+the filter step. Apply :func:`~nx_backbone.boolean_filter` to extract
 the final backbone:
 
-- :func:`~networkx_backbone.global_threshold_filter` -> ``global_threshold_keep``
-- :func:`~networkx_backbone.strongest_n_ties` -> ``strongest_n_ties_keep``
-- :func:`~networkx_backbone.global_sparsification` -> ``global_sparsification_keep``
-- :func:`~networkx_backbone.primary_linkage_analysis` -> ``primary_linkage_keep``
-- :func:`~networkx_backbone.edge_betweenness_filter` -> ``edge_betweenness_keep``
-- :func:`~networkx_backbone.node_degree_filter` -> ``node_degree_keep``
-- :func:`~networkx_backbone.metric_backbone` -> ``metric_keep``
-- :func:`~networkx_backbone.ultrametric_backbone` -> ``ultrametric_keep``
-- :func:`~networkx_backbone.h_backbone` -> ``h_backbone_keep``
-- :func:`~networkx_backbone.modularity_backbone` -> ``modularity_keep``
-- :func:`~networkx_backbone.planar_maximally_filtered_graph` -> ``pmfg_keep``
-- :func:`~networkx_backbone.maximum_spanning_tree_backbone` -> ``mst_keep``
-- :func:`~networkx_backbone.multiple_linkage_analysis` -> ``mla_keep``
-- :func:`~networkx_backbone.sparsify` / :func:`~networkx_backbone.lspar` /
-  :func:`~networkx_backbone.local_degree` -> ``sparsify_keep``
+- :func:`~nx_backbone.global_threshold_filter` -> ``global_threshold_keep``
+- :func:`~nx_backbone.strongest_n_ties` -> ``strongest_n_ties_keep``
+- :func:`~nx_backbone.global_sparsification` -> ``global_sparsification_keep``
+- :func:`~nx_backbone.primary_linkage_analysis` -> ``primary_linkage_keep``
+- :func:`~nx_backbone.edge_betweenness_filter` -> ``edge_betweenness_keep``
+- :func:`~nx_backbone.node_degree_filter` -> ``node_degree_keep``
+- :func:`~nx_backbone.metric_backbone` -> ``metric_keep``
+- :func:`~nx_backbone.ultrametric_backbone` -> ``ultrametric_keep``
+- :func:`~nx_backbone.h_backbone` -> ``h_backbone_keep``
+- :func:`~nx_backbone.modularity_backbone` -> ``modularity_keep``
+- :func:`~nx_backbone.planar_maximally_filtered_graph` -> ``pmfg_keep``
+- :func:`~nx_backbone.maximum_spanning_tree_backbone` -> ``mst_keep``
+- :func:`~nx_backbone.multiple_linkage_analysis` -> ``mla_keep``
+- :func:`~nx_backbone.sparsify` / :func:`~nx_backbone.lspar` /
+  :func:`~nx_backbone.local_degree` -> ``sparsify_keep``
 
-For bipartite projections, :func:`~networkx_backbone.sdsm` and
-:func:`~networkx_backbone.fdsm` return full projected graphs with p-values
+For bipartite projections, :func:`~nx_backbone.sdsm` and
+:func:`~nx_backbone.fdsm` return full projected graphs with p-values
 (``sdsm_pvalue`` / ``fdsm_pvalue``), which you can then filter with
-:func:`~networkx_backbone.threshold_filter`. Use ``projection=`` to attach
+:func:`~nx_backbone.threshold_filter`. Use ``projection=`` to attach
 ``simple``, ``hyper``, ``probs``, or ``ycn`` projection weights.
 
-Function Image Reference
-------------------------
+Method gallery
+--------------
 
-These static snapshots from ``docs/_static/graph_gallery/`` map functions to
-their score-then-filter visual outcomes.
-
-Hybrid (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/hybrid.rst
-
-Proximity (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/proximity.rst
-
-Statistical (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/statistical.rst
-
-Structural (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/structural.rst
-
-Unweighted (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/unweighted.rst
-
-Bipartite (Davis Southern Women)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/bipartite.rst
+Each backbone module's API page has a method gallery: every method's
+backbone drawn over its original graph, regenerated whenever the
+documentation is built. :doc:`../tutorials/graph_gallery` links to them all
+and compares the methods side by side.

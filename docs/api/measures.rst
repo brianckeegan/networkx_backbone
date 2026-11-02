@@ -3,11 +3,13 @@ Measures
 
 Examples in this module use ``nx.les_miserables_graph()``.
 Complexity classes are provided in each function docstring.
+:doc:`../auto_examples/start_here/plot_hairball_to_backbone` compares four backbones with
+:func:`~nx_backbone.compare_backbones` and a custom measure.
 
-.. automodule:: networkx_backbone.measures
+.. automodule:: nx_backbone.measures
    :no-members:
 
-.. currentmodule:: networkx_backbone
+.. currentmodule:: nx_backbone
 
 .. autofunction:: node_fraction
 

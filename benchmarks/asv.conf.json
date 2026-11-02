@@ -1,17 +1,17 @@
 {
-    // airspeed velocity configuration for networkx-backbone.
+    // airspeed velocity configuration for nx-backbone.
     // Run from this directory, e.g. `asv continuous main HEAD`;
     // see docs/contributing.rst.
     "version": 1,
-    "project": "networkx-backbone",
-    "project_url": "https://github.com/brianckeegan/networkx_backbone",
+    "project": "nx-backbone",
+    "project_url": "https://github.com/brianckeegan/nx-backbone",
     "repo": "..",
     "branches": ["main"],
     "dvcs": "git",
     "environment_type": "virtualenv",
     "install_timeout": 600,
-    "show_commit_url": "https://github.com/brianckeegan/networkx_backbone/commit/",
-    // Build only networkx-backbone's wheel; the default also builds the
+    "show_commit_url": "https://github.com/brianckeegan/nx-backbone/commit/",
+    // Build only nx-backbone's wheel; the default also builds the
     // dependencies' wheels, and asv then cannot tell which one to install.
     "build_command": [
         "python -m pip wheel --no-deps -w {build_cache_dir} {build_dir}"

@@ -1,14 +1,20 @@
-# Generate backbone comparison visualizations and the docs gallery page.
+# Build the documentation strictly on pull requests that touch the code or the
+# docs. The build regenerates the method gallery (scripts/generate_visualizations.py,
+# called from docs/conf.py) from the current code and fails when a public
+# method has no gallery figure, so the gallery cannot go stale. The built HTML
+# is uploaded for review.
 
-name: Generate Visualization Gallery
+name: Docs and Method Gallery
 
 on:
   workflow_dispatch:
   pull_request:
     paths:
-      - "networkx_backbone/**/*.py"
+      - "nx_backbone/**/*.py"
       - "scripts/generate_visualizations.py"
-      - "docs/**/*.rst"
+      - "scripts/roadmap_figures.py"
+      - "docs/**"
+      - "pyproject.toml"
       - ".github/workflows/generate-visualizations.yml"
 
 env:
@@ -16,12 +22,14 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  generate-gallery:
-    name: Build visual comparison gallery
+  docs:
+    name: Build docs and method gallery
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
@@ -30,26 +38,19 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[full,docs]" matplotlib
+          python -m pip install -e ".[full,docs]"
           python -m pip install -r docs/requirements.txt
 
-      - name: Generate visualizations and gallery RST
+      - name: Build docs (generates the method gallery)
         env:
           MPLCONFIGDIR: /tmp/matplotlib
           XDG_CACHE_HOME: /tmp/.cache
         run: |
-          python scripts/generate_visualizations.py
-
-      - name: Build docs
-        run: |
           cd docs
           make html SPHINXOPTS="-W --keep-going -n"
 
-      - name: Upload gallery assets
+      - name: Upload built HTML
         uses: actions/upload-artifact@v4
         with:
-          name: visualization-gallery
-          path: |
-            docs/_static/graph_gallery/
-            docs/tutorials/graph_gallery.rst
-            docs/_build/html/
+          name: docs-html
+          path: docs/_build/html/

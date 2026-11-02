@@ -1,7 +1,7 @@
 API Reference
 =============
 
-Complete API documentation for backbone functions across 13 modules
+Complete API documentation for backbone functions across 14 modules
 (the hypergraph page covers both ``hypergraph`` and ``hypergraph_io``).
 API examples are standardized on ``nx.les_miserables_graph()`` for
 non-bipartite methods and ``nx.davis_southern_women_graph()`` for
@@ -54,6 +54,9 @@ an aggregate summary in :doc:`../user_guide/complexity`.
    * - :doc:`convert`
      - 1
      - NumPy/SciPy adjacency matrices and pandas edge lists to NetworkX graphs (``to_graph``)
+   * - :doc:`temporal`
+     - 15
+     - Temporal networks as snapshots, events, or spans: form detection, conversions, binning, pandas event tables, and temporal backbone scores (observation fraction, persistence, backbone stability, weight trend, hidden Markov model of edge activity)
 
 .. toctree::
    :maxdepth: 1
@@ -71,3 +74,4 @@ an aggregate summary in :doc:`../user_guide/complexity`.
    visualization
    describe
    convert
+   temporal

@@ -11,7 +11,7 @@ computed by the reference implementations on the same data networkx ships:
   ``scripts/export_reference_inputs.py``.
 
 Neither R nor netbone is needed to run these tests; ``docs/contributing.rst``
-explains how to regenerate the fixtures.  Where networkx-backbone
+explains how to regenerate the fixtures.  Where nx-backbone
 intentionally differs from a reference, the test asserts the documented
 relationship instead of equality and the method's docstring Notes explain
 the difference.
@@ -19,6 +19,7 @@ the difference.
 
 import csv
 import functools
+import itertools
 import json
 import math
 from pathlib import Path
@@ -27,8 +28,8 @@ import networkx as nx
 import numpy as np
 import pytest
 
-import networkx_backbone as nb
-from networkx_backbone.statistical import _nc_score_sdev
+import nx_backbone as nb
+from nx_backbone.statistical import _nc_score_sdev
 
 FIXTURES = Path(__file__).parent / "fixtures"
 INPUTS = FIXTURES / "reference_inputs"
@@ -87,28 +88,66 @@ def our_backbone_set(H):
 
 
 def r_two_sided(upper, lower):
-    """R's signed test as networkx-backbone reports it.
+    """R's signed test as nx-backbone reports it.
 
     R retains an edge when ``min(upper, lower) < alpha / 2`` and signs it
-    ``+1`` when ``upper < lower``; networkx-backbone stores the equivalent
-    two-sided p-value ``min(1, 2 min(upper, lower))``.
+    ``+1`` when ``upper < lower`` and ``-1`` otherwise, so an exact tie
+    ``upper == lower`` is ``-1``; nx-backbone uses the same sign rule
+    (#59) and stores the equivalent two-sided p-value
+    ``min(1, 2 min(upper, lower))``.
     """
     return np.minimum(1.0, 2.0 * np.minimum(upper, lower)), np.where(
         upper < lower, 1, -1
     )
 
 
-def assert_signs(sign, upper, lower, atol=1e-12):
-    """Signs agree with R's wherever the two tails differ.
+def assert_signs(sign, upper, lower):
+    """Every sign equals R's: ``+1`` when ``upper < lower``, else ``-1``."""
+    np.testing.assert_array_equal(sign, r_two_sided(upper, lower)[1])
 
-    R signs a test ``+1`` only when ``upper < lower``; networkx-backbone signs
-    it ``+1`` when ``upper <= lower``.  At an exact tie R reports ``-1`` and
-    networkx-backbone ``+1``, and tails equal up to rounding can fall either
-    way, so ties are not compared; the two-sided p-value, ``2 * upper``, is
-    the same either way.
+
+DATASETS = sorted(WEIGHTED)
+
+
+def assert_all(check, cases):
+    """Run ``check(*case)`` for every case; fail once, listing every failure.
+
+    The sweeps over datasets, models, signs and corrections are one test each;
+    the assertion message names each case that differs from the reference.
     """
-    tie = np.abs(upper - lower) <= atol
-    np.testing.assert_array_equal(sign[~tie], np.where(upper < lower, 1, -1)[~tie])
+    failures = []
+    for case in cases:
+        case = case if isinstance(case, tuple) else (case,)
+        try:
+            check(*case)
+        except AssertionError as err:
+            first = str(err).strip().split("\n", 1)[0]
+            label = ", ".join(getattr(x, "__name__", repr(x)) for x in case)
+            failures.append(f"{getattr(check, '__name__', 'check')}({label}): {first}")
+    assert not failures, "\n".join(failures)
+
+
+def over(*axes):
+    """Make ``check(a, b, ...)`` one test over every combination of *axes*.
+
+    Used instead of ``pytest.mark.parametrize`` for sweeps whose cases are
+    cheap and share fixtures; :func:`assert_all` names every failing case.
+    """
+
+    def decorate(check):
+        def test():
+            # A tuple value on an axis (a table row) spreads over several
+            # arguments of the check.
+            cases = [
+                tuple(x for v in combo for x in (v if isinstance(v, tuple) else (v,)))
+                for combo in itertools.product(*axes)
+            ]
+            assert_all(check, cases)
+
+        test.__name__, test.__doc__ = check.__name__, check.__doc__
+        return test
+
+    return decorate
 
 
 # =====================================================================
@@ -121,14 +160,15 @@ def _read_csv(name):
         return list(csv.reader(fh))
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-def test_weighted_inputs_match_networkx(dataset):
-    make, conv = WEIGHTED[dataset]
-    G = make()
-    rows = _read_csv(f"{dataset}.csv")
-    assert rows[0] == ["source", "target", "weight"]
-    expected = [(u, v, float(w)) for u, v, w in G.edges(data="weight")]
-    assert [(conv(u), conv(v), float(w)) for u, v, w in rows[1:]] == expected
+def test_weighted_inputs_match_networkx():
+    for dataset in DATASETS:
+        make, conv = WEIGHTED[dataset]
+        G = make()
+        rows = _read_csv(f"{dataset}.csv")
+        assert rows[0] == ["source", "target", "weight"], dataset
+        expected = [(u, v, float(w)) for u, v, w in G.edges(data="weight")]
+        got = [(conv(u), conv(v), float(w)) for u, v, w in rows[1:]]
+        assert got == expected, dataset
 
 
 def test_davis_input_matches_networkx():
@@ -161,28 +201,38 @@ WEIGHTED_MODELS = {
 }
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-@pytest.mark.parametrize("model", sorted(WEIGHTED_MODELS))
-def test_r_weighted_upper_tail(dataset, model):
+def test_r_weighted_upper_tail():
     """One-tailed p-values equal R's for every edge."""
-    G, _, edges = weighted_case(dataset, r_fixture())
-    func, attr = WEIGHTED_MODELS[model]
-    ours = edge_values(func(G), edges, attr)
-    theirs = values(r_fixture()[dataset][model]["upper"])
-    np.testing.assert_allclose(ours, theirs, rtol=1e-12, atol=1e-14)
+
+    def check(dataset, model):
+        G, _, edges = weighted_case(dataset, r_fixture())
+        func, attr = WEIGHTED_MODELS[model]
+        ours = edge_values(func(G), edges, attr)
+        theirs = values(r_fixture()[dataset][model]["upper"])
+        np.testing.assert_allclose(ours, theirs, rtol=1e-12, atol=1e-14)
+
+    assert_all(check, [(d, m) for d in DATASETS for m in sorted(WEIGHTED_MODELS)])
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-@pytest.mark.parametrize("model", sorted(WEIGHTED_MODELS))
-@pytest.mark.parametrize("mtc", ["none", "bonferroni", "holm", "BH"])
-def test_r_weighted_one_tailed_backbone(dataset, model, mtc):
-    G, nodes, _ = weighted_case(dataset, r_fixture())
-    H = nb.backbone_from_weighted(G, method=model, alpha=ALPHA, mtc=mtc)
-    expected = r_fixture()[dataset][model]["backbones"][mtc]
-    assert our_backbone_set(H) == r_backbone_set(expected, nodes)
+def test_r_weighted_one_tailed_backbone():
+    def check(dataset, model, mtc):
+        G, nodes, _ = weighted_case(dataset, r_fixture())
+        H = nb.backbone_from_weighted(G, method=model, alpha=ALPHA, mtc=mtc)
+        expected = r_fixture()[dataset][model]["backbones"][mtc]
+        assert our_backbone_set(H) == r_backbone_set(expected, nodes)
+
+    assert_all(
+        check,
+        [
+            (d, m, mtc)
+            for d in DATASETS
+            for m in sorted(WEIGHTED_MODELS)
+            for mtc in ("none", "bonferroni", "holm", "BH")
+        ],
+    )
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_r_mlf_signed(dataset):
     """Signed MLF: two-sided p-values, signs and backbones equal R's."""
     G, nodes, edges = weighted_case(dataset, r_fixture())
@@ -201,12 +251,12 @@ def test_r_mlf_signed(dataset):
         assert our_backbone_set(B) == r_backbone_set(expected, nodes)
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_r_disparity_signed(dataset):
     """Signed disparity: documented lower-tail difference.
 
     R's lower tail is ``1 - upper`` with ``upper = min(alpha_u, alpha_v)``;
-    networkx-backbone applies the OR rule to each tail, so its lower tail
+    nx-backbone applies the OR rule to each tail, so its lower tail
     ``min(1 - alpha_u, 1 - alpha_v)`` is never larger than R's.  Hence a
     positive edge has the same p-value in both, a negative one a p-value no
     larger than R's.
@@ -230,43 +280,32 @@ def test_r_disparity_signed(dataset):
         assert our_backbone_set(B) == r_backbone_set(expected, nodes)
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_r_lans_signed(dataset):
-    """Signed LANS: documented lower-tail difference.
+    """Signed LANS: two-sided p-values, signs and backbones equal R's.
 
-    Both use the upper tail ``#{weights > w} / k``.  R's lower tail is the
-    mirror image ``#{weights < w} / k``; networkx-backbone's is the empirical
-    CDF ``#{weights <= w} / k``, which counts the edge itself, so it is
-    larger by at least ``1 / k``.  Every edge R signs ``+1`` has the same sign
-    and p-value here, and networkx-backbone retains a subset of R's
-    negative edges: R marks the weakest edge of any node as significantly
-    weak, networkx-backbone only when ``1 / k < alpha / 2``.
+    Both use the upper tail ``#{weights > w} / k`` and its mirror image, the
+    lower tail ``#{weights < w} / k`` (#58), and both sign an exact tie
+    upper == lower ``-1`` (#59).  Ties are common here: the only link of a
+    degree-1 node, links of a node whose links all have the same weight, and
+    a link that is the strongest of one endpoint and the weakest of the
+    other (48 links on Les Misérables, 15 on karate).
     """
     G, nodes, edges = weighted_case(dataset, r_fixture())
     section = r_fixture()[dataset]["lans"]
     upper, lower = values(section["upper"]), values(section["lower"])
-    r_p, r_sign = r_two_sided(upper, lower)
+    r_p, _ = r_two_sided(upper, lower)
     H = nb.lans_filter(G, signed=True)
-    p = edge_values(H, edges, "lans_pvalue")
+    np.testing.assert_allclose(edge_values(H, edges, "lans_pvalue"), r_p, atol=1e-12)
     sign = edge_values(H, edges, "sign")
-    pos = r_sign == 1
-    np.testing.assert_allclose(p[pos], r_p[pos], atol=1e-12)
-    assert np.all(sign[pos] == 1)
-    assert np.all(p >= r_p - 1e-12)
-    # R signs an exact tie upper == lower as -1 (a node whose links all have
-    # the same weight makes each of them both its strongest and its weakest);
-    # networkx-backbone signs it +1.
-    ties = {frozenset(e) for e, u, lo in zip(edges, upper, lower) if u == lo}
+    assert_signs(sign, upper, lower)
+    tie = upper == lower
+    assert tie.sum() == {"les_miserables": 48, "karate": 15}[dataset]
+    assert np.all(sign[tie] == -1)
     for mtc in ("none", "bonferroni", "holm", "BH"):
-        B = our_backbone_set(
-            nb.backbone_from_weighted(G, method="lans", signed=True, mtc=mtc)
-        )
-        R = r_backbone_set(section["backbones"][f"signed_{mtc}"], nodes)
-        ours_pos = {e for e, s in B if s == 1}
-        r_pos = {e for e, s in R if s == 1}
-        assert r_pos <= ours_pos
-        assert ours_pos - r_pos <= ties & {e for e, s in R if s == -1}
-        assert {e for e in B if e[1] == -1} <= {e for e in R if e[1] == -1}
+        B = nb.backbone_from_weighted(G, method="lans", signed=True, mtc=mtc)
+        expected = section["backbones"][f"signed_{mtc}"]
+        assert our_backbone_set(B) == r_backbone_set(expected, nodes)
 
 
 def test_r_p_adjust():
@@ -302,7 +341,7 @@ def _karate_unweighted():
     return G
 
 
-@pytest.mark.parametrize("s", [0.3, 0.5, 0.7])
+@over([0.3, 0.5, 0.7])
 def test_r_local_degree(s):
     G = _karate_unweighted()
     nodes = [int(n) for n in r_fixture()["karate"]["nodes"]]
@@ -312,7 +351,7 @@ def test_r_local_degree(s):
 
 
 def _r_lspar_rule(G, s):
-    """R's ``lspar`` as documented in :func:`networkx_backbone.lspar` Notes."""
+    """R's ``lspar`` as documented in :func:`nx_backbone.lspar` Notes."""
     nbrs = {u: set(G[u]) for u in G}
     kept = set()
     for u in G:
@@ -330,7 +369,7 @@ def _r_lspar_rule(G, s):
     return kept
 
 
-@pytest.mark.parametrize("s", [0.3, 0.5, 0.7])
+@over([0.3, 0.5, 0.7])
 def test_r_lspar_documented_difference(s):
     """R's ``lspar`` uses different conventions (see ``lspar`` Notes)."""
     G = _karate_unweighted()
@@ -346,6 +385,40 @@ def test_r_lspar_documented_difference(s):
         frozenset(e) for e in nb.boolean_filter(nb.lspar(G, s=s), "sparsify_keep").edges
     }
     assert ours != expected  # the conventions matter on this graph
+
+
+def _unweighted(dataset):
+    G, nodes, _ = weighted_case(dataset, r_fixture())
+    U = nx.Graph()
+    U.add_nodes_from(G)
+    U.add_edges_from(G.edges())
+    return U, nodes
+
+
+@over(DATASETS, [0.3, 0.5, 0.7])
+def test_r_lspar_convention_r(dataset, s):
+    """``lspar(convention="r")`` reproduces R's ``lspar`` exactly."""
+    G, nodes = _unweighted(dataset)
+    expected = {
+        e
+        for e, _ in r_backbone_set(
+            r_fixture()[dataset]["unweighted"][f"lspar_{s}"], nodes
+        )
+    }
+    H = nb.lspar(G, s=s, convention="r")
+    assert {frozenset(e) for e in nb.boolean_filter(H, "sparsify_keep").edges} == (
+        expected
+    )
+    assert _r_lspar_rule(G, s) == expected
+    # The critical exponent reproduces the same backbone.
+    assert {
+        frozenset(e)
+        for e, x in nx.get_edge_attributes(H, "sparsify_score").items()
+        if x <= s
+    } == expected
+    # Through the dispatcher too.
+    B = nb.backbone_from_unweighted(G, method="lspar", s=s, convention="r")
+    assert {frozenset(e) for e in B.edges} == expected
 
 
 # =====================================================================
@@ -387,7 +460,7 @@ def test_r_sdsm_rna():
     """With ``pvalue_method="rna"`` SDSM reproduces R up to the BiCM fit.
 
     R evaluates the refined normal approximation even for pairs that never
-    co-occur (``missing_as_zero=TRUE``); networkx-backbone returns the exact
+    co-occur (``missing_as_zero=TRUE``); nx-backbone returns the exact
     value ``P(X >= 0) = 1`` for them.
     """
     B, women, pairs, k = davis()
@@ -401,7 +474,7 @@ def test_r_sdsm_rna():
     np.testing.assert_allclose(
         pair_values(signed, pairs, "sdsm_pvalue"), r_p, atol=1e-7
     )
-    assert_signs(pair_values(signed, pairs, "sign"), upper, lower, atol=1e-7)
+    assert_signs(pair_values(signed, pairs, "sign"), upper, lower)
 
 
 def sdsm_scores(B, women, method, signed):
@@ -428,7 +501,7 @@ def test_r_sdsm_ec():
     """SDSM-EC: different null-model fits, same (empty) backbones.
 
     R fits the edge probabilities of the unconstrained cells with a logistic
-    regression on the row and column sums; networkx-backbone refits the BiCM
+    regression on the row and column sums; nx-backbone refits the BiCM
     on those cells, so expected degrees match the observed ones exactly.  The
     p-values track each other closely but not exactly.
     """
@@ -453,7 +526,7 @@ def test_r_sdsm_ec():
             assert our_backbone_set(bb) == r_backbone_set(expected, women)
 
 
-@pytest.mark.parametrize("model", ["fixedfill", "fixedrow"])
+@over(["fixedfill", "fixedrow"])
 def test_r_fixed_models_exact(model):
     """Fixed fill and fixed row tails are exact in both implementations."""
     B, women, pairs, _ = davis()
@@ -466,10 +539,20 @@ def test_r_fixed_models_exact(model):
     )
     S = func(B, women, alpha=KEEP_ALL, signed=True)
     r_p, _ = r_two_sided(upper, lower)
-    np.testing.assert_allclose(
-        pair_values(S, pairs, f"{model}_pvalue"), r_p, rtol=1e-10, atol=1e-15
-    )
-    assert_signs(pair_values(S, pairs, "sign"), upper, lower, atol=1e-12)
+    p = pair_values(S, pairs, f"{model}_pvalue")
+    np.testing.assert_allclose(p, r_p, rtol=1e-10, atol=1e-15)
+    sign = pair_values(S, pairs, "sign")
+    assert_signs(sign, upper, lower)
+    # Seven fixedrow pairs (an agent with 7 of the 14 events) have a
+    # symmetric hypergeometric null centered on their count, so their tails
+    # are equal in exact arithmetic, in the fixture's 15 digits, and here: a
+    # tie, signed -1.  (R 3.0.4 computes them one ulp apart and signs them by
+    # that rounding.)  A tie in a count model needs both tails >= 0.5, so
+    # their p-value is 1 and no backbone at alpha <= 1 keeps them.
+    tie = upper == lower
+    assert tie.sum() == {"fixedfill": 0, "fixedrow": 7}[model]
+    assert np.all(p[tie] == 1.0)
+    assert np.all(sign[tie] == -1)
 
 
 def test_r_fixedcol_exact_vs_rna():
@@ -482,15 +565,19 @@ def test_r_fixedcol_exact_vs_rna():
         pair_values(H, pairs, "fixedcol_pvalue"), upper, atol=0.01
     )
     S = nb.fixedcol(B, women, alpha=KEEP_ALL, signed=True)
-    r_p, r_sign = r_two_sided(upper, lower)
+    r_p, _ = r_two_sided(upper, lower)
     np.testing.assert_allclose(pair_values(S, pairs, "fixedcol_pvalue"), r_p, atol=0.02)
-    clear = np.abs(upper - lower) > 0.01
-    np.testing.assert_array_equal(pair_values(S, pairs, "sign")[clear], r_sign[clear])
+    # The tails differ by at least 0.028 for every pair, more than the
+    # approximation error, so the signs agree everywhere.
+    assert np.abs(upper - lower).min() > 0.02
+    assert_signs(pair_values(S, pairs, "sign"), upper, lower)
 
 
-@pytest.mark.parametrize("model", ["sdsm", "fixedfill", "fixedrow", "fixedcol"])
-@pytest.mark.parametrize("signed", [False, True])
-@pytest.mark.parametrize("mtc", ["none", "bonferroni", "holm", "BH"])
+@over(
+    ["sdsm", "fixedfill", "fixedrow", "fixedcol"],
+    [False, True],
+    ["none", "bonferroni", "holm", "BH"],
+)
 def test_r_projection_backbones(model, signed, mtc):
     B, women, _, _ = davis()
     H = nb.backbone_from_projection(
@@ -499,6 +586,47 @@ def test_r_projection_backbones(model, signed, mtc):
     key = f"signed_{mtc}" if signed else mtc
     expected = r_fixture()["davis"][model]["backbones"][key]
     assert our_backbone_set(H) == r_backbone_set(expected, women)
+
+
+@over(["fixedfill", "fixedrow"], [False, True])
+def test_r_projection_missing_as_zero(model, missing_as_zero):
+    """``missing_as_zero`` reproduces R's choice of tested pairs exactly.
+
+    With ``False`` (R's default) the 14 Davis pairs that never co-occur are
+    neither counted by ``mtc`` nor retained; with ``True`` (the default here)
+    every pair is a test.  The fixture uses alphas at which this matters.
+    """
+    B, women, _, _ = davis()
+    section = r_fixture()["davis"]["missing_as_zero"]
+    for alpha in section["alphas"]:
+        expected = section[model][str(missing_as_zero).lower()][str(alpha)]
+        for key, edges in expected.items():
+            signed = key.startswith("signed_")
+            H = nb.backbone_from_projection(
+                B,
+                agent_nodes=women,
+                method=model,
+                alpha=alpha,
+                signed=signed,
+                mtc=key.removeprefix("signed_"),
+                missing_as_zero=missing_as_zero,
+            )
+            assert our_backbone_set(H) == r_backbone_set(edges, women), (alpha, key)
+
+
+def test_r_projection_missing_as_zero_matters():
+    """The ``missing_as_zero`` fixture discriminates between the two scopes."""
+    section = r_fixture()["davis"]["missing_as_zero"]
+    differ = [
+        (model, alpha, key)
+        for model in ("fixedfill", "fixedrow")
+        for alpha in section["alphas"]
+        for key, edges in section[model]["false"][str(alpha)].items()
+        if edges != section[model]["true"][str(alpha)][key]
+    ]
+    assert len(differ) >= 10
+    # Without mtc an unsigned backbone does not depend on it.
+    assert not [d for d in differ if d[2] == "none"]
 
 
 def _mc_tolerance(q, *trials):
@@ -555,9 +683,8 @@ def test_r_fdsm():
 # =====================================================================
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-@pytest.mark.parametrize(
-    ("model", "func", "attr"),
+@over(
+    DATASETS,
     [
         ("disparity", nb.disparity_filter, "disparity_pvalue"),
         ("lans", nb.lans_filter, "lans_pvalue"),
@@ -572,7 +699,7 @@ def test_netbone_exact(dataset, model, func, attr):
     )
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_ecm(dataset):
     """ECM p-values agree up to the solvers' tolerances.
 
@@ -585,9 +712,9 @@ def test_netbone_ecm(dataset):
     np.testing.assert_allclose(ours, theirs, rtol=1e-4, atol=5e-5)
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_noise_corrected(dataset):
-    """netbone uses total weight ``W``; networkx-backbone ``2W`` (see Notes).
+    """netbone uses total weight ``W``; nx-backbone ``2W`` (see Notes).
 
     netbone sums each undirected edge once for the total but at both
     endpoints for the strengths.  With that total, the score and standard
@@ -631,11 +758,11 @@ def _shortest_path_ties(G):
     )
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_high_salience_skeleton(dataset):
     """Same salience except where shortest paths tie (see Notes).
 
-    netbone credits the one path Dijkstra happens to return; networkx-backbone
+    netbone credits the one path Dijkstra happens to return; nx-backbone
     splits the credit over the tied predecessors.  Both lie between the
     fraction of trees in which the edge is the only shortest-path predecessor
     and the fraction in which it is one of them, and agree when those are
@@ -653,12 +780,12 @@ def test_netbone_high_salience_skeleton(dataset):
     assert ours.sum() == pytest.approx(theirs.sum()) == pytest.approx(len(G) - 1)
 
 
-@pytest.mark.parametrize("c", [0.5, 1.0])
+@over([0.5, 1.0])
 def test_netbone_glab(c):
     """GLAB p-values agree for links whose endpoints see no tied paths.
 
     netbone's involvement counts shortest paths (a target reached by ``g``
-    tied paths weighs ``g`` times); networkx-backbone uses the paper's
+    tied paths weighs ``g`` times); nx-backbone uses the paper's
     average over targets of the fraction of paths through the link.
     """
     G, _, edges = weighted_case("les_miserables", netbone_fixture())
@@ -670,9 +797,8 @@ def test_netbone_glab(c):
     np.testing.assert_allclose(ours[free], theirs[free], atol=1e-12)
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-@pytest.mark.parametrize(
-    ("model", "func", "attr"),
+@over(
+    DATASETS,
     [
         ("metric_distance_backbone", nb.metric_backbone, "metric_keep"),
         ("ultrametric_distance_backbone", nb.ultrametric_backbone, "ultrametric_keep"),
@@ -686,12 +812,12 @@ def test_netbone_distance_backbones(dataset, model, func, attr):
     assert ours == theirs
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_h_backbone(dataset):
     """Same h-strength edges; different bridge values (see Notes).
 
     netbone computes edge betweenness with the weights as distances and
-    rounds the bridge to three decimals; networkx-backbone follows the paper
+    rounds the bridge to three decimals; nx-backbone follows the paper
     and uses the unweighted topology, so only the h-strength part agrees.
     """
     G, _, edges = weighted_case(dataset, netbone_fixture())
@@ -706,7 +832,7 @@ def test_netbone_h_backbone(dataset):
     assert np.all(ours[strong]) and np.all(theirs[strong])
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_mla_differs(dataset):
     """netbone's ``mlam`` is a different procedure (see MLA Notes).
 

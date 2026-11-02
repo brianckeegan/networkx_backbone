@@ -2,7 +2,7 @@
 
 - **Status:** Evaluation + gap proposals (no library code changed by this document)
 - **Tracking:** open items now live in `docs/roadmap.rst` and GitHub issue #31
-- **Trigger:** Evaluate `networkx-backbone`'s coverage of the methods in
+- **Trigger:** Evaluate `nx-backbone`'s coverage of the methods in
   *Neal, Z. P. (2026), "Backbone 3.0: An R package for extracting network
   backbones," PLOS ONE* (DOI 10.1371/journal.pone.0349258), propose
   implementations for any gaps, and add the paper to the references.
@@ -18,7 +18,7 @@
 ## 1. Summary
 
 **Every backbone *model* in Backbone 3.0 is already implemented in
-`networkx-backbone`, including its hypergraph-projection capability.** The
+`nx-backbone`, including its hypergraph-projection capability.** The
 package's exported models map one-to-one onto functions here, and this library
 goes well beyond Backbone 3.0 (noise-corrected, ECM, multiscale linkage,
 structural, proximity, and a full hypergraph module: MDL backbone, SVH/SVC,
@@ -26,7 +26,7 @@ interop).
 
 The differences are **features layered on the statistical models**, not missing
 models. Backbone 3.0 adds four cross-cutting options; three are now implemented
-in `networkx-backbone` and the fourth is parked:
+in `nx-backbone` and the fourth is parked:
 
 | Feature | What it is | Status |
 |---------|-----------|--------|
@@ -60,7 +60,7 @@ ordinal SDSM.
 
 ## 3. Coverage matrix (models)
 
-| Backbone 3.0 export / model | `networkx-backbone` equivalent | Status |
+| Backbone 3.0 export / model | `nx-backbone` equivalent | Status |
 |-----------------------------|-------------------------------|--------|
 | `disparity` | `disparity_filter` / `disparity` | ✅ |
 | `lans` | `lans_filter` / `lans` | ✅ |
@@ -86,14 +86,14 @@ and the `hypergraph` module (`mdl_hypergraph_backbone`,
 ### 4.1 Multiple-testing correction (`mtc`) — ✅ implemented
 
 Backbone 3.0 adjusts the matrix of edge p-values with R's `p.adjust()` before
-thresholding at `alpha`. `networkx-backbone` now provides `adjust_pvalues()`
+thresholding at `alpha`. `nx-backbone` now provides `adjust_pvalues()`
 (reproducing R's `p.adjust` for `bonferroni`, `holm`, `hochberg`, `bh`/`fdr`,
 `by`; verified against `scipy.stats.false_discovery_control`) and an `mtc`
 parameter on `threshold_filter`, so every p-value method is FDR/Bonferroni-aware
 through one shared path. Original API sketch:
 
 ```python
-# networkx_backbone/filters.py
+# nx_backbone/filters.py
 def adjust_pvalues(pvalues, method="bh"):
     """Return multiplicity-adjusted p-values.
 
@@ -117,7 +117,7 @@ With `signed=TRUE`, Backbone 3.0 runs a **two-tailed** test and keeps edges that
 are significantly *strong* (sign `+1`) **and** significantly *weak* (sign `−1`),
 annotating each retained edge with a `sign`.
 
-`networkx-backbone` now exposes `signed=False` on the weighted scorers
+`nx-backbone` now exposes `signed=False` on the weighted scorers
 (`disparity_filter`/`mlf`/`lans_filter`) and the projection null models
 (`sdsm`/`fdsm`/`fixedfill`/`fixedrow`/`fixedcol`). Each adds the lower-tail
 p-value, stores a two-sided p-value (`2·min(p_hi, p_lo)`, clipped to 1) and a
@@ -131,11 +131,12 @@ Backbone 3.0's `sdsm` switches to **SDSM-EC** (Neal & Neal 2023) when the
 incidence matrix carries structural values: `10` = prohibited edge, `11` =
 required edge.
 
-`networkx-backbone`'s `sdsm` now accepts `prohibited`/`required` as iterables of
+`nx-backbone`'s `sdsm` now accepts `prohibited`/`required` as iterables of
 `(agent, artifact)` pairs and fixes those cells' null probability to 0/1 before
 the Poisson-binomial test. Defaults (`None`) leave behavior unchanged; unknown
-nodes are ignored; constraints compose with `signed` and are forwarded by
-`backbone_from_projection`.
+nodes raise `NetworkXError`; pairs that contradict the data (required
+non-edges, prohibited edges) are ignored with a `RuntimeWarning`; constraints
+compose with `signed` and are forwarded by `backbone_from_projection`.
 
 ### 4.4 Narrative (`narrative`) — parked
 

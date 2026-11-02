@@ -1,9 +1,9 @@
-{% set name = "networkx-backbone" %}
+{% set name = "nx-backbone" %}
 {# The version comes from the release tag.  publish-to-conda.yml sets
-   NETWORKX_BACKBONE_VERSION from setuptools-scm (checked against the tag on
+   NX_BACKBONE_VERSION from setuptools-scm (checked against the tag on
    release), and the build passes it on to setuptools-scm so the conda package
    and the installed metadata agree. #}
-{% set version = environ.get("NETWORKX_BACKBONE_VERSION", "0.0.0") %}
+{% set version = environ.get("NX_BACKBONE_VERSION", "0.0.0") %}
 
 package:
   name: {{ name }}
@@ -29,7 +29,7 @@ requirements:
 
 test:
   imports:
-    - networkx_backbone
+    - nx_backbone
   # The tests also read the Les Misérables benchmark definitions, the roadmap
   # figure script, two docs pages, the README and the pytest configuration.
   source_files:
@@ -45,20 +45,20 @@ test:
     - scipy >=1.15
     - pandas >=2.3
   commands:
-    - python -c "import importlib.metadata as m; v = m.version('networkx-backbone'); assert v == '{{ version }}', v"
+    - python -c "import importlib.metadata as m; v = m.version('nx-backbone'); assert v == '{{ version }}', v"
     - pytest tests/ -v
 
 about:
-  home: https://github.com/brianckeegan/networkx_backbone
+  home: https://github.com/brianckeegan/nx-backbone
   license: BSD-3-Clause
   license_file: LICENSE
   summary: Backbone extraction algorithms for complex networks
   description: |
-    networkx-backbone provides backbone extraction algorithms for complex
+    nx-backbone provides backbone extraction algorithms for complex
     networks and hypergraphs, organized into statistical, structural,
     proximity, hybrid, bipartite, hypergraph, unweighted, filtering, and
     evaluation modules.
-  dev_url: https://github.com/brianckeegan/networkx_backbone
+  dev_url: https://github.com/brianckeegan/nx-backbone
 
 extra:
   recipe-maintainers:

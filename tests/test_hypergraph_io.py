@@ -9,7 +9,7 @@ import networkx as nx
 import numpy as np
 import pytest
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 HYPEREDGES = [(1, 2, 3), (2, 3, 4), (5, 6)]
 EXPECTED = {frozenset(e) for e in HYPEREDGES}
@@ -77,25 +77,27 @@ def test_hypergraph_to_bipartite_feeds_sdsm():
 # ---------------------------------------------------------------------------
 
 
-def test_hif_roundtrip_dict():
+def test_hif_roundtrip_dict_file_and_file_like(tmp_path):
     hif = nb.write_hif(HYPEREDGES)
     assert hif["network-type"] == "undirected"
     assert set(nb.read_hif(hif)) == EXPECTED
-
-
-def test_hif_roundtrip_with_weights():
+    # Weights.
     hif = nb.write_hif([(1, 2), (3, 4)], weights=[5, 2])
     edges, weights = nb.read_hif(hif, return_weights=True)
     assert dict(zip((tuple(sorted(e)) for e in edges), weights)) == {
         (1, 2): 5,
         (3, 4): 2,
     }
-
-
-def test_hif_roundtrip_file(tmp_path):
+    # A path.
     path = tmp_path / "h.json"
     nb.write_hif(HYPEREDGES, path)
     assert set(nb.read_hif(path)) == EXPECTED
+    # A file-like object, which write_hif returns.
+    buf = io.StringIO()
+    assert nb.write_hif(HYPEREDGES, buf, weights=[1, 2, 3]) is buf
+    buf.seek(0)
+    edges, weights = nb.read_hif(buf, return_weights=True)
+    assert set(edges) == EXPECTED and weights == [1, 2, 3]
 
 
 def test_write_hif_skips_empty_hyperedges():
@@ -130,14 +132,6 @@ def test_hif_numpy_weights_and_ids_to_file(tmp_path):
     hif = nb.write_hif(edges, weights=np.array([1.5, 2.0]))
     json.dumps(hif)  # the returned dict is JSON-serialisable too
     assert [rec["weight"] for rec in hif["edges"]] == [1.5, 2.0]
-
-
-def test_hif_file_like_roundtrip():
-    buf = io.StringIO()
-    assert nb.write_hif(HYPEREDGES, buf, weights=[1, 2, 3]) is buf
-    buf.seek(0)
-    edges, weights = nb.read_hif(buf, return_weights=True)
-    assert set(edges) == EXPECTED and weights == [1, 2, 3]
 
 
 def test_hif_tuple_node_ids_roundtrip(tmp_path):
@@ -394,23 +388,14 @@ def test_from_hat_nodes_column_and_dropped_columns():
     )
 
 
-@pytest.mark.parametrize("attr", ["IM", "incidence_matrix", "incidenceMatrix"])
-def test_from_hat_incidence_matrix_variants(attr):
+def test_from_hat_incidence_matrix_variants():
     M = np.array([[1, 0, 0], [1, 1, 0], [0, 1, 0]])
-
-    class Plain:
-        pass
-
-    class Method:
-        pass
-
-    plain = Plain()
-    setattr(plain, attr, M)
-    method = Method()
-    setattr(method, attr, lambda: M)
     expected = [frozenset({0, 1}), frozenset({1, 2})]  # all-zero column dropped
-    assert nb.from_hat(plain) == expected
-    assert nb.from_hat(method) == expected
+    for attr in ("IM", "incidence_matrix", "incidenceMatrix"):
+        plain = types.SimpleNamespace(**{attr: M})
+        method = types.SimpleNamespace(**{attr: lambda: M})
+        assert nb.from_hat(plain) == expected, attr
+        assert nb.from_hat(method) == expected, attr
 
 
 def test_from_hat_sparse_and_missing_matrix():
@@ -424,16 +409,13 @@ def test_from_hat_sparse_and_missing_matrix():
         nb.from_hat(object())
 
 
-@pytest.mark.parametrize(
-    "module,to_fn,pip_name",
-    [
+def test_adapter_missing_library_importerror(monkeypatch):
+    for module, to_fn, pip_name in [
         ("xgi", nb.to_xgi, "xgi"),
         ("hypernetx", nb.to_hypernetx, "hypernetx"),
         ("hypergraphx", nb.to_hypergraphx, "hypergraphx"),
         ("HAT", nb.to_hat, "HypergraphAnalysisToolbox"),
-    ],
-)
-def test_adapter_missing_library_importerror(monkeypatch, module, to_fn, pip_name):
-    monkeypatch.setitem(sys.modules, module, None)  # forces ImportError
-    with pytest.raises(ImportError, match=f"pip install {pip_name}"):
-        to_fn(HYPEREDGES)
+    ]:
+        monkeypatch.setitem(sys.modules, module, None)  # forces ImportError
+        with pytest.raises(ImportError, match=f"pip install {pip_name}"):
+            to_fn(HYPEREDGES)

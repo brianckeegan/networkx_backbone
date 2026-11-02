@@ -5,19 +5,23 @@ Methods that operate directly on hypergraphs (collections of arbitrary-size
 hyperedges) rather than on dyadic graphs. Inputs are plain iterables of
 hyperedges (each hyperedge an iterable of node labels); the backbone is returned
 as a list of :class:`frozenset` hyperedges inside a
-:class:`~networkx_backbone.HypergraphBackbone` result.
+:class:`~nx_backbone.HypergraphBackbone` result.
 
-The :func:`~networkx_backbone.mdl_hypergraph_backbone` method implements the
+The :func:`~nx_backbone.mdl_hypergraph_backbone` method implements the
 parameter-free, information-theoretic (minimum description length) backbone of
 Kirkley, Felippe, Malizia & Battiston (2026), which prunes nested and redundant
 hyperedges and naturally extends to weighted hypergraphs.
-:func:`~networkx_backbone.local_mdl_hypergraph_backbone` is its local variant
+:func:`~nx_backbone.local_mdl_hypergraph_backbone` is its local variant
 (Appendix E of the paper), which backbones each node's neighborhood separately.
 
-.. automodule:: networkx_backbone.hypergraph
+For a narrative walk-through with figures, see
+:doc:`/auto_examples/hypergraphs/plot_hypergraph_backbones`; for short code
+recipes, see :doc:`/tutorials/hypergraph_backbone`.
+
+.. automodule:: nx_backbone.hypergraph
    :no-members:
 
-.. currentmodule:: networkx_backbone
+.. currentmodule:: nx_backbone
 
 .. autofunction:: mdl_hypergraph_backbone
 
@@ -34,7 +38,7 @@ hyperedges and naturally extends to weighted hypergraphs.
 
 Purely structural hypergraph backbones and utilities with no dyadic analog.
 These return plain hyperedge collections rather than a
-:class:`~networkx_backbone.HypergraphBackbone`.
+:class:`~nx_backbone.HypergraphBackbone`.
 
 .. autofunction:: maximal_hyperedges
 
@@ -47,7 +51,7 @@ These return plain hyperedge collections rather than a
 Hypothesis-testing hypergraph backbones that validate hyperedges/groups
 recurring more than expected under a null model (Musciotto, Battiston &
 Mantegna, 2021).  These require ``scipy`` and return a
-:class:`~networkx_backbone.ValidatedHypergraph`.  The short names ``svh`` and ``svc``
+:class:`~nx_backbone.ValidatedHypergraph`.  The short names ``svh`` and ``svc``
 are aliases for the two functions.
 
 .. autofunction:: statistically_validated_hypergraph
@@ -57,6 +61,10 @@ are aliases for the two functions.
 .. autoclass:: ValidatedHypergraph
    :no-members:
 
+.. rubric:: Method gallery
+
+.. include:: ../_gallery/hypergraph.inc
+
 .. rubric:: Interoperability and ingestion
 
 Convert between the hyperedge-list representation and a NetworkX incidence
@@ -64,10 +72,10 @@ bipartite graph (enabling the bipartite projection backbones), the HIF
 interchange format, and the ``xgi`` / ``HyperNetX`` / ``HypergraphX`` / HAT
 hypergraph classes.  The third-party libraries are optional and imported lazily.
 
-.. automodule:: networkx_backbone.hypergraph_io
+.. automodule:: nx_backbone.hypergraph_io
    :no-members:
 
-.. currentmodule:: networkx_backbone
+.. currentmodule:: nx_backbone
 
 .. autofunction:: hypergraph_to_bipartite
 

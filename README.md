@@ -1,29 +1,32 @@
-# networkx_backbone
+# nx-backbone
 
 Backbone extraction algorithms for complex networks, built on [NetworkX](https://networkx.org/).
 
-This library provides about 90 functions across 12 modules for extracting backbone
-structures from weighted, unweighted, and higher-order (hypergraph) networks.
+This library provides about 110 functions across 14 modules for extracting backbone
+structures from weighted, unweighted, bipartite, temporal, and higher-order
+(hypergraph) networks. The public API is type-annotated (`py.typed`), and the
+graph-in, graph-out functions dispatch to NetworkX backends such as
+`nx-parallel`.
 
-Full documentation: https://www.brianckeegan.com/networkx_backbone/
+Full documentation: https://www.brianckeegan.com/nx-backbone/
 
 ## Installation
 
 ```bash
-pip install networkx-backbone
+pip install nx-backbone
 ```
 
 For full functionality (required for statistical tests, bipartite methods, and some structural methods):
 
 ```bash
-pip install networkx-backbone[full]
+pip install nx-backbone[full]
 ```
 
 Or install from source:
 
 ```bash
-git clone https://github.com/brianckeegan/networkx_backbone.git
-cd networkx_backbone
+git clone https://github.com/brianckeegan/nx-backbone.git
+cd nx-backbone
 pip install -e ".[full]"
 ```
 
@@ -40,7 +43,8 @@ pip install -e ".[full]"
 | **hypergraph_io** | Hypergraph ingestion and interoperability | `hypergraph_to_bipartite`, `read_hif`, `write_hif`, `from_xgi`/`to_xgi`, `from_hypernetx`/`to_hypernetx`, `from_hypergraphx`/`to_hypergraphx`, `from_hat`/`to_hat` |
 | **unweighted** | Sparsification for unweighted graphs | `sparsify`, `lspar`, `local_degree` |
 | **convert** | Array and data-frame input | `to_graph` (NumPy/SciPy sparse adjacency matrices, pandas edge lists) |
-| **filters** | Post-hoc filtering utilities | `multigraph_to_weighted`, `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone` |
+| **filters** | Post-hoc filtering and preprocessing | `threshold_filter`, `fraction_filter`, `boolean_filter`, `consensus_backbone`, `adjust_pvalues`, `multigraph_to_weighted`, `transform_weights` |
+| **temporal** | Temporal networks: snapshots, events, and spans | `temporal_form`, `convert_temporal`, `flatten_temporal`, `snapshots_from_events`, `snapshots_from_spans`, `events_from_snapshots`, `spans_from_snapshots`, `from_event_table`, `to_event_table` |
 | **measures** | Evaluation and comparison | `node_fraction`, `edge_fraction`, `weight_fraction`, `reachability`, `ks_degree`, `ks_weight`, `compare_backbones` |
 | **visualization** | Graph comparison plotting | `graph_difference`, `compare_graphs`, `save_graph_comparison` |
 | **describe** | Methods text and citations | `describe_backbone` |
@@ -74,7 +78,7 @@ for the full coverage analysis.
 
 ```python
 import networkx as nx
-import networkx_backbone as nb
+import nx_backbone as nb
 
 # Create a weighted graph
 G = nx.les_miserables_graph()
@@ -117,7 +121,7 @@ print(nb.describe_backbone("disparity_filter", alpha=0.05, mtc="bh",
 print(nb.describe_backbone("disparity_filter", style="bibtex"))  # BibTeX entries
 ```
 
-See the [Validating a backbone](https://www.brianckeegan.com/networkx_backbone/tutorials/validating_backbones.html)
+See the [Validating a backbone](https://www.brianckeegan.com/nx-backbone/tutorials/validating_backbones.html)
 tutorial for multiple-testing correction, method comparison, consensus and
 signed backbones end to end. To cite the package itself, use
 [`CITATION.cff`](CITATION.cff).
@@ -193,6 +197,25 @@ nb.write_hif(H, "graph.hif")                    # HIF interchange (xgi/HNX/HGX/H
 edges = nb.from_xgi(xgi_hypergraph)             # xgi / hypernetx / hypergraphx / hat
 ```
 
+### Temporal networks
+
+A network observed over time can be a dict of snapshots, a `MultiGraph` of
+timestamped events, or a `MultiGraph` of spans with `start`/`end`. The temporal
+module converts between the three forms and collapses any of them into one
+static weighted graph for the methods above:
+
+```python
+M = nb.from_event_table(df)                       # pandas: source, target, time
+weekly = nb.snapshots_from_events(M, freq="7D")   # bin events into snapshots
+H = nb.flatten_temporal(M, aggregate="count")     # one weighted edge per pair
+backbone = nb.threshold_filter(nb.disparity_filter(H), "disparity_pvalue", 0.05)
+```
+
+Temporal backbone scores (`observation_fraction`, `persistence`,
+`backbone_stability`, `weight_trend`) and `kalman_backbone`, which smooths
+per-step significance over time with a Kalman filter, return one scored static
+graph; a persistence HMM is on the roadmap.
+
 ### Comparing multiple methods
 
 ```python
@@ -207,20 +230,22 @@ results = nb.compare_backbones(G, backbones)
 
 - **Required**: Python >= 3.12, `networkx >= 3.4` (version floors match NetworkX's own)
 - **Optional**: `numpy >= 2.2`, `scipy >= 1.15` (`[full]`: some statistical methods, bipartite null models, SVH/SVC, `doubly_stochastic_filter`, `local_path_index`, KS measures) and `matplotlib >= 3.10` (`[viz]`: visualization helpers and the docs gallery). Calling a function whose optional dependency is missing raises `ImportError`; the pure-Python methods work with NetworkX alone.
+- **pandas (optional, lazily imported)**: data-frame input (`to_graph`, bipartite incidence tables), pandas event tables (`from_event_table`, `to_event_table`), and frequency strings such as `freq="1D"` in the temporal module. Install it separately (`pip install pandas`). `transform_weights` accepts scikit-learn transformers by duck typing, so scikit-learn is never required.
+- **Backends (optional)**: install a NetworkX backend such as `nx-parallel` and pass `backend="parallel"` (see the backends user-guide page).
 - **Hypergraph interop (optional, lazily imported)**: `xgi >= 0.9.1`, `hypernetx >= 2.3.10`, `hypergraphx >= 1.7.7`, `HypergraphAnalysisToolbox >= 1.1.18` (extras `[xgi]`, `[hypernetx]`, `[hypergraphx]`, `[hat]`, or all four with `[interop]`)
 
 ## Testing
 
 ```bash
 pip install -e ".[dev]"
-pytest --doctest-modules networkx_backbone tests   # tests + docstring examples
-ruff check networkx_backbone tests && ruff format --check networkx_backbone tests
+pytest --doctest-modules nx_backbone tests   # tests + docstring examples
+ruff check nx_backbone tests && ruff format --check nx_backbone tests
 ```
 
 ## Roadmap
 
 Planned work, open gaps, and recently completed milestones are tracked in the
-[roadmap](https://www.brianckeegan.com/networkx_backbone/roadmap.html)
+[roadmap](https://www.brianckeegan.com/nx-backbone/roadmap.html)
 ([source](docs/roadmap.rst)).
 
 ## Visualization gallery
@@ -249,6 +274,7 @@ Key papers behind the implemented methods:
 - Gemmetto, V., Cardillo, A., & Garlaschelli, D. (2017). [Irreducible network backbones: unbiased graph filtering via maximum entropy](https://arxiv.org/abs/1706.00230). arXiv:1706.00230.
 - Grady, D., Thiemann, C., & Brockmann, D. (2012). [Robust classification of salient links in complex networks](https://doi.org/10.1038/ncomms1847). *Nature Communications*, 3, 864.
 - Hamann, M., Lindner, G., Meyerhenke, H., Staudt, C. L., and Wagner, D. (2016). [Structure-Preserving Sparsification Methods for Social Networks](https://doi.org/10.1007/s13278-016-0332-2). Social Network Analysis and Mining, 6, 22.
+- Kalman, R. E. (1960). [A new approach to linear filtering and prediction problems](https://doi.org/10.1115/1.3662552). *Journal of Basic Engineering*, 82(1), 35-45.
 - Marcaccioli, R., & Livan, G. (2019). [A Pólya urn approach to information filtering in complex networks](https://doi.org/10.1038/s41467-019-08667-3). *Nature Communications*, 10, 745.
 - Simas, T., Correia, R. B., & Rocha, L. M. (2021). [The distance backbone of complex networks](https://doi.org/10.1093/comnet/cnab021). *J. Complex Networks*, 9(6), cnab021.
 - Newman, M. E. J. (2001). [Scientific collaboration networks. II. Shortest paths, weighted networks, and centrality](https://doi.org/10.1103/PhysRevE.64.016132). *Physical Review E*, 64, 016132.
@@ -258,6 +284,7 @@ Key papers behind the implemented methods:
 - Neal, Z. P. (2026). [Backbone 3.0: An R package for extracting network backbones](https://doi.org/10.1371/journal.pone.0349258). *PLoS One*, 21, e0349258.
 - Neal, Z. P., & Neal, J. W. (2023). [Stochastic Degree Sequence Model with Edge Constraints (SDSM-EC) for Backbone Extraction](https://doi.org/10.1007/978-3-031-53468-3_11). *Complex Networks 12*, 127-136.
 - Radicchi, F., Ramasco, J. J., & Fortunato, S. (2011). [Information filtering in complex weighted networks](https://doi.org/10.1103/PhysRevE.83.046101). *Physical Review E*, 83(4), 046101.
+- Rauch, H. E., Tung, F., & Striebel, C. T. (1965). [Maximum likelihood estimates of linear dynamic systems](https://doi.org/10.2514/3.3166). *AIAA Journal*, 3(8), 1445-1450.
 - Saracco, F., Di Clemente, R., Gabrielli, A., & Squartini, T. (2015). [Randomizing bipartite networks: the case of the World Trade Web](https://doi.org/10.1038/srep10595). *Scientific Reports*, 5, 10595.
 - Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). [Local graph sparsification for scalable clustering](https://doi.org/10.1145/1989323.1989399). *SIGMOD*, 721-732.
 - Serrano, M. A., Boguna, M., & Vespignani, A. (2009). [Extracting the multiscale backbone of complex weighted networks](https://doi.org/10.1073/pnas.0808904106). *PNAS*, 106(16), 6483-6488.

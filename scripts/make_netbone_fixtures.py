@@ -1,18 +1,19 @@
 """Generate ``tests/fixtures/netbone.json`` from the netbone package.
 
 netbone (Yassin et al., 2023; https://gitlab.liris.cnrs.fr/coregraphie/netbone)
-is the Python reference implementation users compare networkx-backbone with.
-This script runs the netbone methods that networkx-backbone shares on the
+is the Python reference implementation users compare nx-backbone with.
+This script runs the netbone methods that nx-backbone shares on the
 weighted Les Misérables and karate club networks and stores, for every edge,
 netbone's score and (for the structural methods) its ``in_backbone`` flag.
 
 netbone's ``doubly_stochastic`` is not included: it Sinkhorn-scales a
 one-directional pivot of the edge list with 1e-4 added to every cell, which
 is a different matrix from the symmetric adjacency matrix that
-:func:`networkx_backbone.doubly_stochastic_filter` scales, so the scores are
+:func:`nx_backbone.doubly_stochastic_filter` scales, so the scores are
 not comparable.  netbone's ``noise_corrected(approximation=True)`` binomial
-p-value has no counterpart in networkx-backbone either; its
-``approximation=False`` score and standard deviation are compared.
+p-value is not compared either: it uses W trials and the strict tail
+P(X > w), unlike ``noise_corrected_filter``'s default ``nc_pvalue`` (see its
+Notes); its ``approximation=False`` score and standard deviation are compared.
 ``tests/test_reference_implementations.py`` compares against the fixture, so
 the test suite does not need netbone installed.
 
@@ -26,7 +27,7 @@ the repository root::
     /tmp/netbone-env/bin/python -I scripts/make_netbone_fixtures.py
 
 The script reads only the CSV files in ``tests/fixtures/reference_inputs/``
-and does not import networkx-backbone.
+and does not import nx-backbone.
 """
 
 import csv

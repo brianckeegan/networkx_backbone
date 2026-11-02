@@ -3,9 +3,9 @@ Bipartite Methods
 
 Examples in this module use ``nx.davis_southern_women_graph()``.
 Projection scoring methods return full graphs with p-values/weights; use
-:func:`~networkx_backbone.threshold_filter` or
-:func:`~networkx_backbone.boolean_filter` as needed, or
-:func:`~networkx_backbone.backbone_from_projection`, which keeps only the
+:func:`~nx_backbone.threshold_filter` or
+:func:`~nx_backbone.boolean_filter` as needed, or
+:func:`~nx_backbone.backbone_from_projection`, which keeps only the
 significant pairs.
 Complexity classes are provided in each function docstring.
 
@@ -20,10 +20,15 @@ arXiv:1906.09081). The hyperbolic weight uses ``1/d(z)`` per shared artifact;
 ``hyper_projection(..., newman=True)`` (``method="newman"``) gives Newman's
 (2001) ``1/(d(z) - 1)`` collaboration weight.
 
-.. automodule:: networkx_backbone.bipartite
+For a narrative walkthrough with figures (projection weights, the null models
+side by side, the FDSM p-value floor, signed backbones, SDSM-EC, matching R
+and sparse input), see
+:doc:`/auto_examples/bipartite/plot_bipartite_projections`.
+
+.. automodule:: nx_backbone.bipartite
    :no-members:
 
-.. currentmodule:: networkx_backbone
+.. currentmodule:: nx_backbone
 
 .. autofunction:: simple_projection
 
@@ -50,21 +55,21 @@ arXiv:1906.09081). The hyperbolic weight uses ``1/d(z)`` per shared artifact;
 .. autofunction:: fastball
 
 .. minigallery::
-   networkx_backbone.simple_projection
-   networkx_backbone.hyper_projection
-   networkx_backbone.probs_projection
-   networkx_backbone.ycn_projection
-   networkx_backbone.bipartite_projection
-   networkx_backbone.sdsm
-   networkx_backbone.fdsm
-   networkx_backbone.fixedfill
-   networkx_backbone.fixedrow
-   networkx_backbone.fixedcol
+   nx_backbone.simple_projection
+   nx_backbone.hyper_projection
+   nx_backbone.probs_projection
+   nx_backbone.ycn_projection
+   nx_backbone.bipartite_projection
+   nx_backbone.sdsm
+   nx_backbone.fdsm
+   nx_backbone.fixedfill
+   nx_backbone.fixedrow
+   nx_backbone.fixedcol
    :add-heading: Gallery Examples
 
-.. rubric:: Function Image Reference
+.. rubric:: Method gallery
 
-.. include:: ../_includes/gallery/bipartite.rst
+.. include:: ../_gallery/bipartite.inc
 
 .. rubric:: High-Level Wrappers
 

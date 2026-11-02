@@ -20,15 +20,20 @@ os.environ["_NETWORKX_BUILDING_DOCS_"] = "True"
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+# ...and the shared figure style (docs/_figures/style.py), so build hooks,
+# Sphinx-Gallery examples and executed reST can ``from _figures import style``.
+DOCS = Path(__file__).resolve().parent
+if str(DOCS) not in sys.path:
+    sys.path.insert(0, str(DOCS))
 
 # -- Project information -----------------------------------------------------
 
-project = "networkx-backbone"
+project = "nx-backbone"
 copyright = "2025-2026, Brian C. Keegan"
 author = "Brian C. Keegan"
 # Single source of truth: the version setuptools-scm derives from git tags.
 try:
-    release = _pkg_version("networkx-backbone")
+    release = _pkg_version("nx-backbone")
 except PackageNotFoundError:  # building docs from an uninstalled checkout
     release = "0.0.0+unknown"
 version = ".".join(release.split(".")[:2])
@@ -47,7 +52,7 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "_gallery", "Thumbs.db", ".DS_Store"]
 
 # -- numpydoc settings -------------------------------------------------------
 # numpydoc alone parses the NumPy-style docstrings.  (sphinx.ext.napoleon used
@@ -60,7 +65,7 @@ numpydoc_xref_param_type = False
 # Validate every docstring autodoc renders; a failure is a Sphinx warning, so
 # the ``-W`` docs build fails on it.  The checks and exclusions live in the
 # ``[tool.numpydoc_validation]`` table of pyproject.toml (with the reasons),
-# shared with the faster ``python -m numpydoc lint networkx_backbone/*.py``.
+# shared with the faster ``python -m numpydoc lint nx_backbone/*.py``.
 with open(ROOT / "pyproject.toml", "rb") as _f:
     _numpydoc_cfg = tomllib.load(_f)["tool"]["numpydoc_validation"]
 numpydoc_validation_checks = set(_numpydoc_cfg["checks"])
@@ -98,8 +103,8 @@ nitpick_ignore_regex = [
     (r"py:class", r"or"),
     # Quoted string values and set-like type annotations from docstrings
     (r"py:class", r'".*"'),
-    (r"py:class", r'\{.*'),
-    (r"py:class", r'.*\}'),
+    (r"py:class", r"\{.*"),
+    (r"py:class", r".*\}"),
     # NetworkX exceptions named without the module in numpydoc Raises sections
     (r"py:exc", r"NetworkXError"),
     (r"py:exc", r"NetworkXNotImplemented"),
@@ -114,6 +119,11 @@ suppress_warnings = ["ref.citation", "ref.class"]
 # -- Autodoc settings --------------------------------------------------------
 
 autodoc_member_order = "bysource"
+# The public API is annotated (and ships ``py.typed``), but the rendered pages
+# keep plain signatures: the numpydoc "Parameters" and "Returns" sections
+# already give every type in prose, the annotations name private aliases from
+# ``nx_backbone._typing``, and overloads would repeat each signature.
+autodoc_typehints = "none"
 autodoc_default_options = {
     "members": True,
     "undoc-members": False,
@@ -136,17 +146,20 @@ sphinx_gallery_conf = {
     "gallery_dirs": ["auto_examples"],
     "filename_pattern": r"plot_",
     "backreferences_dir": "auto_examples/backreferences",
-    "doc_module": ("networkx_backbone",),
-    "reference_url": {"networkx_backbone": None},
+    "doc_module": ("nx_backbone",),
+    "reference_url": {"nx_backbone": None},
     "within_subsection_order": "FileNameSortKey",
     "remove_config_comments": True,
+    # Reset matplotlib before each example, then apply the shared docs style,
+    # so every example's figures match the rest of the docs.
+    "reset_modules": ("matplotlib", "_figures.style.reset_gallery"),
 }
 
 # -- HTML output -------------------------------------------------------------
 
 html_theme = "pydata_sphinx_theme"
 html_theme_options = {
-    "github_url": "https://github.com/brianckeegan/networkx_backbone",
+    "github_url": "https://github.com/brianckeegan/nx-backbone",
     "use_edit_page_button": True,
     "show_toc_level": 2,
     "navigation_with_keys": True,
@@ -154,7 +167,7 @@ html_theme_options = {
 }
 html_context = {
     "github_user": "brianckeegan",
-    "github_repo": "networkx_backbone",
+    "github_repo": "nx_backbone",
     "github_version": "main",
     "doc_path": "docs",
 }
@@ -188,7 +201,7 @@ def _les_miserables_table_rst():
             # Convergence warnings (e.g. Sinkhorn-Knopp) are the tests' concern.
             warnings.simplefilter("ignore")
             kept = case.run(lm.graph_for(case)).number_of_edges()
-        method = f":func:`~networkx_backbone.{case.method}`"
+        method = f":func:`~nx_backbone.{case.method}`"
         if case.kwargs:
             args = ", ".join(f"{k}={v!r}" for k, v in case.kwargs.items())
             method += f" (``{args}``)"
@@ -217,11 +230,33 @@ def _build_roadmap_figures(app):
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module  # dataclasses look the module up here
     spec.loader.exec_module(module)
-    module.build(Path(app.srcdir) / "_static" / "roadmap", Path(app.srcdir) / "roadmap.rst")
+    module.build(
+        Path(app.srcdir) / "_static" / "roadmap", Path(app.srcdir) / "roadmap.rst"
+    )
+
+
+# -- Method gallery --------------------------------------------------------------
+# scripts/generate_visualizations.py runs every public method and draws its
+# backbone over the original graph (light and dark variants), plus one reST
+# include per API module, into the gitignored _gallery/ on every build, so the
+# gallery on the API pages always shows what the current code returns.
+
+
+def _build_gallery(app):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "generate_visualizations", ROOT / "scripts" / "generate_visualizations.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # dataclasses look the module up here
+    spec.loader.exec_module(module)
+    module.build(Path(app.srcdir) / "_gallery")
 
 
 def setup(app):
     app.connect("builder-inited", _build_roadmap_figures)
+    app.connect("builder-inited", _build_gallery)
     from docutils import nodes
     from docutils.statemachine import StringList
     from sphinx.util.docutils import SphinxDirective

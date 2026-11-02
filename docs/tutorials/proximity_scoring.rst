@@ -6,13 +6,19 @@ how similar the neighborhoods of their endpoints are. High-scoring edges are
 structurally embedded within communities, while low-scoring edges tend to be
 bridges.
 
+.. seealso::
+
+   :ref:`sphx_glr_auto_examples_structural_proximity_plot_structural_proximity_tutorial.py`,
+   a narrative tutorial with figures comparing what Jaccard, Adamic-Adar and
+   resource allocation reward, and how ``fraction_filter`` treats ties.
+
 Setup
 -----
 
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G = nx.les_miserables_graph()
     print(f"Original: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
@@ -81,7 +87,7 @@ matrix powers::
 Filtering by proximity
 -----------------------
 
-Use :func:`~networkx_backbone.fraction_filter` to keep the most structurally
+Use :func:`~nx_backbone.fraction_filter` to keep the most structurally
 embedded edges. Since higher proximity scores indicate more embedded edges,
 use ``ascending=False``::
 

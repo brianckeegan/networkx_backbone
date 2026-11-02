@@ -3,7 +3,7 @@
 The same scorers on Les Misérables are timed by ``les_miserables.py``.
 """
 
-import networkx_backbone as nb
+import nx_backbone as nb
 
 from ._data import weighted_graph
 

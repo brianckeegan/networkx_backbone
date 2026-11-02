@@ -1,0 +1,571 @@
+"""
+Unweighted network backbone methods.
+
+These methods sparsify unweighted graphs by scoring edges and filtering
+based on local topology.
+
+Methods
+-------
+sparsify
+    Generic sparsification framework (score -> normalize -> filter -> connect).
+lspar
+    Local Sparsification (Satuluri et al. 2011) -- Jaccard-based.
+local_degree
+    Local Degree (Lindner et al. 2015) -- keep edges to high-degree neighbors.
+"""
+
+from __future__ import annotations
+
+import math
+from bisect import bisect_right
+from itertools import groupby
+from operator import itemgetter
+from typing import TYPE_CHECKING, Literal
+
+from nx_backbone._dispatch import _dispatchable
+from nx_backbone._docstrings import append_complexity_docstrings
+from nx_backbone._typing import not_implemented_for, py_random_state
+
+if TYPE_CHECKING:
+    import networkx as nx
+
+    from nx_backbone._typing import PySeed
+
+__all__ = ["sparsify", "lspar", "local_degree"]
+
+_ESCORES = ("jaccard", "degree", "triangles", "quadrangles", "random")
+_NORMALIZE = ("rank", None)
+_FILTERS = ("degree", "threshold")
+
+
+@not_implemented_for("directed")
+@not_implemented_for("multigraph")
+@py_random_state("seed")
+@_dispatchable
+def sparsify(
+    G: nx.Graph,
+    escore: str = "jaccard",
+    normalize: str | None = "rank",
+    filter: str = "degree",
+    s: float = 0.5,
+    umst: bool = False,
+    seed: PySeed = None,
+) -> nx.Graph:
+    r"""Sparsify an unweighted graph using a score-normalize-filter pipeline.
+
+    Follows the four-step pipeline from Neal (2022) [1]_:
+
+    1. **Score**: every node *u* scores each of its incident edges
+       ``(u, v)``.  Some scores are symmetric (Jaccard, triangles,
+       quadrangles, random); ``"degree"`` is asymmetric: *u* scores the
+       edge by the degree of the *neighbor* *v*.
+    2. **Normalize**: optionally rank-transform the scores within each
+       node's neighborhood.
+    3. **Filter**: retain the top ``max(1, ceil(d_u**s))`` edges of every
+       node *u* (``filter="degree"``), or every edge whose score is at
+       least *s* (``filter="threshold"``).  An edge is kept if *either*
+       endpoint retains it.
+    4. **Connect**: optionally add the union of all minimum spanning
+       trees (UMST) of the scored graph [2]_, so the backbone has as many
+       connected components as *G*.
+
+    Parameters
+    ----------
+    G : graph
+        An undirected NetworkX graph.  Edge attributes are ignored.
+    escore : string, optional (default="jaccard")
+        Edge scoring method.  One of ``"jaccard"`` (Jaccard similarity of
+        the endpoint neighborhoods), ``"degree"`` (degree of the
+        neighbor), ``"triangles"`` (number of common neighbors),
+        ``"quadrangles"`` (number of 4-cycles through the edge) or
+        ``"random"`` (uniform random score in [0, 1)).
+    normalize : {"rank", None}, optional (default="rank")
+        ``"rank"`` replaces each node's view of an edge score by its
+        normalized rank among that node's edges, ``r / d_u``, where *r* is
+        the number of the node's edges scoring less than or equal to the
+        edge (so the best edge has value 1 and tied edges share a value).
+        ``None`` keeps the raw scores.  With ``filter="degree"`` both
+        choices give the same backbone because ranking is monotone.
+    filter : {"degree", "threshold"}, optional (default="degree")
+        Filtering method (see *Notes*).
+    s : float, optional (default=0.5)
+        Sparsification parameter: the exponent for ``filter="degree"``
+        (typically in [0, 1]; 0 is sparsest, 1 keeps every edge) or the
+        score threshold for ``filter="threshold"``.
+    umst : bool, optional (default=False)
+        If ``True``, also retain every edge that belongs to *some* minimum
+        spanning tree (forest, if *G* is disconnected) of *G* weighted by
+        the edge scores, with the most important edges cheapest (see
+        *Notes*).  The backbone then has the same connected components as
+        *G*.
+    seed : integer, random_state, or None (default)
+        Indicator of random number generation state, used only when
+        ``escore="random"``.
+        See :ref:`Randomness<networkx:randomness>`.
+
+    Returns
+    -------
+    H : graph
+        A copy of *G* with edge attributes ``"sparsify_score"`` (float, see
+        *Notes*) and boolean ``"sparsify_keep"``.
+
+    Raises
+    ------
+    ValueError
+        If *escore*, *normalize* or *filter* is not one of the documented
+        values.
+    NetworkXNotImplemented
+        If *G* is directed or a multigraph.  Collapse a multigraph first
+        with :func:`~nx_backbone.multigraph_to_weighted`.
+
+    Notes
+    -----
+    Ranks are *competition ranks*: the rank of edge *e* at node *u* is
+    ``1 + #{edges of u scoring strictly better than e}``, so tied edges
+    share a rank and are retained or dropped together.  Self-loops are
+    ignored when scoring and ranking and are never retained; *d_u* is the
+    number of distinct neighbors of *u*.
+
+    With ``filter="degree"`` node *u* keeps the edges whose rank *r*
+    satisfies ``r <= max(1, ceil(d_u**s))``, and ``"sparsify_score"`` is
+    the *critical exponent* of the edge,
+
+    .. math::
+
+        s^*(e) = \min_{u \in e} \frac{\log(r_u(e) - 1)}{\log d_u},
+
+    with :math:`s^* = -\infty` for an edge that is top-ranked at one of
+    its endpoints.  The edge is retained exactly when ``s > s*``, so
+    ``threshold_filter(H, "sparsify_score", s2, mode="below")`` gives the
+    backbone for any other exponent ``s2`` without re-scoring.  Smaller
+    scores mean more important edges.
+
+    With ``filter="threshold"``, ``"sparsify_score"`` is the larger of the
+    two endpoints' (normalized) scores and the edge is retained when it is
+    at least *s*.
+
+    With ``umst=True`` the spanning trees minimize the sum of
+    ``"sparsify_score"`` for ``filter="degree"`` and maximize it for
+    ``filter="threshold"``.  Following Hamann et al. [2]_, the *union* of
+    all such trees is added, not one arbitrary tree: an edge with score
+    *w* is added exactly when its endpoints are not already connected by
+    edges that are strictly more important than *w*.  No tie is broken
+    arbitrarily (on a cycle whose edges all score the same, every edge is
+    added), so the result does not depend on node or edge order.  The union is computed with a union-find structure in
+    :math:`O(m \log m)` time.
+
+    References
+    ----------
+    .. [1] Neal, Z. P. (2022). backbone: An R package to extract network
+       backbones. *PLOS ONE*, 17(5), e0269137.
+    .. [2] Hamann, M., Lindner, G., Meyerhenke, H., Staudt, C. L., &
+       Wagner, D. (2016). Structure-preserving sparsification methods for
+       social networks. *Social Network Analysis and Mining*, 6(1), 22.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> from nx_backbone import boolean_filter, sparsify
+    >>> G_weighted = nx.les_miserables_graph()
+    >>> G = nx.Graph()
+    >>> G.add_nodes_from(G_weighted.nodes(data=True))
+    >>> G.add_edges_from(G_weighted.edges())
+    >>> H = sparsify(G, s=0.5)
+    >>> backbone = boolean_filter(H, "sparsify_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
+    """
+    return _sparsify(G, escore, normalize, filter, s, umst, seed, rounding="ceil")
+
+
+@not_implemented_for("directed")
+@not_implemented_for("multigraph")
+@_dispatchable
+def lspar(
+    G: nx.Graph, s: float = 0.5, *, convention: Literal["satuluri", "r"] = "satuluri"
+) -> nx.Graph:
+    r"""Compute the Local Sparsification (L-Spar) backbone.
+
+    Every node *u* ranks its incident edges by the Jaccard similarity of
+    the endpoint neighborhoods and keeps its top ``ceil(d_u**s)`` edges;
+    an edge is retained if either endpoint keeps it [1]_.  Equivalent to
+    ``sparsify(G, escore="jaccard", normalize="rank", filter="degree", s=s)``.
+
+    Parameters
+    ----------
+    G : graph
+        An undirected NetworkX graph.
+    s : float, optional (default=0.5)
+        Sparsification exponent (0 = sparsest, 1 = keep all).
+    convention : {"satuluri", "r"}, optional (default="satuluri")
+        ``"satuluri"`` uses the conventions described above.  ``"r"``
+        reproduces R ``backbone_from_unweighted(model = "lspar")`` (R
+        backbone 3.0.4), which keeps fewer edges; see Notes.
+
+    Returns
+    -------
+    H : graph
+        A copy of *G* with ``"sparsify_score"`` (the critical exponent,
+        see :func:`sparsify` and Notes) and boolean ``"sparsify_keep"``.
+
+    Raises
+    ------
+    ValueError
+        If *convention* is not ``"satuluri"`` or ``"r"``.
+    NetworkXNotImplemented
+        If *G* is directed or a multigraph.
+
+    Notes
+    -----
+    Edges tied in Jaccard similarity at the cut-off are all retained
+    (competition ranking), which makes the result independent of node
+    order.  ``threshold_filter(H, "sparsify_score", s2, mode="below")``
+    reproduces ``lspar(G, s=s2)`` for any exponent ``s2``.
+
+    **Comparison with R backbone.**  R ``backbone_from_unweighted(model =
+    "lspar")`` uses different conventions and keeps fewer edges (30 versus 54
+    on the karate club at ``s = 0.3``).  It divides the common neighbors by
+    :math:`|N(u) \cup N(v)| - 2`, excluding the endpoints, ranks with dense
+    ranks, ignores edges in no triangle (Jaccard 0) both when ranking and when
+    counting :math:`d_u`, and keeps ranks up to ``floor(d_u**s)`` with no
+    minimum of one.  Here the denominator is :math:`|N(u) \cup N(v)|`, ranks
+    are competition ranks over all edges, and each node keeps
+    ``max(1, ceil(d_u**s))`` as in Satuluri et al.  :func:`local_degree`
+    matches R's ``model = "degree"`` on the karate club.
+
+    ``convention="r"`` applies R's conventions and reproduces R's backbones
+    exactly on the karate club and Les Misérables (tested at ``s`` = 0.3,
+    0.5 and 0.7).  Node *u* then ranks only its :math:`d'_u` edges with
+    positive Jaccard similarity, and an edge of dense rank *r* is kept by
+    *u* when ``r <= floor(d'_u**s)``, i.e. when ``s >= log(r) / log(d'_u)``.
+    ``"sparsify_score"`` is this critical exponent, minimized over the two
+    endpoints: ``-inf`` when the edge is the only positive edge of an
+    endpoint, ``inf`` when its Jaccard similarity is 0.  Up to
+    floating-point rounding at exact boundaries, an edge is retained exactly
+    when ``s >= sparsify_score``.  Isolated edges (whose endpoints have no
+    other neighbors) have similarity 0 under both conventions.
+
+    References
+    ----------
+    .. [1] Satuluri, V., Parthasarathy, S., & Ruan, Y. (2011). Local
+       graph sparsification for scalable clustering. *ACM SIGMOD*, 721-732.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> from nx_backbone import boolean_filter, lspar
+    >>> G_weighted = nx.les_miserables_graph()
+    >>> G = nx.Graph()
+    >>> G.add_nodes_from(G_weighted.nodes(data=True))
+    >>> G.add_edges_from(G_weighted.edges())
+    >>> H = lspar(G, s=0.5)
+    >>> backbone = boolean_filter(H, "sparsify_keep")
+    >>> backbone.number_of_edges() <= H.number_of_edges()
+    True
+
+    R's conventions keep fewer edges:
+
+    >>> K = nx.karate_club_graph()
+    >>> U = nx.Graph(K.edges())  # drop the weights
+    >>> [boolean_filter(lspar(U, s=0.3, convention=c), "sparsify_keep").number_of_edges()
+    ...  for c in ("satuluri", "r")]
+    [54, 30]
+    """
+    if convention == "r":
+        return _lspar_r(G, s)
+    if convention != "satuluri":
+        raise ValueError(
+            f"Unknown convention: {convention!r}; expected 'satuluri' or 'r'"
+        )
+    return _sparsify(G, "jaccard", "rank", "degree", s, False, None, rounding="ceil")
+
+
+@not_implemented_for("directed")
+@not_implemented_for("multigraph")
+@_dispatchable
+def local_degree(G: nx.Graph, s: float = 0.3) -> nx.Graph:
+    r"""Compute the Local Degree backbone.
+
+    Every node *u* ranks its neighbors by their degree (highest first)
+    and keeps the edges to its top ``floor(d_u**s)`` neighbors; an edge is
+    retained if either endpoint keeps it [1]_, [2]_.  Edges to hubs are
+    therefore preferred, which preserves the network's hub structure.
+
+    Parameters
+    ----------
+    G : graph
+        An undirected NetworkX graph.
+    s : float, optional (default=0.3)
+        Sparsification exponent (0 = sparsest, 1 = keep all).
+
+    Returns
+    -------
+    H : graph
+        A copy of *G* with ``"sparsify_score"`` and boolean
+        ``"sparsify_keep"``.
+
+    Raises
+    ------
+    NetworkXNotImplemented
+        If *G* is directed or a multigraph.
+
+    Notes
+    -----
+    Neighbors of equal degree share a rank (competition ranking), so
+    ties at the cut-off are all retained.  Each node always keeps at
+    least its top-ranked edge(s).  ``"sparsify_score"`` is the critical
+    exponent
+
+    .. math::
+
+        s^*(e) = \min_{u \in e} \frac{\log r_u(e)}{\log d_u}
+
+    (:math:`-\infty` for edges top-ranked at an endpoint), and the edge is
+    retained exactly when ``s >= s*``.  Smaller scores mean more important
+    edges.
+
+    References
+    ----------
+    .. [1] Lindner, G., Staudt, C. L., Hamann, M., Meyerhenke, H., &
+       Wagner, D. (2015). Structure-preserving sparsification of social
+       networks. *Proceedings of the 2015 IEEE/ACM International
+       Conference on Advances in Social Networks Analysis and Mining
+       (ASONAM)*, 448-454.
+    .. [2] Hamann, M., Lindner, G., Meyerhenke, H., Staudt, C. L., &
+       Wagner, D. (2016). Structure-preserving sparsification methods for
+       social networks. *Social Network Analysis and Mining*, 6(1), 22.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> from nx_backbone import boolean_filter, local_degree
+    >>> G = nx.star_graph(4)
+    >>> G.add_edges_from([(4, 5), (4, 6)])
+    >>> H = local_degree(G, s=0.0)
+    >>> sorted(e for e in H.edges() if H.edges[e]["sparsify_keep"])
+    [(0, 1), (0, 2), (0, 3), (0, 4), (4, 5), (4, 6)]
+    >>> H[0][4]["sparsify_keep"]  # the hub keeps the edge to its best-connected neighbor
+    True
+    """
+    return _sparsify(G, "degree", "rank", "degree", s, False, None, rounding="floor")
+
+
+# =====================================================================
+# Internal helpers
+# =====================================================================
+
+
+def _sparsify(G, escore, normalize, filter, s, umst, seed, rounding):
+    """Shared implementation of :func:`sparsify`, :func:`lspar`, :func:`local_degree`."""
+    if escore not in _ESCORES:
+        raise ValueError(
+            f"Unknown edge scoring method: {escore!r}; expected one of {_ESCORES}"
+        )
+    if normalize not in _NORMALIZE:
+        raise ValueError(f"Unknown normalize: {normalize!r}; expected 'rank' or None")
+    if filter not in _FILTERS:
+        raise ValueError(f"Unknown filter: {filter!r}; expected one of {_FILTERS}")
+
+    nbrs = {u: set(G[u]) - {u} for u in G}
+    views = _score_views(G, nbrs, escore, seed)
+
+    if filter == "degree":
+        scores = _critical_exponents(views, rounding)
+        if rounding == "floor":
+            kept = {e for e, sc in scores.items() if sc <= s}
+        else:
+            kept = {e for e, sc in scores.items() if sc < s}
+        badness = scores
+    else:
+        if normalize == "rank":
+            views = _rank_normalize(views)
+        scores = {}
+        for u, view in views.items():
+            for v, sc in view.items():
+                e = frozenset((u, v))
+                scores[e] = max(scores.get(e, sc), sc)
+        kept = {e for e, sc in scores.items() if sc >= s}
+        badness = {e: -sc for e, sc in scores.items()}
+
+    if umst:
+        kept |= _umst_edges(G, badness)
+
+    self_loop_score = math.inf if filter == "degree" else -math.inf
+    H = G.copy()
+    for u, v, data in H.edges(data=True):
+        e = frozenset((u, v))
+        if u == v:
+            data["sparsify_score"] = self_loop_score
+            data["sparsify_keep"] = False
+        else:
+            data["sparsify_score"] = float(scores[e])
+            data["sparsify_keep"] = e in kept
+    return H
+
+
+def _lspar_r(G, s):
+    """:func:`lspar` with the conventions of R ``backbone`` 3.0.4.
+
+    The Jaccard denominator excludes the two endpoints, edges with Jaccard
+    similarity 0 are neither ranked nor counted, ranks are dense, and node
+    *u* keeps the edges of rank at most ``floor(d'_u**s)``, where ``d'_u``
+    counts *u*'s edges with positive similarity.
+    """
+    nbrs = {u: set(G[u]) - {u} for u in G}
+    views = {u: {} for u in G}
+    for u, v in G.edges():
+        if u == v:
+            continue
+        union = len(nbrs[u] | nbrs[v]) - 2
+        jac = len(nbrs[u] & nbrs[v]) / union if union > 0 else 0.0
+        if jac > 0:
+            views[u][v] = views[v][u] = jac
+
+    scores = {}
+    kept = set()
+    for u, view in views.items():
+        d = len(view)
+        if not d:
+            continue
+        cut = math.floor(d**s)
+        distinct = sorted(set(view.values()), reverse=True)
+        rank = {x: r for r, x in enumerate(distinct, start=1)}
+        for v, x in view.items():
+            r = rank[x]
+            e = frozenset((u, v))
+            e_u = -math.inf if d == 1 else math.log(r) / math.log(d)
+            scores[e] = min(scores.get(e, e_u), e_u)
+            if r <= cut:
+                kept.add(e)
+
+    H = G.copy()
+    for u, v, data in H.edges(data=True):
+        e = frozenset((u, v))
+        data["sparsify_score"] = float(scores.get(e, math.inf)) if u != v else math.inf
+        data["sparsify_keep"] = e in kept
+    return H
+
+
+def _umst_edges(G, badness):
+    """Union of all minimum spanning forests of *G* weighted by ``badness``.
+
+    ``badness`` maps every non-loop edge ``frozenset((u, v))`` to its
+    weight.  An edge of weight *w* lies in some minimum spanning forest iff
+    its endpoints are not connected by edges of weight strictly less than
+    *w*.  Edges are processed in groups of equal weight (Kruskal by weight
+    class): every edge of a group whose endpoints are in different
+    union-find components is marked *before* the group is merged.  The
+    result is independent of node and edge order.
+    """
+    parent = {u: u for u in G}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    union = set()
+    ordered = sorted(badness.items(), key=itemgetter(1))
+    for _, group in groupby(ordered, key=itemgetter(1)):
+        crossing = []
+        for e, _ in group:
+            u, v = tuple(e)
+            ru, rv = find(u), find(v)
+            if ru != rv:
+                union.add(e)
+                crossing.append((ru, rv))
+        for ru, rv in crossing:
+            ru, rv = find(ru), find(rv)
+            if ru != rv:
+                parent[ru] = rv
+    return union
+
+
+def _score_views(G, nbrs, method, seed):
+    """Return ``{u: {v: score of edge (u, v) as seen from u}}`` (no self-loops)."""
+    views = {u: {} for u in G}
+
+    if method == "random":
+        for u, v in G.edges():
+            if u != v:
+                views[u][v] = views[v][u] = seed.random()
+        return views
+
+    for u, v in G.edges():
+        if u == v:
+            continue
+        nu, nv = nbrs[u], nbrs[v]
+        if method == "jaccard":
+            union = len(nu | nv)
+            sc = len(nu & nv) / union if union else 0.0
+            views[u][v] = views[v][u] = sc
+        elif method == "degree":
+            views[u][v] = len(nv)
+            views[v][u] = len(nu)
+        elif method == "triangles":
+            views[u][v] = views[v][u] = len(nu & nv)
+        else:  # quadrangles: 4-cycles u - x - y - v - u
+            nu_x = nu - {v}
+            nv_y = nv - {u}
+            count = sum(len((nbrs[x] - {u}) & nv_y) for x in nu_x)
+            views[u][v] = views[v][u] = count
+    return views
+
+
+def _rank_normalize(views):
+    """Replace each node's scores by normalized ranks ``#{<= score} / d``."""
+    normalized = {}
+    for u, view in views.items():
+        ordered = sorted(view.values())
+        d = len(ordered)
+        normalized[u] = {v: bisect_right(ordered, sc) / d for v, sc in view.items()}
+    return normalized
+
+
+def _critical_exponents(views, rounding):
+    """Per-edge critical exponent of the per-node top-k ("degree") filter.
+
+    Node *u* with ``d`` distinct neighbors keeps an edge of competition
+    rank ``r`` iff ``r <= max(1, ceil(d**s))`` (``rounding="ceil"``), i.e.
+    iff ``s > log(r - 1) / log(d)``; or iff ``r <= max(1, floor(d**s))``
+    (``rounding="floor"``), i.e. iff ``s >= log(r) / log(d)``.  Top-ranked
+    edges get ``-inf``.  The edge score is the minimum over both endpoints.
+    """
+    exponents = {}
+    for u, view in views.items():
+        d = len(view)
+        ordered = sorted(view.values())
+        for v, sc in view.items():
+            # competition rank: 1 + number of strictly better edges
+            r = 1 + d - bisect_right(ordered, sc)
+            if r == 1:
+                e_u = -math.inf
+            elif rounding == "ceil":
+                e_u = math.log(r - 1) / math.log(d)
+            else:
+                e_u = math.log(r) / math.log(d)
+            e = frozenset((u, v))
+            exponents[e] = min(exponents.get(e, e_u), e_u)
+    return exponents
+
+
+_COMPLEXITY = {
+    "sparsify": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+        "notes": "Worst-case; depends on escore/filter choices.",
+    },
+    "lspar": {
+        "time": "O(mn)",
+        "space": "O(n + m)",
+        "notes": "Jaccard scoring plus per-node sorting.",
+    },
+    "local_degree": {
+        "time": "O(m log n)",
+        "space": "O(n + m)",
+        "notes": "Per-node sorting of neighbor degrees.",
+    },
+}
+
+append_complexity_docstrings(globals(), _COMPLEXITY)

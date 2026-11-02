@@ -4,13 +4,19 @@ Structural Backbone Methods
 This tutorial demonstrates the structural methods, which use topological
 properties of the network to identify important edges.
 
+.. seealso::
+
+   :ref:`sphx_glr_auto_examples_structural_proximity_plot_structural_proximity_tutorial.py`,
+   a narrative tutorial with figures on what each structural method
+   guarantees and when to prefer one to a significance test.
+
 Setup
 -----
 
 ::
 
     import networkx as nx
-    import networkx_backbone as nb
+    import nx_backbone as nb
 
     G = nx.les_miserables_graph()
 
@@ -25,7 +31,9 @@ Simple filters
     backbone = nb.boolean_filter(scored, "global_threshold_keep")
     print(f"Global threshold: {backbone.number_of_edges()} edges")
 
-**Strongest N ties**: Keep each node's N strongest edges::
+**Strongest N ties**: Keep each node's N strongest edges (edges tied with
+the N-th strongest are kept too, so the result does not depend on edge
+order)::
 
     scored = nb.strongest_n_ties(G, n=2)
     backbone = nb.boolean_filter(scored, "strongest_n_ties_keep")
