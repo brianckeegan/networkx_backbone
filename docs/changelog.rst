@@ -233,6 +233,48 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   describes them, including the number of steps and the binning. New tutorial:
   :doc:`tutorials/temporal_backbones`; :ref:`temporal-eligibility` explains
   the eligible steps.
+- New :func:`~networkx_backbone.edge_persistence_hmm` (needs numpy): a
+  two-state hidden Markov model of edge activity. Each edge switches between
+  an inactive and an active state (transition probabilities ``a01`` and
+  ``a10``) and is observed with a false-positive rate ``alpha`` and a miss
+  rate ``beta``, all shared by the edges and fitted by Baum-Welch (EM) pooled
+  over the edges, or fixed with ``params=``. The observations are, in each
+  eligible step, the edge's presence (``observe="presence"``), whether a
+  static method keeps it with ``backbone_stability``'s per-step cut
+  (``observe="keep"``), or its p-value (``observe="pvalue"``: uniform when
+  inactive, Beta(``a``, 1) when active, a modeling choice); ineligible steps
+  carry no evidence. Exact forward-backward and Viterbi give per-edge
+  ``hmm_posterior`` (a dict over the eligible steps), ``hmm_active_fraction``,
+  ``hmm_score``, ``hmm_n_active`` and ``hmm_keep`` (active in at least
+  ``min_steps`` steps); the fitted model is in ``H.graph["temporal"]["hmm"]``.
+  ``alpha < 1 - beta`` is imposed by relabeling the states. ``hmm_score`` is
+  a persistence-smoothed membership score, not a p-value. The temporal
+  tutorial compares it with ``persistence`` (#73).
+- New :func:`~networkx_backbone.kalman_backbone` (needs numpy and SciPy), a
+  novel adaptation of the Kalman filter and Rauch-Tung-Striebel smoother to
+  backboning (#72). It runs a static significance test (``disparity_filter``,
+  ``noise_corrected_filter`` or ``glab_filter``) on every step, scoring
+  eligible absent edges as weight 0 with ``missing_as_zero=True``, turns the
+  p-values into probit scores, and smooths each edge's series with a
+  local-level model (``mode="smoother"`` or the online ``"filter"``; unknown
+  steps and unequal spacing are handled exactly). Per-step p-values use the
+  exact null distribution of the smoothed level; the edge-level
+  ``kalman_pvalue`` tests the largest smoothed z-score over the steps against
+  a null simulated once per missingness pattern (``n_sim=``, ``seed=``). The
+  process variance comes from ``q=``, ``half_life=`` (in steps) or a pooled
+  maximum likelihood fit, recorded in ``H.graph["temporal"]["kalman"]``. Each
+  edge also gets ``kalman_score``, ``kalman_n_obs`` and the per-step dicts
+  ``kalman_pvalues``, ``kalman_levels`` and ``kalman_innovations``;
+  :func:`~networkx_backbone.kalman_snapshots` expands them into per-step
+  graphs. Methods with discrete p-values (LANS, ECM, the marginal likelihood
+  filter, Pólya, GloSS) raise unless ``discrete="raw"`` (valid but
+  conservative), because none reports the ``P(X > x)`` that a mid-p transform
+  needs. The disparity filter and GLAB give an edge the smaller of two
+  endpoint p-values, which smoothing would turn into many false positives;
+  the default ``sidak=True`` corrects for that, which keeps their smoothed
+  tests valid but conservative. The docstring documents the risks: temporal
+  leakage, autocorrelated confounders, and multiple testing over edges and
+  steps.
 
 *Reporting and documentation*
 
@@ -435,15 +477,21 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   and helpers that save light and dark variants and write the reST that shows
   the one matching the reader's theme. Sphinx-Gallery examples start from
   this style (#88, #96).
+- New narrative tutorial, *Statistical null models side by side*: the seven
+  statistical scorers on Les Misérables, with figures of p-value against
+  weight, backbone overlap (checked against the hierarchy reported by Yassin
+  et al., 2025), the KS distances of each backbone, the disparity filter's
+  ``a=``, the count models' ``unit=``, ``transform_weights``, and signed
+  backbones with the R tie convention. It is executed at build time (#90,
+  #96).
 - A narrative tutorial, *Bipartite projections and their backbones*, executed
   when the docs are built: two-mode data and why the raw projection
   overstates ties, the five projection weights, the five null models compared
   against the FDSM, the FDSM p-value floor and multiple testing, signed
   backbones, SDSM-EC constraints (including contradictory ones), a check
   against R ``backbone`` with ``missing_as_zero``, and sparse incidence
-  input, with seven figures in light and dark variants. The tutorials index
-  is grouped into "Start here", "By network type" and "Going further"
-  (#92, #96).
+  input, with seven figures in light and dark variants. It is listed under
+  "By network type" in the tutorials index (#92, #96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose

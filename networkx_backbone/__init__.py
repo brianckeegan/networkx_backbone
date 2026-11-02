@@ -20,7 +20,8 @@ networks, organized into the following submodules:
 - **convert**: NumPy/SciPy adjacency matrices and pandas edge lists to graphs
 - **temporal**: Temporal networks as snapshots, events or spans, conversions
   between the three forms, pandas event tables, and temporal backbone scores
-  (observation fraction, persistence, backbone stability, weight trend)
+  (observation fraction, persistence, backbone stability, weight trend,
+  hidden Markov model of edge activity)
 """
 
 from networkx_backbone.bipartite import *
@@ -170,4 +171,7 @@ __all__ = [
     "persistence",
     "backbone_stability",
     "weight_trend",
+    "edge_persistence_hmm",
+    "kalman_backbone",
+    "kalman_snapshots",
 ]

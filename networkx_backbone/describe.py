@@ -473,6 +473,18 @@ REFERENCES = _refs(
         "The control of the false discovery rate in multiple testing under "
         "dependency", "Annals of Statistics", "29", "4", "1165--1188",
     ),
+    Reference(
+        "kalman1960", "article", ("Kalman, R. E.",), 1960,
+        "A new approach to linear filtering and prediction problems",
+        "Journal of Basic Engineering", "82", "1", "35--45",
+        doi="10.1115/1.3662552",
+    ),
+    Reference(
+        "rauch1965", "article",
+        ("Rauch, H. E.", "Tung, F.", "Striebel, C. T."), 1965,
+        "Maximum likelihood estimates of linear dynamic systems",
+        "AIAA Journal", "3", "8", "1445--1450", doi="10.2514/3.3166",
+    ),
 )  # fmt: skip
 
 
@@ -876,6 +888,23 @@ METHODS = {
         "deviation, coefficient of variation and least-squares slope",
         kind=TEMPORAL,
     ),
+    "edge_persistence_hmm": Method(
+        "a two-state hidden Markov model of edge activity",
+        "in which each edge switches between an inactive and an active state "
+        "as a Markov chain and is observed with false-positive and miss "
+        "rates, all parameters being shared by the edges, and which scores "
+        "each edge by its posterior probability of being active in each of "
+        "its eligible steps",
+        kind=TEMPORAL,
+    ),
+    "kalman_backbone": Method(
+        "Kalman smoothing of per-step edge significance",
+        "which tests each edge in every step with a static backbone method, "
+        "smooths the probit-transformed p-values of each edge over time with "
+        "a local-level Kalman filter and Rauch-Tung-Striebel smoother, and "
+        "tests the smoothed series against its exact null distribution",
+        ("kalman1960", "rauch1965"), TEMPORAL, test=True,
+    ),
 }  # fmt: skip
 
 #: Edge attribute that a cut on each static method's output uses: a p-value
@@ -971,6 +1000,8 @@ EXCLUDED = {
         ),
         "a temporal-network format conversion, not a backbone",
     ),
+    "kalman_snapshots": "expands the per-step series of kalman_backbone; "
+    "describe 'kalman_backbone' instead",
 }
 
 # Wording and references for each multiple-testing correction.
@@ -1221,10 +1252,14 @@ def _temporal_sentences(name, params, original, backbone, md):
         "both of its endpoints were present (its eligible steps); in the other "
         "steps it was treated as unknown."
     )
-    if name == "backbone_stability":
+    stored = meta.get("parameters", {})
+    observe = params.get("observe", stored.get("observe", "presence"))
+    if name in ("backbone_stability", "kalman_backbone") or (
+        name == "edge_persistence_hmm" and observe != "presence"
+    ):
         inner = params.pop("method", None)
         if inner is None:
-            inner = meta.get("parameters", {}).get("method")
+            inner = stored.get("method")
         try:
             _, entry = _resolve(inner)
         except (TypeError, ValueError):
@@ -1232,12 +1267,82 @@ def _temporal_sentences(name, params, original, backbone, md):
         if entry is not None:
             cites = "; ".join(REFERENCES[k].cite() for k in entry.refs)
             keys += list(entry.refs)
-            sentences.append(
-                f"In every step the edges were scored with {entry.label}"
-                + (f" ({cites})" if cites else "")
-                + ", and the same cut was applied in each step."
-            )
+            text = f"In every step the edges were scored with {entry.label}"
+            text += f" ({cites})" if cites else ""
+            if name == "kalman_backbone":
+                text += "."
+            elif name == "edge_persistence_hmm" and observe == "pvalue":
+                text += ", and its p-values were the observations of the model."
+            else:
+                text += ", and the same cut was applied in each step."
+            sentences.append(text)
+    if name == "edge_persistence_hmm":
+        sentences += _hmm_sentences(meta.get("hmm"), observe)
+    if name == "kalman_backbone":
+        sentences += _kalman_sentences(meta.get("kalman", {}))
     return sentences, keys, params
+
+
+def _kalman_sentences(fit):
+    """Sentences on the smoothing of :func:`kalman_backbone` from its record."""
+    sentences = []
+    q = fit.get("q")
+    if q is not None:
+        how = {
+            "half_life": "set from a half-life",
+            "q": "set by the analyst",
+            "likelihood": "estimated by maximum pooled likelihood",
+        }.get(fit.get("q_source"), "")
+        text = f"The process variance was q = {q:.3g} per step"
+        if how:
+            text += f", {how}"
+        half = fit.get("half_life")
+        if half is not None and half != float("inf"):
+            text += f" (a smoothing half-life of {half:.3g} steps)"
+        sentences.append(text + ".")
+    mode = fit.get("mode")
+    if mode in ("smoother", "filter"):
+        used = "all steps" if mode == "smoother" else "only past and current steps"
+        sentences.append(
+            f"Each step's smoothed estimate used {used}; an edge's p-value tests "
+            "the largest standardized smoothed score over its steps against "
+            "a simulated null distribution."
+        )
+    if fit.get("absent") == "unknown":
+        sentences.append(
+            "For this method, steps in which an eligible edge was absent were "
+            "treated as unknown instead."
+        )
+    return sentences
+
+
+def _hmm_sentences(model, observe):
+    """Sentences on the model that ``edge_persistence_hmm`` fitted."""
+    what = {
+        "keep": "whether the per-step backbone kept the edge",
+        "pvalue": "the edge's p-value",
+    }.get(observe, "whether the edge was present")
+    sentences = [
+        f"In each eligible step the model observed {what}; the other steps "
+        "carried no evidence."
+    ]
+    if not isinstance(model, dict) or "a01" not in model:
+        return sentences
+    names = ["a01", "a10", *(("a",) if "a" in model else ("alpha", "beta"))]
+    values = ", ".join(f"{n} = {model[n]:.3g}" for n in names)
+    fixed = set(model.get("fixed", ()))
+    if fixed >= set(names):
+        how = "were fixed at"
+    else:
+        how = "were estimated by expectation-maximization pooled over all edges"
+        if fixed & set(names):
+            how += f" (with {', '.join(sorted(fixed & set(names)))} fixed)"
+        how += " as"
+    sentences.append(
+        "Its transition probabilities (a01 from inactive to active, a10 back) "
+        f"and emission parameters {how} {values}."
+    )
+    return sentences
 
 
 def _transform_sentences(original, backbone, md):

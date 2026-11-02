@@ -203,8 +203,10 @@ Temporal backbones: presence and eligible steps
 
 The temporal backbone scores (:func:`~networkx_backbone.observation_fraction`,
 :func:`~networkx_backbone.persistence`,
-:func:`~networkx_backbone.backbone_stability` and
-:func:`~networkx_backbone.weight_trend`) work on steps: the snapshots, or the
+:func:`~networkx_backbone.backbone_stability`,
+:func:`~networkx_backbone.weight_trend`,
+:func:`~networkx_backbone.edge_persistence_hmm` and
+:func:`~networkx_backbone.kalman_backbone`) work on steps: the snapshots, or the
 bins of width ``freq`` that events and spans fall into. A node is **present**
 in a step if it is in that snapshot (isolated or not); after binning, only if
 it has an event or span in that step. An edge that is missing from a step
