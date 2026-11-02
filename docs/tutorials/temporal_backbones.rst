@@ -6,9 +6,11 @@ filters of :mod:`networkx_backbone.temporal`:
 :func:`~networkx_backbone.observation_fraction`,
 :func:`~networkx_backbone.persistence`,
 :func:`~networkx_backbone.backbone_stability` and
-:func:`~networkx_backbone.weight_trend`. Each returns one static graph, the
-union of the observed edges with score attributes, so the usual filters such
-as :func:`~networkx_backbone.threshold_filter` pick the backbone. See
+:func:`~networkx_backbone.weight_trend`, and compares them with a model of
+persistent activity, :func:`~networkx_backbone.edge_persistence_hmm`. Each
+returns one static graph, the union of the observed edges with score
+attributes, so the usual filters such as
+:func:`~networkx_backbone.threshold_filter` pick the backbone. See
 :doc:`../user_guide/temporal` for the three input forms (snapshots, events and
 spans) and the conversions between them, and :ref:`temporal-eligibility` for
 how absent edges are counted.
@@ -135,6 +137,91 @@ Like ``obs_fraction``, stability counts steps, so it does not tell the block
 from the flicker; combine it with ``persistence`` for that. Where
 :func:`~networkx_backbone.consensus_backbone` intersects the backbones of
 several methods, ``backbone_stability`` aggregates one method over time.
+
+Persistent activity: a hidden Markov model
+------------------------------------------
+
+``persistence`` takes every observation at face value: one missed step splits
+a run in two, and one stray observation starts a run.
+:func:`~networkx_backbone.edge_persistence_hmm` (which needs numpy) instead
+models each edge as switching between an inactive and an active state, seen
+with error: an active edge can be missed (rate ``beta``) and an inactive one
+seen (rate ``alpha``). One set of parameters, shared by all edges, is fitted
+by expectation-maximization (EM):
+
+>>> M = nb.edge_persistence_hmm(snaps)
+>>> model = M.graph["temporal"]["hmm"]
+>>> {k: round(model[k], 3) for k in ("a01", "a10", "alpha", "beta")}
+{'a01': 0.001, 'a10': 0.166, 'alpha': 0.112, 'beta': 0.0}
+
+The fit reads the noise as the inactive state, seen in 11% of its steps, and
+active spells as lasting about six steps (``1 / a10``). Each edge gets
+``hmm_posterior``, its probability of being active in each step, and
+``hmm_n_active``, the number of steps in which the most likely state path has
+it active:
+
+>>> mean(M, block, "hmm_n_active"), mean(M, flicker, "hmm_n_active")
+(10.0, 1.8)
+>>> mean(M, noise, "hmm_n_active")
+0.0
+
+Most scattered observations of the flicker edges look like blips of an
+inactive edge, so the model separates the block from the flicker more sharply
+than ``persistence`` (0.92 against 0.49). Requiring at least eight active
+steps keeps the block:
+
+>>> M8 = nb.edge_persistence_hmm(snaps, min_steps=8)
+>>> sorted(tuple(sorted(e)) for e, keep in M8.edges.items() if keep["hmm_keep"])
+[(0, 1), (2, 3), (4, 5), (6, 7), (8, 9)]
+
+A dropout in the middle of a spell shows the difference. Remove the fifth
+step of edge ``(0, 1)``'s block:
+
+>>> noisy = {t: G.copy() for t, G in snaps.items()}
+>>> spell = [t for t in noisy if noisy[t].has_edge(0, 1)]
+>>> noisy[spell[4]].remove_edge(0, 1)
+>>> nb.persistence(noisy)[0][1]["max_run"]
+5
+>>> M2 = nb.edge_persistence_hmm(noisy)
+>>> round(M2[0][1]["hmm_posterior"][spell[4]], 2), M2[0][1]["hmm_n_active"]
+(1.0, 10)
+
+The run is cut in half, but the model fills the gap: an edge seen on both
+sides of a one-step gap was most likely active and missed.
+
+The states are relative to the edges the model is fitted on. Counting only
+heavy observations (``weight`` above 1) removes the noise, and the fit then
+reads the flicker edges as always active and missed in about a third of their
+steps:
+
+>>> MH = nb.edge_persistence_hmm(snaps, weight="weight", min_weight=1)
+>>> round(MH.graph["temporal"]["hmm"]["beta"], 2), mean(MH, flicker, "hmm_n_active")
+(0.36, 20.0)
+
+The model can also smooth the per-step backbones. With ``observe="keep"`` it
+observes whether the disparity filter keeps each edge in each step (with the
+same cut as ``backbone_stability``). Taking the edges whose posterior is
+above 0.5 in each step gives backbones that change far less from one step to
+the next, measured by the Jaccard index of consecutive backbones:
+
+>>> K = nb.edge_persistence_hmm(snaps, observe="keep", method="disparity_filter")
+>>> smooth = [
+...     {e for e, d in K.edges.items() if d["hmm_posterior"][t] > 0.5}
+...     for t in snaps
+... ]
+>>> raw = [set(bb.edges) for bb in per_step]
+>>> def jaccard(seq):
+...     pairs = list(zip(seq, seq[1:]))
+...     return round(sum(len(a & b) / len(a | b) for a, b in pairs) / len(pairs), 2)
+>>> jaccard(raw), jaccard(smooth)
+(0.48, 0.96)
+
+``hmm_score`` (an edge's largest posterior) and ``hmm_active_fraction`` (its
+mean posterior) are persistence-smoothed membership scores, **not**
+p-values: they come from a model fitted to the same data, which assumes that
+every edge follows one chain. Applied to keep flags, ``alpha`` and ``beta``
+are the rates at which the per-step backbone disagrees with the smoothed
+state, not measurement errors.
 
 Weight trends
 -------------
