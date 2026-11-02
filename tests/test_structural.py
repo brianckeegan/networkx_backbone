@@ -46,18 +46,15 @@ def test_global_threshold_filter(weighted_triangle):
     assert backbone.number_of_edges() == 0
 
 
-@pytest.mark.parametrize(
-    ("func", "kwargs"),
-    [
+def test_invalid_parameter_raises(weighted_triangle):
+    for func, kwargs in [
         (strongest_n_ties, {"n": 0}),
         (global_sparsification, {"s": 0.0}),
         (edge_betweenness_filter, {"s": 1.5}),
         (node_degree_filter, {"min_degree": -1}),
-    ],
-)
-def test_invalid_parameter_raises(func, kwargs, weighted_triangle):
-    with pytest.raises(ValueError):
-        func(weighted_triangle, **kwargs)
+    ]:
+        with pytest.raises(ValueError):
+            func(weighted_triangle, **kwargs)
 
 
 def test_custom_weight_name():
@@ -99,8 +96,6 @@ class TestStrongestNTiesAndPrimaryLinkage:
         }
         assert H["b"]["a"]["strongest_n_ties_keep"] is False
         assert H["a"]["b"]["strongest_n_ties_keep"] is True
-
-    def test_strongest_n_ties_directed_n2(self, digraph):
         H = strongest_n_ties(digraph, n=2)
         kept = {(u, v) for u, v, k in H.edges(data="strongest_n_ties_keep") if k}
         assert kept == {("a", "b"), ("a", "c"), ("b", "c"), ("b", "a"), ("c", "a")}
@@ -177,17 +172,16 @@ class TestStrongestNTiesAndPrimaryLinkage:
         H = strongest_n_ties(U, n=1)
         assert all(keep for *_, keep in H.edges(data="strongest_n_ties_keep"))
 
-    @pytest.mark.parametrize(("n", "expected"), [(1, 108), (2, 146), (3, 165)])
-    def test_strongest_n_ties_order_invariant(
-        self, les_miserables_weighted, n, expected
-    ):
+    def test_strongest_n_ties_order_invariant(self, les_miserables_weighted):
         G = les_miserables_weighted
-        kept = [
-            _kept(strongest_n_ties(H, n=n), "strongest_n_ties_keep")
-            for H in (G, G.copy(), _reversed_rebuild(G))
-        ]
-        assert kept[0] == kept[1] == kept[2]
-        assert len(kept[0]) == expected
+        # The n=2 count (146) is pinned in test_les_miserables.py.
+        for n, expected in [(1, 108), (2, None), (3, 165)]:
+            kept = [
+                _kept(strongest_n_ties(H, n=n), "strongest_n_ties_keep")
+                for H in (G, G.copy(), _reversed_rebuild(G))
+            ]
+            assert kept[0] == kept[1] == kept[2], n
+            assert expected is None or len(kept[0]) == expected, n
 
     def test_strongest_n_ties_matches_definition(self):
         rng = random.Random(7)
@@ -245,32 +239,32 @@ class TestGlobalAndBetweenness:
             frozenset((0, 3)),
         }
 
-    @pytest.mark.parametrize("flip", [False, True])
-    def test_global_sparsification_ties_ignore_edge_orientation(self, flip):
-        # Two edges tie at the cutoff.  Ties go to the larger string form of
-        # the sorted endpoints, ("d", "a") > ("c", "b"), however each edge
-        # happens to be stored.
-        G = nx.Graph()
-        edges = [("x", "y", 5), ("a", "d", 1), ("b", "c", 1)]
-        G.add_weighted_edges_from((v, u, w) if flip else (u, v, w) for u, v, w in edges)
-        H = global_sparsification(G, s=0.5)  # ceil(0.5 * 3) = 2
-        assert _kept(H, "global_sparsification_keep") == {
-            frozenset(("x", "y")),
-            frozenset(("a", "d")),
-        }
-
-    @pytest.mark.parametrize("flip", [False, True])
-    def test_edge_betweenness_ties_ignore_edge_orientation(self, flip):
-        # Every edge of a 4-cycle has the same betweenness.  Sorted endpoint
-        # strings rank ("d", "c") > ("d", "a") > ("c", "b") > ("b", "a").
-        G = nx.Graph()
-        edges = [("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")]
-        G.add_edges_from((v, u) if flip else (u, v) for u, v in edges)
-        H = edge_betweenness_filter(G, s=0.5)
-        assert _kept(H, "edge_betweenness_keep") == {
-            frozenset(("c", "d")),
-            frozenset(("a", "d")),
-        }
+    def test_ties_ignore_edge_orientation(self):
+        for flip in (False, True):
+            # global_sparsification: two edges tie at the cutoff.  Ties go to
+            # the larger string form of the sorted endpoints,
+            # ("d", "a") > ("c", "b"), however each edge happens to be stored.
+            G = nx.Graph()
+            edges = [("x", "y", 5), ("a", "d", 1), ("b", "c", 1)]
+            G.add_weighted_edges_from(
+                (v, u, w) if flip else (u, v, w) for u, v, w in edges
+            )
+            H = global_sparsification(G, s=0.5)  # ceil(0.5 * 3) = 2
+            assert _kept(H, "global_sparsification_keep") == {
+                frozenset(("x", "y")),
+                frozenset(("a", "d")),
+            }, flip
+            # edge_betweenness_filter: every edge of a 4-cycle has the same
+            # betweenness.  Sorted endpoint strings rank
+            # ("d", "c") > ("d", "a") > ("c", "b") > ("b", "a").
+            G = nx.Graph()
+            edges = [("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")]
+            G.add_edges_from((v, u) if flip else (u, v) for u, v in edges)
+            H = edge_betweenness_filter(G, s=0.5)
+            assert _kept(H, "edge_betweenness_keep") == {
+                frozenset(("c", "d")),
+                frozenset(("a", "d")),
+            }, flip
 
     def test_edge_betweenness_uses_inverse_weight_distance(self):
         # Square 0-1-2-3-0; the strong edges make 0-1-2 the shortest route.
@@ -330,15 +324,15 @@ class TestHighSalienceSkeleton:
         assert all(v == pytest.approx(0.75) for v in saliences.values())
         assert sum(saliences.values()) == pytest.approx(G.number_of_nodes() - 1)
 
-    @pytest.mark.parametrize("seed", range(3))
-    def test_saliences_sum_to_n_minus_one(self, seed):
-        rng = random.Random(seed)
-        G = nx.connected_watts_strogatz_graph(25, 4, 0.3, seed=seed)
-        for u, v in G.edges():
-            G[u][v]["weight"] = rng.choice([1.0, 2.0, 4.0])  # creates ties
-        H = high_salience_skeleton(G)
-        total = sum(nx.get_edge_attributes(H, "salience").values())
-        assert total == pytest.approx(G.number_of_nodes() - 1)
+    def test_saliences_sum_to_n_minus_one(self):
+        for seed in range(3):
+            rng = random.Random(seed)
+            G = nx.connected_watts_strogatz_graph(25, 4, 0.3, seed=seed)
+            for u, v in G.edges():
+                G[u][v]["weight"] = rng.choice([1.0, 2.0, 4.0])  # creates ties
+            H = high_salience_skeleton(G)
+            total = sum(nx.get_edge_attributes(H, "salience").values())
+            assert total == pytest.approx(G.number_of_nodes() - 1), seed
 
 
 class TestMetricUltrametric:
@@ -413,13 +407,13 @@ class TestDoublyStochastic:
         H = doubly_stochastic_filter(G)
         assert H["a"][1]["ds_weight"] == pytest.approx(1.0)
 
-    @pytest.mark.parametrize("G", [nx.path_graph(3), nx.star_graph(4)])
-    def test_warns_when_not_scalable(self, G):
-        nx.set_edge_attributes(G, 1.0, "weight")
-        for _ in range(2):  # first call compiles the decorator; check both
-            with pytest.warns(RuntimeWarning, match="did not converge") as rec:
-                doubly_stochastic_filter(G)
-            assert rec[0].filename == __file__
+    def test_warns_when_not_scalable(self):
+        for G in (nx.path_graph(3), nx.star_graph(4)):
+            nx.set_edge_attributes(G, 1.0, "weight")
+            for _ in range(2):  # first call compiles the decorator; check both
+                with pytest.warns(RuntimeWarning, match="did not converge") as rec:
+                    doubly_stochastic_filter(G)
+                assert rec[0].filename == __file__
 
 
 class TestDoublyStochasticSymmetryAndSmoothing:
@@ -445,6 +439,8 @@ class TestDoublyStochasticSymmetryAndSmoothing:
             warnings.simplefilter("ignore", RuntimeWarning)
             a = self._weights(doubly_stochastic_filter(G))
             b = self._weights(doubly_stochastic_filter(self._reorder(G)))
+            # smoothing=0.0 is the default.
+            assert self._weights(doubly_stochastic_filter(G, smoothing=0.0)) == a
         assert a.keys() == b.keys()
         for e, w in a.items():
             assert b[e] == pytest.approx(w, rel=1e-12, abs=1e-15)
@@ -464,25 +460,16 @@ class TestDoublyStochasticSymmetryAndSmoothing:
             total = sum(d["ds_weight"] for *_, d in H.edges(node, data=True))
             assert total == pytest.approx(1.0, abs=1e-10)
 
-    def test_smoothing_zero_is_default(self, les_miserables_weighted):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", RuntimeWarning)
-            a = self._weights(doubly_stochastic_filter(les_miserables_weighted))
-            b = self._weights(
-                doubly_stochastic_filter(les_miserables_weighted, smoothing=0.0)
+    def test_smoothing_makes_unscalable_graphs_converge(self):
+        for G in (nx.path_graph(3), nx.star_graph(4)):
+            nx.set_edge_attributes(G, 1.0, "weight")
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", RuntimeWarning)
+                H = doubly_stochastic_filter(G, smoothing=1e-3)
+            assert all(0 < d["ds_weight"] < 1 for *_, d in H.edges(data=True))
+            assert nx.is_connected(
+                nx.Graph((u, v) for u, v, d in H.edges(data=True) if d["ds_keep"])
             )
-        assert a == b
-
-    @pytest.mark.parametrize("G", [nx.path_graph(3), nx.star_graph(4)])
-    def test_smoothing_makes_unscalable_graphs_converge(self, G):
-        nx.set_edge_attributes(G, 1.0, "weight")
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", RuntimeWarning)
-            H = doubly_stochastic_filter(G, smoothing=1e-3)
-        assert all(0 < d["ds_weight"] < 1 for *_, d in H.edges(data=True))
-        assert nx.is_connected(
-            nx.Graph((u, v) for u, v, d in H.edges(data=True) if d["ds_keep"])
-        )
 
     def test_smoothing_hand_computed_path(self):
         # P3 a-b-c with unit weights plus eps on every off-diagonal cell is
@@ -505,10 +492,10 @@ class TestDoublyStochasticSymmetryAndSmoothing:
             H = doubly_stochastic_filter(les_miserables_weighted, smoothing=1e-4)
         assert all(d["ds_weight"] > 0 for *_, d in H.edges(data=True))
 
-    @pytest.mark.parametrize("bad", [-1e-3, float("nan"), float("inf")])
-    def test_invalid_smoothing_raises(self, bad, weighted_triangle):
-        with pytest.raises(ValueError, match="smoothing"):
-            doubly_stochastic_filter(weighted_triangle, smoothing=bad)
+    def test_invalid_smoothing_raises(self, weighted_triangle):
+        for bad in (-1e-3, float("nan"), float("inf")):
+            with pytest.raises(ValueError, match="smoothing"):
+                doubly_stochastic_filter(weighted_triangle, smoothing=bad)
 
 
 # Every node has strength 100, so the matrix is already doubly stochastic after
@@ -625,22 +612,21 @@ class TestDoublyStochasticConnectivity:
         assert H["c"]["d"]["ds_keep"] is False
         assert len(_kept(H, "ds_keep")) == 6
 
-    def test_isolated_nodes_and_empty(self):
-        G = nx.empty_graph(3)
-        H = doubly_stochastic_filter(G)
-        assert H.number_of_edges() == 0 and len(H) == 3
+    # Isolated nodes only (nx.empty_graph(3)): see test_api_contract.py.
 
-    @pytest.mark.parametrize("seed", range(5))
-    def test_insertion_order_independent(self, seed):
+    def test_insertion_order_independent(self):
         edges = DS_TWO_TRIANGLES + DS_CLIQUE + [("x", "y", 2.0)]
         expected = _kept(doubly_stochastic_filter(_ds_graph(edges)), "ds_keep")
-        rng = random.Random(seed)
-        shuffled = [(v, u, w) if rng.random() < 0.5 else (u, v, w) for u, v, w in edges]
-        rng.shuffle(shuffled)
-        nodes = sorted({n for e in edges for n in e[:2]})
-        rng.shuffle(nodes)
-        G = _ds_graph(shuffled, nodes=nodes)
-        assert _kept(doubly_stochastic_filter(G), "ds_keep") == expected
+        for seed in range(5):
+            rng = random.Random(seed)
+            shuffled = [
+                (v, u, w) if rng.random() < 0.5 else (u, v, w) for u, v, w in edges
+            ]
+            rng.shuffle(shuffled)
+            nodes = sorted({n for e in edges for n in e[:2]})
+            rng.shuffle(nodes)
+            G = _ds_graph(shuffled, nodes=nodes)
+            assert _kept(doubly_stochastic_filter(G), "ds_keep") == expected, seed
 
 
 class TestHBackbone:
@@ -698,16 +684,16 @@ class TestModularityBackbone:
 
 
 class TestPMFG:
-    @pytest.mark.parametrize("seed", [None, 2])
-    def test_maximal_planar_on_complete_graph(self, seed):
+    def test_maximal_planar_on_complete_graph(self):
         # Equal weights (all ties) and random weights of either sign.
-        G = nx.complete_graph(10)
-        rng = random.Random(seed)
-        for u, v in G.edges():
-            G[u][v]["weight"] = 1.0 if seed is None else rng.uniform(-1, 1)
-        backbone = boolean_filter(planar_maximally_filtered_graph(G), "pmfg_keep")
-        assert backbone.number_of_edges() == 3 * (10 - 2)
-        assert nx.check_planarity(backbone)[0]
+        for seed in (None, 2):
+            G = nx.complete_graph(10)
+            rng = random.Random(seed)
+            for u, v in G.edges():
+                G[u][v]["weight"] = 1.0 if seed is None else rng.uniform(-1, 1)
+            backbone = boolean_filter(planar_maximally_filtered_graph(G), "pmfg_keep")
+            assert backbone.number_of_edges() == 3 * (10 - 2), seed
+            assert nx.check_planarity(backbone)[0], seed
 
     def test_small_graph(self, weighted_triangle):
         G = nx.Graph()
