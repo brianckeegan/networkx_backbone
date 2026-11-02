@@ -146,9 +146,11 @@ Fixes and release hygiene
 Bipartite
 ~~~~~~~~~
 
-- **next** (`#76 <https://github.com/brianckeegan/nx-backbone/issues/76>`_): ``fdsm`` Monte Carlo resolution
-  diagnostics: warn when ``1/(trials+1)`` makes family-wise significance
-  unreachable, and report the p-value's Monte Carlo uncertainty.
+- **done** (`#76 <https://github.com/brianckeegan/nx-backbone/issues/76>`_): ``fdsm`` Monte Carlo resolution
+  diagnostics: each p-value's standard error and upper confidence bound,
+  the floor ``1/(trials+1)`` on the graph, and a warning, with the trials
+  needed, when the floor makes significance unreachable at ``alpha`` and
+  ``mtc``.
 - **next** (`#77 <https://github.com/brianckeegan/nx-backbone/issues/77>`_): ``fdsm(refine="splitting")``: adaptive multilevel
   splitting for p-values below the Monte Carlo floor.
 
