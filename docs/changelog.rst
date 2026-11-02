@@ -581,6 +581,15 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   persistence HMM's posterior against raw presence; and a table for choosing
   among them. Five figures, executed at build time; it is listed under "By
   network type" in the tutorials index (#94, #96).
+- The structural and proximity and the hypergraph tutorials no longer embed
+  their figures in the page as base64 data: the figures are written at build
+  time to the gitignored ``docs/_static/example_figures/`` and linked, and
+  load lazily, so a reader fetches only the variant (light or dark) on
+  screen. The three dense network drawings of the structural tutorial are
+  PNG; the charts stay SVG. The pages shrink from 3.9 MB and 1.5 MB of HTML
+  to 0.4 MB and 0.2 MB, both tutorials get a real gallery thumbnail, and the
+  structural tutorial's captions, which the theme hid in light mode, show
+  again (#96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose

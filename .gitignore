@@ -25,3 +25,5 @@ htmlcov/
 docs/_static/roadmap/
 # Generated at docs build time by scripts/generate_visualizations.py
 docs/_gallery/
+# Generated at docs build time by the executed tutorials in docs/examples/
+docs/_static/example_figures/
