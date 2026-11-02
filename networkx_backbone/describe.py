@@ -545,8 +545,9 @@ METHODS = {
     "noise_corrected_filter": Method(
         "the noise-corrected filter",
         "which compares each edge's weight with the value expected from its "
-        "endpoints' strengths and tests the resulting lift against its "
-        "posterior standard deviation under a Bayesian binomial null model",
+        "endpoints' strengths, using the exact binomial p-value of a null "
+        "model in which each unit of weight falls on a pair of nodes in "
+        "proportion to both of their strengths",
         ("coscia2017",), test=True,
     ),
     "marginal_likelihood_filter": Method(
@@ -1200,6 +1201,14 @@ def _model_sentences(name, params, backbone, md):
                 f"concentration 1/a, {value}; this is the large-strength limit "
                 "of the Pólya urn null model "
                 f"({REFERENCES['marcaccioli2019'].cite()})."
+            )
+    if name == "noise_corrected_filter" and "pvalue_method" in params:
+        if params.pop("pvalue_method") == "delta":
+            sentences.append(
+                "Instead of the binomial tail, the p-values were the normal "
+                "approximation to each edge's lift score divided by its "
+                "posterior standard deviation (the paper's delta rule), which "
+                "is not calibrated on low-count graphs."
             )
     if name in _UNIT_METHODS and "unit" in params:
         unit = params.pop("unit")

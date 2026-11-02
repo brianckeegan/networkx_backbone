@@ -246,10 +246,11 @@ on one network and shows what each choice does):
 
 - :func:`~networkx_backbone.noise_corrected_filter`: Scores each edge by its
   lift over the weight expected from its endpoints' strengths, and estimates
-  the score's standard deviation with a Bayesian model of noisy counts. Keep
-  edges with ``nc_score > 1.64 * nc_sdev`` or, equivalently, a low
-  ``nc_pvalue``. Designed for large count data; permissive on small, dense
-  graphs.
+  the score's standard deviation with a Bayesian model of noisy counts.
+  ``nc_pvalue`` is the exact binomial p-value of its null model, which is the
+  marginal likelihood filter's null counted on a symmetric weight matrix. The
+  paper's rule ``nc_score > 1.64 * nc_sdev`` (``pvalue_method="delta"``) is
+  not calibrated: it keeps most edges of low-count graphs, even pure noise.
 
 - :func:`~networkx_backbone.marginal_likelihood_filter`: Considers both
   endpoints of each edge in a binomial null model. Treats weights as integer

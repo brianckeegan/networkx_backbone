@@ -252,8 +252,9 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   tutorial compares it with ``persistence`` (#73).
 - New :func:`~networkx_backbone.kalman_backbone` (needs numpy and SciPy), a
   novel adaptation of the Kalman filter and Rauch-Tung-Striebel smoother to
-  backboning (#72). It runs a static significance test (``disparity_filter``,
-  ``noise_corrected_filter`` or ``glab_filter``) on every step, scoring
+  backboning (#72). It runs a static significance test (``disparity_filter``
+  or ``glab_filter``; discrete tests such as ``noise_corrected_filter`` with
+  ``discrete="raw"``) on every step, scoring
   eligible absent edges as weight 0 with ``missing_as_zero=True``, turns the
   p-values into probit scores, and smooths each edge's series with a
   local-level model (``mode="smoother"`` or the online ``"filter"``; unknown
@@ -341,7 +342,27 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   attributes. Keep edges with ``nc_score > 1.64 * nc_sdev`` or
   ``nc_pvalue < 0.05``; thresholding ``nc_score`` at 2.0 now keeps nothing.
   The old z-score is available as ``method="zscore"``. Les Misérables: 98 ->
-  195 edges (#9).
+  195 edges (#9); see the next entry for the p-value.
+- ``noise_corrected_filter``: ``nc_pvalue`` is now, by default, the exact
+  binomial tail :math:`P(X \geq n_{ij})` of the method's null model,
+  :math:`X \sim B(n_{..}, n_{i.} n_{.j} / n_{..}^2)` (the p-value of the
+  paper's footnote 2), computed with the regularized incomplete beta
+  function so that non-integer counts are not rounded. The previous
+  ``nc_pvalue``, the normal tail of ``nc_score / nc_sdev`` (the paper's
+  ``delta`` rule read as a z-test), is ``pvalue_method="delta"``. The
+  ``delta`` rule divides the score by a standard deviation evaluated at the
+  observed weight through a transform that flattens as the lift grows, so
+  the ratio has no bound: on ``gnm_random_graph(30, 40, seed=1)`` with unit
+  weights all 40 edges had p ≈ 1e-65 (median) and 4 are now below 0.05
+  (median 0.12). On simulated graphs from the model's own null (2,000 unit
+  interactions among 50 nodes, 20 seeds), the share of ``nc_pvalue < 0.05``
+  was 0.24 (undirected) and 0.34 (directed) before and is 0.047 and 0.051
+  now. ``nc_score`` and ``nc_sdev`` are unchanged. On a directed graph with
+  integer weights the default p-values equal ``marginal_likelihood_filter``'s;
+  on Les Misérables and the karate club the two keep the same edges.
+  ``kalman_backbone`` now treats the default noise-corrected p-values as
+  discrete (``discrete="raw"`` is needed). Les Misérables: 195 -> 126 edges
+  (``unit=0.1``: 222 -> 215); karate club: 68 -> 39 (#105).
 - ``multiple_linkage_analysis`` now fits each node's sorted weights to ideal
   dominance distributions by default (``method="dominance"``; Van Nuffel,
   2007, after Weaver, 1954) and adds ``mla_rank``. The previous LANS

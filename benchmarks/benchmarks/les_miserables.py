@@ -108,6 +108,15 @@ WEIGHTED_CASES = [
     Case(
         "noise_corrected_filter",
         "threshold",
+        "nc_pvalue",
+        ALPHA,
+        "below",
+        kwargs={"pvalue_method": "delta"},
+        label="noise_corrected_filter(pvalue_method='delta')",
+    ),
+    Case(
+        "noise_corrected_filter",
+        "threshold",
         "nc_score",
         2.0,
         "above",

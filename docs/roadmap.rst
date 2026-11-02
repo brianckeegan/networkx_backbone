@@ -163,6 +163,12 @@ Correctness gaps found in review
   are available without changing any default:
   ``backbone_from_projection(missing_as_zero=False)`` and
   ``lspar(convention="r")``.
+- **done** (`#105 <https://github.com/brianckeegan/networkx_backbone/issues/105>`_): ``noise_corrected_filter``'s p-values were
+  far too small on low-count graphs (pure-noise edges at p ≈ 1e-66),
+  because the paper's ``delta`` rule is not a calibrated test. ``nc_pvalue``
+  is now the exact binomial tail of the method's null model (the paper's
+  footnote 2), checked by simulation; the ``delta`` rule's p-value is
+  ``pvalue_method="delta"``. Les Misérables: 195 -> 126 edges.
 
 Validation
 ~~~~~~~~~~

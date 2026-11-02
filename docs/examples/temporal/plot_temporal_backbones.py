@@ -1060,15 +1060,18 @@ assert _r[3] > 2 * _r[0]
 # Without the correction, a small per-step bias becomes a large one after
 # smoothing.  With it, the test errs on the safe side: the smoothed
 # backbone above keeps no steady edge in any step, at the cost of some
-# power, which shows in how late the filter catches the rise.  Prefer a
-# test that judges each edge once, with continuous
-# p-values.  :func:`~networkx_backbone.noise_corrected_filter` (Coscia &
-# Neffke, 2017) is such a test in principle, but its p-values are
-# currently extreme on low-count graphs (issue
+# power, which shows in how late the filter catches the rise.  A test
+# that judges each edge once, with continuous p-values, would avoid both
+# problems.  :func:`~networkx_backbone.noise_corrected_filter` (Coscia &
+# Neffke, 2017) judges each edge once, but its calibrated p-values are
+# exact binomial tails, hence discrete; the p-value reading of the
+# paper's rule (``pvalue_method="delta"``) is continuous but far too small
+# on low-count snapshots (issue
 # `#105 <https://github.com/brianckeegan/networkx_backbone/issues/105>`_),
-# so do not smooth it until that is resolved.  Scorers with discrete
-# p-values (the marginal likelihood filter, ECM, LANS, Pólya and GloSS)
-# need ``discrete="raw"``, which keeps the tests valid but conservative.
+# so do not smooth it.  Scorers with discrete p-values (the
+# noise-corrected and marginal likelihood filters, ECM, LANS, Pólya and
+# GloSS) need ``discrete="raw"``, which keeps the tests valid but
+# conservative.
 #
 # Limits and risks
 # ~~~~~~~~~~~~~~~~

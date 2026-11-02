@@ -26,7 +26,8 @@ def _warn_if_no_edge_reduction(method_name, original_edges, filtered_edges):
 # docs/tutorials/les_miserables_benchmark.rst and the asv timings.
 EXPECTED_EDGES = {
     "disparity_filter": 9,
-    "noise_corrected_filter": 195,
+    "noise_corrected_filter": 126,
+    "noise_corrected_filter(pvalue_method='delta')": 195,
     "noise_corrected_filter(method='zscore')": 98,
     "marginal_likelihood_filter": 126,
     "ecm_filter": 72,
