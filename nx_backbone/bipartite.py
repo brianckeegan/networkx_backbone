@@ -75,6 +75,9 @@ __all__ = [
 # bounds the memory used for co-occurrence counts, weights and p-values.
 _MAX_BLOCK_CELLS = 1 << 20
 
+# Default Monte Carlo samples of fdsm (and of method="fdsm" in the wrappers).
+_FDSM_TRIALS = 1000
+
 _PROJECTIONS = ("simple", "hyper", "newman", "probs", "ycn")
 _PROJECTION_ALIASES = {"hyperbolic": "hyper", "collaboration": "newman"}
 _PROJECTION_ERROR = (
@@ -1252,6 +1255,7 @@ def _score_pairs(
     projection_max_iter=1000,
     projection_tol=1e-12,
     missing_as_zero=True,
+    mc_trials=None,
 ):
     """Score every agent pair and return the (thresholded) backbone graph.
 
@@ -1266,8 +1270,17 @@ def _score_pairs(
     pairs).  With ``missing_as_zero=False`` (only used with ``alpha``) pairs
     that never co-occur are not tests: they are left out of the correction
     *mtc* and never become edges.
+
+    ``mc_trials`` marks Monte Carlo p-values ``(count + 1) / (mc_trials +
+    1)`` (FDSM): each edge also gets ``<attr>_se`` and ``<attr>_upper``
+    (:func:`nx_backbone._montecarlo.pvalue_resolution`), the graph gets
+    ``"<method>_trials"`` and ``"<attr>_floor"``, and with ``alpha`` a
+    ``RuntimeWarning`` says when the floor leaves no pair able to pass
+    (:func:`nx_backbone._montecarlo.warn_if_unreachable`).
     """
     import numpy as np
+
+    from nx_backbone import _montecarlo
 
     if projection_directed:
         raise ValueError(
@@ -1283,6 +1296,19 @@ def _score_pairs(
     n = len(agents)
     G = nx.Graph()
     G.add_nodes_from(agents)
+    sides = 2 if signed else 1
+    if mc_trials is not None:
+        method = attr.removesuffix("_pvalue")
+        floor = _montecarlo.pvalue_floor(mc_trials, sides)
+        G.graph[f"{method}_trials"] = mc_trials
+        G.graph[f"{attr}_floor"] = floor
+
+        def warn_floor(m):
+            if alpha is not None and m > 0:
+                _montecarlo.warn_if_unreachable(
+                    method, trials=mc_trials, floor=floor, m=m, alpha=alpha, mtc=mtc
+                )
+
     if n < 2 or tails is None:
         return G
 
@@ -1292,7 +1318,17 @@ def _score_pairs(
         w = weights.block(start, stop, counts)[r, c]
         rows = (start + r).tolist()
         cols = c.tolist()
-        if signed:
+        if mc_trials is not None:
+            se, upper = _montecarlo.pvalue_resolution(pval, mc_trials, sides)
+            columns = [(attr, pval), ("sign", sign)] if signed else [(attr, pval)]
+            columns += [(projection_weight, w), (f"{attr}_se", se)]
+            columns.append((f"{attr}_upper", upper))
+            names = [name for name, _ in columns]
+            data = (
+                dict(zip(names, vals))
+                for vals in zip(*(v.tolist() for _, v in columns))
+            )
+        elif signed:
             data = (
                 {attr: p, "sign": s, projection_weight: x}
                 for p, s, x in zip(pval.tolist(), sign.tolist(), w.tolist())
@@ -1315,6 +1351,8 @@ def _score_pairs(
         return r, c, counts, pval, sign
 
     if not use_mtc:
+        if mc_trials is not None:
+            warn_floor(n * (n - 1) // 2)  # m does not matter without mtc
         for start, stop in _row_blocks(n):
             r, c, counts, pval, sign = score_block(start, stop)
             if alpha is not None:
@@ -1337,6 +1375,8 @@ def _score_pairs(
             np.ones(len(pval), dtype=bool) if missing_as_zero else counts[r, c] > 0
         )
     tested = np.concatenate(tested)
+    if mc_trials is not None:
+        warn_floor(int(tested.sum()))
     keep_all = np.zeros(len(tested), dtype=bool)
     keep_all[tested] = _adjust_array(np.concatenate(pvals)[tested], mtc) < alpha
     offset = 0
@@ -2454,7 +2494,11 @@ def backbone_from_projection(
     backbone : graph
         Graph on the agent nodes containing the significant pairs, each with
         a ``"<method>_pvalue"`` attribute (unadjusted), the projection weight
-        and, for ``signed=True``, a ``"sign"`` attribute.
+        and, for ``signed=True``, a ``"sign"`` attribute.  With
+        ``method="fdsm"`` the edges and the graph also carry the Monte Carlo
+        diagnostics of :func:`fdsm` (``"fdsm_pvalue_se"``,
+        ``"fdsm_pvalue_upper"``; ``"fdsm_trials"``,
+        ``"fdsm_pvalue_floor"``).
 
     Raises
     ------
@@ -2469,6 +2513,17 @@ def backbone_from_projection(
         ``bipartite`` node attributes.
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
+
+    Warns
+    -----
+    RuntimeWarning
+        With ``method="fdsm"``, if no pair can be significant whatever the
+        data: the Monte Carlo floor ``1 / (trials + 1)`` (``2 / (trials +
+        1)`` with ``signed=True``) is so high that its smallest attainable
+        adjusted p-value under *mtc*, over the tested pairs, is not below
+        *alpha*.  The message gives the number of trials needed; see
+        :func:`fdsm`.  The selected model may warn as well (for example
+        :func:`sdsm` about ignored constraints).
 
     See Also
     --------
@@ -2546,6 +2601,7 @@ def backbone_from_projection(
         projection_max_iter=projection_max_iter,
         projection_tol=projection_tol,
         missing_as_zero=missing_as_zero,
+        mc_trials=kwargs.get("trials", _FDSM_TRIALS) if method_l == "fdsm" else None,
     )
 
 
@@ -3219,7 +3275,9 @@ def _sdsm_tails(
     return tails
 
 
-def _fdsm_tails(inc, *, trials=1000, seed=None, signed=False, burn_in=None, thin=None):
+def _fdsm_tails(
+    inc, *, trials=_FDSM_TRIALS, seed=None, signed=False, burn_in=None, thin=None
+):
     """Monte Carlo pair tails under the FDSM.
 
     Only pairs that co-occur in the data need per-sample counts: a pair with
@@ -3533,8 +3591,10 @@ def fdsm(
     graph: after ``burn_in`` trades, one sample is taken every ``thin``
     trades.  The p-value is ``(count + 1) / (trials + 1)``, where ``count``
     is the number of samples whose co-occurrence is at least (for the lower
-    tail: at most) the observed one, so it is never exactly zero.  Samples
-    are kept as sparse matrices.
+    tail: at most) the observed one, so it is never exactly zero, and never
+    below ``1 / (trials + 1)`` either (see *Monte Carlo resolution* in the
+    Notes).  Each p-value comes with its Monte Carlo standard error and an
+    upper confidence bound.  Samples are kept as sparse matrices.
 
     Parameters
     ----------
@@ -3552,7 +3612,10 @@ def fdsm(
         :func:`~nx_backbone.threshold_filter` (or use
         :func:`backbone_from_projection`) to select significant edges.
     trials : int, optional (default=1000)
-        Number of Monte Carlo samples.
+        Number of Monte Carlo samples.  No p-value can be smaller than
+        ``1 / (trials + 1)`` (``2 / (trials + 1)`` with ``signed=True``); a
+        multiple-testing correction over many pairs needs many more trials
+        than the default (see Notes).
     seed : integer, random_state, or None (default)
         Random seed for reproducibility (int, :class:`numpy.random.Generator`,
         :class:`numpy.random.RandomState` or ``None``).
@@ -3583,8 +3646,21 @@ def fdsm(
     Returns
     -------
     backbone : graph
-        Full unipartite projection among agent nodes.  Each edge has an
-        ``"fdsm_pvalue"`` attribute and projection weights.
+        Full unipartite projection among agent nodes.  Each edge has the
+        attributes
+
+        - ``"fdsm_pvalue"``: the Monte Carlo p-value;
+        - ``"fdsm_pvalue_se"``: its Monte Carlo standard error
+          ``sqrt(p (1 - p) / trials)`` (with ``signed=True``,
+          ``2 sqrt(q (1 - q) / trials)`` for the smaller tail ``q = p / 2``);
+        - ``"fdsm_pvalue_upper"``: a one-sided 95% Clopper-Pearson upper
+          confidence bound on the exact FDSM p-value;
+        - the projection weight *projection_weight* and, with
+          ``signed=True``, ``"sign"``.
+
+        The graph attribute ``"fdsm_trials"`` holds *trials* and
+        ``"fdsm_pvalue_floor"`` the smallest possible p-value,
+        ``1 / (trials + 1)`` (``2 / (trials + 1)`` with ``signed=True``).
 
     Raises
     ------
@@ -3610,6 +3686,42 @@ def fdsm(
     with 100 trades per row R's p-values match these within Monte Carlo
     error.  Both find the same 5 significant pairs at alpha = 0.05.
 
+    **Monte Carlo resolution.**  A p-value is never below the floor
+    ``f = 1 / (trials + 1)`` (``2 / (trials + 1)`` with ``signed=True``),
+    stored in ``H.graph["fdsm_pvalue_floor"]``.  Without a correction that
+    rarely matters, but a correction over ``m`` agent pairs (``m = n (n -
+    1) / 2`` for ``n`` agents) can make significance unreachable *whatever
+    the data*:
+
+    - Bonferroni and Holm multiply the smallest p-value by ``m``, so no pair
+      can pass unless ``m f < alpha``, about ``trials > m / alpha``;
+    - Benjamini-Yekutieli needs ``H_m f < alpha``, where ``H_m = 1 + 1/2 +
+      ... + 1/m`` is about ``ln m + 0.58``;
+    - Benjamini-Hochberg and Hochberg need only ``f < alpha``, but then the
+      pairs tied at the floor pass or fail together, depending on how many
+      are tied rather than on how strong each pair is.
+
+    :func:`backbone_from_projection` (and :func:`backbone`) with
+    ``method="fdsm"``, and :func:`~nx_backbone.threshold_filter` on this
+    function's output, emit a ``RuntimeWarning`` with the number of trials
+    needed when the floor makes significance unreachable at the requested
+    *alpha* and correction, and stay silent otherwise.
+
+    That number of trials is only a necessary condition.  Near the
+    corrected threshold ``p*`` (``alpha / m`` for Bonferroni) the standard
+    error is about ``sqrt(p* / trials)``, a relative error of
+    ``1 / sqrt(p* trials)``: classifying such pairs to within 10% takes
+    about ``trials = 100 / p*``, or ``100 m / alpha`` for Bonferroni.  The
+    cost grows linearly with *trials* (see the complexity note below), so
+    for large projections with a family-wise correction prefer
+    :func:`sdsm`, one of the alternatives compared in [1]_, whose analytic
+    p-values have no floor.  ``"fdsm_pvalue_upper"`` shows which p-values
+    are resolved: a pair is reliably significant when even the upper bound
+    passes the (corrected) threshold.  Both ``"fdsm_pvalue_se"`` and
+    ``"fdsm_pvalue_upper"`` treat the samples as independent; they come from
+    one curveball chain, ``thin`` trades apart, so with a chain that mixes
+    slowly they understate the uncertainty.
+
     References
     ----------
     .. [1] Neal, Z. P., Domagalski, R., & Sagan, B. (2021). Comparing
@@ -3630,6 +3742,15 @@ def fdsm(
     >>> backbone = threshold_filter(scored, "fdsm_pvalue", 0.05, mode="below")
     >>> all("fdsm_pvalue" in data for _, _, data in backbone.edges(data=True))
     True
+
+    No p-value can be below the floor ``1 / (trials + 1)``, and each comes
+    with its Monte Carlo standard error and 95% upper bound:
+
+    >>> scored.graph
+    {'fdsm_trials': 100, 'fdsm_pvalue_floor': 0.009900990099009901}
+    >>> u, v, d = min(scored.edges(data=True), key=lambda e: e[2]["fdsm_pvalue"])
+    >>> [round(d[k], 3) for k in ("fdsm_pvalue", "fdsm_pvalue_se", "fdsm_pvalue_upper")]
+    [0.02, 0.014, 0.047]
     """
     if trials < 1:
         raise ValueError("trials must be >= 1")
@@ -3647,6 +3768,7 @@ def fdsm(
         projection_directed=projection_directed,
         projection_max_iter=projection_max_iter,
         projection_tol=projection_tol,
+        mc_trials=trials,
     )
 
 

@@ -191,8 +191,12 @@ REGISTRY = [
     Spec(nb.bipartite_projection, B, {"weight": NONNEG}),
     Spec(nb.bicm, B),  # returns the probability matrix
     Spec(nb.sdsm, B, {"sdsm_pvalue": P, "weight": NONNEG}, all_pairs=True),
-    Spec(nb.fdsm, B, {"fdsm_pvalue": P, "weight": NONNEG},
+    Spec(nb.fdsm, B, {"fdsm_pvalue": P, "weight": NONNEG, "fdsm_pvalue_se": P,
+                      "fdsm_pvalue_upper": P},
          kwargs={"trials": 20, "seed": 0}, all_pairs=True),
+    Spec(nb.fdsm, B, {"fdsm_pvalue": P, "weight": NONNEG, "fdsm_pvalue_se": P,
+                      "fdsm_pvalue_upper": P, "sign": (-1, 1)},
+         kwargs={"trials": 20, "seed": 0, "signed": True}, all_pairs=True),
     Spec(nb.fixedfill, B, {"fixedfill_pvalue": P, "weight": NONNEG}),
     Spec(nb.fixedrow, B, {"fixedrow_pvalue": P, "weight": NONNEG}),
     Spec(nb.fixedcol, B, {"fixedcol_pvalue": P, "weight": NONNEG}),

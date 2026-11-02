@@ -19,6 +19,7 @@ the difference.
 
 import csv
 import functools
+import hashlib
 import itertools
 import json
 import math
@@ -676,6 +677,31 @@ def test_r_fdsm():
     clear = np.abs(upper - ALPHA) > tol
     np.testing.assert_array_equal((one_tailed < ALPHA)[clear], (upper < ALPHA)[clear])
     assert (one_tailed < ALPHA).sum() == 5
+
+
+@pytest.mark.parametrize(
+    ("trials", "seed", "signed", "total", "digest"),
+    [
+        # The R fixture's comparison above (fixture pair order) ...
+        (2000, 14, False, 193162, "217362f36dadcceacc30ca0ff3b48a533fa8e74eb30d8dcf2704537a1b655754"),
+        (2000, 14, True, 186788, "52d426a679f6868bb2af292afe5ae1de6b97308dc96b11ba1d79264f04ddc268"),
+        # ... and the fdsm docstring's Davis example.
+        (100, 42, False, 9816, "bd0fbdc686fd09288ff2f87d3bbfd72a3af544843767603ab885dcbb6d5bb44c"),
+        (100, 42, True, 9599, "1229815749aceee6aed1e7f199d53fbd7f2acd383e1d096947fdb89d86343021"),
+    ],
+)  # fmt: skip
+def test_fdsm_pvalues_unchanged(trials, seed, signed, total, digest):
+    """FDSM p-values are those of 0.3.0: #76 only added diagnostics.
+
+    Each p-value is ``count / (trials + 1)`` for an integer ``count``; the pins
+    are the sum and the SHA-256 of the counts in fixture pair order, recorded
+    before the Monte Carlo diagnostics were added.
+    """
+    B, women, pairs, _ = davis()
+    H = nb.fdsm(B, agent_nodes=women, trials=trials, seed=seed, signed=signed)
+    counts = [round(H.edges[e]["fdsm_pvalue"] * (trials + 1)) for e in pairs]
+    assert sum(counts) == total
+    assert hashlib.sha256(" ".join(map(str, counts)).encode()).hexdigest() == digest
 
 
 # =====================================================================

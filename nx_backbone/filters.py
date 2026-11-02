@@ -548,6 +548,30 @@ def _is_score(val):
     return val is not None and not (isinstance(val, float) and math.isnan(val))
 
 
+def _warn_monte_carlo_floor(G, score, alpha, mtc, values):
+    """Warn if *G* records a Monte Carlo floor that no *score* can pass.
+
+    Scorers with Monte Carlo p-values (:func:`~nx_backbone.fdsm`) store the
+    smallest possible p-value in ``G.graph["<score>_floor"]`` and the number
+    of samples in ``G.graph["<method>_trials"]`` (``score`` is
+    ``"<method>_pvalue"``).
+    """
+    floor = G.graph.get(f"{score}_floor")
+    if floor is None:
+        return
+    from nx_backbone._montecarlo import warn_if_unreachable
+
+    method = score.removesuffix("_pvalue")
+    warn_if_unreachable(
+        method,
+        trials=G.graph.get(f"{method}_trials"),
+        floor=floor,
+        m=sum(1 for val in values if _is_score(val)),
+        alpha=alpha,
+        mtc=mtc,
+    )
+
+
 @_dispatchable
 def threshold_filter(
     G: nx.Graph,
@@ -610,6 +634,15 @@ def threshold_filter(
         not ``"edges"`` or ``"nodes"``, or if *mtc* is used with
         ``mode="above"``.
 
+    Warns
+    -----
+    RuntimeWarning
+        If *G* records a Monte Carlo p-value floor for *score*, as
+        :func:`~nx_backbone.fdsm` does (``G.graph["fdsm_pvalue_floor"]``
+        for ``score="fdsm_pvalue"``), and with ``mode="below"`` the floor
+        leaves no edge able to pass *threshold* after *mtc*, whatever the
+        data.  The message gives the number of trials needed.
+
     Examples
     --------
     >>> import networkx as nx
@@ -634,6 +667,10 @@ def threshold_filter(
     if filter_on == "edges":
         H = _empty_like(G, nodes=include_all_nodes)
         scored = [e for e in _edge_iter(G) if e[3].get(score) is not None]
+        if mode == "below":
+            _warn_monte_carlo_floor(
+                G, score, threshold, mtc, [e[3][score] for e in scored]
+            )
         if mtc != "none":
             values = adjust_pvalues([e[3][score] for e in scored], mtc)
         else:

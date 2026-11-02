@@ -4,6 +4,25 @@ Changelog
 Unreleased
 ----------
 
+*Bipartite methods*
+
+- :func:`~nx_backbone.fdsm` reports its Monte Carlo resolution (#76). Each
+  pair also gets ``fdsm_pvalue_se``, the p-value's Monte Carlo standard
+  error, and ``fdsm_pvalue_upper``, a one-sided 95% Clopper-Pearson upper
+  bound on the exact FDSM p-value; the graph records ``fdsm_trials`` and
+  ``fdsm_pvalue_floor``, the smallest possible p-value ``1/(trials + 1)``
+  (``2/(trials + 1)`` with ``signed=True``).
+  :func:`~nx_backbone.backbone_from_projection` and
+  :func:`~nx_backbone.backbone` with ``method="fdsm"``, and
+  :func:`~nx_backbone.threshold_filter` on a scored ``fdsm`` graph, emit a
+  ``RuntimeWarning`` that gives the number of trials needed when the floor
+  makes significance unreachable at ``alpha`` and ``mtc`` (Bonferroni,
+  Holm, BH, Hochberg, BY or none), and stay silent when it is reachable.
+  On the bipartite tutorial's 48-agent planted-block matrix (1,128 pairs),
+  Holm at alpha = 0.05 needs at least 22,560 trials. The ``fdsm`` Notes and
+  the bipartite how-to page explain the trade-off and the trials to use.
+  P-values, kept edges and signs are unchanged.
+
 *Documentation*
 
 - One way to put light and dark figures on every kind of docs page (#126).

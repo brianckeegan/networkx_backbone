@@ -15,6 +15,7 @@ import pytest
 from scipy import stats
 
 import nx_backbone as nb
+from nx_backbone import _montecarlo as mc
 from nx_backbone import (
     backbone,
     backbone_from_projection,
@@ -631,6 +632,179 @@ class TestFDSMNull:
             fdsm(bipartite_graph, agent_nodes=AGENTS, trials=0)
         with pytest.raises(ValueError):
             nb.fdsm(bipartite_graph, AGENTS, trials=5, burn_in=-1)
+
+
+# Two blocks of three agents: 15 agent pairs, 6 of which co-occur.
+_TWO_BLOCKS = np.array(
+    [
+        [1, 1, 0, 0, 0, 0],
+        [1, 1, 1, 0, 0, 0],
+        [0, 1, 1, 0, 0, 0],
+        [0, 0, 0, 1, 1, 0],
+        [0, 0, 0, 1, 1, 1],
+        [0, 0, 0, 0, 1, 1],
+    ]
+)
+_MTC = ("none", "bonferroni", "holm", "hochberg", "bh", "fdr", "by")
+
+
+def _floor_warnings(record):
+    return [w for w in record if "no pair can be significant" in str(w.message)]
+
+
+class TestFDSMResolution:
+    """Monte Carlo resolution: the p-value floor, its SE and upper bound (#76)."""
+
+    @pytest.mark.parametrize("mtc", _MTC)
+    @pytest.mark.parametrize("m", [1, 2, 15, 1128])
+    def test_min_adjusted_pvalue_is_attained_lower_bound(self, mtc, m):
+        floor = mc.pvalue_floor(640)
+        bound = mc.min_adjusted_pvalue(floor, m, mtc)
+        # Attained: by one p-value at the floor (family-wise) or by all of them.
+        one = [floor] + [1.0] * (m - 1)
+        attained = one if mtc in ("bonferroni", "holm") else [floor] * m
+        assert min(nb.adjust_pvalues(attained, mtc)) == bound
+        assert bp._adjust_array(np.array(attained), mtc).min() == bound
+        # A lower bound for any p-values at or above the floor.
+        rng = np.random.default_rng(m)
+        p = floor + (1 - floor) * rng.random((20, m)) ** 4
+        p[:, 0] = floor
+        assert all(bp._adjust_array(row, mtc).min() >= bound for row in p)
+
+    @pytest.mark.parametrize("mtc", _MTC)
+    @pytest.mark.parametrize("sides", [1, 2])
+    def test_trials_needed_is_the_boundary(self, mtc, sides):
+        for m, alpha in ((1128, 0.05), (15, 0.3), (91, 0.01)):
+            t = mc.trials_needed(m, alpha, mtc, sides)
+            ok = [
+                mc.min_adjusted_pvalue(mc.pvalue_floor(x, sides), m, mtc) < alpha
+                for x in (t - 1, t)
+            ]
+            assert ok == [t == 1, True], (m, alpha)
+        assert mc.trials_needed(1128, 0.05, "holm") == 22560
+        assert mc.trials_needed(10, 0.0, "holm") is None
+
+    @pytest.mark.parametrize("trials", [1, 20, 100, 1000])
+    @pytest.mark.parametrize("sides", [1, 2])
+    def test_upper_bound_has_nominal_coverage(self, trials, sides):
+        # Exact coverage over binomial tail counts, for a grid of true tails.
+        counts = np.arange(trials + 1)
+        p_hat = np.minimum(1.0, sides * (counts + 1) / (trials + 1))
+        se, upper = mc.pvalue_resolution(p_hat, trials, sides)
+        assert np.all((0 <= se) & (se <= 1) & (p_hat <= upper) & (upper <= 1))
+        for pi in np.linspace(0.0, 1.0, 201)[1:-1]:
+            covered = sides * pi <= upper + 1e-12
+            if sides == 2 and pi > 0.5:
+                break  # the two-sided p-value is capped at 1
+            coverage = stats.binom.pmf(counts, trials, pi)[covered].sum()
+            assert coverage >= mc.CONFIDENCE - 1e-9, (pi, coverage)
+        q = p_hat[p_hat < 1] / sides
+        np.testing.assert_allclose(se[p_hat < 1], sides * np.sqrt(q * (1 - q) / trials))
+
+    @pytest.mark.parametrize("signed", [False, True])
+    def test_scores_record_resolution(
+        self, davis_southern_women_graph, davis_women_nodes, signed
+    ):
+        trials = 60
+        sides = 2 if signed else 1
+        H = nb.fdsm(
+            davis_southern_women_graph,
+            davis_women_nodes,
+            trials=trials,
+            seed=0,
+            signed=signed,
+        )
+        floor = sides / (trials + 1)
+        assert H.graph == {"fdsm_trials": trials, "fdsm_pvalue_floor": floor}
+        p = np.array([d["fdsm_pvalue"] for *_, d in H.edges(data=True)])
+        assert p.min() >= floor
+        se, upper = mc.pvalue_resolution(p, trials, sides)
+        for (*_, d), s, u in zip(H.edges(data=True), se, upper):
+            assert (d["fdsm_pvalue_se"], d["fdsm_pvalue_upper"]) == (s, u)
+        # The metadata travels through thresholding and the wrappers.
+        kept = nb.threshold_filter(H, "fdsm_pvalue", 0.2)
+        assert kept.graph == H.graph
+        W = backbone_from_projection(
+            davis_southern_women_graph,
+            davis_women_nodes,
+            method="fdsm",
+            alpha=0.2,
+            trials=trials,
+            seed=0,
+            signed=signed,
+        )
+        assert W.graph == H.graph
+        assert {frozenset(e) for e in W.edges} == {frozenset(e) for e in kept.edges}
+        for u, v, d in W.edges(data=True):
+            assert d == H.edges[u, v]
+
+    @pytest.mark.parametrize("signed", [False, True])
+    def test_pvalues_unchanged_by_diagnostics(
+        self, davis_southern_women_graph, davis_women_nodes, signed
+    ):
+        # The same scoring without mc_trials is the pre-#76 code path.
+        B, women = davis_southern_women_graph, davis_women_nodes
+        inc = bp._incidence(B, women)
+        kw = {"trials": 50, "seed": 3, "signed": signed}
+        old = bp._score_pairs(
+            inc, bp._fdsm_tails(inc, **kw), "fdsm_pvalue", signed=signed
+        )
+        new = nb.fdsm(B, women, **kw)
+        new_attrs = {"fdsm_pvalue_se", "fdsm_pvalue_upper"}
+        assert list(old.edges) == list(new.edges)
+        for u, v, d in new.edges(data=True):
+            assert set(d) - set(old.edges[u, v]) == new_attrs
+            assert {k: x for k, x in d.items() if k not in new_attrs} == old.edges[u, v]
+        for mtc in ("none", "bh", "by"):
+            tails = bp._fdsm_tails(inc, **kw)
+            old = bp._score_pairs(
+                inc, tails, "fdsm_pvalue", signed=signed, alpha=0.5, mtc=mtc
+            )
+            new = backbone_from_projection(
+                B, women, method="fdsm", alpha=0.5, mtc=mtc, **kw
+            )
+            assert list(old.edges) == list(new.edges), mtc
+
+    @pytest.mark.parametrize("mtc", _MTC)
+    @pytest.mark.parametrize("signed", [False, True])
+    @pytest.mark.parametrize("maz", [True, False])
+    def test_warns_exactly_when_significance_unreachable(self, mtc, signed, maz):
+        # maz: missing_as_zero, whether the 9 pairs that never co-occur count.
+        alpha = 0.3
+        m = 15 if maz else 6
+        needed = mc.trials_needed(m, alpha, mtc, 2 if signed else 1)
+        for trials in (needed - 1, needed):
+            kw = {"trials": trials, "seed": 0, "signed": signed, "mtc": mtc}
+            with warnings.catch_warnings(record=True) as record:
+                warnings.simplefilter("always")
+                H = backbone_from_projection(
+                    _TWO_BLOCKS, method="fdsm", alpha=alpha, missing_as_zero=maz, **kw
+                )
+                if maz:
+                    scored = nb.fdsm(_TWO_BLOCKS, trials=trials, seed=0, signed=signed)
+                    nb.threshold_filter(scored, "fdsm_pvalue", alpha, mtc=mtc)
+                    backbone(_TWO_BLOCKS, method="fdsm", alpha=alpha, **kw)
+            found = _floor_warnings(record)
+            if trials < needed:
+                assert len(found) == (3 if maz else 1), trials
+                assert all(w.category is RuntimeWarning for w in found)
+                assert all(w.filename == __file__ for w in found)
+                assert f"trials={needed}" in str(found[0].message)
+                assert H.number_of_edges() == 0
+            else:
+                assert not found, (trials, [str(w.message) for w in found])
+
+    def test_no_warning_without_alpha_or_floor(self):
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            H = nb.fdsm(_TWO_BLOCKS, trials=2, seed=0)  # floor 1/3, no alpha
+            nb.threshold_filter(H, "fdsm_pvalue", 0.5, mode="above")
+            S = nb.sdsm(_TWO_BLOCKS)  # no floor recorded
+            nb.threshold_filter(S, "sdsm_pvalue", 1e-9, mtc="bonferroni")
+            nb.threshold_filter(H, "fdsm_pvalue", 0.0)  # nothing passes anyway
+        assert not _floor_warnings(record)
+        with pytest.warns(RuntimeWarning, match="trials=3 "):
+            nb.threshold_filter(H, "fdsm_pvalue", 0.3)
 
 
 # ---------------------------------------------------------------------------
