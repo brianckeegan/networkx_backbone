@@ -1,6 +1,10 @@
 Tutorials
 =========
 
+The narrative tutorials explain *why* a method behaves as it does, with
+figures computed when the documentation is built.  The how-to tutorials show
+the calls, method by method.
+
 Start here
 ----------
 
@@ -34,7 +38,12 @@ Short how-to pages for each kind of network.
 Going further
 -------------
 
-Comparing, validating, and benchmarking backbones.
+Narrative deep dives, and comparing, validating, and benchmarking backbones.
+
+.. toctree::
+   :maxdepth: 1
+
+   /auto_examples/statistical_nulls/plot_statistical_nulls
 
 .. toctree::
    :maxdepth: 2

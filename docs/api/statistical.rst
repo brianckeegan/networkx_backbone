@@ -8,6 +8,8 @@ All functions return scored full graphs; apply
 Complexity classes are provided in each function docstring.
 For a worked case study of scoring, choosing alpha and a correction,
 and reporting, start with :doc:`../auto_examples/start_here/plot_hairball_to_backbone`.
+The tutorial :ref:`tutorial-statistical-nulls` compares the null models on one
+network, with figures.
 
 .. automodule:: networkx_backbone.statistical
    :no-members:
