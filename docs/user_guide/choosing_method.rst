@@ -235,7 +235,8 @@ Choosing a statistical method
 -----------------------------
 
 All eight statistical methods test edge significance, but they differ in their
-null models:
+null models (the tutorial :ref:`tutorial-statistical-nulls` runs seven of them
+on one network and shows what each choice does):
 
 - :func:`~networkx_backbone.disparity_filter`: Assumes each node's total
   strength is uniformly distributed across its edges. Works well for

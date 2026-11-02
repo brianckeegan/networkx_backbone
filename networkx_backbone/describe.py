@@ -473,6 +473,18 @@ REFERENCES = _refs(
         "The control of the false discovery rate in multiple testing under "
         "dependency", "Annals of Statistics", "29", "4", "1165--1188",
     ),
+    Reference(
+        "kalman1960", "article", ("Kalman, R. E.",), 1960,
+        "A new approach to linear filtering and prediction problems",
+        "Journal of Basic Engineering", "82", "1", "35--45",
+        doi="10.1115/1.3662552",
+    ),
+    Reference(
+        "rauch1965", "article",
+        ("Rauch, H. E.", "Tung, F.", "Striebel, C. T."), 1965,
+        "Maximum likelihood estimates of linear dynamic systems",
+        "AIAA Journal", "3", "8", "1445--1450", doi="10.2514/3.3166",
+    ),
 )  # fmt: skip
 
 
@@ -885,6 +897,14 @@ METHODS = {
         "its eligible steps",
         kind=TEMPORAL,
     ),
+    "kalman_backbone": Method(
+        "Kalman smoothing of per-step edge significance",
+        "which tests each edge in every step with a static backbone method, "
+        "smooths the probit-transformed p-values of each edge over time with "
+        "a local-level Kalman filter and Rauch-Tung-Striebel smoother, and "
+        "tests the smoothed series against its exact null distribution",
+        ("kalman1960", "rauch1965"), TEMPORAL, test=True,
+    ),
 }  # fmt: skip
 
 #: Edge attribute that a cut on each static method's output uses: a p-value
@@ -980,6 +1000,8 @@ EXCLUDED = {
         ),
         "a temporal-network format conversion, not a backbone",
     ),
+    "kalman_snapshots": "expands the per-step series of kalman_backbone; "
+    "describe 'kalman_backbone' instead",
 }
 
 # Wording and references for each multiple-testing correction.
@@ -1232,7 +1254,7 @@ def _temporal_sentences(name, params, original, backbone, md):
     )
     stored = meta.get("parameters", {})
     observe = params.get("observe", stored.get("observe", "presence"))
-    if name == "backbone_stability" or (
+    if name in ("backbone_stability", "kalman_backbone") or (
         name == "edge_persistence_hmm" and observe != "presence"
     ):
         inner = params.pop("method", None)
@@ -1247,14 +1269,51 @@ def _temporal_sentences(name, params, original, backbone, md):
             keys += list(entry.refs)
             text = f"In every step the edges were scored with {entry.label}"
             text += f" ({cites})" if cites else ""
-            if name == "edge_persistence_hmm" and observe == "pvalue":
+            if name == "kalman_backbone":
+                text += "."
+            elif name == "edge_persistence_hmm" and observe == "pvalue":
                 text += ", and its p-values were the observations of the model."
             else:
                 text += ", and the same cut was applied in each step."
             sentences.append(text)
     if name == "edge_persistence_hmm":
         sentences += _hmm_sentences(meta.get("hmm"), observe)
+    if name == "kalman_backbone":
+        sentences += _kalman_sentences(meta.get("kalman", {}))
     return sentences, keys, params
+
+
+def _kalman_sentences(fit):
+    """Sentences on the smoothing of :func:`kalman_backbone` from its record."""
+    sentences = []
+    q = fit.get("q")
+    if q is not None:
+        how = {
+            "half_life": "set from a half-life",
+            "q": "set by the analyst",
+            "likelihood": "estimated by maximum pooled likelihood",
+        }.get(fit.get("q_source"), "")
+        text = f"The process variance was q = {q:.3g} per step"
+        if how:
+            text += f", {how}"
+        half = fit.get("half_life")
+        if half is not None and half != float("inf"):
+            text += f" (a smoothing half-life of {half:.3g} steps)"
+        sentences.append(text + ".")
+    mode = fit.get("mode")
+    if mode in ("smoother", "filter"):
+        used = "all steps" if mode == "smoother" else "only past and current steps"
+        sentences.append(
+            f"Each step's smoothed estimate used {used}; an edge's p-value tests "
+            "the largest standardized smoothed score over its steps against "
+            "a simulated null distribution."
+        )
+    if fit.get("absent") == "unknown":
+        sentences.append(
+            "For this method, steps in which an eligible edge was absent were "
+            "treated as unknown instead."
+        )
+    return sentences
 
 
 def _hmm_sentences(model, observe):
