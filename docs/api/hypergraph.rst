@@ -14,6 +14,10 @@ hyperedges and naturally extends to weighted hypergraphs.
 :func:`~networkx_backbone.local_mdl_hypergraph_backbone` is its local variant
 (Appendix E of the paper), which backbones each node's neighborhood separately.
 
+For a narrative walk-through with figures, see
+:doc:`/auto_examples/hypergraphs/plot_hypergraph_backbones`; for short code
+recipes, see :doc:`/tutorials/hypergraph_backbone`.
+
 .. automodule:: networkx_backbone.hypergraph
    :no-members:
 
