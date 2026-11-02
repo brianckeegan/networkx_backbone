@@ -371,10 +371,11 @@ Documentation
 - **planned** (`#121 <https://github.com/brianckeegan/nx-backbone/issues/121>`_): Figures for every how-to tutorial. None of
   the eleven pages under "Tutorials" has a figure yet; each gets one or two
   executed figures and a link to its narrative tutorial.
-- **planned** (`#122 <https://github.com/brianckeegan/nx-backbone/issues/122>`_): Figures for the user guide: the
+- **done** (`#122 <https://github.com/brianckeegan/nx-backbone/issues/122>`_): Figures for the user guide: the
   score-then-filter workflow, a method decision diagram, weight transforms,
-  the three temporal input forms, evaluation measures, and directed tests.
-- **planned** (`#123 <https://github.com/brianckeegan/nx-backbone/issues/123>`_): Narrative tutorial: comparing, validating,
+  the three temporal input forms, evaluation measures, directed tests, the
+  cost classes, and the nx-parallel timings.
+- **done** (`#123 <https://github.com/brianckeegan/nx-backbone/issues/123>`_): Narrative tutorial: comparing, validating,
   and reporting backbones (robustness to alpha, correction and input order;
   consensus; the Les Misérables benchmark explained; methods-section text).
 - **done** (`#124 <https://github.com/brianckeegan/nx-backbone/issues/124>`_): Narrative tutorial: directed and signed

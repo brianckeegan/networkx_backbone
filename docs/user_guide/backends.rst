@@ -85,8 +85,8 @@ Measured timings
 ``scripts/benchmark_backends.py`` times the shortest-path methods on a
 Barabási-Albert graph with 1,000 nodes and 2,991 integer-weighted edges (the
 seeded graph in ``benchmarks/benchmarks/_data.py``), with and without
-nx-parallel 0.4 in ``backend_priority``. Best of 3 runs, Python 3.13, NetworkX
-3.7, 4 CPUs, nx-parallel's default ``n_jobs=-1``:
+nx-parallel 0.4 in ``backend_priority``. Measured on 2026-11-01: best of 3
+runs, Python 3.13, NetworkX 3.7, 4 CPUs, nx-parallel's default ``n_jobs=-1``:
 
 ===========================  ============  ============  =====  ========
 Method                       NetworkX (s)  parallel (s)  Ratio  Max diff
@@ -104,6 +104,8 @@ adds up edge betweenness in a different order, so those scores can differ in
 the last bits; on this graph every ``*_keep`` flag was the same. These
 timings are from one machine. Measure on your own graphs and hardware before
 relying on them.
+
+.. page-figure:: backends/speedups
 
 ``high_salience_skeleton`` and ``glab_filter`` run one single-source search
 per node (``dijkstra_predecessor_and_distance``), which nx-parallel 0.4 does

@@ -57,6 +57,8 @@ excludes its end, so a span ending at 2 and one starting at 2 do not overlap.
 >>> nb.temporal_form(S), nb.temporal_form(E), nb.temporal_form(P)
 ('snapshots', 'events', 'spans')
 
+.. page-figure:: temporal/forms
+
 Snapshots to events, and back
 -----------------------------
 
@@ -114,6 +116,8 @@ node is present in a bin only if it has an event there, so ``cat`` is absent
 from bin 0. ``aggregate="count"``, ``"max"``, ``"min"`` or ``"mean"`` combine
 the weights as :func:`~nx_backbone.multigraph_to_weighted` does. Without
 ``freq``, every distinct time is its own snapshot.
+
+.. page-figure:: temporal/binning
 
 Spans to snapshots
 ------------------

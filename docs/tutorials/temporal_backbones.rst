@@ -14,9 +14,9 @@ union of the observed edges with score attributes, so the usual filters such
 as :func:`~nx_backbone.threshold_filter` pick the backbone. See
 :doc:`../user_guide/temporal` for the three input forms (snapshots, events and
 spans) and the conversions between them, and :ref:`temporal-eligibility` for
-how absent edges are counted. The narrative tutorial
-:ref:`tutorial-temporal-backbones` explains, with figures, when to use each
-score and what each one misses.
+how absent edges are counted. See the narrative tutorial,
+:ref:`tutorial-temporal-backbones`, for when to use each score and what each
+one misses, told as one case study with figures.
 
 .. contents:: On this page
    :local:
@@ -104,6 +104,11 @@ off about as often as a coin. Filtering on ``persistence`` keeps the block:
 >>> sorted(tuple(sorted(e)) for e in B.edges)
 [(0, 1), (2, 3), (4, 5), (6, 7), (8, 9)]
 
+The two scores side by side, for every heavy edge and the noise edges
+observed most often:
+
+.. page-figure:: temporal_backbones/edge-activity
+
 How often a backbone keeps an edge: backbone stability
 ------------------------------------------------------
 
@@ -135,6 +140,12 @@ recovers all ten heavy edges and no noise:
 ...                         include_all_nodes=False)
 >>> sorted(tuple(sorted(e)) for e in B.edges) == sorted(block + flicker)
 True
+
+This is the backbone the method gallery draws for
+:func:`~nx_backbone.backbone_stability`, over the union of the 20 snapshots:
+
+.. page-figure:: gallery:temporal/backbone_stability
+   :width: 75%
 
 Like ``obs_fraction``, stability counts steps, so it does not tell the block
 from the flicker; combine it with ``persistence`` for that. Where

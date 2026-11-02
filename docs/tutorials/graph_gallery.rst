@@ -24,6 +24,11 @@ edges each one keeps.
 One figure per method
 ---------------------
 
+The grid below shows one backbone from each API page, drawn the same way, as
+a map of what the gallery holds:
+
+.. page-figure:: graph_gallery/overview
+
 The full-size figure for each method is on its API page, next to the
 function's documentation:
 
