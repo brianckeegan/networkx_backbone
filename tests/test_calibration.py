@@ -231,15 +231,17 @@ def _interaction_null(seed, n=40, interactions=800):
     """Directed graph from the noise-corrected null model.
 
     Each unit interaction draws its source and target independently, with
-    probabilities proportional to lognormal node propensities (no self-loops).
+    probabilities proportional to lognormal node propensities.  A node can
+    draw itself: the model's cells include the diagonal, and a self-loop
+    counts once in :math:`n_{i.}`, :math:`n_{.i}` and :math:`n_{..}`, so the
+    self-loops are kept.  Dropping them would inflate the busiest pairs
+    beyond what the margins predict (#137).
     """
     rng = np.random.default_rng(seed)
     pi = rng.lognormal(0.0, 1.0, n)
     pi /= pi.sum()
-    draws = rng.choice(n, size=(2 * interactions, 2), p=pi)
-    draws = draws[draws[:, 0] != draws[:, 1]][:interactions]
     G = nx.DiGraph()
-    for u, v in draws.tolist():
+    for u, v in rng.choice(n, size=(interactions, 2), p=pi).tolist():
         w = G[u][v]["weight"] + 1 if G.has_edge(u, v) else 1
         G.add_edge(u, v, weight=w)
     return G
@@ -252,15 +254,16 @@ def test_noise_corrected_calibration_under_its_null(pvalue_method, low, high):
     # The default exact p-values hold their level on the model's own null;
     # the p-value reading of the paper's delta rule rejects several times
     # too often (the edges are dependent, so only loose bounds are checked).
-    p = np.concatenate(
-        [
-            [
-                d["nc_pvalue"]
-                for *_, d in nb.noise_corrected_filter(
-                    _interaction_null(seed), pvalue_method=pvalue_method
-                ).edges(data=True)
-            ]
-            for seed in range(4)
-        ]
-    )
+    scored = [
+        nb.noise_corrected_filter(_interaction_null(seed), pvalue_method=pvalue_method)
+        for seed in range(4)
+    ]
+    p = np.concatenate([[d for *_, d in H.edges(data="nc_pvalue")] for H in scored])
     assert low < np.mean(p < 0.05) < high
+    if pvalue_method == "binomial":
+        # Pure noise has no backbone: with the family-wise error rate held at
+        # 0.05 in each graph, no edge survives.  Without self-loops in the
+        # simulation, a pair of busy nodes in seed 3 did (p = 4e-6).
+        for seed, H in enumerate(scored):
+            B = nb.threshold_filter(H, "nc_pvalue", 0.05, mtc="bonferroni")
+            assert B.number_of_edges() == 0, seed

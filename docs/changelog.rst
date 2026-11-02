@@ -73,6 +73,33 @@ Unreleased
   and a joint null, a signed backbone read edge by edge, and how each scorer
   signs an edge, with exact ties signed -1 and the signed LANS lower tail.
   Linked from :doc:`user_guide/directed_graphs`.
+- Two numbers on the how-to pages were wrong and are fixed (#137):
+  :doc:`tutorials/validating_backbones` said a signed test keeps 106 strong
+  edges where the one-tailed test keeps 126 (it keeps 105; the 106th is the
+  weak edge), and :doc:`user_guide/choosing_method` counted 65 functions,
+  which no longer holds and is no longer stated. The simulated share of
+  ``nc_pvalue < 0.05`` in the Notes of
+  :func:`~nx_backbone.noise_corrected_filter` was computed without
+  self-loops; with them, as in the model, it is 0.336 (was 0.342) and
+  0.050 (was 0.051) on directed graphs, 0.242 and 0.043 (were 0.243 and
+  0.047) on undirected ones, and 0.767 (was 0.790) with the ``"delta"``
+  rule on the sparse graphs (0.080, was 0.081, over all pairs). The
+  library's results do not change.
+
+*Testing*
+
+- A new test, ``tests/test_docs_numbers.py``, recomputes the numbers and
+  comparisons stated in the prose of the how-to and user guide pages
+  (Les Misérables counts, fitted parameters, hypergraph backbones, the
+  doctested pages' summaries, and the method counts on
+  :doc:`user_guide/directed_graphs`) and fails with the page, the text it
+  found and the value the library now gives (#137).
+- The noise-corrected calibration test now simulates the model's null with
+  its self-loops: a unit interaction can join a node to itself, and the
+  margins count those interactions. Dropping them, as before, inflated a
+  busy pair beyond what the margins predict (p = 4e-6 in one of its four
+  graphs); the test now also checks that no edge survives a Bonferroni
+  correction on pure noise (#137).
 
 *Infrastructure*
 

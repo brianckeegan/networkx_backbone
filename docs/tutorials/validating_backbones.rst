@@ -250,7 +250,7 @@ explicitly instead:
 
 The two-tailed p-value is twice the smaller one-tailed p-value, so a
 signed test keeps fewer strong edges than the one-tailed test at the same
-:math:`\alpha` (106 rather than 126 here) and should be corrected in the
+:math:`\alpha` (105 rather than 126 here) and should be corrected in the
 same way.
 
 5. Reporting the backbone

@@ -136,7 +136,7 @@ Fixes and release hygiene
   directed graph with a near-saturated hub: decide whether the solver or the
   constraints are at fault, fix or raise a specific error, and decide whether
   non-convergence stays a warning.
-- **next** (`#137 <https://github.com/brianckeegan/nx-backbone/issues/137>`_): Test and docs hygiene: the noise-corrected
+- **done** (`#137 <https://github.com/brianckeegan/nx-backbone/issues/137>`_): Test and docs hygiene: the noise-corrected
   calibration null keeps self-loops as the model does, and a test checks the
   numbers quoted on the how-to pages against the code.
 - **next** (`#138 <https://github.com/brianckeegan/nx-backbone/issues/138>`_): Redirect the old documentation address
