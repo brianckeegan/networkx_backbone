@@ -4,6 +4,37 @@ Changelog
 Unreleased
 ----------
 
+**Changes in behavior**
+
+- ``ecm_filter`` raises :class:`~networkx.ExceededMaxIterations` when its fit
+  does not reproduce the degrees and strengths to within ``tol``, instead of
+  returning the p-values with a :class:`RuntimeWarning` (#135). Those
+  p-values could be far off: on the graph of #135, 21 edges below 0.05 where
+  the converged fit has 1. The message names a node whose degree or strength
+  is furthest off. Pass ``nonconvergence="warn"`` for the old behavior.
+
+**Changes in results (bug fixes)**
+
+- ``ecm_filter`` converges on graphs with a heavy hub (#135). A node's own
+  out- and in-multipliers can have :math:`y_i y_j > 1` at the optimum, since
+  no node is linked to itself, but the solver treated that self-pair as a
+  pair and its line search stopped there. On the 18-node directed graph of
+  #135 the largest relative error goes from 1.37 to 8e-16, and the edges at
+  ``ecm_pvalue < 0.05`` from 21 to 1 (below 0.01, from 1 to 0); on its
+  undirected version (weights of both directions summed), from 1.33 and 16
+  edges to converged and 1 edge (below 0.01, 14 -> 1). The converged p-values
+  agree with an independent fit of the same likelihood to 1e-15. Graphs on
+  which the solver converged before get bit-for-bit the same p-values (Les
+  Misérables: 72 edges, unchanged).
+- ``ecm_filter`` now handles degree sequences that never allow some pairs to
+  be linked, such as the two ends of a path on four nodes (#135). The
+  maximum-likelihood multipliers are then infinite, and the solver stalled;
+  those pairs are now found from the observed graph and left out of the fit,
+  which is the limit of the ECM. Across every graph of up to 7 nodes (the
+  NetworkX graph atlas, with three weightings) and 2,853 random digraphs of up
+  to 8 nodes, the fits that do not converge go from 1,055 to 0 (both fixes).
+  With ``missing_as_zero=True``, such pairs get both tails 1.
+
 *Documentation*
 
 - One way to put light and dark figures on every kind of docs page (#126).
