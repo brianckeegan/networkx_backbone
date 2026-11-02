@@ -187,14 +187,23 @@ graph. The conventions:
 
 **In an executed tutorial**, create one ``TutorialFigures`` per file, named
 after it, and make each ``figures.show(...)`` call the last expression of its
-code block; Sphinx-Gallery then shows the figure below the code::
+code block; Sphinx-Gallery then shows the figure below the code. Readers
+should see the narrative and the analysis, not the figure plumbing, so wrap
+the setup and every ``figures.show(...)`` call in
+``# sphinx_gallery_start_ignore`` / ``# sphinx_gallery_end_ignore``: the
+call still runs and its figure still shows, the rendered code leaves it out,
+and the downloaded script and notebook keep it. Keep some visible code in
+each such block (usually the drawing function, or a hidden one too, as the
+hypergraph tutorial does), so that no empty code block is left on the page::
 
     # sphinx_gallery_thumbnail_path = "_static/example_figures/my_topic/thumbnail.png"
 
     from _figures import style
     from _figures.tutorial import TutorialFigures
 
+    # sphinx_gallery_start_ignore
     figures = TutorialFigures("my_topic")
+    # sphinx_gallery_end_ignore
     G = nx.les_miserables_graph()
     backbone = nb.threshold_filter(nb.disparity_filter(G), "disparity_pvalue", 0.05)
     counts = style.backbone_counts(G, backbone)
@@ -206,6 +215,7 @@ code block; Sphinx-Gallery then shows the figure below the code::
         return fig
 
 
+    # sphinx_gallery_start_ignore
     figures.show(
         draw_backbone,
         "backbone",
@@ -215,6 +225,7 @@ code block; Sphinx-Gallery then shows the figure below the code::
         fmt="png",
         thumbnail=True,
     )
+    # sphinx_gallery_end_ignore
 
 In the docs build the files go to the gitignored
 ``docs/_static/example_figures/<name>/``; run anywhere else (as a script or

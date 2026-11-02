@@ -41,8 +41,10 @@ from _figures.tutorial import TutorialFigures
 import nx_backbone as nb
 
 DOCS = Path(style.__file__).resolve().parents[1]
+# sphinx_gallery_start_ignore
 # Light and dark SVG pairs, from the docs' tutorial figure helper.
 figures = TutorialFigures("scaling_up")
+# sphinx_gallery_end_ignore
 
 
 def weighted_graph(n, m=3, max_weight=20, seed=0):
@@ -299,6 +301,7 @@ def draw_timings(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_timings,
     "scaling_up_timings",
@@ -318,6 +321,7 @@ figures.show(
         "of a second. A steeper line means a cost that grows faster."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The shortest-path methods are the ones to plan for. A slope near 2 means
@@ -398,6 +402,7 @@ def draw_classes(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_classes,
     "scaling_up_ecm_classes",
@@ -415,6 +420,7 @@ figures.show(
         "gives every value."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Each solver step costs about C squared operations, done in fixed-size
@@ -510,6 +516,7 @@ def draw_backends(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_backends,
     "scaling_up_backends",
@@ -529,6 +536,7 @@ figures.show(
         "the nx-parallel time."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Only the methods built on edge betweenness gain: nx-parallel implements

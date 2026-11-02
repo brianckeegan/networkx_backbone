@@ -222,6 +222,7 @@ def draw_forms(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_forms,
     "temporal_forms",
@@ -239,6 +240,7 @@ figures.show(
         "and long contacts look alike."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The conversions between snapshots and events or spans are lossless;
@@ -317,6 +319,7 @@ def draw_flatten(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_flatten,
     "temporal_flatten",
@@ -332,6 +335,7 @@ figures.show(
         "whether a weight counts contacts or time in contact."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Neither weight is wrong; they answer different questions.  Decide what a
@@ -638,6 +642,7 @@ def draw_heatmap(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_heatmap,
     "temporal_heatmap",
@@ -658,6 +663,7 @@ figures.show(
         "reads the order of the steps, tells them apart."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Two more things show in the grid.  The per-step backbone keeps a heavy
@@ -892,6 +898,7 @@ def draw_kalman(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_kalman,
     "temporal_kalman",
@@ -913,6 +920,7 @@ figures.show(
         "the top."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Smoothing turns a jagged, noisy picture into a clear one: the steady
@@ -1242,6 +1250,7 @@ def draw_hmm(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_hmm,
     "temporal_hmm",
@@ -1261,6 +1270,7 @@ figures.show(
         "(dashed)."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # ``hmm_score`` (an edge's largest posterior) and ``hmm_active_fraction``

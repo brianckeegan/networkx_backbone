@@ -48,9 +48,11 @@ import nx_backbone as nb
 
 DOCS = Path(style.__file__).resolve().parents[1]
 FIXTURES = DOCS.parent / "tests" / "fixtures"
+# sphinx_gallery_start_ignore
 # Figures are written as light and dark SVG pairs by the docs' tutorial
 # figure helper; the page shows the one that matches the reader's theme.
 figures = TutorialFigures("coming_from_r")
+# sphinx_gallery_end_ignore
 
 R = json.loads((FIXTURES / "r_backbone.json").read_text(encoding="utf-8"))
 NETBONE = json.loads((FIXTURES / "netbone.json").read_text(encoding="utf-8"))
@@ -453,6 +455,7 @@ def draw_pvalues(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_pvalues,
     "coming_from_r_pvalues",
@@ -475,6 +478,7 @@ figures.show(
         f"{ours_rna[never].min():.0f}."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Reading the three panels from left to right:
@@ -534,6 +538,7 @@ def draw_davis(mode):
 
 
 print(style.backbone_counts(projection, bb).caption)
+# sphinx_gallery_start_ignore
 figures.show(
     draw_davis,
     "coming_from_r_davis",
@@ -550,6 +555,7 @@ figures.show(
         "in gray; the printed line above gives the counts."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # A checklist for porting an R script

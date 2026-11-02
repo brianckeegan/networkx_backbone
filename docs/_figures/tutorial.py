@@ -24,7 +24,10 @@ Every figure of a Sphinx-Gallery tutorial goes through one call::
 :func:`_figures.style.save_variants` and returns a :class:`ThemedFigure`.
 Make it the last expression of the code block: Sphinx-Gallery then shows its
 ``_repr_html_``, a ``<figure>`` with the light and the dark image (the docs
-theme shows the one matching the reader's theme) and the caption.
+theme shows the one matching the reader's theme) and the caption.  Wrap the
+setup and each call in ``# sphinx_gallery_start_ignore`` /
+``# sphinx_gallery_end_ignore``, so that the page shows the figure but not
+its plumbing; the downloaded script and notebook keep the calls.
 
 Where the files go
 ------------------

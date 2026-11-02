@@ -30,9 +30,9 @@ tutorial :doc:`/tutorials/bipartite_backbone`.
 #
 # Every number on this page is computed when the documentation is built.
 # Every figure is drawn twice, once for the light theme and once for the
-# dark theme, with the shared documentation figure style. The few lines below
-# set up the helper that saves each pair of files and shows the one matching
-# your theme.
+# dark theme, with the shared documentation figure style, and the page shows
+# the one matching your theme. The code that saves and shows each pair is
+# left out of the page; it is in the script and notebook you can download.
 
 import json
 import sys
@@ -69,9 +69,11 @@ if str(DOCS) not in sys.path:
 from _figures import style  # noqa: E402
 from _figures.tutorial import TutorialFigures  # noqa: E402
 
+# sphinx_gallery_start_ignore
 # ``figures.show(draw, name, alt=..., caption=...)`` saves the light and dark
 # variants of a figure and shows the one matching your theme.
 figures = TutorialFigures("bipartite")
+# sphinx_gallery_end_ignore
 # The reference list at the end is a reST include written next to the page.
 IMAGES = DOCS / "auto_examples" / "bipartite" / "images"
 IMAGES.mkdir(parents=True, exist_ok=True)
@@ -233,6 +235,7 @@ def draw_incidence(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_incidence,
     "incidence",
@@ -250,6 +253,7 @@ figures.show(
         "follows."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Why the raw projection overstates ties
@@ -391,6 +395,7 @@ def draw_projections(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_projections,
     "projections",
@@ -409,6 +414,7 @@ figures.show(
         "strongest pairs under each weighting."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The weightings change *which* ties look strongest: a pair that shares many
@@ -534,6 +540,7 @@ def draw_nulls(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_nulls,
     "nulls",
@@ -553,6 +560,7 @@ figures.show(
         "above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The SDSM tracks the FDSM closely but sits above it: on a matrix this small
@@ -695,6 +703,7 @@ def draw_floor(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_floor,
     "floor",
@@ -713,6 +722,7 @@ figures.show(
         "Holm cannot keep any pair."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The FDSM's smallest p-value is never a measurement here: it is the floor,
@@ -818,6 +828,7 @@ def draw_signed(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_signed,
     "signed",
@@ -835,6 +846,7 @@ figures.show(
         "ties are red with a − (dashed lines)."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The negative ties are as informative as the positive ones: they mark women
@@ -1002,6 +1014,7 @@ def draw_constraints(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_constraints,
     "constraints",
@@ -1020,6 +1033,7 @@ figures.show(
         "move. The pairs that move most are listed in the table above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Fixing cells moves each pair's expected co-occurrence, and the p-values
@@ -1137,6 +1151,7 @@ def draw_r(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_r,
     "r_match",
@@ -1152,6 +1167,7 @@ figures.show(
         "the pairs that co-attend; R does not test the others by default."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Which pairs are tested: ``missing_as_zero``

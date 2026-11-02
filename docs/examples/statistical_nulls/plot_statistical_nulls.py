@@ -224,6 +224,7 @@ def draw_overview(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_overview,
     "nulls_overview",
@@ -242,6 +243,7 @@ figures.show(
         "panel)."
     ),
 )
+# sphinx_gallery_end_ignore
 
 
 # %%
@@ -356,6 +358,7 @@ def draw_scatter(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_scatter,
     "nulls_pvalue_weight",
@@ -370,6 +373,7 @@ figures.show(
         "circles removed; rho is the Spearman rank correlation printed above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Three groups appear.  The disparity, Pólya and GloSS p-values fall almost
@@ -442,6 +446,7 @@ def draw_overlap(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_overlap,
     "nulls_overlap",
@@ -458,6 +463,7 @@ figures.show(
         "the share of that backbone's edges found in each other backbone."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The three small backbones (GloSS, disparity and Pólya) lie entirely inside
@@ -579,6 +585,7 @@ def draw_preserved(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_preserved,
     "nulls_preserved",
@@ -594,6 +601,7 @@ figures.show(
         "closer).  The values are in the table above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Size explains part of this.  The small backbones keep only heavy edges
@@ -679,6 +687,7 @@ def draw_concentration(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_concentration,
     "nulls_disparity_a",
@@ -694,6 +703,7 @@ figures.show(
         "original filter (``a=1``) and the maximum-likelihood fit."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The fitted *a* is below 1: Les Misérables' weight shares are more even
@@ -771,6 +781,7 @@ def draw_units(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_units,
     "nulls_units",
@@ -788,6 +799,7 @@ figures.show(
         "more events.  The values are in the table above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The unit is part of the model, not a detail: if your weights are minutes,
@@ -950,6 +962,7 @@ def draw_signed(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_signed,
     "nulls_signed",
@@ -964,6 +977,7 @@ figures.show(
         "dashed.  The counts are in the table above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The parametric models rarely call an edge weak on this network: an edge

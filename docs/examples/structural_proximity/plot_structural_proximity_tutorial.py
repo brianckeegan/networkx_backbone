@@ -41,9 +41,9 @@ and :doc:`/tutorials/unweighted_sparsification`.
 #
 # The figures use the documentation's shared style, which draws each figure
 # in a light and a dark version; your theme shows the matching one.
-# ``figures.show`` saves the two versions as image files and shows them on
-# this page; the small ``Table`` class below turns a list of rows into HTML.
-# They are not part of the library.
+# The code that saves the two versions and shows them is left out of the
+# page (it is in the downloadable script and notebook); the small ``Table``
+# class below turns a list of rows into HTML. Neither is part of the library.
 
 import heapq
 import html
@@ -61,6 +61,7 @@ from matplotlib.lines import Line2D
 import nx_backbone as nb
 from nx_backbone.describe import METHODS, REFERENCES
 
+# sphinx_gallery_start_ignore
 # The figures go through the docs' tutorial figure helper
 # (docs/_figures/tutorial.py): in the docs build the files are linked from
 # docs/_static/example_figures/structural_proximity/; run anywhere else (as a
@@ -68,6 +69,7 @@ from nx_backbone.describe import METHODS, REFERENCES
 # Network drawings with hundreds of edges are saved as PNG (``fmt="png"``),
 # which is much lighter than SVG for them; charts stay SVG.
 figures = TutorialFigures("structural_proximity")
+# sphinx_gallery_end_ignore
 
 
 class Table:
@@ -209,6 +211,7 @@ def draw_guarantees(mode):
 
 
 mst_counts = style.backbone_counts(G, guarantee_backbones["Maximum spanning tree"])
+# sphinx_gallery_start_ignore
 figures.show(
     draw_guarantees,
     "guarantees",
@@ -226,6 +229,7 @@ figures.show(
         f"{mst_counts.caption}"
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The picture shows sizes; the guarantees need checking.  The table below
@@ -427,6 +431,7 @@ def draw_toy(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_toy,
     "toy",
@@ -442,6 +447,7 @@ figures.show(
         f"as distances, it removes {', '.join(removed_edges(toy_views['Labels read as distances']))}."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Read as strengths, A–C is a weak tie (distance 1) while the detour through
@@ -518,6 +524,7 @@ def draw_salience(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_salience,
     "salience",
@@ -531,6 +538,7 @@ figures.show(
         f"and {high} above 0.9, out of {len(salience)}."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # 3. Ties and order dependence
@@ -667,6 +675,7 @@ def draw_order(mode):
 
 
 n_dependent = sum(max(r[2]) > 0 for r in order_rows)
+# sphinx_gallery_start_ignore
 figures.show(
     draw_order,
     "order",
@@ -681,6 +690,7 @@ figures.show(
         f"{len(order_rows)} rows change when the graph is rebuilt in another order."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The same numbers, for each rebuild:
@@ -838,6 +848,7 @@ def draw_proximity_scatter(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_proximity_scatter,
     "proximity_scatter",
@@ -855,6 +866,7 @@ figures.show(
         "of edges (filled dots, above the cut line)."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The same three backbones on the network, with the best-connected character
@@ -904,6 +916,7 @@ hub_edges = {
     name: sum(hub in e for e in backbone.edges())
     for name, backbone in proximity_backbones.items()
 }
+# sphinx_gallery_start_ignore
 figures.show(
     draw_proximity_backbones,
     "proximity_backbones",
@@ -921,6 +934,7 @@ figures.show(
         + "."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Jaccard favors tight groups of characters with similar circles and drops
@@ -1015,6 +1029,7 @@ def draw_sparsifiers(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_sparsifiers,
     "sparsifiers",
@@ -1034,6 +1049,7 @@ figures.show(
         )
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Local degree keeps every character attached, by its edge to the
@@ -1143,6 +1159,7 @@ def draw_convergence(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_convergence,
     "convergence",
@@ -1165,6 +1182,7 @@ figures.show(
         )
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Without smoothing the deviation stalls far above the tolerance and the

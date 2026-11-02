@@ -42,7 +42,8 @@ documentation is built, so the text always matches the code.
 # network, and :func:`!draw_backbone`, which draws a backbone over the
 # original graph. Each figure is drawn by a function of the color mode
 # (``"light"`` or ``"dark"``) so that the page can show the version that
-# matches your theme; ``figures.show`` saves both. In your own notebook, call
+# matches your theme. The code that saves both is left out of the page (it
+# is in the downloadable script and notebook). In your own notebook, call
 # the drawing function and Matplotlib shows the figure.
 
 from collections import Counter
@@ -60,9 +61,11 @@ from matplotlib.lines import Line2D
 
 import nx_backbone as nb
 
+# sphinx_gallery_start_ignore
 # Drawings of the larger network, with thousands of edges, are saved as PNG
 # (``fmt="png"``) rather than SVG to keep the page light.
 figures = TutorialFigures("start_here")
+# sphinx_gallery_end_ignore
 
 
 # %%
@@ -170,6 +173,7 @@ def draw_hairballs(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_hairballs,
     "hairballs",
@@ -187,6 +191,7 @@ figures.show(
         "counts are in the panel titles."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The obvious fix is a **global weight cut**: keep the edges whose weight is
@@ -264,6 +269,7 @@ def draw_distributions(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_distributions,
     "distributions",
@@ -285,6 +291,7 @@ figures.show(
         "Misérables; dashed lines and triangles: collaborations."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Panel (b) is the heart of the problem. A tie of a given weight is
@@ -405,6 +412,7 @@ def draw_pvalue_map(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_pvalue_map,
     "pvalue_map",
@@ -426,6 +434,7 @@ figures.show(
         ":math:`p = 0.05`."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Most edges carry little evidence. To see why, look at the test from two
@@ -534,6 +543,7 @@ def draw_null(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_null,
     "null_model",
@@ -554,6 +564,7 @@ figures.show(
         "edges (right), even a majority share is not."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # This is the price of a *local* null model. Each node is judged on its own
@@ -683,6 +694,7 @@ def draw_alpha_curves(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_alpha_curves,
     "alpha_curves",
@@ -703,6 +715,7 @@ figures.show(
         "three levels."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The two networks tell different stories:
@@ -782,6 +795,7 @@ def draw_global_vs_local(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_global_vs_local,
     "global_vs_local",
@@ -804,6 +818,7 @@ figures.show(
         "titles."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # With the same budget of edges, the global cut spends it on the ties among
@@ -865,6 +880,7 @@ def draw_small_multiples(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_small_multiples,
     "small_multiples",
@@ -884,6 +900,7 @@ figures.show(
         "title gives the method and how many edges and nodes it keeps."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Pictures invite over-reading, so put numbers beside them.
@@ -1076,6 +1093,7 @@ def draw_votes(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_votes,
     "votes",
@@ -1097,6 +1115,7 @@ figures.show(
         "kept by more methods; the counts are printed above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The edges every method keeps are the safest to interpret; edges kept by a
@@ -1166,6 +1185,7 @@ def draw_signed(mode):
     return fig
 
 
+# sphinx_gallery_start_ignore
 figures.show(
     draw_signed,
     "signed",
@@ -1184,6 +1204,7 @@ figures.show(
         "(dashed red, right). The counts are printed above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The positive part looks like the department structure; the negative part
