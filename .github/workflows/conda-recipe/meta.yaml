@@ -1,8 +1,10 @@
 {% set name = "nx-backbone" %}
 {# The version comes from the release tag.  publish-to-conda.yml sets
-   NX_BACKBONE_VERSION from setuptools-scm (checked against the tag on
-   release), and the build passes it on to setuptools-scm so the conda package
-   and the installed metadata agree. #}
+   NX_BACKBONE_VERSION from setuptools-scm (checked against the tag when it
+   builds one), and the build passes it on to setuptools-scm so the conda
+   package and the installed metadata agree.  To build locally:
+   NX_BACKBONE_VERSION=X.Y.Z conda build .github/workflows/conda-recipe/
+   --override-channels -c conda-forge #}
 {% set version = environ.get("NX_BACKBONE_VERSION", "0.0.0") %}
 
 package:
@@ -30,8 +32,8 @@ requirements:
 test:
   imports:
     - nx_backbone
-  # The tests also read the Les Misérables benchmark definitions, the roadmap
-  # figure script, two docs pages, the README and the pytest configuration.
+  # The tests also read the Les Misérables benchmark definitions, the scripts,
+  # docs pages and figure scripts, the README and the pytest configuration.
   source_files:
     - tests/
     - benchmarks/

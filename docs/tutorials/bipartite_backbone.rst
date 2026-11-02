@@ -165,7 +165,8 @@ Comparing SDSM and FDSM
   exact degree sequence by sampling a curveball Markov chain that starts from
   the observed matrix (tuned with ``burn_in`` and ``thin``), but requires more
   computation. P-values are ``(count + 1) / (trials + 1)``, so they are never
-  exactly 0. Increase ``trials`` for more precise p-values.
+  exactly 0. Increase ``trials`` for more precise p-values (see *Monte Carlo
+  resolution* below).
 
 ::
 
@@ -177,6 +178,44 @@ Comparing SDSM and FDSM
 
     print(f"SDSM edges: {sdsm_backbone.number_of_edges()}")
     print(f"FDSM edges: {fdsm_backbone.number_of_edges()}")
+
+Monte Carlo resolution
+----------------------
+
+No FDSM p-value can be below the **floor** ``1 / (trials + 1)``
+(``2 / (trials + 1)`` with ``signed=True``). :func:`~nx_backbone.fdsm`
+stores the floor and the number of trials on the graph, and gives each pair
+its Monte Carlo standard error and a 95% upper confidence bound on the exact
+p-value::
+
+    H = nb.fdsm(B, agent_nodes=women_nodes, trials=1000, seed=42)
+    print(H.graph["fdsm_trials"], H.graph["fdsm_pvalue_floor"])
+    u, v, d = min(H.edges(data=True), key=lambda e: e[2]["fdsm_pvalue"])
+    print(d["fdsm_pvalue"], d["fdsm_pvalue_se"], d["fdsm_pvalue_upper"])
+
+The floor matters once you correct for the ``m`` agent pairs tested.
+Bonferroni and Holm multiply the smallest p-value by ``m``, so with fewer than
+about ``m / alpha`` trials no pair can pass, whatever the data.
+Benjamini-Yekutieli needs about ``(ln m + 0.58) / alpha`` trials, and BH only
+``1 / alpha``, but then the pairs tied at the floor pass or fail together.
+:func:`~nx_backbone.backbone_from_projection`, :func:`~nx_backbone.backbone`
+and :func:`~nx_backbone.threshold_filter` emit a ``RuntimeWarning`` when the
+floor makes significance unreachable at your ``alpha`` and ``mtc``, and the
+message gives the number of trials needed::
+
+    nb.backbone_from_projection(
+        B, women_nodes, method="fdsm", trials=1000, seed=42, alpha=0.05, mtc="holm"
+    )
+    # RuntimeWarning: fdsm: no pair can be significant, whatever the data: ...
+    # Use at least trials=... for the floor to allow significance, ...
+
+That number only lets the floor drop below the threshold. To classify the
+pairs near the corrected threshold ``p*`` (``alpha / m`` for Bonferroni)
+within about 10%, use about ``100 / p*`` trials, and trust a pair whose
+``fdsm_pvalue_upper`` passes as well. When that is too many, use
+:func:`~nx_backbone.sdsm`, whose analytic p-values have no floor. The
+narrative tutorial :doc:`/auto_examples/bipartite/plot_bipartite_projections`
+shows the floor on a planted-block matrix.
 
 Partition selection note
 ------------------------

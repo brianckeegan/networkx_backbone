@@ -36,6 +36,7 @@ tutorial :doc:`/tutorials/bipartite_backbone`.
 
 import json
 import sys
+import textwrap
 import time
 import warnings
 from pathlib import Path
@@ -602,9 +603,11 @@ print(
 #
 # To see it, plant a group of agents who share a block of artifacts in an
 # otherwise random incidence matrix, and score it with more and more trials.
-# (A warning for this case is planned in `issue #76
-# <https://github.com/brianckeegan/nx-backbone/issues/76>`_; for now
-# the check is yours to make.)
+# :func:`~nx_backbone.fdsm` records its resolution: the graph holds the
+# number of trials (``"fdsm_trials"``) and the floor
+# (``"fdsm_pvalue_floor"``), and each pair has its Monte Carlo standard error
+# (``"fdsm_pvalue_se"``) and a 95% upper confidence bound on its exact
+# p-value (``"fdsm_pvalue_upper"``).
 
 rng = np.random.default_rng(2)
 R = (rng.random((48, 80)) < 0.08).astype(np.int8)
@@ -612,40 +615,67 @@ R[:8, :20] = rng.random((8, 20)) < 0.95
 m = R.shape[0] * (R.shape[0] - 1) // 2
 H_sdsm_R = nb.sdsm(R)
 sdsm_min = min(d["sdsm_pvalue"] for *_, d in H_sdsm_R.edges(data=True))
-needed = int(np.ceil(m / ALPHA - 1))
 print(
     f"{R.shape[0]} agents x {R.shape[1]} artifacts, m = {m} pairs, alpha/m = {ALPHA / m:.1e}"
 )
+print(f"smallest SDSM p-value: {sdsm_min:.1e}")
 print(
-    f"smallest SDSM p-value: {sdsm_min:.1e}; FDSM needs >= {needed} trials to go below alpha/m"
-)
-print(
-    f"{'trials':>7} {'floor':>9} {'smallest p':>11} {'pairs at floor':>15} {'seconds':>8}"
+    f"{'trials':>7} {'floor':>9} {'smallest p':>11} {'pairs at floor':>15} "
+    f"{'SE':>9} {'95% upper':>10} {'seconds':>8}"
 )
 floor_rows = []
 for trials in (10, 40, 160, 640):
     t0 = time.perf_counter()
     H_fdsm_R = nb.fdsm(R, trials=trials, seed=7)
     elapsed = time.perf_counter() - t0
-    p_R = np.array([d["fdsm_pvalue"] for *_, d in H_fdsm_R.edges(data=True)])
-    floor = 1 / (trials + 1)
-    at_floor = int(np.isclose(p_R, floor).sum())
-    floor_rows.append((trials, p_R.min(), at_floor))
+    floor = H_fdsm_R.graph["fdsm_pvalue_floor"]
+    best = min(
+        (d for *_, d in H_fdsm_R.edges(data=True)), key=lambda d: d["fdsm_pvalue"]
+    )
+    at_floor = sum(p == floor for *_, p in H_fdsm_R.edges(data="fdsm_pvalue"))
+    floor_rows.append((trials, best["fdsm_pvalue"], at_floor))
     print(
-        f"{trials:>7} {floor:>9.1e} {p_R.min():>11.1e} {at_floor:>15} {elapsed:>8.2f}"
+        f"{trials:>7} {floor:>9.1e} {best['fdsm_pvalue']:>11.1e} {at_floor:>15} "
+        f"{best['fdsm_pvalue_se']:>9.1e} {best['fdsm_pvalue_upper']:>10.1e} {elapsed:>8.2f}"
     )
 
-print(
-    f"\nkept at alpha = {ALPHA} after correcting for {m} tests ({floor_rows[-1][0]} trials):"
-)
+# %%
+# The pairs at the floor are not resolved: their standard error is as large
+# as the p-value itself, and the upper bound is about three times the floor.
+# Correcting for the :math:`m` tests then keeps nothing, and
+# :func:`~nx_backbone.threshold_filter` (like
+# :func:`~nx_backbone.backbone_from_projection`) warns when the floor alone
+# rules significance out, with the number of trials it would take:
+
+print(f"kept at alpha = {ALPHA} after correcting for {m} tests ({trials} trials):")
+floor_warnings = {}
 for mtc in ("holm", "bh"):
-    n_fdsm = nb.threshold_filter(
-        H_fdsm_R, "fdsm_pvalue", ALPHA, mtc=mtc
-    ).number_of_edges()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        n_fdsm = nb.threshold_filter(
+            H_fdsm_R, "fdsm_pvalue", ALPHA, mtc=mtc
+        ).number_of_edges()
+    floor_warnings[mtc] = [str(w.message) for w in caught]
     n_sdsm = nb.threshold_filter(
         H_sdsm_R, "sdsm_pvalue", ALPHA, mtc=mtc
     ).number_of_edges()
-    print(f"  {mtc:<5} FDSM {n_fdsm:>3}   SDSM {n_sdsm:>3}")
+    warned = "warns" if floor_warnings[mtc] else "no warning"
+    print(f"  {mtc:<5} FDSM {n_fdsm:>3} ({warned})   SDSM {n_sdsm:>3}")
+print()
+print(textwrap.fill(floor_warnings["holm"][0], 79))
+
+# sphinx_gallery_start_ignore
+# The figure marks the trials the warning asks for.
+from nx_backbone._montecarlo import trials_needed  # noqa: E402
+
+needed = trials_needed(m, ALPHA, "holm")
+assert floor_warnings["holm"] and not floor_warnings["bh"]
+assert f"trials={needed} " in floor_warnings["holm"][0]
+assert all(p == 1 / (t + 1) and n > 1 for t, p, n in floor_rows)
+# "SE as large as the p-value", "upper bound about three times the floor"
+assert np.isclose(best["fdsm_pvalue_se"], floor)
+assert 2.5 < best["fdsm_pvalue_upper"] / floor < 3.5
+# sphinx_gallery_end_ignore
 
 
 # sphinx_gallery_start_ignore
@@ -731,8 +761,10 @@ figures.show(
 # keeps nothing. The BH correction compares the :math:`k`-th smallest p-value
 # with :math:`k\alpha/m`, so it keeps the pairs tied at the floor all together
 # or not at all, depending on how many are tied, not on how strong each tie
-# is. Either use enough trials (about :math:`m/\alpha`), or use the SDSM,
-# whose analytic p-values have no floor.
+# is; it does not warn, because enough ties could pass. Either use enough
+# trials (the warning's count only lets the floor drop below
+# :math:`\alpha/m`; resolving the pairs near it takes about a hundred times
+# more), or use the SDSM, whose analytic p-values have no floor.
 #
 # Signed backbones of the projection
 # ----------------------------------

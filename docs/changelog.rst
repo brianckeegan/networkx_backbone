@@ -4,6 +4,60 @@ Changelog
 Unreleased
 ----------
 
+**Changes in behavior**
+
+- ``ecm_filter`` raises :class:`~networkx.ExceededMaxIterations` when its fit
+  does not reproduce the degrees and strengths to within ``tol``, instead of
+  returning the p-values with a :class:`RuntimeWarning` (#135). Those
+  p-values could be far off: on the graph of #135, 21 edges below 0.05 where
+  the converged fit has 1. The message names a node whose degree or strength
+  is furthest off. Pass ``nonconvergence="warn"`` for the old behavior.
+
+**Changes in results (bug fixes)**
+
+- ``ecm_filter`` converges on graphs with a heavy hub (#135). A node's own
+  out- and in-multipliers can have :math:`y_i y_j > 1` at the optimum, since
+  no node is linked to itself, but the solver treated that self-pair as a
+  pair and its line search stopped there. On the 18-node directed graph of
+  #135 the largest relative error goes from 1.37 to 8e-16, and the edges at
+  ``ecm_pvalue < 0.05`` from 21 to 1 (below 0.01, from 1 to 0); on its
+  undirected version (weights of both directions summed), from 1.33 and 16
+  edges to converged and 1 edge (below 0.01, 14 -> 1). The converged p-values
+  agree with an independent fit of the same likelihood to 1e-15. Graphs on
+  which the solver converged before get bit-for-bit the same p-values (Les
+  Misérables: 72 edges, unchanged).
+- ``ecm_filter`` now handles degree sequences that never allow some pairs to
+  be linked, such as the two ends of a path on four nodes (#135). The
+  maximum-likelihood multipliers are then infinite, and the solver stalled;
+  those pairs are now found from the observed graph and left out of the fit,
+  which is the limit of the ECM. Across every graph of up to 7 nodes (the
+  NetworkX graph atlas, with three weightings) and 2,853 random digraphs of up
+  to 8 nodes, the fits that do not converge go from 1,055 to 0 (both fixes).
+  With ``missing_as_zero=True``, such pairs get both tails 1.
+
+**New features**
+
+*Bipartite methods*
+
+- :func:`~nx_backbone.fdsm` reports its Monte Carlo resolution (#76). Each
+  pair also gets ``fdsm_pvalue_se``, the p-value's Monte Carlo standard
+  error, and ``fdsm_pvalue_upper``, a one-sided 95% Clopper-Pearson upper
+  bound on the exact FDSM p-value; the graph records ``fdsm_trials`` and
+  ``fdsm_pvalue_floor``, the smallest possible p-value ``1/(trials + 1)``
+  (``2/(trials + 1)`` with ``signed=True``).
+  :func:`~nx_backbone.backbone_from_projection` and
+  :func:`~nx_backbone.backbone` with ``method="fdsm"``, and
+  :func:`~nx_backbone.threshold_filter` on a scored ``fdsm`` graph, emit a
+  ``RuntimeWarning`` that gives the number of trials needed when the floor
+  makes significance unreachable at ``alpha`` and ``mtc`` (Bonferroni,
+  Holm, BH, Hochberg, BY or none), and stay silent when it is reachable.
+  On the bipartite tutorial's 48-agent planted-block matrix (1,128 pairs),
+  Holm at alpha = 0.05 needs at least 22,560 trials. The ``fdsm`` Notes and
+  the bipartite how-to page explain the trade-off and the trials to use.
+  P-values, kept edges and signs are unchanged.
+
+**Other changes**
+
 *Documentation*
 
 - One way to put light and dark figures on every kind of docs page (#126).
@@ -73,6 +127,48 @@ Unreleased
   and a joint null, a signed backbone read edge by edge, and how each scorer
   signs an edge, with exact ties signed -1 and the signed LANS lower tail.
   Linked from :doc:`user_guide/directed_graphs`.
+- Two numbers on the how-to pages were wrong and are fixed (#137):
+  :doc:`tutorials/validating_backbones` said a signed test keeps 106 strong
+  edges where the one-tailed test keeps 126 (it keeps 105; the 106th is the
+  weak edge), and :doc:`user_guide/choosing_method` counted 65 functions,
+  which no longer holds and is no longer stated. The simulated share of
+  ``nc_pvalue < 0.05`` in the Notes of
+  :func:`~nx_backbone.noise_corrected_filter` was computed without
+  self-loops; with them, as in the model, it is 0.336 (was 0.342) and
+  0.050 (was 0.051) on directed graphs, 0.242 and 0.043 (were 0.243 and
+  0.047) on undirected ones, and 0.767 (was 0.790) with the ``"delta"``
+  rule on the sparse graphs (0.080, was 0.081, over all pairs). The
+  library's results do not change.
+
+*Testing*
+
+- A new test, ``tests/test_docs_numbers.py``, recomputes the numbers and
+  comparisons stated in the prose of the how-to and user guide pages
+  (Les Misérables counts, fitted parameters, hypergraph backbones, the
+  doctested pages' summaries, and the method counts on
+  :doc:`user_guide/directed_graphs`) and fails with the page, the text it
+  found and the value the library now gives (#137).
+- The noise-corrected calibration test now simulates the model's null with
+  its self-loops: a unit interaction can join a node to itself, and the
+  margins count those interactions. Dropping them, as before, inflated a
+  busy pair beyond what the margins predict (p = 4e-6 in one of its four
+  graphs); the test now also checks that no edge survives a Bonferroni
+  correction on pure noise (#137).
+
+*Infrastructure*
+
+- The conda workflow works again (#16). The 0.3.0 release run failed before
+  building, because it installed ``conda-verify``, an optional conda-build
+  linter with no build for Python 3.12 or later. ``publish-to-conda.yml`` now
+  installs only ``conda-build`` and ``anaconda-client``, from conda-forge
+  alone with strict channel priority on Miniforge. It no longer installs the
+  package into the environment that runs ``conda-build``; the recipe's own
+  test section runs the test suite against the built package. A manual run
+  takes an optional ``tag`` input that builds, tests and uploads an existing
+  release tag, after checking its setuptools-scm version, so a failed release
+  run can be finished from a fixed workflow (a re-run uses the workflow file
+  as it was at the tag). A manual run without ``tag`` stays a dry run.
+  :doc:`contributing` explains how.
 
 Version 0.3.0 (2026-11-02)
 --------------------------

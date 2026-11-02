@@ -30,7 +30,7 @@ from __future__ import annotations
 import math
 import warnings
 from bisect import bisect_left
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import networkx as nx
 
@@ -785,17 +785,17 @@ def noise_corrected_filter(
     of the null model, so it is valid (discrete, hence conservative) for
     every pair.  In simulations from that null (unit interactions whose
     endpoints are drawn with probabilities proportional to lognormal node
-    propensities; 20 seeds each), the share of edges with
-    ``nc_pvalue < 0.05`` was:
+    propensities, so a node can interact with itself and self-loops are
+    kept; 20 seeds each), the share of edges with ``nc_pvalue < 0.05`` was:
 
     ===============================================  =========  ==========
     null graphs                                      "delta"    "binomial"
     ===============================================  =========  ==========
-    2,000 interactions among 50 nodes, undirected    0.243      0.047
-    2,000 interactions among 50 nodes, directed      0.342      0.051
+    2,000 interactions among 50 nodes, undirected    0.242      0.043
+    2,000 interactions among 50 nodes, directed      0.336      0.050
     complete graph on 30 nodes, Poisson(3) weights   0.128      0.033
-    100 interactions among 50 nodes, undirected      0.790      0.154
-    same, all pairs (``missing_as_zero=True``)       0.081      0.016
+    100 interactions among 50 nodes, undirected      0.767      0.154
+    same, all pairs (``missing_as_zero=True``)       0.080      0.016
     ===============================================  =========  ==========
 
     The last two rows show the limit of testing only the edges that are
@@ -1310,6 +1310,7 @@ def ecm_filter(
     signed: bool = False,
     missing_as_zero: bool = False,
     unit: float = 1,
+    nonconvergence: Literal["raise", "warn"] = "raise",
 ) -> nx.Graph:
     r"""Compute ECM (Enhanced Configuration Model) p-values.
 
@@ -1344,7 +1345,8 @@ def ecm_filter(
         Maximum number of solver iterations.
     tol : float, optional (default=1e-6)
         Tolerance on the largest relative error of the reproduced degrees and
-        strengths.  A :class:`RuntimeWarning` is raised if it is not met.
+        strengths.  What happens if it is not met is set by
+        *nonconvergence*.
     signed : bool, optional (default=False)
         If ``True``, run a two-tailed test and add a ``"sign"`` edge attribute
         (``+1`` significantly strong, ``-1`` significantly weak).  The lower
@@ -1360,6 +1362,12 @@ def ecm_filter(
         Weight of one count: the model is applied to the counts
         ``max(round(weight / unit), 1)``.  The p-values depend on it (see
         Notes); the default uses the weights themselves as counts.
+    nonconvergence : {"raise", "warn"}, optional (default="raise")
+        What to do if the solver does not reproduce the degrees and
+        strengths to within *tol*: ``"raise"`` raises
+        :class:`~networkx.ExceededMaxIterations`; ``"warn"`` returns the
+        p-values of the last iterate with a :class:`RuntimeWarning`.  Those
+        p-values can be far from the model's (see Notes).
 
     Returns
     -------
@@ -1374,8 +1382,13 @@ def ecm_filter(
         If any edge has a non-positive, non-finite, or missing weight.
     NetworkXNotImplemented
         If *G* is a multigraph.
+    ExceededMaxIterations
+        If the solver does not reproduce the degree and strength sequences
+        to within *tol* and ``nonconvergence="raise"`` (the default).  The
+        message names a node whose degree or strength is furthest off.
     ValueError
-        If *unit* is not a finite number greater than 0.
+        If *unit* is not a finite number greater than 0, or *nonconvergence*
+        is not ``"raise"`` or ``"warn"``.
 
     Warns
     -----
@@ -1385,8 +1398,8 @@ def ecm_filter(
         has weight at least 1 in the ECM.
     RuntimeWarning
         If the solver does not reproduce the degree and strength sequences to
-        within ``tol``, or if ``missing_as_zero=True`` would add more than
-        one million edges.
+        within *tol* and ``nonconvergence="warn"``, or if
+        ``missing_as_zero=True`` would add more than one million edges.
 
     See Also
     --------
@@ -1421,6 +1434,27 @@ def ecm_filter(
     directed graphs), and conjugate gradients with Hessian-vector products,
     :math:`O(C^2)` time each, above that.
 
+    Only pairs of distinct nodes are linked, so a node's own product
+    :math:`y_i y_j` (out- and in-multiplier of the same node) may exceed 1;
+    it does for a hub whose out- and in-links are both heavy.
+
+    **Pairs the degrees fix.**  Some degree sequences allow only graphs in
+    which certain pairs are never linked (the two ends of a path on four
+    nodes) or always linked (a node linked to every other node).  The
+    maximum-likelihood multipliers are then infinite, and the fit is their
+    limit: :math:`p_{ij} = 0` or :math:`1` for those pairs, so an edge on an
+    always-linked pair has p-value :math:`(y_i y_j)^{w - 1}`.  If the fit does
+    not converge, the pairs that no graph with the observed degrees links
+    are found from the observed graph (when there are at most about four
+    million class pairs) and the fit is repeated without them.
+
+    **Non-convergence.**  If the fit still does not reproduce the degrees
+    and strengths to within *tol*, ``ecm_filter`` raises
+    :class:`~networkx.ExceededMaxIterations` by default, with a message that
+    names a node whose margin is furthest off.  ``nonconvergence="warn"``
+    returns the p-values of the last iterate with a :class:`RuntimeWarning`
+    instead; they can be far from the ECM's, in either direction.
+
     **Absent pairs** (``missing_as_zero=True``).  The multipliers are fitted
     to the degrees and strengths of the existing edges only, so the null
     model of every existing edge is unchanged.  The ECM gives a weight of 0
@@ -1453,6 +1487,10 @@ def ecm_filter(
     import numpy as np
 
     _validate_unit(unit)
+    if nonconvergence not in ("raise", "warn"):
+        raise ValueError(
+            f"nonconvergence must be 'raise' or 'warn'; got {nonconvergence!r}."
+        )
     H = G.copy()
     _validate_weights(H, weight)
 
@@ -1479,11 +1517,13 @@ def ecm_filter(
     k_in = np.zeros(n)
     s_out = np.zeros(n)
     s_in = np.zeros(n)
+    links = []
     for u, v, d in G.edges(data=True):
         if u == v:
             continue
         w = max(round(_as_count(d[weight], unit)), 1)
         i, j = idx[u], idx[v]
+        links.append((i, j))
         k_out[i] += 1
         s_out[i] += w
         k_in[j] += 1
@@ -1492,13 +1532,34 @@ def ecm_filter(
         k_out = k_in = k_out + k_in
         s_out = s_in = s_out + s_in
 
-    a_out, b_out, a_in, b_in, act_out, act_in, err = _fit_ecm(
-        k_out, s_out, k_in, s_in, G.is_directed(), max_iter, tol
+    a_out, b_out, a_in, b_in, act_out, act_in, never, worst, err = _fit_ecm(
+        k_out, s_out, k_in, s_in, G.is_directed(), max_iter, tol, links
     )
-    if err > tol:
+    if not err <= tol:
+        margin, members = worst
+        side = ("out-", "in-")[margin // 2] if G.is_directed() else ""
+        where = (
+            f"the {side}{('degree', 'strength')[margin % 2]} of node "
+            f"{nodes[members[0]]!r}"
+        )
+        if len(members) > 1:
+            where += (
+                f" (and of {len(members) - 1} other nodes with the same "
+                f"degrees and strengths)"
+            )
+        message = (
+            f"ecm_filter: the ECM solver did not converge: the largest "
+            f"relative error of the fitted degrees and strengths is "
+            f"{err:.2e} > tol={tol:g}, in {where}."
+        )
+        if nonconvergence == "raise":
+            raise nx.ExceededMaxIterations(
+                f"{message} Its p-values would be inaccurate. Try a larger "
+                f"max_iter (now {max_iter}) or tol, or pass "
+                f"nonconvergence='warn' to return them with a warning."
+            )
         warnings.warn(
-            f"ecm_filter: the ECM solver did not converge (largest relative "
-            f"error {err:.2e} > tol={tol:g}); p-values may be inaccurate.",
+            f"{message} The p-values may be inaccurate.",
             RuntimeWarning,
             stacklevel=_external_stacklevel(),
         )
@@ -1543,8 +1604,8 @@ def ecm_filter(
 
     def zero_tails(u, v):
         i, j = idx[u], idx[v]
-        if not (act_out[i] and act_in[j]):
-            return 1.0, 1.0, {}  # x = 0: the pair is never linked
+        if not (act_out[i] and act_in[j]) or never(i, j):
+            return 1.0, 1.0, {}  # p_ij = 0: the pair is never linked
         return (*tails(i, j, 0), {})
 
     _add_zero_edges(H, dyads, weight, zero_tails, "ecm_pvalue", signed)
@@ -1559,9 +1620,60 @@ _ECM_CHUNK = 1 << 19
 # Newton-CG keeps the per-pair curvature between Hessian-vector products when
 # there are at most this many class pairs.
 _ECM_CACHE_PAIRS = 1 << 22
+# Pairs that the degrees never allow to be linked are looked for before the
+# fit for up to this many class pairs, and after a fit that does not converge
+# for up to _ECM_FORCED_MAX_PAIRS.
+_ECM_FORCED_EAGER_PAIRS = 1 << 16
+_ECM_FORCED_MAX_PAIRS = 1 << 22
 
 
-def _fit_ecm(k_out, s_out, k_in, s_in, directed, max_iter, tol):
+def _ecm_never_linked(link_rows, link_cols, mo, mi, excluded):
+    """Class pairs that no graph with the observed degrees links.
+
+    ``mo`` and ``mi`` are the sizes of the out- (row) and in- (column)
+    classes, ``excluded = (row, col, count)`` the node pairs that are not
+    pairs (self-pairs), and ``link_rows``, ``link_cols`` the classes of the
+    ends of each observed link (both orientations for undirected graphs).
+
+    Link probabilities ``p_ij`` in ``[0, 1]`` with the observed degrees as
+    their sums form a polytope, the convex hull of the graphs with those
+    degrees.  By symmetry between nodes with equal degrees, its class-pair
+    totals ``P_cd`` form a transportation polytope with capacities
+    ``W_cd``, the number of node pairs, and the observed graph is one point
+    of it.  ``P_cd`` can move away from 0 only along a cycle of the residual
+    graph (arcs ``c -> d`` where ``P_cd < W_cd`` and ``d -> c`` where
+    ``P_cd > 0``), so an unlinked pair is never linked exactly when its two
+    classes are in different strongly connected components.  For undirected
+    graphs the same holds for the symmetric (bipartite double cover)
+    problem.  Returns a boolean ``(rows, cols)`` matrix.
+    """
+    import numpy as np
+    from scipy.sparse import coo_array
+    from scipy.sparse.csgraph import connected_components
+
+    n_rows, n_cols = len(mo), len(mi)
+    W = mo[:, None] * mi[None, :]
+    np.subtract.at(W, (excluded[0], excluded[1]), excluded[2])
+    P = np.zeros((n_rows, n_cols))
+    np.add.at(P, (link_rows, link_cols), 1.0)
+    fwd_r, fwd_c = np.nonzero((W > 0) & (P < W))
+    back_r, back_c = np.nonzero(P > 0)
+    arcs = coo_array(
+        (
+            np.ones(len(fwd_r) + len(back_r)),
+            (
+                np.concatenate([fwd_r, n_rows + back_c]),
+                np.concatenate([n_rows + fwd_c, back_r]),
+            ),
+        ),
+        shape=(n_rows + n_cols, n_rows + n_cols),
+    )
+    _, label = connected_components(arcs, directed=True, connection="strong")
+    split = label[:n_rows, None] != label[None, n_rows:]
+    return (W > 0) & (P == 0) & split
+
+
+def _fit_ecm(k_out, s_out, k_in, s_in, directed, max_iter, tol, links=()):
     """Maximum-likelihood ECM multipliers.
 
     Works with ``x * y = exp(-a)`` and ``y = exp(-b)``.  Parameterizing by
@@ -1577,9 +1689,26 @@ def _fit_ecm(k_out, s_out, k_in, s_in, directed, max_iter, tol):
     from the cheaper fit over separate out- and in-classes, which is exact
     except for the excluded self-pairs.
 
-    Nodes with zero degree are left out of the fit.  Returns
-    ``(a_out, b_out, a_in, b_in, active_out, active_in, max_relative_error)``
-    with one entry per node.
+    Nodes with zero degree are left out of the fit.
+
+    Some degree sequences allow only graphs in which certain pairs are never
+    linked (for example, the two ends of a path on four nodes).  The
+    maximum-likelihood multipliers are then infinite, and the fit converges
+    to the limit, the ECM over the other pairs.  Given *links* (the
+    ``(i, j)`` node indices of the observed links, each undirected link
+    once), such pairs are found with :func:`_ecm_never_linked` and left out:
+    before the fit for up to :data:`_ECM_FORCED_EAGER_PAIRS` class pairs,
+    otherwise only if the fit does not converge, for up to
+    :data:`_ECM_FORCED_MAX_PAIRS`.
+
+    Returns ``(a_out, b_out, a_in, b_in, active_out, active_in, never,
+    worst, max_relative_error)`` with one entry per node in the first six.
+    ``never(i, j)`` tells whether the pair ``(i, j)`` was found never to be
+    linked (``p_ij = 0``).
+    ``worst = (margin, nodes)`` locates the largest relative error: *margin*
+    is 0-3 for out-degree, out-strength, in-degree and in-strength (the
+    same margins twice for undirected graphs), and *nodes* are the indices
+    of the nodes of that class.
     """
     import numpy as np
 
@@ -1610,11 +1739,14 @@ def _fit_ecm(k_out, s_out, k_in, s_in, directed, max_iter, tol):
         pos[rows] = np.arange(len(rows))
         k, s, m = keys[rows, 0], keys[rows, 1], mult[rows]
         diag = np.arange(len(rows))
-        a, b, _, _, err = _ecm_newton(
-            (k, s, m), (k, s, m), (diag, diag, m), False, None, max_iter, tol
-        )
+        cols = rows
+        out_side = in_side = (k, s, m)
+        selfp = (diag, diag, m)
         out_pos = in_pos = pos[node_class]
-        a_o, b_o, a_i, b_i = a, b, a, b
+
+        def warm_start():
+            return None
+
     else:
         keys, node_class, mult = unique_rows(k_out, s_out, k_in, s_in)
         rows = np.flatnonzero(keys[:, 0] > 0)
@@ -1627,12 +1759,15 @@ def _fit_ecm(k_out, s_out, k_in, s_in, directed, max_iter, tol):
         out_side = (keys[rows, 0], keys[rows, 1], mult[rows])
         in_side = (keys[cols, 2], keys[cols, 3], mult[cols])
         selfp = (row_pos[both], col_pos[both], mult[both])
+        out_pos = row_pos[node_class]
+        in_pos = col_pos[node_class]
 
-        # Warm start: classes of (k_out, s_out) and of (k_in, s_in) alone.
-        okeys, ocls, _ = unique_rows(*out_side[:2])
-        ikeys, icls, _ = unique_rows(*in_side[:2])
-        theta0 = None
-        if len(okeys) < len(rows) or len(ikeys) < len(cols):
+        def warm_start():
+            # Classes of (k_out, s_out) and of (k_in, s_in) alone.
+            okeys, ocls, _ = unique_rows(*out_side[:2])
+            ikeys, icls, _ = unique_rows(*in_side[:2])
+            if len(okeys) == len(rows) and len(ikeys) == len(cols):
+                return None
             coarse = _ecm_newton(
                 (okeys[:, 0], okeys[:, 1], np.bincount(ocls, weights=out_side[2])),
                 (ikeys[:, 0], ikeys[:, 1], np.bincount(icls, weights=in_side[2])),
@@ -1644,22 +1779,70 @@ def _fit_ecm(k_out, s_out, k_in, s_in, directed, max_iter, tol):
                 max_iter,
                 tol,
             )
-            theta0 = (
+            return (
                 coarse[0][ocls],
                 coarse[1][ocls],
                 coarse[2][icls],
                 coarse[3][icls],
             )
-        a_o, b_o, a_i, b_i, err = _ecm_newton(
-            out_side, in_side, selfp, True, theta0, max_iter, tol
+
+    # Pairs that no graph with the observed degrees links have infinite
+    # multipliers; the fit leaves them out.  They are looked for up front
+    # when that is cheap, and otherwise only if the fit does not converge.
+    n_rows, n_cols = len(out_side[0]), len(in_side[0])
+    n_pairs = n_rows * n_cols if len(links) else _ECM_FORCED_MAX_PAIRS + 1
+
+    def never_linked():
+        src, dst = np.asarray(links, dtype=np.intp).T
+        if not directed:
+            src, dst = np.concatenate([src, dst]), np.concatenate([dst, src])
+        found = _ecm_never_linked(
+            out_pos[src], in_pos[dst], out_side[2], in_side[2], selfp
         )
-        out_pos = row_pos[node_class]
-        in_pos = col_pos[node_class]
+        return found if found.any() else None
+
+    def fit_without(never_cls):
+        # Exclude every node pair of those class pairs.  Each class pair
+        # appears once, sorted by row, as _ecm_newton requires.
+        r, c = np.nonzero(never_cls)
+        never_key = r * n_cols + c
+        self_key = selfp[0] * n_cols + selfp[1]
+        keep = ~np.isin(self_key, never_key)
+        flat = np.concatenate([self_key[keep], never_key])
+        counts = np.concatenate([selfp[2][keep], out_side[2][r] * in_side[2][c]])
+        order = np.argsort(flat)
+        excluded = (*np.divmod(flat[order], n_cols), counts[order])
+        return _ecm_newton(out_side, in_side, excluded, directed, None, max_iter, tol)
+
+    eager = n_pairs <= _ECM_FORCED_EAGER_PAIRS
+    never_cls = never_linked() if eager else None
+    if never_cls is not None:
+        fit = fit_without(never_cls)
+    else:
+        fit = _ecm_newton(
+            out_side, in_side, selfp, directed, warm_start(), max_iter, tol
+        )
+        if fit[4] > tol and not eager and n_pairs <= _ECM_FORCED_MAX_PAIRS:
+            never_cls = never_linked()
+            if never_cls is not None:
+                refit = fit_without(never_cls)
+                if refit[4] < fit[4]:
+                    fit = refit
+                else:
+                    never_cls = None
+    a_o, b_o, a_i, b_i, err, (margin, cls) = fit
+    key = (rows if margin < 2 else cols)[cls]
+    worst = (margin, np.flatnonzero(node_class == key))
 
     def per_node(values, pos, default):
         out = np.full(n, default)
         out[pos >= 0] = values[pos[pos >= 0]]
         return out
+
+    def never(i, j):
+        if never_cls is None or out_pos[i] < 0 or in_pos[j] < 0:
+            return False
+        return bool(never_cls[out_pos[i], in_pos[j]])
 
     return (
         per_node(a_o, out_pos, 0.0),
@@ -1668,6 +1851,8 @@ def _fit_ecm(k_out, s_out, k_in, s_in, directed, max_iter, tol):
         per_node(b_i, in_pos, 1.0),
         act_out,
         act_in,
+        never,
+        worst,
         err,
     )
 
@@ -1689,7 +1874,10 @@ def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
     :data:`_ECM_NEWTON_MAX_PARAMS` parameters and by block-Jacobi-preconditioned
     conjugate gradients (Hessian-vector products) above.
 
-    Returns ``(a_out, b_out, a_in, b_in, max_relative_error)`` per class.
+    Returns ``(a_out, b_out, a_in, b_in, max_relative_error, worst)``: the
+    multipliers per class, and ``worst = (margin, class)`` for the largest
+    relative error, with *margin* 0-3 for out-degree, out-strength,
+    in-degree and in-strength.
     """
     import numpy as np
     from scipy.linalg import LinAlgWarning, solve
@@ -1711,6 +1899,12 @@ def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
         W[self_row[lo:hi] - r0, self_col[lo:hi]] -= self_counts[lo:hi]
         return W
 
+    # Class pairs that stand for no node pair at all: the self-pair of a
+    # class with a single node.  Their y_i y_j may exceed 1 at the optimum
+    # (e.g. a hub whose out- and in-links are both heavy), since only
+    # distinct nodes are linked, so they must not reach log(1 - y_i y_j).
+    empty = mo[self_row] * mi[self_col] == self_counts
+
     # Parameter layout.  Undirected graphs share out- and in-multipliers;
     # their objective is half the directed one, which counts each unordered
     # pair twice.
@@ -1726,10 +1920,15 @@ def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
         n_par = 2 * n_out
         scale = 0.5
 
-    def pairs(theta, r0, r1):
+    def pairs(theta, r0, r1, lo, hi):
         # log of x_i x_j y_i y_j and of y_i y_j for out-class rows r0:r1.
         log_yy = -(theta[bo[r0:r1], None] + theta[bi][None, :])
         log_xxyy = -(theta[ao[r0:r1], None] + theta[ai][None, :])
+        # Empty class pairs get placeholder values inside the domain; their
+        # pair count is 0, so they add nothing.
+        e = lo + np.flatnonzero(empty[lo:hi])
+        log_yy[self_row[e] - r0, self_col[e]] = -1.0
+        log_xxyy[self_row[e] - r0, self_col[e]] = 0.0
         one_minus_yy = -np.expm1(log_yy)
         # q = x_i x_j y_i y_j / (1 - y_i y_j); log Z = log(1 + q)
         log_q = log_xxyy - np.log(one_minus_yy)
@@ -1750,7 +1949,7 @@ def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
         k_i, s_i = np.zeros(n_in), np.zeros(n_in)
         for r0, r1, lo, hi in chunks:
             W = pair_counts(r0, r1, lo, hi)
-            p, one_minus_yy, _, log_z = pairs(theta, r0, r1)
+            p, one_minus_yy, _, log_z = pairs(theta, r0, r1, lo, hi)
             nll += np.sum(W * log_z)
             Wp = W * p
             Ww = Wp / one_minus_yy  # times the expected weight
@@ -1775,7 +1974,7 @@ def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
     def curvature(theta, r0, r1, lo, hi):
         """Pair-count-weighted second derivatives of log Z in (a, b)."""
         W = pair_counts(r0, r1, lo, hi)
-        p, one_minus_yy, log_yy, _ = pairs(theta, r0, r1)
+        p, one_minus_yy, log_yy, _ = pairs(theta, r0, r1, lo, hi)
         g = np.exp(log_yy) / one_minus_yy  # (expected weight - p) / p
         A = W * p * (1.0 - p)  # d2/da2
         B = A * g  # d2/da db
@@ -1966,7 +2165,19 @@ def _ecm_newton(out_side, in_side, self_pairs, directed, theta0, max_iter, tol):
                 break
             theta, f, grad, err = cand, f_new, grad_new, err_new
 
-    return theta[ao], theta[bo], theta[ai], theta[bi], err
+    # The margin furthest from its target, for the non-convergence message.
+    # The gradient is (observed - expected) total degree for a and the same
+    # for strength - degree for b, per class and side.
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rel_errors = [
+            np.abs(grad[ao]) / (mo * ko),
+            np.abs(grad[ao] + grad[bo]) / (mo * so),
+            np.abs(grad[ai]) / (mi * ki),
+            np.abs(grad[ai] + grad[bi]) / (mi * si),
+        ]
+    margin = max(range(4), key=lambda q: np.nanmax(rel_errors[q], initial=0.0))
+    worst = (margin, int(np.nanargmax(rel_errors[margin])))
+    return theta[ao], theta[bo], theta[ai], theta[bi], err, worst
 
 
 # =====================================================================
