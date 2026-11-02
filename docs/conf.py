@@ -103,8 +103,8 @@ nitpick_ignore_regex = [
     (r"py:class", r"or"),
     # Quoted string values and set-like type annotations from docstrings
     (r"py:class", r'".*"'),
-    (r"py:class", r'\{.*'),
-    (r"py:class", r'.*\}'),
+    (r"py:class", r"\{.*"),
+    (r"py:class", r".*\}"),
     # NetworkX exceptions named without the module in numpydoc Raises sections
     (r"py:exc", r"NetworkXError"),
     (r"py:exc", r"NetworkXNotImplemented"),
@@ -230,7 +230,9 @@ def _build_roadmap_figures(app):
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module  # dataclasses look the module up here
     spec.loader.exec_module(module)
-    module.build(Path(app.srcdir) / "_static" / "roadmap", Path(app.srcdir) / "roadmap.rst")
+    module.build(
+        Path(app.srcdir) / "_static" / "roadmap", Path(app.srcdir) / "roadmap.rst"
+    )
 
 
 # -- Method gallery --------------------------------------------------------------

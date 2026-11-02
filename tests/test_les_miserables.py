@@ -1,24 +1,16 @@
 """Les Miserables benchmark tests across non-bipartite backbone methods."""
 
-import warnings
-
 import networkx as nx
 import pytest
 
-from benchmarks.benchmarks.les_miserables import UNWEIGHTED_CASES, WEIGHTED_CASES
-
-
-def _warn_if_no_edge_reduction(method_name, original_edges, filtered_edges):
-    if filtered_edges == original_edges:
-        warnings.warn(
-            (
-                f"{method_name}: filtered graph has the same number of edges "
-                f"as the original ({original_edges}). Re-test and validate."
-            ),
-            UserWarning,
-            stacklevel=2,
-        )
-
+from benchmarks.benchmarks.les_miserables import (
+    CASES,
+    UNWEIGHTED_CASES,
+    WEIGHTED_CASES,
+    graph_for,
+    les_miserables_unweighted,
+    les_miserables_weighted,
+)
 
 # Edge count each method keeps on Les Miserables after score-then-filter.  The
 # scorer and filter behind every label are defined once, in
@@ -71,87 +63,39 @@ EXPECTED_EDGES = {
     "local_degree": 91,
 }
 
-WEIGHTED_METHOD_EDGE_COUNTS = [
-    (case.name, case.score, case.filter_graph, EXPECTED_EDGES.get(case.name))
-    for case in WEIGHTED_CASES
-]
-
-UNWEIGHTED_METHOD_EDGE_COUNTS = [
-    (case.name, case.score, case.filter_graph, EXPECTED_EDGES.get(case.name))
-    for case in UNWEIGHTED_CASES
-]
-
 
 def test_every_benchmark_case_is_pinned():
     """Each case in the shared definition has exactly one pinned count."""
-    names = [case.name for case in WEIGHTED_CASES + UNWEIGHTED_CASES]
+    names = [case.name for case in CASES]
     assert len(names) == len(set(names))
     assert set(names) == set(EXPECTED_EDGES)
     assert all(not case.weighted for case in UNWEIGHTED_CASES)
     assert all(case.weighted for case in WEIGHTED_CASES)
+    # Every pinned backbone removes edges (Les Miserables has 254).
+    assert max(EXPECTED_EDGES.values()) < 254
 
 
-def test_les_miserables_baseline(les_miserables_weighted, les_miserables_unweighted):
-    """NetworkX Les Miserables generator should remain stable."""
-    assert les_miserables_weighted.number_of_nodes() == 77
-    assert les_miserables_weighted.number_of_edges() == 254
-    assert les_miserables_unweighted.number_of_edges() == 254
+# Sinkhorn-Knopp does not converge on Les Miserables (see EXPECTED_EDGES).
+@pytest.mark.filterwarnings("ignore:doubly_stochastic_filter:RuntimeWarning")
+def test_edge_counts():
+    """Score-then-filter keeps the pinned number of edges for every case.
 
+    One test for all cases, so a change lists every count that moved.
+    """
+    # The NetworkX generator itself must not change under the pins.
+    G = les_miserables_weighted()
+    assert (G.number_of_nodes(), G.number_of_edges()) == (77, 254)
+    assert les_miserables_unweighted().number_of_edges() == 254
 
-def test_warning_trigger_for_no_edge_reduction():
-    with pytest.warns(UserWarning, match="same number of edges"):
-        _warn_if_no_edge_reduction("dummy_method", 10, 10)
-
-
-@pytest.mark.parametrize(
-    ("method_name", "score_method", "filter_method", "expected_edges"),
-    WEIGHTED_METHOD_EDGE_COUNTS,
-    ids=[m[0] for m in WEIGHTED_METHOD_EDGE_COUNTS],
-)
-def test_weighted_methods_edge_counts(
-    method_name,
-    score_method,
-    filter_method,
-    expected_edges,
-    les_miserables_weighted,
-):
-    """Weighted methods must use score-then-filter before benchmarking."""
-    scored = score_method(les_miserables_weighted)
-    filtered = filter_method(scored)
-    assert isinstance(filtered, nx.Graph), method_name
-    assert filtered.number_of_nodes() == les_miserables_weighted.number_of_nodes(), (
-        method_name
-    )
-    assert filtered.number_of_edges() == expected_edges, method_name
-    _warn_if_no_edge_reduction(
-        method_name,
-        les_miserables_weighted.number_of_edges(),
-        filtered.number_of_edges(),
-    )
-
-
-@pytest.mark.parametrize(
-    ("method_name", "score_method", "filter_method", "expected_edges"),
-    UNWEIGHTED_METHOD_EDGE_COUNTS,
-    ids=[m[0] for m in UNWEIGHTED_METHOD_EDGE_COUNTS],
-)
-def test_unweighted_methods_edge_counts(
-    method_name,
-    score_method,
-    filter_method,
-    expected_edges,
-    les_miserables_unweighted,
-):
-    """Unweighted methods must use score-then-filter before benchmarking."""
-    scored = score_method(les_miserables_unweighted)
-    filtered = filter_method(scored)
-    assert isinstance(filtered, nx.Graph), method_name
-    assert filtered.number_of_nodes() == les_miserables_unweighted.number_of_nodes(), (
-        method_name
-    )
-    assert filtered.number_of_edges() == expected_edges, method_name
-    _warn_if_no_edge_reduction(
-        method_name,
-        les_miserables_unweighted.number_of_edges(),
-        filtered.number_of_edges(),
-    )
+    failures = []
+    for case in CASES:
+        G = graph_for(case)
+        filtered = case.run(G)
+        if not isinstance(filtered, nx.Graph) or set(filtered) != set(G):
+            failures.append(f"{case.name}: wrong graph type or node set")
+        if filtered.number_of_edges() != EXPECTED_EDGES[case.name]:
+            failures.append(
+                f"{case.name}: {filtered.number_of_edges()} edges "
+                f"(expected {EXPECTED_EDGES[case.name]})"
+            )
+    assert not failures, "\n".join(failures)

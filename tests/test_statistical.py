@@ -82,20 +82,18 @@ class TestDisparity:
         assert signed["c"][1]["disparity_pvalue"] == pytest.approx(min(1.0, 2 * p_hi))
 
 
-@pytest.mark.parametrize(
-    ("scorer", "attr"),
-    [
+def test_signed_adds_sign_and_two_sided_pvalue(les_miserables_weighted):
+    for scorer, attr in [
         (nb.disparity_filter, "disparity_pvalue"),
         (nb.mlf, "ml_pvalue"),
         (nb.lans, "lans_pvalue"),
         (nb.ecm_filter, "ecm_pvalue"),
         (nb.noise_corrected_filter, "nc_pvalue"),
-    ],
-)
-def test_signed_adds_sign_and_two_sided_pvalue(scorer, attr, les_miserables_weighted):
-    H = scorer(les_miserables_weighted, signed=True)
-    assert all("sign" in d and d["sign"] in (-1, 1) for _, _, d in H.edges(data=True))
-    assert all(0.0 <= d[attr] <= 1.0 for _, _, d in H.edges(data=True))
+    ]:
+        H = scorer(les_miserables_weighted, signed=True)
+        edges = list(H.edges(data=True))
+        assert all(d.get("sign") in (-1, 1) for *_, d in edges), scorer.__name__
+        assert all(0.0 <= d[attr] <= 1.0 for *_, d in edges), scorer.__name__
 
 
 def test_aliases_match_full_names(les_miserables_weighted):
@@ -149,15 +147,15 @@ NC_REFERENCE = {
 
 
 class TestNoiseCorrected:
-    @pytest.mark.parametrize("kind", ["undirected", "directed"])
-    def test_matches_reference_implementation(self, kind):
-        G = nx.DiGraph() if kind == "directed" else nx.Graph()
-        edges = NC_DIRECTED_EDGES if kind == "directed" else NC_UNDIRECTED_EDGES
-        G.add_weighted_edges_from(edges)
-        H = nb.noise_corrected_filter(G)
-        for (u, v), (score, sdev) in NC_REFERENCE[kind].items():
-            assert H[u][v]["nc_score"] == pytest.approx(score, abs=1e-11)
-            assert H[u][v]["nc_sdev"] == pytest.approx(sdev, rel=1e-9)
+    def test_matches_reference_implementation(self):
+        for kind in ("undirected", "directed"):
+            G = nx.DiGraph() if kind == "directed" else nx.Graph()
+            edges = NC_DIRECTED_EDGES if kind == "directed" else NC_UNDIRECTED_EDGES
+            G.add_weighted_edges_from(edges)
+            H = nb.noise_corrected_filter(G)
+            for (u, v), (score, sdev) in NC_REFERENCE[kind].items():
+                assert H[u][v]["nc_score"] == pytest.approx(score, abs=1e-11), kind
+                assert H[u][v]["nc_sdev"] == pytest.approx(sdev, rel=1e-9), kind
 
     def test_hand_computed_lift_score(self):
         # Undirected edges count in both directions: n.. = 2 * 12 = 24,
@@ -370,41 +368,31 @@ def _ecm_expectations(fit, directed):
 
 
 class TestECM:
-    @pytest.mark.parametrize("directed", [False, True])
-    def test_fit_reproduces_degrees_and_strengths(
-        self, les_miserables_weighted, directed
-    ):
+    def test_fit_reproduces_degrees_and_strengths(self, les_miserables_weighted):
         import numpy as np
 
         from networkx_backbone.statistical import _fit_ecm
 
-        G = nx.DiGraph(les_miserables_weighted) if directed else les_miserables_weighted
-        nodes = list(G)
-        k_out = np.array(
-            [G.out_degree(v) if directed else G.degree(v) for v in nodes], float
-        )
-        s_out = np.array(
-            [
-                G.out_degree(v, weight="weight")
-                if directed
-                else G.degree(v, weight="weight")
-                for v in nodes
-            ],
-            float,
-        )
-        k_in = np.array([G.in_degree(v) for v in nodes], float) if directed else k_out
-        s_in = (
-            np.array([G.in_degree(v, weight="weight") for v in nodes], float)
-            if directed
-            else s_out
-        )
-        fit = _fit_ecm(k_out, s_out, k_in, s_in, directed, 1000, 1e-8)
-        assert fit[-1] < 1e-6
-        p, w = _ecm_expectations(fit, directed)
-        np.testing.assert_allclose(p.sum(1), k_out, rtol=1e-6)
-        np.testing.assert_allclose(w.sum(1), s_out, rtol=1e-6)
-        np.testing.assert_allclose(p.sum(0), k_in, rtol=1e-6)
-        np.testing.assert_allclose(w.sum(0), s_in, rtol=1e-6)
+        for directed in (False, True):
+            G = les_miserables_weighted
+            if directed:
+                G = nx.DiGraph(G)
+            nodes = list(G)
+            out_deg = G.out_degree if directed else G.degree
+            k_out = np.array([out_deg(v) for v in nodes], float)
+            s_out = np.array([out_deg(v, weight="weight") for v in nodes], float)
+            k_in, s_in = k_out, s_out
+            if directed:
+                k_in = np.array([G.in_degree(v) for v in nodes], float)
+                s_in = np.array([G.in_degree(v, weight="weight") for v in nodes], float)
+            fit = _fit_ecm(k_out, s_out, k_in, s_in, directed, 1000, 1e-8)
+            assert fit[-1] < 1e-6, directed
+            p, w = _ecm_expectations(fit, directed)
+            msg = f"directed={directed}"
+            np.testing.assert_allclose(p.sum(1), k_out, rtol=1e-6, err_msg=msg)
+            np.testing.assert_allclose(w.sum(1), s_out, rtol=1e-6, err_msg=msg)
+            np.testing.assert_allclose(p.sum(0), k_in, rtol=1e-6, err_msg=msg)
+            np.testing.assert_allclose(w.sum(0), s_in, rtol=1e-6, err_msg=msg)
 
     def test_pvalue_is_geometric_tail(self, count_graph):
         # p-value = p_ij * (y_i y_j)^(w - 1): heavier links are rarer.
@@ -486,32 +474,32 @@ class TestECM:
         np.testing.assert_allclose(p.sum(0), k_in, rtol=1e-8, atol=1e-12)
         np.testing.assert_allclose(w.sum(0), s_in, rtol=1e-8, atol=1e-12)
 
-    @pytest.mark.parametrize("directed", [False, True])
-    def test_newton_cg_matches_dense_newton(
-        self, les_miserables_weighted, directed, monkeypatch
-    ):
+    def test_newton_cg_matches_dense_newton(self, les_miserables_weighted, monkeypatch):
         # Large problems use Newton-CG with chunked Hessian-vector products;
         # force it (and tiny chunks) on Les Miserables and compare.
         import networkx_backbone.statistical as st
 
-        G = nx.DiGraph(les_miserables_weighted) if directed else les_miserables_weighted
-        dense = st.ecm_filter(G, tol=1e-10, signed=True)
+        graphs = [les_miserables_weighted, nx.DiGraph(les_miserables_weighted)]
+        dense = [st.ecm_filter(G, tol=1e-10, signed=True) for G in graphs]
         monkeypatch.setattr(st, "_ECM_NEWTON_MAX_PARAMS", 0)
         monkeypatch.setattr(st, "_ECM_CHUNK", 64)
-        for cache in (0, 1 << 22):
-            monkeypatch.setattr(st, "_ECM_CACHE_PAIRS", cache)
-            sparse = st.ecm_filter(G, tol=1e-10, signed=True)
-            for u, v, d in dense.edges(data=True):
-                assert sparse[u][v]["ecm_pvalue"] == pytest.approx(
-                    d["ecm_pvalue"], rel=1e-8, abs=1e-14
-                )
-                assert sparse[u][v]["sign"] == d["sign"]
+        for G, expected in zip(graphs, dense):
+            for cache in (0, 1 << 22):
+                monkeypatch.setattr(st, "_ECM_CACHE_PAIRS", cache)
+                sparse = st.ecm_filter(G, tol=1e-10, signed=True)
+                case = (G.is_directed(), cache)
+                for u, v, d in expected.edges(data=True):
+                    assert sparse[u][v]["ecm_pvalue"] == pytest.approx(
+                        d["ecm_pvalue"], rel=1e-8, abs=1e-14
+                    ), case
+                    assert sparse[u][v]["sign"] == d["sign"], case
 
     def test_scales_to_thousands_of_nodes(self):
         # 5,000 nodes: the class-reduced fit converges without warnings.
+        # ecm_filter warns whenever the fit's residual exceeds tol (1e-6 by
+        # default), so turning that warning into an error checks convergence
+        # without fitting a second time.
         import random
-
-        from networkx_backbone.statistical import _fit_ecm
 
         G = nx.barabasi_albert_graph(5000, 3, seed=0)
         rng = random.Random(0)
@@ -521,12 +509,6 @@ class TestECM:
             warnings.simplefilter("error", RuntimeWarning)
             H = nb.ecm_filter(G)
         assert all(0 < p <= 1 for *_, p in H.edges(data="ecm_pvalue"))
-
-        import numpy as np
-
-        k = np.array([d for _, d in G.degree()], float)
-        s = np.array([d for _, d in G.degree(weight="weight")], float)
-        assert _fit_ecm(k, s, k, s, False, 1000, 1e-6)[-1] <= 1e-6
 
 
 # ---------------------------------------------------------------------------
@@ -617,8 +599,7 @@ class TestLANS:
         # Not a tie: the strongest link of both of its endpoints.
         assert (H["c"]["b"]["lans_pvalue"], H["c"]["b"]["sign"]) == (0.0, 1)
 
-    @pytest.mark.parametrize("edge", [("u", "t"), ("s", "r")])
-    def test_directed_signed_weak_from_either_side(self, edge):
+    def test_directed_signed_weak_from_either_side(self):
         # u -> t is mid-ranked among u's out-links [1, 5, 9] but the weakest
         # in-link of t [5, 7, 8]; s -> r is the weakest out-link of s
         # [2, 4, 6] but mid-ranked among r's in-links [1, 2, 3] (#11).
@@ -628,7 +609,9 @@ class TestLANS:
         D.add_weighted_edges_from([("s", "r", 2), ("s", "m", 4), ("s", "n", 6)])
         D.add_weighted_edges_from([("c", "r", 1), ("d", "r", 3)])
         H = nb.lans_filter(D, signed=True)
-        assert (H.edges[edge]["lans_pvalue"], H.edges[edge]["sign"]) == (0.0, -1)
+        for edge in (("u", "t"), ("s", "r")):
+            d = H.edges[edge]
+            assert (d["lans_pvalue"], d["sign"]) == (0.0, -1), edge
         # Reversing every edge swaps out- and in-links: same result.
         Hr = nb.lans_filter(D.reverse(), signed=True)
         for (u, v), d in H.edges.items():
@@ -706,20 +689,19 @@ VAN_NUFFEL_TABLE_1 = {
 
 
 class TestMultipleLinkageAnalysis:
-    @pytest.mark.parametrize("unit", ["X", "Y"])
-    def test_reproduces_van_nuffel_2010_table_1(self, unit):
-        weights, published, significant = VAN_NUFFEL_TABLE_1[unit]
-        cods = [_cod(weights, k, 8) for k in range(1, 6)]
-        assert cods == pytest.approx(published, abs=0.005)
+    def test_reproduces_van_nuffel_2010_table_1(self):
+        for unit in ("X", "Y"):
+            weights, published, significant = VAN_NUFFEL_TABLE_1[unit]
+            cods = [_cod(weights, k, 8) for k in range(1, 6)]
+            assert cods == pytest.approx(published, abs=0.005), unit
 
-        H = nb.multiple_linkage_analysis(_star(weights, 8, source=unit))
-        assert H.nodes[unit]["mla_rank"] == significant
-        kept = sorted(v for _, v, keep in H.edges(data="mla_keep") if keep)
-        assert kept == list(range(significant))
+            H = nb.multiple_linkage_analysis(_star(weights, 8, source=unit))
+            assert H.nodes[unit]["mla_rank"] == significant, unit
+            kept = sorted(v for _, v, keep in H.edges(data="mla_keep") if keep)
+            assert kept == list(range(significant)), unit
 
-    @pytest.mark.parametrize(
-        ("unit", "profile_k", "weaver_k"),
-        [
+    def test_deviation_measures_disagree(self):
+        for unit, profile_k, weaver_k in [
             # X: (50, 43, 42, 21, 12, 7) / 175.  D_3 = 3616/91875 > D_4 =
             # 3013/122500 < D_5 = 1112/30625; V_3 = 1714/275625 > V_4 =
             # 2241/490000 < V_5 = 1063/153125.  COD picks 3.
@@ -728,38 +710,35 @@ class TestMultipleLinkageAnalysis:
             # (12757/122500); V_k decreases all the way to V_7 = 4808/214375.
             # COD picks 1.
             ("Y", 4, 7),
-        ],
-    )
-    def test_deviation_measures_disagree(self, unit, profile_k, weaver_k):
-        weights = VAN_NUFFEL_TABLE_1[unit][0]
-        ks = range(1, len(weights) + 1)
-        devs = [_dominance_deviation(weights, k) for k in ks]
-        variances = [_weaver_variance(weights, k) for k in ks]
-        assert 1 + devs.index(min(devs)) == profile_k
-        assert 1 + variances.index(min(variances)) == weaver_k
-        if unit == "X":
-            assert devs[2:5] == pytest.approx(
-                [3616 / 91875, 3013 / 122500, 1112 / 30625]
-            )
-            assert variances[2:5] == pytest.approx(
-                [1714 / 275625, 2241 / 490000, 1063 / 153125]
-            )
-        else:
-            assert devs[3] == pytest.approx(12757 / 122500)
-            assert variances[6] == pytest.approx(4808 / 214375)
+        ]:
+            weights = VAN_NUFFEL_TABLE_1[unit][0]
+            ks = range(1, len(weights) + 1)
+            devs = [_dominance_deviation(weights, k) for k in ks]
+            variances = [_weaver_variance(weights, k) for k in ks]
+            assert 1 + devs.index(min(devs)) == profile_k, unit
+            assert 1 + variances.index(min(variances)) == weaver_k, unit
+            if unit == "X":
+                assert devs[2:5] == pytest.approx(
+                    [3616 / 91875, 3013 / 122500, 1112 / 30625]
+                )
+                assert variances[2:5] == pytest.approx(
+                    [1714 / 275625, 2241 / 490000, 1063 / 153125]
+                )
+            else:
+                assert devs[3] == pytest.approx(12757 / 122500)
+                assert variances[6] == pytest.approx(4808 / 214375)
 
-        G = _star(weights, 8, source=unit)
-        ranks = {
-            d: nb.multiple_linkage_analysis(G, deviation=d).nodes[unit]["mla_rank"]
-            for d in ("cod", "profile", "weaver")
-        }
-        assert ranks == {
-            "cod": VAN_NUFFEL_TABLE_1[unit][2],
-            "profile": profile_k,
-            "weaver": weaver_k,
-        }
+            G = _star(weights, 8, source=unit)
+            ranks = {
+                d: nb.multiple_linkage_analysis(G, deviation=d).nodes[unit]["mla_rank"]
+                for d in ("cod", "profile", "weaver")
+            }
+            assert ranks == {
+                "cod": VAN_NUFFEL_TABLE_1[unit][2],
+                "profile": profile_k,
+                "weaver": weaver_k,
+            }, unit
 
-    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
     @pytest.mark.parametrize(
         ("weights", "deviations", "cods", "dominant"),
         [
@@ -789,27 +768,28 @@ class TestMultipleLinkageAnalysis:
             ),
         ],
     )
-    def test_hand_computed_dominant_links(
-        self, weights, deviations, cods, dominant, deviation
-    ):
+    def test_hand_computed_dominant_links(self, weights, deviations, cods, dominant):
         n = len(weights)
         devs = [_dominance_deviation(weights, k) for k in range(1, n + 1)]
         assert devs == pytest.approx(deviations, abs=1e-6)
         # With n = number of links, the all-equal ideal has no variance.
         assert [_cod(weights, k, n) for k in range(1, n)] == pytest.approx(cods)
 
-        H = nb.multiple_linkage_analysis(_star(weights), deviation=deviation)
-        assert H.nodes["hub"]["mla_rank"] == dominant
-        kept = sorted(v for _, v, keep in H.edges(data="mla_keep") if keep)
-        assert kept == list(range(dominant))
-        # Targets have no out-links in a directed graph.
-        assert all(H.nodes[i]["mla_rank"] == 0 for i in range(n))
+        for deviation in ("cod", "profile", "weaver"):
+            H = nb.multiple_linkage_analysis(_star(weights), deviation=deviation)
+            assert H.nodes["hub"]["mla_rank"] == dominant, deviation
+            kept = sorted(v for _, v, keep in H.edges(data="mla_keep") if keep)
+            assert kept == list(range(dominant)), deviation
+            # Targets have no out-links in a directed graph.
+            assert all(H.nodes[i]["mla_rank"] == 0 for i in range(n)), deviation
 
-    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
-    @pytest.mark.parametrize("n", [4, 6])
-    def test_evenly_spread_keeps_all(self, deviation, n):
-        H = nb.multiple_linkage_analysis(_star([4, 4, 4, 4], n), deviation=deviation)
-        assert H.nodes["hub"]["mla_rank"] == 4
+    def test_evenly_spread_keeps_all(self):
+        for deviation in ("cod", "profile", "weaver"):
+            for n in (4, 6):
+                H = nb.multiple_linkage_analysis(
+                    _star([4, 4, 4, 4], n), deviation=deviation
+                )
+                assert H.nodes["hub"]["mla_rank"] == 4, (deviation, n)
 
     def test_cod_counts_zero_flows(self):
         # Profile (6, 3, 1) / 10.  Linked to all n = 3 other nodes:
@@ -826,8 +806,7 @@ class TestMultipleLinkageAnalysis:
                 H = nb.multiple_linkage_analysis(G, deviation=d)
                 assert H.nodes["hub"]["mla_rank"] == 2
 
-    @pytest.mark.parametrize("deviation", ["profile", "weaver"])
-    def test_tied_links_kept_together(self, deviation):
+    def test_tied_links_kept_together(self):
         # (6, 3, 3) / 12 = (1/2, 1/4, 1/4): D_1 = 3/8, D_2 = 1/8 (splits the
         # tie, not considered), D_3 = 1/24 -> keep all three.  Weaver:
         # V_1 = 1/4, V_2 = 1/32, V_3 = 1/72.
@@ -835,8 +814,9 @@ class TestMultipleLinkageAnalysis:
         assert devs == pytest.approx([3 / 8, 1 / 8, 1 / 24])
         variances = [_weaver_variance([6, 3, 3], k) for k in (1, 2, 3)]
         assert variances == pytest.approx([1 / 4, 1 / 32, 1 / 72])
-        H = nb.multiple_linkage_analysis(_star([6, 3, 3]), deviation=deviation)
-        assert H.nodes["hub"]["mla_rank"] == 3
+        for deviation in ("profile", "weaver"):
+            H = nb.multiple_linkage_analysis(_star([6, 3, 3]), deviation=deviation)
+            assert H.nodes["hub"]["mla_rank"] == 3, deviation
 
     def test_weaver_tied_split_not_considered(self):
         # (8, 8, 5, 5, 3, 3) / 32 with V_5 < V_6: k = 5 would split the tied
@@ -847,8 +827,7 @@ class TestMultipleLinkageAnalysis:
         H = nb.multiple_linkage_analysis(_star(weights), deviation="weaver")
         assert H.nodes["hub"]["mla_rank"] == 6
 
-    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
-    def test_equal_fits_go_to_smaller_rank(self, deviation):
+    def test_equal_fits_go_to_smaller_rank(self):
         # (3, 3, 1, 1) / 8: D_2 = D_3 = D_4 = 1/16 and V_2 = V_3 = V_4 = 1/64;
         # k = 3 would also split a tie.  The most parsimonious fit, k = 2,
         # wins.  (COD_2 = 1 is the unique best.)
@@ -856,9 +835,11 @@ class TestMultipleLinkageAnalysis:
         assert devs == pytest.approx([1 / 16] * 3)
         variances = [_weaver_variance([3, 3, 1, 1], k) for k in (2, 3, 4)]
         assert variances == pytest.approx([1 / 64] * 3)
-        H = nb.multiple_linkage_analysis(_star([3, 3, 1, 1]), deviation=deviation)
-        assert H.nodes["hub"]["mla_rank"] == 2
-        assert sorted(v for _, v, keep in H.edges(data="mla_keep") if keep) == [0, 1]
+        for deviation in ("cod", "profile", "weaver"):
+            H = nb.multiple_linkage_analysis(_star([3, 3, 1, 1]), deviation=deviation)
+            assert H.nodes["hub"]["mla_rank"] == 2, deviation
+            kept = sorted(v for _, v, keep in H.edges(data="mla_keep") if keep)
+            assert kept == [0, 1], deviation
 
     def test_undirected_or_rule(self):
         # Hub h: (10, 1, 1, 1) -> keeps only h-a.  For b, h-b is the stronger
@@ -885,21 +866,18 @@ class TestMultipleLinkageAnalysis:
             assert d["mla_pvalue"] == L[u][v]["lans_pvalue"]
             assert d["mla_keep"] == (d["mla_pvalue"] <= 0.05)
 
-    @pytest.mark.parametrize("deviation", ["cod", "profile", "weaver"])
-    def test_every_node_keeps_its_strongest_link(
-        self, les_miserables_weighted, deviation
-    ):
-        H = nb.multiple_linkage_analysis(les_miserables_weighted, deviation=deviation)
-        for node in H:
-            best = max(H[node], key=lambda v: H[node][v]["weight"])
-            assert H[node][best]["mla_keep"]
-            assert H.nodes[node]["mla_rank"] >= 1
+    def test_every_node_keeps_its_strongest_link(self, les_miserables_weighted):
+        G = les_miserables_weighted
+        for deviation in ("cod", "profile", "weaver"):
+            H = nb.multiple_linkage_analysis(G, deviation=deviation)
+            for node in H:
+                best = max(H[node], key=lambda v: H[node][v]["weight"])
+                assert H[node][best]["mla_keep"], (deviation, node)
+                assert H.nodes[node]["mla_rank"] >= 1, (deviation, node)
 
-    def test_invalid_method_raises(self, weighted_triangle):
+    def test_invalid_method_or_deviation_raises(self, weighted_triangle):
         with pytest.raises(ValueError, match="method"):
             nb.multiple_linkage_analysis(weighted_triangle, method="bogus")
-
-    def test_invalid_deviation_raises(self, weighted_triangle):
         with pytest.raises(ValueError, match="deviation"):
             nb.multiple_linkage_analysis(weighted_triangle, deviation="bogus")
 
@@ -950,48 +928,47 @@ def two_pairs():
 
 
 class TestMissingAsZero:
-    @pytest.mark.parametrize(("scorer", "attr"), _MISSING_SCORERS)
-    @pytest.mark.parametrize("signed", [False, True])
-    def test_default_unchanged_and_existing_edges_unaffected(
-        self, scorer, attr, signed, count_graph
-    ):
+    def test_default_unchanged_and_existing_edges_unaffected(self, count_graph):
         count_graph.add_node("z")
-        default = scorer(count_graph, signed=signed)
-        assert set(map(frozenset, default.edges())) == set(
-            map(frozenset, count_graph.edges())
-        )
-        assert nx.utils.graphs_equal(
-            default, scorer(count_graph, signed=signed, missing_as_zero=False)
-        )
-        full = scorer(count_graph, signed=signed, missing_as_zero=True)
-        # Weight-0 pairs do not change the null model of existing edges.
-        for u, v, d in default.edges(data=True):
-            assert full[u][v] == d
-        added = set(map(frozenset, full.edges())) - set(
-            map(frozenset, count_graph.edges())
-        )
-        assert added
-        assert all(full.edges[tuple(e)]["weight"] == 0 for e in added)
+        edges = set(map(frozenset, count_graph.edges()))
+        failures = []
+        for scorer, _ in _MISSING_SCORERS:
+            for signed in (False, True):
+                case = f"{scorer.__name__}(signed={signed})"
+                default = scorer(count_graph, signed=signed)
+                if set(map(frozenset, default.edges())) != edges:
+                    failures.append(f"{case}: default changed the edge set")
+                off = scorer(count_graph, signed=signed, missing_as_zero=False)
+                if not nx.utils.graphs_equal(default, off):
+                    failures.append(f"{case}: missing_as_zero=False is not the default")
+                full = scorer(count_graph, signed=signed, missing_as_zero=True)
+                # Weight-0 pairs do not change the null model of existing edges.
+                if any(full[u][v] != d for u, v, d in default.edges(data=True)):
+                    failures.append(f"{case}: existing edges changed")
+                added = set(map(frozenset, full.edges())) - edges
+                if not added or any(full.edges[tuple(e)]["weight"] != 0 for e in added):
+                    failures.append(f"{case}: no weight-0 pairs added")
+        assert not failures, "\n".join(failures)
 
-    @pytest.mark.parametrize(
-        ("scorer", "attr"),
-        [(nb.disparity_filter, "disparity_pvalue"), (nb.lans_filter, "lans_pvalue")],
-    )
-    def test_disparity_and_lans_hand_values(self, scorer, attr, small_graph):
+    def test_disparity_and_lans_hand_values(self, small_graph):
         # A weight of 0 is below every link: upper tail 1, lower tail 0 from
         # any endpoint with links (degree >= 2 for the disparity filter).
         # Pairs with the isolate "e" have a 0/0 normalized weight and are not
         # added (R: NA).  The degree of d stays 1; (a, d) is tested from a.
-        signed = scorer(small_graph, signed=True, missing_as_zero=True)
-        assert _zero_edges(signed, attr) == {
-            ("a", "d"): (0.0, -1),
-            ("b", "d"): (0.0, -1),
-        }
-        unsigned = scorer(small_graph, missing_as_zero=True)
-        assert _zero_edges(unsigned, attr) == {
-            ("a", "d"): (1.0, None),
-            ("b", "d"): (1.0, None),
-        }
+        for scorer, attr in [
+            (nb.disparity_filter, "disparity_pvalue"),
+            (nb.lans_filter, "lans_pvalue"),
+        ]:
+            signed = scorer(small_graph, signed=True, missing_as_zero=True)
+            assert _zero_edges(signed, attr) == {
+                ("a", "d"): (0.0, -1),
+                ("b", "d"): (0.0, -1),
+            }, scorer.__name__
+            unsigned = scorer(small_graph, missing_as_zero=True)
+            assert _zero_edges(unsigned, attr) == {
+                ("a", "d"): (1.0, None),
+                ("b", "d"): (1.0, None),
+            }, scorer.__name__
 
     def test_directed_disparity_and_lans(self):
         # Out-degrees a=2, b=1, c=1; in-degrees a=1, b=1, c=2; e isolated.
@@ -1103,25 +1080,27 @@ class TestMissingAsZero:
         unsigned = nb.ecm_filter(G, missing_as_zero=True)
         assert {pv for pv, _ in _zero_edges(unsigned, "ecm_pvalue").values()} == {1.0}
 
-    @pytest.mark.parametrize(("scorer", "attr"), _MISSING_SCORERS)
-    def test_edgeless_graph_adds_nothing(self, scorer, attr):
-        H = scorer(nx.empty_graph(4), signed=True, missing_as_zero=True)
-        assert H.number_of_edges() == 0
+    def test_edgeless_graph_adds_nothing(self):
+        for scorer, _ in _MISSING_SCORERS:
+            H = scorer(nx.empty_graph(4), signed=True, missing_as_zero=True)
+            assert H.number_of_edges() == 0, scorer.__name__
 
-    @pytest.mark.parametrize(("scorer", "attr"), _MISSING_SCORERS)
-    def test_warns_when_output_is_dense(self, scorer, attr, two_pairs, monkeypatch):
+    def test_warns_when_output_is_dense(self, two_pairs, monkeypatch):
         import networkx_backbone.statistical as st
 
-        monkeypatch.setattr(st, "_MISSING_AS_ZERO_WARN_DYADS", 6)
-        # 5 nodes: 10 pairs - 3 edges = 7 absent pairs > 6.
-        with pytest.warns(RuntimeWarning, match="missing_as_zero=True adds 7") as rec:
-            scorer(two_pairs, signed=True, missing_as_zero=True)
-        # The warning points at the caller, not at library internals.
-        assert any(r.filename == __file__ for r in rec)
-        monkeypatch.setattr(st, "_MISSING_AS_ZERO_WARN_DYADS", 7)
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            scorer(two_pairs, signed=True, missing_as_zero=True)
+        for scorer, _ in _MISSING_SCORERS:
+            monkeypatch.setattr(st, "_MISSING_AS_ZERO_WARN_DYADS", 6)
+            # 5 nodes: 10 pairs - 3 edges = 7 absent pairs > 6.
+            with pytest.warns(
+                RuntimeWarning, match="missing_as_zero=True adds 7"
+            ) as rec:
+                scorer(two_pairs, signed=True, missing_as_zero=True)
+            # The warning points at the caller, not at library internals.
+            assert any(r.filename == __file__ for r in rec), scorer.__name__
+            monkeypatch.setattr(st, "_MISSING_AS_ZERO_WARN_DYADS", 7)
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                scorer(two_pairs, signed=True, missing_as_zero=True)
 
     def test_aliases_forward_missing_as_zero(self, two_pairs):
         for alias, full in [
@@ -1162,42 +1141,43 @@ def _disparity_closed_form(G, weight="weight"):
 
 
 class TestDisparityConcentration:
-    @pytest.mark.parametrize("a", [1, 1.0])
-    def test_a_one_is_bit_identical(self, a, les_miserables_weighted):
+    def test_a_one_is_bit_identical(self, les_miserables_weighted):
         G = les_miserables_weighted
-        got = nx.get_edge_attributes(nb.disparity_filter(G, a=a), "disparity_pvalue")
-        assert got == _disparity_closed_form(G)  # exact, not approx
-        for kw in ({"signed": True}, {"signed": True, "missing_as_zero": True}):
-            assert nx.utils.graphs_equal(
-                nb.disparity_filter(G, a=a, **kw), nb.disparity_filter(G, **kw)
-            )
-        assert "disparity_a" not in nb.disparity_filter(G, a=a).graph
+        closed_form = _disparity_closed_form(G)
+        for a in (1, 1.0):
+            H = nb.disparity_filter(G, a=a)
+            got = nx.get_edge_attributes(H, "disparity_pvalue")
+            assert got == closed_form, a  # exact, not approx
+            for kw in ({"signed": True}, {"signed": True, "missing_as_zero": True}):
+                assert nx.utils.graphs_equal(
+                    nb.disparity_filter(G, a=a, **kw), nb.disparity_filter(G, **kw)
+                ), (a, kw)
+            assert "disparity_a" not in H.graph, a
 
-    @pytest.mark.parametrize(
-        ("weights", "a", "expected"),
-        [
+    def test_hand_computed_values(self):
+        for weights, a, expected in [
             # k = 3, a = 1/2 (c = 2): Beta(2, 4) upper tail at x = 1/2 is
             # 5 (1 - x)^4 - 4 (1 - x)^5 = 3/16.
             ((2, 1, 1), 0.5, 3 / 16),
             # k = 3, a = 2 (c = 1/2): Beta(1/2, 1) has cdf sqrt(x), so the
             # upper tail at x = 1/4 is 1/2.
             ((1, 1.5, 1.5), 2.0, 0.5),
-        ],
-    )
-    def test_hand_computed_values(self, weights, a, expected):
-        H = nb.disparity_filter(_center_star(weights), a=a)
-        assert H["c"][0]["disparity_pvalue"] == pytest.approx(expected, rel=1e-12)
+        ]:
+            H = nb.disparity_filter(_center_star(weights), a=a)
+            assert H["c"][0]["disparity_pvalue"] == pytest.approx(
+                expected, rel=1e-12
+            ), a
 
-    @pytest.mark.parametrize("a", [0.3, 0.5, 2.0, 7.0])
-    def test_beta_tail(self, a, hub_star):
-        H = nb.disparity_filter(hub_star, a=a, signed=True)
+    def test_beta_tail(self, hub_star):
         k, x = 4, 100 / 103
-        hi = stats.beta.sf(x, 1 / a, (k - 1) / a)
-        lo = stats.beta.cdf(x, 1 / a, (k - 1) / a)
-        assert H["c"][1]["disparity_pvalue"] == pytest.approx(
-            min(1.0, 2 * min(hi, lo)), rel=1e-9
-        )
-        assert H["c"][1]["sign"] == (1 if hi <= lo else -1)
+        for a in (0.3, 0.5, 2.0, 7.0):
+            H = nb.disparity_filter(hub_star, a=a, signed=True)
+            hi = stats.beta.sf(x, 1 / a, (k - 1) / a)
+            lo = stats.beta.cdf(x, 1 / a, (k - 1) / a)
+            assert H["c"][1]["disparity_pvalue"] == pytest.approx(
+                min(1.0, 2 * min(hi, lo)), rel=1e-9
+            ), a
+            assert H["c"][1]["sign"] == (1 if hi <= lo else -1), a
 
     def test_close_to_one_is_close_to_closed_form(self, les_miserables_weighted):
         G = les_miserables_weighted
@@ -1305,10 +1285,10 @@ class TestDisparityConcentration:
             H = nb.disparity_filter(G, a="ml")
         assert H.graph["disparity_a"] == pytest.approx(1e-4)
 
-    @pytest.mark.parametrize("a", [0, -1.0, math.nan, math.inf, "mle", None, True])
-    def test_invalid_a(self, a, hub_star):
-        with pytest.raises(ValueError, match="a must be"):
-            nb.disparity_filter(hub_star, a=a)
+    def test_invalid_a(self, hub_star):
+        for a in (0, -1.0, math.nan, math.inf, "mle", None, True):
+            with pytest.raises(ValueError, match="a must be"):
+                nb.disparity_filter(hub_star, a=a)
 
     def test_alias_forwards_a(self, les_miserables_weighted):
         G = les_miserables_weighted
@@ -1345,30 +1325,37 @@ _COUNT_IDS = ["mlf", "ecm", "nc", "nc-zscore"]
 
 
 class TestCountUnit:
-    @pytest.mark.parametrize(("scorer", "attr", "kw"), _COUNT_SCORERS, ids=_COUNT_IDS)
-    def test_default_unit_is_unchanged(self, scorer, attr, kw, les_miserables_weighted):
+    def test_default_unit_is_unchanged(self, les_miserables_weighted):
         G = les_miserables_weighted
-        for extra in ({}, {"signed": True, "missing_as_zero": True}):
-            assert nx.utils.graphs_equal(
-                scorer(G, unit=1, **kw, **extra), scorer(G, **kw, **extra)
-            )
+        for (scorer, _, kw), name in zip(_COUNT_SCORERS, _COUNT_IDS):
+            for extra in ({}, {"signed": True, "missing_as_zero": True}):
+                assert nx.utils.graphs_equal(
+                    scorer(G, unit=1, **kw, **extra), scorer(G, **kw, **extra)
+                ), (name, extra)
 
-    @pytest.mark.parametrize(("scorer", "attr", "kw"), _COUNT_SCORERS, ids=_COUNT_IDS)
-    @pytest.mark.parametrize("unit", [0.1, 2.5, 7])
-    def test_unit_recovers_integer_counts(
-        self, scorer, attr, kw, unit, les_miserables_weighted
-    ):
+    def test_unit_recovers_integer_counts(self, les_miserables_weighted):
         # Weights recorded as unit * count (with floating-point error) give
         # the p-values of the integer counts, without a warning.
         G = les_miserables_weighted
-        scaled = nb.transform_weights(G, lambda w: unit * w)
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            got = scorer(scaled, unit=unit, signed=True, **kw)
-        want = scorer(G, signed=True, **kw)
-        for u, v, d in want.edges(data=True):
-            assert got[u][v][attr] == pytest.approx(d[attr], rel=1e-9, abs=1e-15)
-            assert got[u][v]["sign"] == d["sign"]
+        failures = []
+        for (scorer, attr, kw), name in zip(_COUNT_SCORERS, _COUNT_IDS):
+            want = scorer(G, signed=True, **kw)
+            for unit in (0.1, 2.5, 7):
+                scaled = nb.transform_weights(G, lambda w, unit=unit: unit * w)
+                try:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("error")
+                        got = scorer(scaled, unit=unit, signed=True, **kw)
+                except Warning as w:
+                    failures.append(f"{name} unit={unit}: warned {w}")
+                    continue
+                if any(
+                    got[u][v][attr] != pytest.approx(d[attr], rel=1e-9, abs=1e-15)
+                    or got[u][v]["sign"] != d["sign"]
+                    for u, v, d in want.edges(data=True)
+                ):
+                    failures.append(f"{name} unit={unit}: p-values or signs differ")
+        assert not failures, "\n".join(failures)
 
     def test_mlf_and_ecm_unit_is_exact_after_rounding(self, les_miserables_weighted):
         G = les_miserables_weighted
@@ -1380,21 +1367,19 @@ class TestCountUnit:
             got = nx.get_edge_attributes(scorer(scaled, unit=0.1), attr)
             assert got == nx.get_edge_attributes(scorer(G), attr)
 
-    @pytest.mark.parametrize(
-        ("scorer", "attr", "expected"),
-        [
-            (nb.marginal_likelihood_filter, "ml_pvalue", 215),
-            (nb.ecm_filter, "ecm_pvalue", 89),
-            (nb.noise_corrected_filter, "nc_pvalue", 215),
-        ],
-    )
-    def test_results_depend_on_unit(
-        self, scorer, attr, expected, les_miserables_weighted
-    ):
+    def test_results_depend_on_unit(self, les_miserables_weighted):
         # The Les Misérables counts quoted in the docstrings: unit=0.1 counts
-        # every weight as ten events (126, 72 and 126 edges at unit=1).
-        H = scorer(les_miserables_weighted, unit=0.1)
-        assert nb.threshold_filter(H, attr, 0.05).number_of_edges() == expected
+        # every weight as ten events (126, 72 and 126 edges at unit=1, pinned
+        # in test_les_miserables.py).
+        got = {}
+        for scorer, attr in [
+            (nb.marginal_likelihood_filter, "ml_pvalue"),
+            (nb.ecm_filter, "ecm_pvalue"),
+            (nb.noise_corrected_filter, "nc_pvalue"),
+        ]:
+            H = scorer(les_miserables_weighted, unit=0.1)
+            got[attr] = nb.threshold_filter(H, attr, 0.05).number_of_edges()
+        assert got == {"ml_pvalue": 215, "ecm_pvalue": 89, "nc_pvalue": 215}
 
     def test_nc_score_does_not_depend_on_unit(self, les_miserables_weighted):
         G = les_miserables_weighted
@@ -1402,32 +1387,29 @@ class TestCountUnit:
         got = nx.get_edge_attributes(nb.noise_corrected_filter(G, unit=0.1), "nc_score")
         assert got == pytest.approx(base, rel=1e-12)
 
-    @pytest.mark.parametrize(
-        ("scorer", "attr", "match"),
-        [
-            (nb.marginal_likelihood_filter, "ml_pvalue", "below 0.5 becomes 0"),
-            (nb.ecm_filter, "ecm_pvalue", "below 1.5 becomes 1"),
-            (nb.noise_corrected_filter, "nc_pvalue", "depend on unit"),
-        ],
-    )
-    def test_warns_on_non_integer_counts(self, scorer, attr, match, count_graph):
+    def test_warns_on_non_integer_counts(self, count_graph):
         count_graph["a"]["c"]["weight"] = 0.4
-        with pytest.warns(UserWarning, match=match) as rec:
-            H = scorer(count_graph)
-        assert "1 of 5 weights are not integer counts" in str(rec[0].message)
-        assert any(r.filename == __file__ for r in rec)
-        if scorer is nb.marginal_likelihood_filter:
-            assert H["a"]["c"]["ml_pvalue"] == 1.0  # rounded to 0 unit edges
-        # unit=0.2 makes every weight an integer count again.
-        with warnings.catch_warnings():
-            warnings.simplefilter("error")
-            scorer(count_graph, unit=0.2)
+        for scorer, match in [
+            (nb.marginal_likelihood_filter, "below 0.5 becomes 0"),
+            (nb.ecm_filter, "below 1.5 becomes 1"),
+            (nb.noise_corrected_filter, "depend on unit"),
+        ]:
+            with pytest.warns(UserWarning, match=match) as rec:
+                H = scorer(count_graph)
+            assert "1 of 5 weights are not integer counts" in str(rec[0].message)
+            assert any(r.filename == __file__ for r in rec), scorer.__name__
+            if scorer is nb.marginal_likelihood_filter:
+                assert H["a"]["c"]["ml_pvalue"] == 1.0  # rounded to 0 unit edges
+            # unit=0.2 makes every weight an integer count again.
+            with warnings.catch_warnings():
+                warnings.simplefilter("error")
+                scorer(count_graph, unit=0.2)
 
-    @pytest.mark.parametrize(("scorer", "attr", "kw"), _COUNT_SCORERS, ids=_COUNT_IDS)
-    @pytest.mark.parametrize("unit", [0, -1.0, math.nan, math.inf, True, "1"])
-    def test_invalid_unit(self, scorer, attr, kw, unit, count_graph):
-        with pytest.raises(ValueError, match="unit must be"):
-            scorer(count_graph, unit=unit, **kw)
+    def test_invalid_unit(self, count_graph):
+        for scorer, _, kw in _COUNT_SCORERS:
+            for unit in (0, -1.0, math.nan, math.inf, True, "1"):
+                with pytest.raises(ValueError, match="unit must be"):
+                    scorer(count_graph, unit=unit, **kw)
 
     def test_alias_forwards_unit(self, les_miserables_weighted):
         G = les_miserables_weighted

@@ -117,23 +117,38 @@ def _row_id(row):
     return f"{row.func.__name__}({extra})"
 
 
-@pytest.mark.parametrize("row", ROWS, ids=[_row_id(r) for r in ROWS])
-def test_invariance_claim(row, les_miserables_weighted):
+def _invariance_problem(row, G, transformed):
+    """Why *row*'s claim fails on *G*, or None if it holds."""
+    base = _scores(row, G)
+    rescaled = _same(base, _scores(row, transformed[RESCALE[0]]))
+    if rescaled != row.rescaling:
+        return f"rescaling {'changes' if row.rescaling else 'does not change'} it"
+    if not row.rescaling:
+        return None  # a rescaling is itself an increasing transform
+    same = {
+        name: _same(base, _scores(row, transformed[name])) for name, _ in INCREASING
+    }
+    if row.increasing and not all(same.values()):
+        return f"changed by an increasing transform: {same}"
+    if not row.increasing and any(same.values()):
+        return f"unchanged by an increasing transform: {same}"
+    return None
+
+
+def test_invariance_claim(les_miserables_weighted):
+    # Every row of the docs table in one test; a failure lists every row whose
+    # claim does not hold.  The transformed graphs are built once.
     pytest.importorskip("scipy")
     G = les_miserables_weighted
-    base = _scores(row, G)
-    rescaled = _same(base, _scores(row, nb.transform_weights(G, RESCALE[1])))
-    assert rescaled == row.rescaling, f"{row.label}: rescaling"
-    if not row.rescaling:
-        return  # a rescaling is itself an increasing transform
-    same = {
-        name: _same(base, _scores(row, nb.transform_weights(G, f)))
-        for name, f in INCREASING
+    transformed = {
+        name: nb.transform_weights(G, f) for name, f in [RESCALE, *INCREASING]
     }
-    if row.increasing:
-        assert all(same.values()), f"{row.label}: changed by {same}"
-    else:
-        assert not any(same.values()), f"{row.label}: unchanged by {same}"
+    failures = [
+        f"{_row_id(row)}: {problem}"
+        for row in ROWS
+        if (problem := _invariance_problem(row, G, transformed))
+    ]
+    assert not failures, "\n".join(failures)
 
 
 def _docs_table():
@@ -167,14 +182,13 @@ def test_weight_free_methods_are_unaffected(les_miserables_weighted):
         assert _same(_scores(row, G), _scores(row, T)), func.__name__
 
 
-@pytest.mark.parametrize(("name", "f"), [RESCALE, *INCREASING])
-def test_global_threshold_is_equivariant(name, f, les_miserables_weighted):
+def test_global_threshold_is_equivariant(les_miserables_weighted):
     G = les_miserables_weighted
     base = nb.global_threshold_filter(G, threshold=2)
-    got = nb.global_threshold_filter(nb.transform_weights(G, f), threshold=f(2))
-    assert nx.get_edge_attributes(got, "global_threshold_keep") == (
-        nx.get_edge_attributes(base, "global_threshold_keep")
-    )
+    expected = nx.get_edge_attributes(base, "global_threshold_keep")
+    for name, f in [RESCALE, *INCREASING]:
+        got = nb.global_threshold_filter(nb.transform_weights(G, f), threshold=f(2))
+        assert nx.get_edge_attributes(got, "global_threshold_keep") == expected, name
 
 
 # ---------------------------------------------------------------------------
@@ -250,25 +264,25 @@ class TestTransformWeights:
             "math.log1p",
         ]
 
-    @pytest.mark.parametrize("directed", [False, True])
-    def test_neighbor_order_is_kept(self, directed, les_miserables_weighted):
-        G = les_miserables_weighted
-        if directed:
-            G = nx.DiGraph(G)
-            G.add_edge("Valjean", "Myriel", weight=3)  # asymmetric weight
-        H = nb.transform_weights(G, float)
-        # G.copy() reorders neighbors on this graph; the transform must not.
-        assert list(H.nodes) == list(G.nodes)
-        assert list(H.edges) == list(G.edges)
-        for u in G:
-            assert list(H.adj[u]) == list(G.adj[u])
+    def test_neighbor_order_is_kept(self, les_miserables_weighted):
+        for directed in (False, True):
+            G = les_miserables_weighted
             if directed:
-                assert list(H.pred[u]) == list(G.pred[u])
-        # Each edge has one attribute dict, shared by both directions.
-        if not directed:
-            H["Valjean"]["Myriel"]["weight"] = -1
-            assert H["Myriel"]["Valjean"]["weight"] == -1
-        assert G["Valjean"]["Myriel"]["weight"] != -1
+                G = nx.DiGraph(G)
+                G.add_edge("Valjean", "Myriel", weight=3)  # asymmetric weight
+            H = nb.transform_weights(G, float)
+            # G.copy() reorders neighbors on this graph; the transform must not.
+            assert list(H.nodes) == list(G.nodes), directed
+            assert list(H.edges) == list(G.edges), directed
+            for u in G:
+                assert list(H.adj[u]) == list(G.adj[u]), (directed, u)
+                if directed:
+                    assert list(H.pred[u]) == list(G.pred[u]), u
+            # Each edge has one attribute dict, shared by both directions.
+            if not directed:
+                H["Valjean"]["Myriel"]["weight"] = -1
+                assert H["Myriel"]["Valjean"]["weight"] == -1
+            assert G["Valjean"]["Myriel"]["weight"] != -1, directed
 
     def test_identity_keeps_tie_breaking(self, les_miserables_weighted):
         # strongest_n_ties breaks weight ties by neighbor order.
@@ -325,10 +339,10 @@ class TestTransformWeights:
         with pytest.raises(ValueError, match="returned shape"):
             nb.transform_weights(small, TwoColumns())
 
-    @pytest.mark.parametrize("bad", [math.nan, math.inf])
-    def test_non_finite_output(self, bad, small):
-        with pytest.raises(ValueError, match="NaN or infinite"):
-            nb.transform_weights(small, lambda w: bad)
+    def test_non_finite_output(self, small):
+        for bad in (math.nan, math.inf):
+            with pytest.raises(ValueError, match="NaN or infinite"):
+                nb.transform_weights(small, lambda w, bad=bad: bad)
 
     def test_constant_output(self, small):
         with pytest.raises(ValueError, match=r"maps every weight to 1\.0"):
@@ -346,19 +360,16 @@ class TestTransformWeights:
             warnings.simplefilter("error")
             nb.transform_weights(les_miserables_weighted, math.log1p)
 
-    @pytest.mark.parametrize(
-        ("f", "match"),
-        [
+    def test_order_warnings(self, les_miserables_weighted):
+        for f, match in [
             (lambda w: -w, "does not preserve the order"),
             (lambda w: 1 / w, "does not preserve the order"),
             (lambda w: (w - 4) ** 2, "does not preserve the order"),
             (lambda w: w // 5, "creating ties"),
-        ],
-    )
-    def test_order_warnings(self, f, match, les_miserables_weighted):
-        with pytest.warns(UserWarning, match=match) as rec:
-            nb.transform_weights(les_miserables_weighted, f)
-        assert rec[0].filename == __file__
+        ]:
+            with pytest.warns(UserWarning, match=match) as rec:
+                nb.transform_weights(les_miserables_weighted, f)
+            assert rec[0].filename == __file__
 
     def test_equal_weights_given_different_values_warns(self, small):
         np = pytest.importorskip("numpy")
@@ -371,11 +382,11 @@ class TestTransformWeights:
         with pytest.warns(UserWarning, match="equal weights get different values"):
             nb.transform_weights(small, RowNumber())
 
-    @pytest.mark.parametrize("bad", [None, "heavy", math.nan, math.inf, True])
-    def test_invalid_weights(self, bad, small):
-        small["a"]["b"]["weight"] = bad
-        with pytest.raises(nx.NetworkXError, match="'weight' attribute"):
-            nb.transform_weights(small, math.sqrt)
+    def test_invalid_weights(self, small):
+        for bad in (None, "heavy", math.nan, math.inf, True):
+            small["a"]["b"]["weight"] = bad
+            with pytest.raises(nx.NetworkXError, match="'weight' attribute"):
+                nb.transform_weights(small, math.sqrt)
         del small["a"]["b"]["weight"]
         with pytest.raises(nx.NetworkXError, match="'weight' attribute"):
             nb.transform_weights(small, math.sqrt)

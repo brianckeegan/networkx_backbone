@@ -19,6 +19,7 @@ the difference.
 
 import csv
 import functools
+import itertools
 import json
 import math
 from pathlib import Path
@@ -105,6 +106,50 @@ def assert_signs(sign, upper, lower):
     np.testing.assert_array_equal(sign, r_two_sided(upper, lower)[1])
 
 
+DATASETS = sorted(WEIGHTED)
+
+
+def assert_all(check, cases):
+    """Run ``check(*case)`` for every case; fail once, listing every failure.
+
+    The sweeps over datasets, models, signs and corrections are one test each;
+    the assertion message names each case that differs from the reference.
+    """
+    failures = []
+    for case in cases:
+        case = case if isinstance(case, tuple) else (case,)
+        try:
+            check(*case)
+        except AssertionError as err:
+            first = str(err).strip().split("\n", 1)[0]
+            label = ", ".join(getattr(x, "__name__", repr(x)) for x in case)
+            failures.append(f"{getattr(check, '__name__', 'check')}({label}): {first}")
+    assert not failures, "\n".join(failures)
+
+
+def over(*axes):
+    """Make ``check(a, b, ...)`` one test over every combination of *axes*.
+
+    Used instead of ``pytest.mark.parametrize`` for sweeps whose cases are
+    cheap and share fixtures; :func:`assert_all` names every failing case.
+    """
+
+    def decorate(check):
+        def test():
+            # A tuple value on an axis (a table row) spreads over several
+            # arguments of the check.
+            cases = [
+                tuple(x for v in combo for x in (v if isinstance(v, tuple) else (v,)))
+                for combo in itertools.product(*axes)
+            ]
+            assert_all(check, cases)
+
+        test.__name__, test.__doc__ = check.__name__, check.__doc__
+        return test
+
+    return decorate
+
+
 # =====================================================================
 # Inputs
 # =====================================================================
@@ -115,14 +160,15 @@ def _read_csv(name):
         return list(csv.reader(fh))
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-def test_weighted_inputs_match_networkx(dataset):
-    make, conv = WEIGHTED[dataset]
-    G = make()
-    rows = _read_csv(f"{dataset}.csv")
-    assert rows[0] == ["source", "target", "weight"]
-    expected = [(u, v, float(w)) for u, v, w in G.edges(data="weight")]
-    assert [(conv(u), conv(v), float(w)) for u, v, w in rows[1:]] == expected
+def test_weighted_inputs_match_networkx():
+    for dataset in DATASETS:
+        make, conv = WEIGHTED[dataset]
+        G = make()
+        rows = _read_csv(f"{dataset}.csv")
+        assert rows[0] == ["source", "target", "weight"], dataset
+        expected = [(u, v, float(w)) for u, v, w in G.edges(data="weight")]
+        got = [(conv(u), conv(v), float(w)) for u, v, w in rows[1:]]
+        assert got == expected, dataset
 
 
 def test_davis_input_matches_networkx():
@@ -155,28 +201,38 @@ WEIGHTED_MODELS = {
 }
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-@pytest.mark.parametrize("model", sorted(WEIGHTED_MODELS))
-def test_r_weighted_upper_tail(dataset, model):
+def test_r_weighted_upper_tail():
     """One-tailed p-values equal R's for every edge."""
-    G, _, edges = weighted_case(dataset, r_fixture())
-    func, attr = WEIGHTED_MODELS[model]
-    ours = edge_values(func(G), edges, attr)
-    theirs = values(r_fixture()[dataset][model]["upper"])
-    np.testing.assert_allclose(ours, theirs, rtol=1e-12, atol=1e-14)
+
+    def check(dataset, model):
+        G, _, edges = weighted_case(dataset, r_fixture())
+        func, attr = WEIGHTED_MODELS[model]
+        ours = edge_values(func(G), edges, attr)
+        theirs = values(r_fixture()[dataset][model]["upper"])
+        np.testing.assert_allclose(ours, theirs, rtol=1e-12, atol=1e-14)
+
+    assert_all(check, [(d, m) for d in DATASETS for m in sorted(WEIGHTED_MODELS)])
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-@pytest.mark.parametrize("model", sorted(WEIGHTED_MODELS))
-@pytest.mark.parametrize("mtc", ["none", "bonferroni", "holm", "BH"])
-def test_r_weighted_one_tailed_backbone(dataset, model, mtc):
-    G, nodes, _ = weighted_case(dataset, r_fixture())
-    H = nb.backbone_from_weighted(G, method=model, alpha=ALPHA, mtc=mtc)
-    expected = r_fixture()[dataset][model]["backbones"][mtc]
-    assert our_backbone_set(H) == r_backbone_set(expected, nodes)
+def test_r_weighted_one_tailed_backbone():
+    def check(dataset, model, mtc):
+        G, nodes, _ = weighted_case(dataset, r_fixture())
+        H = nb.backbone_from_weighted(G, method=model, alpha=ALPHA, mtc=mtc)
+        expected = r_fixture()[dataset][model]["backbones"][mtc]
+        assert our_backbone_set(H) == r_backbone_set(expected, nodes)
+
+    assert_all(
+        check,
+        [
+            (d, m, mtc)
+            for d in DATASETS
+            for m in sorted(WEIGHTED_MODELS)
+            for mtc in ("none", "bonferroni", "holm", "BH")
+        ],
+    )
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_r_mlf_signed(dataset):
     """Signed MLF: two-sided p-values, signs and backbones equal R's."""
     G, nodes, edges = weighted_case(dataset, r_fixture())
@@ -195,7 +251,7 @@ def test_r_mlf_signed(dataset):
         assert our_backbone_set(B) == r_backbone_set(expected, nodes)
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_r_disparity_signed(dataset):
     """Signed disparity: documented lower-tail difference.
 
@@ -224,7 +280,7 @@ def test_r_disparity_signed(dataset):
         assert our_backbone_set(B) == r_backbone_set(expected, nodes)
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_r_lans_signed(dataset):
     """Signed LANS: two-sided p-values, signs and backbones equal R's.
 
@@ -285,7 +341,7 @@ def _karate_unweighted():
     return G
 
 
-@pytest.mark.parametrize("s", [0.3, 0.5, 0.7])
+@over([0.3, 0.5, 0.7])
 def test_r_local_degree(s):
     G = _karate_unweighted()
     nodes = [int(n) for n in r_fixture()["karate"]["nodes"]]
@@ -313,7 +369,7 @@ def _r_lspar_rule(G, s):
     return kept
 
 
-@pytest.mark.parametrize("s", [0.3, 0.5, 0.7])
+@over([0.3, 0.5, 0.7])
 def test_r_lspar_documented_difference(s):
     """R's ``lspar`` uses different conventions (see ``lspar`` Notes)."""
     G = _karate_unweighted()
@@ -339,8 +395,7 @@ def _unweighted(dataset):
     return U, nodes
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-@pytest.mark.parametrize("s", [0.3, 0.5, 0.7])
+@over(DATASETS, [0.3, 0.5, 0.7])
 def test_r_lspar_convention_r(dataset, s):
     """``lspar(convention="r")`` reproduces R's ``lspar`` exactly."""
     G, nodes = _unweighted(dataset)
@@ -471,7 +526,7 @@ def test_r_sdsm_ec():
             assert our_backbone_set(bb) == r_backbone_set(expected, women)
 
 
-@pytest.mark.parametrize("model", ["fixedfill", "fixedrow"])
+@over(["fixedfill", "fixedrow"])
 def test_r_fixed_models_exact(model):
     """Fixed fill and fixed row tails are exact in both implementations."""
     B, women, pairs, _ = davis()
@@ -518,9 +573,11 @@ def test_r_fixedcol_exact_vs_rna():
     assert_signs(pair_values(S, pairs, "sign"), upper, lower)
 
 
-@pytest.mark.parametrize("model", ["sdsm", "fixedfill", "fixedrow", "fixedcol"])
-@pytest.mark.parametrize("signed", [False, True])
-@pytest.mark.parametrize("mtc", ["none", "bonferroni", "holm", "BH"])
+@over(
+    ["sdsm", "fixedfill", "fixedrow", "fixedcol"],
+    [False, True],
+    ["none", "bonferroni", "holm", "BH"],
+)
 def test_r_projection_backbones(model, signed, mtc):
     B, women, _, _ = davis()
     H = nb.backbone_from_projection(
@@ -531,8 +588,7 @@ def test_r_projection_backbones(model, signed, mtc):
     assert our_backbone_set(H) == r_backbone_set(expected, women)
 
 
-@pytest.mark.parametrize("model", ["fixedfill", "fixedrow"])
-@pytest.mark.parametrize("missing_as_zero", [False, True])
+@over(["fixedfill", "fixedrow"], [False, True])
 def test_r_projection_missing_as_zero(model, missing_as_zero):
     """``missing_as_zero`` reproduces R's choice of tested pairs exactly.
 
@@ -627,9 +683,8 @@ def test_r_fdsm():
 # =====================================================================
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-@pytest.mark.parametrize(
-    ("model", "func", "attr"),
+@over(
+    DATASETS,
     [
         ("disparity", nb.disparity_filter, "disparity_pvalue"),
         ("lans", nb.lans_filter, "lans_pvalue"),
@@ -644,7 +699,7 @@ def test_netbone_exact(dataset, model, func, attr):
     )
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_ecm(dataset):
     """ECM p-values agree up to the solvers' tolerances.
 
@@ -657,7 +712,7 @@ def test_netbone_ecm(dataset):
     np.testing.assert_allclose(ours, theirs, rtol=1e-4, atol=5e-5)
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_noise_corrected(dataset):
     """netbone uses total weight ``W``; networkx-backbone ``2W`` (see Notes).
 
@@ -703,7 +758,7 @@ def _shortest_path_ties(G):
     )
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_high_salience_skeleton(dataset):
     """Same salience except where shortest paths tie (see Notes).
 
@@ -725,7 +780,7 @@ def test_netbone_high_salience_skeleton(dataset):
     assert ours.sum() == pytest.approx(theirs.sum()) == pytest.approx(len(G) - 1)
 
 
-@pytest.mark.parametrize("c", [0.5, 1.0])
+@over([0.5, 1.0])
 def test_netbone_glab(c):
     """GLAB p-values agree for links whose endpoints see no tied paths.
 
@@ -742,9 +797,8 @@ def test_netbone_glab(c):
     np.testing.assert_allclose(ours[free], theirs[free], atol=1e-12)
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
-@pytest.mark.parametrize(
-    ("model", "func", "attr"),
+@over(
+    DATASETS,
     [
         ("metric_distance_backbone", nb.metric_backbone, "metric_keep"),
         ("ultrametric_distance_backbone", nb.ultrametric_backbone, "ultrametric_keep"),
@@ -758,7 +812,7 @@ def test_netbone_distance_backbones(dataset, model, func, attr):
     assert ours == theirs
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_h_backbone(dataset):
     """Same h-strength edges; different bridge values (see Notes).
 
@@ -778,7 +832,7 @@ def test_netbone_h_backbone(dataset):
     assert np.all(ours[strong]) and np.all(theirs[strong])
 
 
-@pytest.mark.parametrize("dataset", sorted(WEIGHTED))
+@over(DATASETS)
 def test_netbone_mla_differs(dataset):
     """netbone's ``mlam`` is a different procedure (see MLA Notes).
 

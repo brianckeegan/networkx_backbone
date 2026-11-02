@@ -102,13 +102,12 @@ def _matrices(G):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("kind", ["csr_array", "coo_array", "csr_matrix", "ndarray"])
-def test_to_graph_round_trips_adjacency(les_mis, kind):
-    A = _matrices(les_mis)[kind]
-    G = nb.to_graph(A, nodelist=list(les_mis))
-    assert _nx_type(G) is nx.Graph
-    assert list(G) == list(les_mis)
-    assert dict(G.edges) == dict(les_mis.edges)
+def test_to_graph_round_trips_adjacency(les_mis):
+    for kind, A in _matrices(les_mis).items():
+        G = nb.to_graph(A, nodelist=list(les_mis))
+        assert _nx_type(G) is nx.Graph, kind
+        assert list(G) == list(les_mis), kind
+        assert dict(G.edges) == dict(les_mis.edges), kind
 
 
 def test_to_graph_default_labels_and_list_input():
@@ -163,21 +162,15 @@ def test_to_graph_boolean_matrix():
     assert nb.to_graph(A)[0][1] == {"weight": 1}
 
 
-@pytest.mark.parametrize(
-    ("data", "match"),
-    [
+def test_to_graph_rejects_bad_matrices_and_nodelists():
+    for data, match in [
         (np.zeros((2, 3)), "square"),
         (np.zeros(3), "square"),
         (sp.csr_array(np.zeros((2, 3))), "square"),
         (np.array([["a", "b"], ["b", "a"]]), "real-valued"),
-    ],
-)
-def test_to_graph_rejects_bad_matrices(data, match):
-    with pytest.raises(ValueError, match=match):
-        nb.to_graph(data)
-
-
-def test_to_graph_rejects_bad_nodelist():
+    ]:
+        with pytest.raises(ValueError, match=match):
+            nb.to_graph(data)
     A = np.zeros((2, 2))
     with pytest.raises(ValueError, match="nodelist has 3 entries"):
         nb.to_graph(A, nodelist="abc")
@@ -250,35 +243,46 @@ def test_to_graph_edgelist_errors(pd):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("scorer", ORDER_INVARIANT_SCORERS, ids=lambda f: f.__name__)
-def test_scorers_identical_on_converted_matrix(les_mis, scorer):
+def test_scorers_identical_on_converted_matrix(les_mis):
     nodes = list(les_mis)
     G = nb.to_graph(nx.to_scipy_sparse_array(les_mis, nodelist=nodes), nodelist=nodes)
-    assert _same(scorer(les_mis), scorer(G))
+    differ = [
+        scorer.__name__
+        for scorer in ORDER_INVARIANT_SCORERS
+        if not _same(scorer(les_mis), scorer(G))
+    ]
+    assert not differ, f"scores differ on the converted matrix: {differ}"
 
 
-@pytest.mark.parametrize("kind", ["csr_array", "csr_matrix", "ndarray"])
-@pytest.mark.parametrize(("method", "kwargs"), WEIGHTED_METHODS)
-def test_backbone_from_weighted_matrix(les_mis, kind, method, kwargs):
-    A = _matrices(les_mis)[kind]
-    expected = nb.backbone_from_weighted(les_mis, method=method, **kwargs)
-    got = nb.backbone_from_weighted(A, method=method, nodelist=list(les_mis), **kwargs)
-    assert _same(got, expected)
-    # backbone() reads a matrix as an adjacency matrix for weighted methods.
-    got = nb.backbone(A, method=method, nodelist=list(les_mis), **kwargs)
-    assert _same(got, expected)
+def test_backbone_from_weighted_matrix(les_mis):
+    nodes = list(les_mis)
+    failures = []
+    for method, kwargs in WEIGHTED_METHODS:
+        expected = nb.backbone_from_weighted(les_mis, method=method, **kwargs)
+        for kind in ("csr_array", "csr_matrix", "ndarray"):
+            A = _matrices(les_mis)[kind]
+            got = nb.backbone_from_weighted(A, method=method, nodelist=nodes, **kwargs)
+            if not _same(got, expected):
+                failures.append(f"backbone_from_weighted({kind}, method={method!r})")
+            # backbone() reads a matrix as an adjacency matrix for weighted methods.
+            got = nb.backbone(A, method=method, nodelist=nodes, **kwargs)
+            if not _same(got, expected):
+                failures.append(f"backbone({kind}, method={method!r})")
+    assert not failures, failures
 
 
-@pytest.mark.parametrize(("method", "kwargs"), UNWEIGHTED_METHODS)
-def test_backbone_from_unweighted_matrix(karate, method, kwargs):
+def test_backbone_from_unweighted_matrix(karate):
     A = nx.to_scipy_sparse_array(karate, nodelist=list(karate), weight=None)
-    expected = nb.backbone_from_unweighted(karate, method=method, **kwargs)
-    got = nb.backbone_from_unweighted(A, method=method, nodelist=list(karate), **kwargs)
-    assert sorted(got.edges) == sorted(expected.edges)
-    # The matrix values are not copied as weights.
-    assert all("weight" not in d for _, _, d in got.edges(data=True))
-    got = nb.backbone(A, method=method, nodelist=list(karate), **kwargs)
-    assert sorted(got.edges) == sorted(expected.edges)
+    for method, kwargs in UNWEIGHTED_METHODS:
+        expected = nb.backbone_from_unweighted(karate, method=method, **kwargs)
+        got = nb.backbone_from_unweighted(
+            A, method=method, nodelist=list(karate), **kwargs
+        )
+        assert sorted(got.edges) == sorted(expected.edges), method
+        # The matrix values are not copied as weights.
+        assert all("weight" not in d for _, _, d in got.edges(data=True)), method
+        got = nb.backbone(A, method=method, nodelist=list(karate), **kwargs)
+        assert sorted(got.edges) == sorted(expected.edges), method
 
 
 def test_backbone_from_weighted_directed_matrix():
@@ -294,15 +298,15 @@ def test_backbone_from_weighted_directed_matrix():
         nb.backbone_from_weighted(A)
 
 
-@pytest.mark.parametrize(("method", "kwargs"), WEIGHTED_METHODS)
-def test_backbone_from_weighted_edgelist(pd, les_mis, method, kwargs):
+def test_backbone_from_weighted_edgelist(pd, les_mis):
     df = nx.to_pandas_edgelist(les_mis, source="u", target="v")
-    expected = nb.backbone_from_weighted(les_mis, method=method, **kwargs)
-    got = nb.backbone_from_weighted(df, method=method, source="u", target="v", **kwargs)
-    assert _same(got, expected)
-
-
-def test_backbone_from_weighted_custom_weight_column(pd, les_mis):
+    for method, kwargs in WEIGHTED_METHODS:
+        expected = nb.backbone_from_weighted(les_mis, method=method, **kwargs)
+        got = nb.backbone_from_weighted(
+            df, method=method, source="u", target="v", **kwargs
+        )
+        assert _same(got, expected), method
+    # A custom weight column.
     df = nx.to_pandas_edgelist(les_mis).rename(columns={"weight": "count"})
     expected = nb.backbone_from_weighted(les_mis)
     got = nb.backbone_from_weighted(df, weight="count")

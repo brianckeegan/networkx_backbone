@@ -31,18 +31,6 @@ def test_graph_difference_directed_orientation():
     assert diff["removed_edges"] == {(1, 0), (1, 2)}
 
 
-def test_compare_graphs_returns_diff():
-    pytest.importorskip("matplotlib")
-
-    G = nx.cycle_graph(4)
-    H = nx.path_graph([0, 1, 2])
-
-    fig, ax, diff = compare_graphs(G, H, return_diff=True)
-    assert fig is not None
-    assert ax is not None
-    assert 3 in diff["removed_nodes"]
-
-
 # ---------------------------------------------------------------------
 # Edge keys
 # ---------------------------------------------------------------------
@@ -115,7 +103,12 @@ def test_compare_graphs_new_figure_pos_and_seed(plt):
     assert (off1 == off2).all()
 
 
-def test_compare_graphs_directed(plt):
+def test_compare_graphs_returns_diff(plt):
+    fig, ax, diff = compare_graphs(
+        nx.cycle_graph(4), nx.path_graph([0, 1, 2]), return_diff=True
+    )
+    assert fig is not None and ax is not None
+    assert 3 in diff["removed_nodes"]
     D = nx.DiGraph([(0, 1), (1, 2), (2, 0)])
     _, _, diff = compare_graphs(D, nx.DiGraph([(0, 1)]), seed=1, return_diff=True)
     assert diff["removed_edges"] == {(1, 2), (2, 0)}

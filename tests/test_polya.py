@@ -70,17 +70,24 @@ def test_figure_1_example():
     assert [pmf(4), pmf(3), pmf(2)] == pytest.approx([1 / 15, 2 / 15, 1 / 5])
 
 
-@pytest.mark.parametrize("a", [0, Fraction(1, 2), 1, 2, 3])
-@pytest.mark.parametrize("k", [2, 3, 4])
-def test_exact_pvalue_matches_urn(k, a):
-    for s in range(k, 8):
-        for w in range(1, s - (k - 1) + 1):
-            rest = s - w
-            others = [rest // (k - 1) + (i < rest % (k - 1)) for i in range(k - 1)]
-            H = nb.polya_filter(star([w, *others]), a=float(a))
-            assert H["c"][0]["polya_pvalue"] == pytest.approx(
-                float(urn_tail(w, k, s, a)), rel=1e-10
-            ), (w, k, s, a)
+def test_exact_pvalue_matches_urn():
+    mismatches = []
+    for k in (2, 3, 4):
+        for a in (0, Fraction(1, 2), 1, 2, 3):
+            for s in range(k, 8):
+                for w in range(1, s - (k - 1) + 1):
+                    rest = s - w
+                    others = [
+                        rest // (k - 1) + (i < rest % (k - 1)) for i in range(k - 1)
+                    ]
+                    H = nb.polya_filter(star([w, *others]), a=float(a))
+                    got = H["c"][0]["polya_pvalue"]
+                    expected = float(urn_tail(w, k, s, a))
+                    if got != pytest.approx(expected, rel=1e-10):
+                        mismatches.append(
+                            f"w={w} k={k} s={s} a={a}: {got} != {expected}"
+                        )
+    assert not mismatches, "\n".join(mismatches)
 
 
 def test_a_zero_is_binomial():
@@ -236,6 +243,14 @@ def test_ml_estimate_les_miserables():
     # a=None is the same as passing the estimate.
     assert pvalues(H) == pytest.approx(pvalues(nb.polya_filter(G, a=a_ml)))
 
+    # The scores compose with threshold_filter's multiple-testing correction.
+    raw = nb.threshold_filter(H, "polya_pvalue", 0.05)
+    bonf = nb.threshold_filter(H, "polya_pvalue", 0.05, mtc="bonferroni")
+    assert 0 < bonf.number_of_edges() <= raw.number_of_edges()
+    # The paper's own rule: Bonferroni over L = 2m tests.
+    paper = nb.threshold_filter(H, "polya_pvalue", 0.05 / (2 * G.number_of_edges()))
+    assert paper.number_of_edges() <= bonf.number_of_edges()
+
 
 def test_ml_estimate_at_binomial_boundary():
     """Equal weights are under-dispersed, so the likelihood peaks at a = 0."""
@@ -256,29 +271,15 @@ def test_explicit_a_is_recorded():
 
 
 # ---------------------------------------------------------------------------
-# Arguments and composition
+# Arguments
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("a", [-0.5, math.inf, math.nan])
-def test_invalid_a(a):
-    with pytest.raises(ValueError, match="a must be"):
-        nb.polya_filter(star([2, 1, 1]), a=a)
-
-
-def test_invalid_approximate():
+def test_invalid_arguments():
+    for a in (-0.5, math.inf, math.nan):
+        with pytest.raises(ValueError, match="a must be"):
+            nb.polya_filter(star([2, 1, 1]), a=a)
     with pytest.raises(ValueError, match="approximate"):
         nb.polya_filter(star([2, 1, 1]), a=1, approximate="yes")
     with pytest.raises(ValueError, match="a > 0"):
         nb.polya_filter(star([2, 1, 1]), a=0, approximate=True)
-
-
-def test_composes_with_threshold_filter_mtc():
-    G = nx.les_miserables_graph()
-    H = nb.polya_filter(G)
-    raw = nb.threshold_filter(H, "polya_pvalue", 0.05)
-    bonf = nb.threshold_filter(H, "polya_pvalue", 0.05, mtc="bonferroni")
-    assert 0 < bonf.number_of_edges() <= raw.number_of_edges()
-    # The paper's own rule: Bonferroni over L = 2m tests.
-    paper = nb.threshold_filter(H, "polya_pvalue", 0.05 / (2 * G.number_of_edges()))
-    assert paper.number_of_edges() <= bonf.number_of_edges()
