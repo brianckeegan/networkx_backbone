@@ -28,6 +28,17 @@ Unreleased
   (:doc:`tutorials/les_miserables_benchmark`). The statistical, comparing and
   benchmark pages now link their narrative tutorials, and the comparing page
   shows how to measure two backbones' agreement.
+- Figures on five how-to tutorials (#121): the Davis incidence matrix
+  beside its projection (:doc:`tutorials/bipartite_backbone`), hyperedges and
+  their MDL backbones beside the pairwise projection
+  (:doc:`tutorials/hypergraph_backbone`), edge activity over the time steps
+  with observation fraction and persistence
+  (:doc:`tutorials/temporal_backbones`), edges kept against alpha for each
+  multiple-testing correction and the consensus vote counts
+  (:doc:`tutorials/validating_backbones`), and an overview of one backbone
+  per API module (:doc:`tutorials/graph_gallery`), plus method-gallery
+  figures where they fit. The temporal and validating pages now link their
+  narrative tutorials.
 - A narrative tutorial, :ref:`tutorial-weight-meaning` (#125): telling counts,
   strengths and distances apart and which methods assume which; how the
   metric backbone, the disparity filter and LANS move under power transforms

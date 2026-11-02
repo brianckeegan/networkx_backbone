@@ -22,12 +22,6 @@ SECTIONS = ("tutorials", "user_guide")
 # Pages that have no figure yet, as "<section>/<file stem>".  #121 and #122
 # empty this set; never add to it.
 PENDING = {
-    # How-to tutorials (#121).
-    "tutorials/bipartite_backbone",
-    "tutorials/graph_gallery",
-    "tutorials/hypergraph_backbone",
-    "tutorials/temporal_backbones",
-    "tutorials/validating_backbones",
     # User guide (#122).
     "user_guide/backends",
     "user_guide/choosing_method",

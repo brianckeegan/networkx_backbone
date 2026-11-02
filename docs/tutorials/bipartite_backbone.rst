@@ -65,6 +65,12 @@ the shared artifacts ``z`` of two agents ``u`` and ``v`` (``d`` is a degree):
     print("ProbS edges:", G_probs.number_of_edges())
     print("YCN edges:", G_ycn.number_of_edges())
 
+All four share the simple projection's edges: two women are linked when they
+attended at least one event together, which on Davis is nearly every pair.
+Only the weights differ.
+
+.. page-figure:: bipartite_backbone/incidence-projection
+
 Coscia & Rossi's hyperbolic weight discounts each artifact by ``d(z)``. Newman's
 (2001) original collaboration weight discounts by ``d(z) - 1``, the number of
 *other* co-authors, and is what NetworkX's
@@ -225,6 +231,13 @@ the stored p-value becomes two-sided and each edge gains a ``"sign"`` attribute
     H = nb.sdsm(B, agent_nodes=women_nodes, signed=True)
     backbone = nb.threshold_filter(H, "sdsm_pvalue", 0.05, mode="below")
     weak = [(u, v) for u, v, d in backbone.edges(data=True) if d["sign"] == -1]
+
+The method gallery draws a signed backbone of the same projection, from
+:func:`~nx_backbone.fixedrow` with ``signed=True``; the dashed edges are the
+significantly weak pairs:
+
+.. page-figure:: gallery:bipartite/fixedrow_signed
+   :width: 75%
 
 Edge constraints (SDSM-EC)
 --------------------------
