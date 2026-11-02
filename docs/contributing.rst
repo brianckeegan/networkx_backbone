@@ -432,15 +432,47 @@ For each release:
    history, runs the tests, builds the wheel and sdist, checks them with
    ``twine check --strict``, and **fails before uploading unless both carry
    version X.Y.Z**. The conda workflow checks the same thing before building.
-4. Check https://pypi.org/project/nx-backbone/ and the documentation
+4. Check https://pypi.org/project/nx-backbone/,
+   https://anaconda.org/brianckeegan/nx-backbone and the documentation
    site. If an upload fails, fix the cause (for example the trusted
    publisher or the environment rules) and use "Re-run failed jobs" on the
    *release* run, which rebuilds from the same tag.
 
-Running either publishing workflow by hand (``workflow_dispatch``) is a dry
-run: it tests and builds, but never uploads. Never publish from a manual run
-on ``main``; it would build a development version such as
-``0.2.0.post1.dev9``.
+A re-run uses each workflow file as it was **at the tag**, not as it is on
+``main``. It therefore only helps when the cause lies outside the file (a
+publisher, an environment rule, a secret, an outage). When the workflow file
+itself was wrong, fix it on ``main`` first, then:
+
+- **conda:** run *Publish to Conda* by hand (Actions, *Publish to Conda*,
+  *Run workflow*) on ``main`` with the ``tag`` input set to the release tag,
+  for example ``v0.3.0``. The run checks out that tag with its full history,
+  fails unless its setuptools-scm version equals the tag without its ``v``,
+  builds the package with the recipe at the tag, runs the recipe's tests, and
+  uploads to anaconda.org (the ``ANACONDA_TOKEN`` secret must be set). Use
+  it, for example, for ``v0.3.0``, whose release run failed in the conda
+  workflow.
+- **Docs:** run *Deploy Documentation* by hand on ``main`` while ``main`` is
+  still at the release commit (see the one-time setup above).
+- **PyPI:** there is no manual upload of an existing tag, and PyPI refuses a
+  second upload of the same version; a broken PyPI workflow is fixed in the
+  next patch release.
+
+Running the PyPI workflow by hand (``workflow_dispatch``), or the conda
+workflow without a ``tag``, is a dry run: it tests and builds the selected
+branch, but never uploads. Never publish a build of ``main`` itself; it
+would carry a development version such as ``0.2.0.post1.dev9``.
+
+The conda workflow installs only ``conda-build`` and ``anaconda-client``,
+from conda-forge with strict channel priority. Do not add ``conda-verify``:
+it is an optional linter for ``conda-build`` with no build for Python 3.12 or
+later, and installing it made the 0.3.0 release run fail before building. To
+check the recipe locally (it never uploads)::
+
+    conda create -n conda-build -c conda-forge --override-channels conda-build
+    conda activate conda-build
+    NX_BACKBONE_VERSION=0.3.0 SETUPTOOLS_SCM_PRETEND_VERSION=0.3.0 \
+        conda build .github/workflows/conda-recipe/ --output-folder /tmp/conda-bld \
+        --override-channels -c conda-forge --no-anaconda-upload
 
 Submitting changes
 ------------------

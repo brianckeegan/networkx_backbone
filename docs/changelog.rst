@@ -74,6 +74,21 @@ Unreleased
   signs an edge, with exact ties signed -1 and the signed LANS lower tail.
   Linked from :doc:`user_guide/directed_graphs`.
 
+*Infrastructure*
+
+- The conda workflow works again (#16). The 0.3.0 release run failed before
+  building, because it installed ``conda-verify``, an optional conda-build
+  linter with no build for Python 3.12 or later. ``publish-to-conda.yml`` now
+  installs only ``conda-build`` and ``anaconda-client``, from conda-forge
+  alone with strict channel priority on Miniforge. It no longer installs the
+  package into the environment that runs ``conda-build``; the recipe's own
+  test section runs the test suite against the built package. A manual run
+  takes an optional ``tag`` input that builds, tests and uploads an existing
+  release tag, after checking its setuptools-scm version, so a failed release
+  run can be finished from a fixed workflow (a re-run uses the workflow file
+  as it was at the tag). A manual run without ``tag`` stays a dry run.
+  :doc:`contributing` explains how.
+
 Version 0.3.0 (2026-11-02)
 --------------------------
 
