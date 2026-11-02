@@ -29,7 +29,7 @@ score by score, see the short how-to tutorial
 user guide :doc:`/user_guide/temporal`.
 """
 
-# sphinx_gallery_thumbnail_path = "auto_examples/temporal/images/temporal_heatmap-light.png"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/temporal/thumbnail.png"
 
 # %%
 # Setting up
@@ -44,12 +44,10 @@ import math
 import random
 import warnings
 from itertools import combinations
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from _figures import style
 from matplotlib.collections import PatchCollection
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch, Rectangle
@@ -57,23 +55,14 @@ from matplotlib.patches import Patch, Rectangle
 import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
-# Figures are saved as light and dark SVG pairs next to the generated page,
-# and the text below shows the one that matches the reader's theme.
-# Sphinx-Gallery runs this file from its own directory, docs/examples/<topic>.
-_here = Path.cwd()
-if (_here.parents[1] / "conf.py").exists() and _here.parent.name == "examples":
-    FIG_DIR = _here.parents[1] / "auto_examples" / _here.name / "images"
-else:  # run by hand: write the figures to a temporary directory
-    import tempfile
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
 
-    FIG_DIR = Path(tempfile.mkdtemp())
-
-
-def save(name, draw, **kw):
-    """Write ``<name>-light.svg`` and ``<name>-dark.svg``."""
-    style.save_variants(draw, FIG_DIR / name, **kw)
-
-
+# Figures are saved as light and dark SVG pairs by the docs' tutorial figure
+# helper (docs/_figures/tutorial.py), and the page shows the one that matches
+# the reader's theme.
+figures = TutorialFigures("temporal")
 # sphinx_gallery_end_ignore
 
 
@@ -180,6 +169,7 @@ assert len(_bc_events) == 1 and len(_bc_spans) > 4
 T_END = 8
 
 
+# sphinx_gallery_start_ignore
 def draw_forms(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(
@@ -235,37 +225,26 @@ def draw_forms(mode):
     return fig
 
 
-save("temporal_forms", draw_forms)
+figures.show(
+    draw_forms,
+    "temporal_forms",
+    alt=(
+        f"Four timelines on one shared time axis from 0 to {T_END} hours, with "
+        "one row per pair of people "
+        f"({', '.join(f'{u}-{v}' for u, v in PAIRS)}). The first "
+        "shows each contact as a vertical tick at its onset, the second as a "
+        "bar from its start to its end, and the last two as filled cells in "
+        "one-hour and two-hour bins."
+    ),
+    caption=(
+        "The same badge log as events (onsets only), spans, and snapshots "
+        "binned at one and two hours.  Wider bins merge contacts and make brief "
+        "and long contacts look alike."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/temporal_forms-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 100%
-#    :alt: Four timelines on one shared time axis from 0 to 8 hours, with
-#          one row per pair of people (ann-bob, bob-cat, cat-dan, ann-dan).
-#          The first shows each contact as a vertical tick at its onset, the
-#          second as a bar from its start to its end, and the last two as
-#          filled cells in one-hour and two-hour bins.
-#
-#    The same badge log as events (onsets only), spans, and snapshots
-#    binned at one and two hours.  Wider bins merge contacts and make
-#    brief and long contacts look alike.
-#
-# .. figure:: images/temporal_forms-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 100%
-#    :alt: Four timelines on one shared time axis from 0 to 8 hours, with
-#          one row per pair of people (ann-bob, bob-cat, cat-dan, ann-dan).
-#          The first shows each contact as a vertical tick at its onset, the
-#          second as a bar from its start to its end, and the last two as
-#          filled cells in one-hour and two-hour bins.
-#
-#    The same badge log as events (onsets only), spans, and snapshots
-#    binned at one and two hours.  Wider bins merge contacts and make
-#    brief and long contacts look alike.
-#
 # The conversions between snapshots and events or spans are lossless;
 # binning is not (see the table in :doc:`/user_guide/temporal`).  The bin
 # width is a modeling choice: it sets what "at the same time" means.
@@ -306,7 +285,6 @@ print("Heaviest pair by duration:", "–".join(heaviest(by_duration)))
 # sphinx_gallery_start_ignore
 assert key(*heaviest(by_count)) == ("ann", "bob")
 assert key(*heaviest(by_duration)) == ("bob", "cat")
-# sphinx_gallery_end_ignore
 
 
 def draw_flatten(mode):
@@ -342,33 +320,24 @@ def draw_flatten(mode):
     return fig
 
 
-save("temporal_flatten", draw_flatten)
+figures.show(
+    draw_flatten,
+    "temporal_flatten",
+    width="90%",
+    alt=(
+        "Two horizontal bar charts with one bar per pair of people. On the left "
+        "the bar length is the number of contacts, on the right the hours in "
+        "contact; each bar is labeled with its value. Ann-Bob has the longest "
+        "bar on the left and Bob-Cat on the right."
+    ),
+    caption=(
+        "The badge log flattened two ways.  The order of the pairs depends on "
+        "whether a weight counts contacts or time in contact."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/temporal_flatten-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 90%
-#    :alt: Two horizontal bar charts with one bar per pair of people. On
-#          the left the bar length is the number of contacts, on the right
-#          the hours in contact; each bar is labeled with its value.
-#          Ann-Bob has the longest bar on the left and Bob-Cat on the right.
-#
-#    The badge log flattened two ways.  The order of the pairs depends on
-#    whether a weight counts contacts or time in contact.
-#
-# .. figure:: images/temporal_flatten-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 90%
-#    :alt: Two horizontal bar charts with one bar per pair of people. On
-#          the left the bar length is the number of contacts, on the right
-#          the hours in contact; each bar is labeled with its value.
-#          Ann-Bob has the longest bar on the left and Bob-Cat on the right.
-#
-#    The badge log flattened two ways.  The order of the pairs depends on
-#    whether a weight counts contacts or time in contact.
-#
 # Neither weight is wrong; they answer different questions.  Decide what a
 # unit of weight should mean before choosing a static method, since several
 # null models assume the weights are counts (see
@@ -575,6 +544,7 @@ for _label, _edges in ROWS:
         _y -= 1
 
 
+# sphinx_gallery_start_ignore
 def draw_heatmap(mode):
     p = style.palette(mode)
     fig = plt.figure(figsize=(9.6, 6.0))
@@ -673,46 +643,29 @@ def draw_heatmap(mode):
     return fig
 
 
-save("temporal_heatmap", draw_heatmap)
-save("temporal_heatmap", draw_heatmap, fmt="png", modes=("light",))  # thumbnail
+figures.show(
+    draw_heatmap,
+    "temporal_heatmap",
+    thumbnail=True,
+    alt=(
+        "A grid with one row per edge and one column per step, grouped into "
+        "block, flicker and a sample of noise edges. Large blue squares mark "
+        "steps in which the edge is present and kept by that step's disparity "
+        "backbone, small gray squares steps in which it is present but not "
+        "kept. Block rows show one solid run, flicker rows scattered squares, "
+        "noise rows a few small gray squares. Four narrow dot columns on the "
+        "right give each edge's flattened weight, observation fraction, "
+        "persistence and backbone stability."
+    ),
+    caption=(
+        "Edges by time.  Block and flicker edges have the same flattened "
+        "weight, observation fraction and stability; only persistence, which "
+        "reads the order of the steps, tells them apart."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/temporal_heatmap-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 100%
-#    :alt: A grid with one row per edge and one column per step, grouped
-#          into block, flicker and a sample of noise edges. Large blue
-#          squares mark steps in which the edge is present and kept by that
-#          step's disparity backbone, small gray squares steps in which it
-#          is present but not kept. Block rows show one solid run, flicker
-#          rows scattered squares, noise rows a few small gray squares. Four
-#          narrow dot columns on the right give each edge's flattened
-#          weight, observation fraction, persistence and backbone
-#          stability.
-#
-#    Edges by time.  Block and flicker edges have the same flattened
-#    weight, observation fraction and stability; only persistence, which
-#    reads the order of the steps, tells them apart.
-#
-# .. figure:: images/temporal_heatmap-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 100%
-#    :alt: A grid with one row per edge and one column per step, grouped
-#          into block, flicker and a sample of noise edges. Large blue
-#          squares mark steps in which the edge is present and kept by that
-#          step's disparity backbone, small gray squares steps in which it
-#          is present but not kept. Block rows show one solid run, flicker
-#          rows scattered squares, noise rows a few small gray squares. Four
-#          narrow dot columns on the right give each edge's flattened
-#          weight, observation fraction, persistence and backbone
-#          stability.
-#
-#    Edges by time.  Block and flicker edges have the same flattened
-#    weight, observation fraction and stability; only persistence, which
-#    reads the order of the steps, tells them apart.
-#
 # Two more things show in the grid.  The per-step backbone keeps a heavy
 # edge in some of its steps and drops it in others, because the disparity
 # filter judges an edge against the other edges of its endpoints, which
@@ -891,6 +844,7 @@ def series(H, attr, e):
     ]
 
 
+# sphinx_gallery_start_ignore
 def draw_kalman(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 3, figsize=(9.6, 3.4), sharey=True)
@@ -945,43 +899,30 @@ def draw_kalman(mode):
     return fig
 
 
-save("temporal_kalman", draw_kalman)
+figures.show(
+    draw_kalman,
+    "temporal_kalman",
+    alt=(
+        "Three line charts side by side, sharing a y-axis of minus log10 "
+        "p-value against step. Each has one thin gray line per steady edge and "
+        f"one blue line per rising edge, a dashed line at p = {ALPHA} and a "
+        f"shaded rising period from step {RISE}. On the left the lines are "
+        "jagged and some gray lines cross the dashed line. In the middle, the "
+        "smoother, the gray lines stay low and smooth while the blue lines "
+        f"climb from around step {RISE}, some already before it. On the right, "
+        "the filter, the blue "
+        "lines climb later."
+    ),
+    caption=(
+        "Per-step significance before and after smoothing, for the rising edges "
+        f"(blue) and the steady edges (gray).  P-values below 1e{round(math.log10(P_FLOOR))} are "
+        "drawn at "
+        "the top."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/temporal_kalman-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 100%
-#    :alt: Three line charts side by side, sharing a y-axis of minus log10
-#          p-value against step. Each has one thin gray line per steady edge
-#          and one blue line per rising edge, a dashed line at p = 0.05 and
-#          a shaded rising period from step 12. On the left the lines are
-#          jagged and some gray lines cross the dashed line. In the middle,
-#          the smoother, the gray lines stay low and smooth while the blue
-#          lines climb from around step 12, some already before it. On the
-#          right, the filter, the blue lines climb later.
-#
-#    Per-step significance before and after smoothing, for the rising
-#    edges (blue) and the steady edges (gray).  P-values below 1e-4 are
-#    drawn at the top.
-#
-# .. figure:: images/temporal_kalman-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 100%
-#    :alt: Three line charts side by side, sharing a y-axis of minus log10
-#          p-value against step. Each has one thin gray line per steady edge
-#          and one blue line per rising edge, a dashed line at p = 0.05 and
-#          a shaded rising period from step 12. On the left the lines are
-#          jagged and some gray lines cross the dashed line. In the middle,
-#          the smoother, the gray lines stay low and smooth while the blue
-#          lines climb from around step 12, some already before it. On the
-#          right, the filter, the blue lines climb later.
-#
-#    Per-step significance before and after smoothing, for the rising
-#    edges (blue) and the steady edges (gray).  P-values below 1e-4 are
-#    drawn at the top.
-#
 # Smoothing turns a jagged, noisy picture into a clear one: the steady
 # edges sink, the rising ones climb and stay up.  The filter, which may
 # not look ahead, detects the rise later than the smoother.
@@ -1254,6 +1195,7 @@ EXAMPLES = [
 ]
 
 
+# sphinx_gallery_start_ignore
 def draw_hmm(mode):
     p = style.palette(mode)
     c_fit, c_fixed = style.categorical(2, mode)
@@ -1309,45 +1251,28 @@ def draw_hmm(mode):
     return fig
 
 
-save("temporal_hmm", draw_hmm)
+figures.show(
+    draw_hmm,
+    "temporal_hmm",
+    alt=(
+        "Three stacked charts against step, one per edge. Gray bars mark the "
+        "steps in which the edge is observed. A solid blue line gives the "
+        "fitted model's posterior probability that the edge is active, and a "
+        "dashed orange line the posterior with the miss rate fixed. For the "
+        "block edge both lines are near 1 through the whole run, including the "
+        "missed step. For the flicker edge the solid line stays high across the "
+        "whole sequence while the dashed line rises and falls with the "
+        "observations. For the noise edge both lines stay near 0."
+    ),
+    caption=(
+        "Raw presence (gray bars) against the posterior probability of being "
+        "active, for the fitted model (solid) and with the miss rate fixed "
+        "(dashed)."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/temporal_hmm-light.svg
-#    :class: only-light
-#    :figclass: only-light
-#    :width: 100%
-#    :alt: Three stacked charts against step, one per edge. Gray bars mark
-#          the steps in which the edge is observed. A solid blue line gives
-#          the fitted model's posterior probability that the edge is
-#          active, and a dashed orange line the posterior with the miss rate
-#          fixed. For the block edge both lines are near 1 through the whole
-#          run, including the missed step. For the flicker edge the solid
-#          line stays high across the whole sequence while the dashed line
-#          rises and falls with the observations. For the noise edge both
-#          lines stay near 0.
-#
-#    Raw presence (gray bars) against the posterior probability of being
-#    active, for the fitted model (solid) and with the miss rate fixed
-#    (dashed).
-#
-# .. figure:: images/temporal_hmm-dark.svg
-#    :class: only-dark
-#    :figclass: only-dark
-#    :width: 100%
-#    :alt: Three stacked charts against step, one per edge. Gray bars mark
-#          the steps in which the edge is observed. A solid blue line gives
-#          the fitted model's posterior probability that the edge is
-#          active, and a dashed orange line the posterior with the miss rate
-#          fixed. For the block edge both lines are near 1 through the whole
-#          run, including the missed step. For the flicker edge the solid
-#          line stays high across the whole sequence while the dashed line
-#          rises and falls with the observations. For the noise edge both
-#          lines stay near 0.
-#
-#    Raw presence (gray bars) against the posterior probability of being
-#    active, for the fitted model (solid) and with the miss rate fixed
-#    (dashed).
-#
 # ``hmm_score`` (an edge's largest posterior) and ``hmm_active_fraction``
 # (its mean posterior) are **membership scores, not p-values**: they are
 # probabilities under a model fitted to the same data, which assumes that

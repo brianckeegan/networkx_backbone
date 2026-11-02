@@ -33,108 +33,44 @@ built.  For the function-by-function reference, see the short tutorials
 and :doc:`/tutorials/unweighted_sparsification`.
 """
 
-# sphinx_gallery_thumbnail_path = "_static/example_figures/structural_proximity/guarantees-light.png"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/structural_proximity/thumbnail.png"
 
 # %%
 # Setup
 # -----
 #
-# The figures use the documentation's shared style, which draws each figure
-# in a light and a dark version; your theme shows the matching one.  The two
-# small helper classes below only turn a drawing function, or a list of rows,
-# into HTML for this page; ``Figure`` saves the two versions as image files.
-# They are not part of the library.
+# Each figure is drawn in a light and a dark version; your theme shows the
+# matching one. The plotting code is left out of the page (it is in the
+# script and notebook you can download at the end). The small ``Table``
+# class below turns a list of rows into HTML; it is not part of the library.
 
-import base64
 import heapq
 import html
 import math
 import random
-import re
-import shutil
-import struct
-import tempfile
 import warnings
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from _figures import style
 from matplotlib.lines import Line2D
 
 import nx_backbone as nb
 from nx_backbone.describe import METHODS, REFERENCES
 
 # sphinx_gallery_start_ignore
-# Sphinx-Gallery runs this file from docs/examples/structural_proximity/ when
-# it builds the docs.  The figure files then go to the gitignored
-# docs/_static/example_figures/structural_proximity/, which Sphinx copies with
-# the rest of _static, and the page links to them, so they are not embedded
-# in the HTML.  Run anywhere else (as a script, or as the downloaded
-# notebook), the files go to a temporary folder and are embedded in the output.
-_here = Path.cwd()
-if _here.parent.name == "examples" and (_here.parents[1] / "conf.py").is_file():
-    FIGURES = _here.parents[1] / "_static" / "example_figures" / _here.name
-    shutil.rmtree(FIGURES, ignore_errors=True)  # no stale files from earlier builds
-    _FIGURE_URL = f"../../_static/example_figures/{_here.name}/"
-else:
-    FIGURES = Path(tempfile.mkdtemp())
-    _FIGURE_URL = None
-PNG_DPI = 144  # network drawings are PNG; this keeps them sharp at full width
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
 
-
-def _img(path, mode, alt):
-    """An <img> for one variant: a link to the file, or the file inlined."""
-    data = path.read_bytes()
-    if path.suffix == ".png":  # the size is in the IHDR chunk
-        width, height = struct.unpack(">II", data[16:24])
-        mime = "image/png"
-    else:  # matplotlib writes the SVG size in points
-        size = re.search(
-            r'width="([\d.]+)pt" height="([\d.]+)pt"', data[:1000].decode()
-        )
-        width, height = (round(float(v) * 4 / 3) for v in size.groups())
-        mime = "image/svg+xml"
-    if _FIGURE_URL is None:
-        src = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
-    else:
-        src = _FIGURE_URL + path.name
-    # Lazy loading: the browser fetches only the variant the theme shows, and
-    # the width and height reserve the space before it arrives.
-    return (
-        f'<img class="only-{mode}" alt="{html.escape(alt)}" src="{src}" '
-        f'width="{width}" height="{height}" loading="lazy" '
-        'style="width: 100%; height: auto;">'
-    )
-
-
+# The figures go through the docs' tutorial figure helper
+# (docs/_figures/tutorial.py): in the docs build the files are linked from
+# docs/_static/example_figures/structural_proximity/; run anywhere else (as a
+# script, or as the downloaded notebook), they are embedded in the output.
+# Network drawings with hundreds of edges are saved as PNG (``fmt="png"``),
+# which is much lighter than SVG for them; charts stay SVG.
+figures = TutorialFigures("structural_proximity")
 # sphinx_gallery_end_ignore
-
-
-class Figure:
-    """Light and dark renderings of one figure, with alt text and a caption.
-
-    Network drawings with hundreds of edges are saved as PNG (``fmt="png"``),
-    which is much lighter than SVG for them; charts stay SVG.
-    """
-
-    def __init__(self, draw, name, alt, caption, fmt="svg"):
-        dpi = {"dpi": PNG_DPI} if fmt == "png" else {}
-        self.paths = style.save_variants(draw, FIGURES / name, fmt=fmt, **dpi)
-        self.alt, self.caption = alt, caption
-
-    def _repr_html_(self):
-        images = "".join(
-            _img(path, mode, self.alt) for mode, path in self.paths.items()
-        )
-        # The caption follows a wrapper <div>, not the images themselves: the
-        # theme hides a <figcaption> that directly follows an ``only-dark``
-        # image in light mode.
-        return (
-            f"<figure><div>{images}</div>"
-            f"<figcaption>{html.escape(self.caption)}</figcaption></figure>"
-        )
 
 
 class Table:
@@ -188,7 +124,9 @@ G = nx.les_miserables_graph()
 U = nx.Graph()
 U.add_nodes_from(G)
 U.add_edges_from(G.edges())
+# sphinx_gallery_start_ignore
 pos = style.layout(G, "les_miserables")
+# sphinx_gallery_end_ignore
 
 weights = [w for _, _, w in G.edges(data="weight")]
 print(f"{G.number_of_nodes()} characters, {G.number_of_edges()} edges")
@@ -248,6 +186,7 @@ guarantee_backbones = {
 panels = {"Original graph": G, **guarantee_backbones}
 
 
+# sphinx_gallery_start_ignore
 def draw_guarantees(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(3, 3, figsize=(9, 6.6))
@@ -276,10 +215,11 @@ def draw_guarantees(mode):
 
 
 mst_counts = style.backbone_counts(G, guarantee_backbones["Maximum spanning tree"])
-Figure(
+figures.show(
     draw_guarantees,
     "guarantees",
     fmt="png",
+    thumbnail=True,
     alt=(
         "Nine network drawings of Les Misérables on the same layout: the "
         "original graph and eight backbones. Kept edges are drawn thick and "
@@ -292,6 +232,7 @@ Figure(
         f"{mst_counts.caption}"
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The picture shows sizes; the guarantees need checking.  The table below
@@ -348,14 +289,18 @@ checked = {
 }
 rows = []
 for name, backbone in checked.items():
-    counts = style.backbone_counts(G, backbone)
+    # sphinx_gallery_start_ignore
+    _counts = style.backbone_counts(G, backbone)
+    assert _counts.edges_kept == backbone.number_of_edges()
+    assert _counts.nodes_kept == sum(d > 0 for _, d in backbone.degree())
+    # sphinx_gallery_end_ignore
     spanning = backbone.copy()
     spanning.add_nodes_from(G)
     rows.append(
         [
             name,
-            counts.edges_kept,
-            counts.nodes_kept,
+            backbone.number_of_edges(),
+            sum(d > 0 for _, d in backbone.degree()),  # nodes with an edge
             yes_no(nx.is_connected(spanning)),
             yes_no(nx.check_planarity(backbone)[0]),
             yes_no(same_distances(full_sp, shortest_paths(backbone))),
@@ -428,7 +373,9 @@ toy.add_weighted_edges_from(
 )
 for *_, d in toy.edges(data=True):
     d["inverse"] = 1 / d["weight"]
+# sphinx_gallery_start_ignore
 toy_pos = style.layout(toy, "worked_example_paths", seed=7)
+# sphinx_gallery_end_ignore
 toy_views = {
     "Labels read as strengths": nb.boolean_filter(
         nb.metric_backbone(toy), "metric_keep"
@@ -443,6 +390,7 @@ def removed_edges(backbone):
     return sorted("–".join(sorted(e)) for e in toy.edges() if not backbone.has_edge(*e))
 
 
+# sphinx_gallery_start_ignore
 def draw_toy(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 2, figsize=(8, 3.8))
@@ -493,7 +441,7 @@ def draw_toy(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_toy,
     "toy",
     alt=(
@@ -508,6 +456,7 @@ Figure(
         f"as distances, it removes {', '.join(removed_edges(toy_views['Labels read as distances']))}."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Read as strengths, A–C is a weak tie (distance 1) while the detour through
@@ -556,6 +505,7 @@ print(
 )
 
 
+# sphinx_gallery_start_ignore
 def draw_salience(mode):
     p = style.palette(mode)
     fig, ax = plt.subplots(figsize=(7.5, 3))
@@ -584,7 +534,7 @@ def draw_salience(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_salience,
     "salience",
     alt=(
@@ -597,6 +547,7 @@ Figure(
         f"and {high} above 0.9, out of {len(salience)}."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # 3. Ties and order dependence
@@ -713,6 +664,7 @@ for name, method in order_cases.items():
 order_rows.sort(key=lambda r: (max(r[2]) > 0, max(r[2])))
 
 
+# sphinx_gallery_start_ignore
 def draw_order(mode):
     p = style.palette(mode)
     fig, ax = plt.subplots(figsize=(8, 0.34 * len(order_rows) + 0.9))
@@ -732,8 +684,12 @@ def draw_order(mode):
     return fig
 
 
+# sphinx_gallery_end_ignore
+
+
 n_dependent = sum(max(r[2]) > 0 for r in order_rows)
-Figure(
+# sphinx_gallery_start_ignore
+figures.show(
     draw_order,
     "order",
     alt=(
@@ -747,6 +703,7 @@ Figure(
         f"{len(order_rows)} rows change when the graph is rebuilt in another order."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The same numbers, for each rebuild:
@@ -847,6 +804,7 @@ degree = dict(U.degree())
 hub = max(degree, key=degree.get)
 
 
+# sphinx_gallery_start_ignore
 def draw_proximity_scatter(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 3, figsize=(9, 3.3))
@@ -904,7 +862,7 @@ def draw_proximity_scatter(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_proximity_scatter,
     "proximity_scatter",
     alt=(
@@ -921,12 +879,14 @@ Figure(
         "of edges (filled dots, above the cut line)."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # The same three backbones on the network, with the best-connected character
 # labeled:
 
 
+# sphinx_gallery_start_ignore
 def draw_proximity_backbones(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 3, figsize=(9, 3.9))
@@ -966,11 +926,15 @@ def draw_proximity_backbones(mode):
     return fig
 
 
+# sphinx_gallery_end_ignore
+
+
 hub_edges = {
     name: sum(hub in e for e in backbone.edges())
     for name, backbone in proximity_backbones.items()
 }
-Figure(
+# sphinx_gallery_start_ignore
+figures.show(
     draw_proximity_backbones,
     "proximity_backbones",
     fmt="png",
@@ -987,6 +951,7 @@ Figure(
         + "."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Jaccard favors tight groups of characters with similar circles and drops
@@ -1054,6 +1019,7 @@ def components(backbone):
     return nx.number_connected_components(kept) if len(kept) else 0
 
 
+# sphinx_gallery_start_ignore
 def draw_sparsifiers(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(2, 2, figsize=(8, 5.6))
@@ -1081,7 +1047,7 @@ def draw_sparsifiers(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_sparsifiers,
     "sparsifiers",
     fmt="png",
@@ -1100,6 +1066,7 @@ Figure(
         )
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Local degree keeps every character attached, by its edge to the
@@ -1180,6 +1147,7 @@ for smoothing in (0.0, 1e-6, 1e-4):
     ds_runs[smoothing] = {"trace": trace, "warned": bool(caught), "scored": H}
 
 
+# sphinx_gallery_start_ignore
 def draw_convergence(mode):
     p = style.palette(mode)
     colors = style.categorical(len(ds_runs), mode)
@@ -1209,7 +1177,7 @@ def draw_convergence(mode):
     return fig
 
 
-Figure(
+figures.show(
     draw_convergence,
     "convergence",
     alt=(
@@ -1231,6 +1199,7 @@ Figure(
         )
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
 # Without smoothing the deviation stalls far above the tolerance and the

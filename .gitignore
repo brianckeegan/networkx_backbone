@@ -27,3 +27,5 @@ docs/_static/roadmap/
 docs/_gallery/
 # Generated at docs build time by the executed tutorials in docs/examples/
 docs/_static/example_figures/
+# Generated at docs build time from docs/_figures/pages/ (docs/_ext/page_figures.py)
+docs/_page_figures/

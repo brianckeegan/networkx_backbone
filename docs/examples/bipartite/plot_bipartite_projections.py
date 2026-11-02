@@ -22,7 +22,7 @@ This page is the narrative. For short recipes of each call, see the how-to
 tutorial :doc:`/tutorials/bipartite_backbone`.
 """
 
-# sphinx_gallery_thumbnail_path = "auto_examples/bipartite/images/bipartite_thumb-light.png"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/bipartite/thumbnail.png"
 
 # %%
 # Setup
@@ -30,9 +30,9 @@ tutorial :doc:`/tutorials/bipartite_backbone`.
 #
 # Every number on this page is computed when the documentation is built.
 # Every figure is drawn twice, once for the light theme and once for the
-# dark theme, with the shared documentation figure style. The few lines below
-# save each pair of files and the reST that shows the one matching your
-# theme.
+# dark theme, and the page shows the one matching your theme. The plotting
+# code is left out of the page; it is in the script and notebook you can
+# download.
 
 import json
 import sys
@@ -52,6 +52,7 @@ import nx_backbone as nb
 from nx_backbone.describe import REFERENCES
 
 
+# sphinx_gallery_start_ignore
 def _docs_dir():
     """The repository's ``docs/`` folder (Sphinx-Gallery runs examples there)."""
     here = Path.cwd().resolve()
@@ -67,18 +68,15 @@ DOCS = _docs_dir()
 if str(DOCS) not in sys.path:
     sys.path.insert(0, str(DOCS))
 from _figures import style  # noqa: E402
+from _figures.tutorial import TutorialFigures  # noqa: E402
 
+# ``figures.show(draw, name, alt=..., caption=...)`` saves the light and dark
+# variants of a figure and shows the one matching your theme.
+figures = TutorialFigures("bipartite")
+# The reference list at the end is a reST include written next to the page.
 IMAGES = DOCS / "auto_examples" / "bipartite" / "images"
 IMAGES.mkdir(parents=True, exist_ok=True)
-WEB = "/auto_examples/bipartite/images"
-
-
-def publish(name, draw, alt, caption):
-    """Save light and dark variants of a figure and the reST that shows them."""
-    style.save_variants(draw, IMAGES / f"bipartite_{name}")
-    rst = style.figure_rst(f"{WEB}/bipartite_{name}", alt, caption)
-    (IMAGES / f"bipartite_{name}.inc").write_text("\n".join(rst) + "\n", "utf-8")
-
+# sphinx_gallery_end_ignore
 
 # The reference list at the end comes from the library's own bibliography,
 # ``nx_backbone.describe.REFERENCES``.
@@ -101,9 +99,11 @@ entries.append(
     "backbones. PLoS ONE, 21(5), e0349258. "
     "https://doi.org/10.1371/journal.pone.0349258"
 )
+# sphinx_gallery_start_ignore
 (IMAGES / "bipartite_references.inc").write_text(
     "\n".join(f"- {e}" for e in sorted(entries)) + "\n", "utf-8"
 )
+# sphinx_gallery_end_ignore
 
 
 def bare(ax):
@@ -138,6 +138,7 @@ print(f"events per woman: {women_degree.min()} to {women_degree.max()}")
 print(f"women per event:  {event_size.min()} to {event_size.max()}")
 
 
+# sphinx_gallery_start_ignore
 def draw_incidence(mode):
     p = style.palette(mode)
     fig, (ax, gx) = plt.subplots(
@@ -236,9 +237,9 @@ def draw_incidence(mode):
     return fig
 
 
-publish(
-    "incidence",
+figures.show(
     draw_incidence,
+    "incidence",
     alt=(
         f"Left: an {n_women} by {n_events} grid, women as rows and events as "
         "columns, with a blue cell where a woman attended an event and row and "
@@ -253,10 +254,9 @@ publish(
         "follows."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_incidence.inc
-#
 # Why the raw projection overstates ties
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #
@@ -345,6 +345,7 @@ for key, label in PROJECTIONS:
     print(f"{label:<11} {pair_name(strongest[key]):<18} {rho:>18.2f}  {ranks}")
 
 
+# sphinx_gallery_start_ignore
 def draw_projections(mode):
     p = style.palette(mode)
     cmap = style.sequential_cmap(mode).with_extremes(bad=p.hairline)
@@ -396,9 +397,9 @@ def draw_projections(mode):
     return fig
 
 
-publish(
-    "projections",
+figures.show(
     draw_projections,
+    "projections",
     alt=(
         "Five matrices of pair weights for the women, one per weighting: "
         "simple, hyperbolic, Newman, ProbS and YCN, each scaled to its own "
@@ -414,10 +415,9 @@ publish(
         "strongest pairs under each weighting."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_projections.inc
-#
 # The weightings change *which* ties look strongest: a pair that shares many
 # crowded events leads the simple projection but drops under the hyperbolic
 # weight. Yet none of them says whether a tie is stronger than chance. A weight
@@ -499,6 +499,7 @@ for label in pv:
     print(f"{label:<13} {len(kept[label]):>12} {shared:>17} {seconds[label]:>8.3f}")
 
 
+# sphinx_gallery_start_ignore
 def draw_nulls(mode):
     p = style.palette(mode)
     others = [label for label in pv if label != "FDSM"]
@@ -541,14 +542,14 @@ def draw_nulls(mode):
     return fig
 
 
-publish(
-    "nulls",
+figures.show(
     draw_nulls,
+    "nulls",
     alt=(
         "Four log-log scatter plots, one per model (SDSM, fixed fill, fixed "
         "row, fixed column), each with one dot per pair of women: FDSM p-value "
         "across, the model's p-value up, a diagonal line of agreement and "
-        "dotted lines at 0.05. SDSM dots follow the diagonal from above and "
+        f"dotted lines at {ALPHA}. SDSM dots follow the diagonal from above and "
         "fixed row dots follow it closely; fixed fill and fixed column dots "
         "scatter widely."
     ),
@@ -556,14 +557,13 @@ publish(
         "Each pair of women's p-value under four null models against its FDSM "
         "p-value. Dots above the diagonal are more conservative than the "
         "FDSM; the bottom-left quadrant holds pairs both models keep at "
-        "alpha = 0.05. The counts above each panel match the table printed "
+        f"alpha = {ALPHA}. The counts above each panel match the table printed "
         "above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_nulls.inc
-#
 # The SDSM tracks the FDSM closely but sits above it: on a matrix this small
 # it keeps no pair at :math:`\alpha = 0.05`, which is Neal et al.'s
 # "conservative" in action. The fixed fill and fixed column models ignore the
@@ -648,6 +648,7 @@ for mtc in ("holm", "bh"):
     print(f"  {mtc:<5} FDSM {n_fdsm:>3}   SDSM {n_sdsm:>3}")
 
 
+# sphinx_gallery_start_ignore
 def draw_floor(mode):
     p = style.palette(mode)
     fdsm_color, sdsm_color = style.categorical(2, mode)
@@ -704,9 +705,9 @@ def draw_floor(mode):
     return fig
 
 
-publish(
-    "floor",
+figures.show(
     draw_floor,
+    "floor",
     alt=(
         f"Log-log line chart of p-value against FDSM trials for a {R.shape[0]} "
         f"by {R.shape[1]} planted-block matrix. The smallest FDSM p-value sits "
@@ -722,10 +723,9 @@ publish(
         "Holm cannot keep any pair."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_floor.inc
-#
 # The FDSM's smallest p-value is never a measurement here: it is the floor,
 # shared by a whole group of pairs at once. A family-wise correction then
 # keeps nothing. The BH correction compares the :math:`k`-th smallest p-value
@@ -764,6 +764,7 @@ for u, v, d in sorted(
     print(
         f"{short[u] + '–' + short[v]:<22} {C[idx[u], idx[v]]:>9} {d['sign']:>+5} {d['fdsm_pvalue']:>7.3f}"
     )
+# sphinx_gallery_start_ignore
 pos_layout = style.layout(S, "davis_women", weight="weight")
 
 
@@ -829,9 +830,10 @@ def draw_signed(mode):
     return fig
 
 
-publish(
-    "signed",
+figures.show(
     draw_signed,
+    "signed",
+    thumbnail=True,
     alt=(
         f"Left: an {n_women} by {n_women} matrix of the women with {n_pos} "
         f"pairs marked + on blue (significantly strong) and {n_neg} pairs "
@@ -840,18 +842,14 @@ publish(
         "blue and negative ties dashed red."
     ),
     caption=(
-        "A signed FDSM backbone of the Davis projection at alpha = 0.05 "
+        f"A signed FDSM backbone of the Davis projection at alpha = {ALPHA} "
         "(two-sided). Positive ties are blue with a + (solid lines); negative "
         "ties are red with a − (dashed lines)."
     ),
 )
-_ = style.save_variants(
-    draw_signed, IMAGES / "bipartite_thumb", fmt="png", modes=("light",)
-)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_signed.inc
-#
 # The negative ties are as informative as the positive ones: they mark women
 # who move in different circles. A one-tailed backbone would show only the
 # strong ties within each circle. Signed backbones are available for
@@ -897,6 +895,7 @@ print(f"smallest p-value: SDSM {p_exact.min():.3f}, SDSM-EC {p_ec.min():.3f}", e
 print(f"({pair_name(pairs[int(np.argmin(p_ec))])})")
 
 
+# sphinx_gallery_start_ignore
 def draw_constraints(mode):
     p = style.palette(mode)
     late_color, other_color = style.categorical(2, mode)
@@ -1017,9 +1016,9 @@ def draw_constraints(mode):
     return fig
 
 
-publish(
-    "constraints",
+figures.show(
     draw_constraints,
+    "constraints",
     alt=(
         "Left: the incidence matrix with crosses on the cells of the women who "
         "arrived late, for every event before the largest one, and white rings "
@@ -1035,10 +1034,9 @@ publish(
         "move. The pairs that move most are listed in the table above."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_constraints.inc
-#
 # Fixing cells moves each pair's expected co-occurrence, and the p-values
 # move in both directions. Once the late arrivals *could not* have gone to
 # the early events, their attendance is concentrated on fewer events, so two
@@ -1094,7 +1092,12 @@ except nx.NetworkXError as err:
 # fit.
 
 fixture = json.loads(
-    (DOCS.parent / "tests" / "fixtures" / "r_backbone.json").read_text("utf-8")
+    (
+        Path(nb.__file__).resolve().parents[1]
+        / "tests"
+        / "fixtures"
+        / "r_backbone.json"
+    ).read_text("utf-8")
 )
 davis_r = fixture["davis"]
 assert davis_r["agents"] == women
@@ -1121,6 +1124,7 @@ for label, ours, theirs, mask in comparisons:
     print(f"{label:<28} largest |difference| {np.abs(ours - theirs)[mask].max():.1e}")
 
 
+# sphinx_gallery_start_ignore
 def draw_r(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(1, 3, figsize=(8.4, 3.3), sharex=True, sharey=True)
@@ -1154,9 +1158,9 @@ def draw_r(mode):
     return fig
 
 
-publish(
-    "r_match",
+figures.show(
     draw_r,
+    "r_match",
     alt=(
         "Three scatter plots of nx-backbone p-values up against R "
         "backbone p-values across, one dot per pair of Davis women, with a "
@@ -1169,10 +1173,9 @@ publish(
         "the pairs that co-attend; R does not test the others by default."
     ),
 )
+# sphinx_gallery_end_ignore
 
 # %%
-# .. include:: /auto_examples/bipartite/images/bipartite_r_match.inc
-#
 # Which pairs are tested: ``missing_as_zero``
 # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 #

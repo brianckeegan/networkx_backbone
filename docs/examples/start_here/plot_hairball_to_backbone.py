@@ -27,7 +27,7 @@ to them along the way. Every number and figure below is computed when the
 documentation is built, so the text always matches the code.
 """
 
-# sphinx_gallery_thumbnail_path = "auto_examples/start_here/images/thumb_global_vs_local-light.png"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/start_here/thumbnail.png"
 
 # %%
 # Setup
@@ -37,23 +37,17 @@ documentation is built, so the text always matches the code.
 # (for the marginal likelihood filter) and Matplotlib; ``pip install
 # "nx-backbone[full,viz]"`` installs them all.
 #
-# The figures use the documentation's shared figure style,
-# ``docs/_figures/style.py`` in the repository: its colors, a fixed layout per
-# network, and :func:`!draw_backbone`, which draws a backbone over the
-# original graph. Each figure is drawn by a function of the color mode
-# (``"light"`` or ``"dark"``) so that the page can show the version that
-# matches your theme; ``show`` saves both. In your own notebook, call the
-# drawing function and Matplotlib shows the figure.
+# Each figure is drawn in a light and a dark version, and the page shows
+# the one that matches your theme. The plotting code is left out of the page
+# to keep the analysis readable; it is in the script and notebook you can
+# download at the end.
 
-import tempfile
 from collections import Counter
-from pathlib import Path
 
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from _figures import style
 from matplotlib.cm import ScalarMappable
 from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
@@ -62,27 +56,14 @@ from matplotlib.lines import Line2D
 import nx_backbone as nb
 
 # sphinx_gallery_start_ignore
-# Sphinx-Gallery runs this file from docs/examples/start_here/; the figures go
-# next to the page it generates (docs/auto_examples/start_here/images/), where
-# the ``.. figure::`` directives below find them.  Run as a script, they go to
-# a temporary folder.
-_here = Path.cwd()
-if _here.parent.name == "examples" and (_here.parents[1] / "conf.py").is_file():
-    IMAGES = _here.parents[1] / "auto_examples" / _here.name / "images"
-else:
-    IMAGES = Path(tempfile.mkdtemp())
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
+
+# Drawings of the larger network, with thousands of edges, are saved as PNG
+# (``fmt="png"``) rather than SVG to keep the page light.
+figures = TutorialFigures("start_here")
 # sphinx_gallery_end_ignore
-
-
-def show(draw, name, fmt="svg"):
-    """Save a light and a dark version of the figure that ``draw(mode)`` makes.
-
-    Drawings of the larger network, with thousands of edges, are saved as PNG
-    rather than SVG to keep the page light.
-    """
-    style.save_variants(
-        draw, IMAGES / name, fmt=fmt, **({"dpi": 120} if fmt == "png" else {})
-    )
 
 
 # %%
@@ -150,6 +131,7 @@ for name, G in NETWORKS.items():
 # collaboration network in particular is a solid tangle: you cannot see the
 # departments, let alone who works with whom.
 
+# sphinx_gallery_start_ignore
 pos_L = style.layout(L, "les_miserables")
 pos_S = style.layout(S, "collaboration_network")
 CENTERS = {
@@ -190,31 +172,26 @@ def draw_hairballs(mode):
     return fig
 
 
-show(draw_hairballs, "hairballs", fmt="png")
+figures.show(
+    draw_hairballs,
+    "hairballs",
+    fmt="png",
+    dpi=120,
+    width=None,
+    alt=(
+        "Two node-link drawings. Left, the Les Misérables network: a dense core "
+        "of characters with many crossing edges and a fringe of characters "
+        "with one or two ties. Right, the collaboration network: a solid tangle "
+        "of edges in which no group of nodes stands out."
+    ),
+    caption=(
+        "Both networks drawn in full, every edge in the same color. The edge "
+        "counts are in the panel titles."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/hairballs-light.png
-#    :figclass: only-light
-#    :class: only-light
-#    :alt: Two node-link drawings. Left, the Les Misérables network: a dense
-#       core of characters with many crossing edges and a fringe of characters
-#       with one or two ties. Right, the collaboration network: a solid
-#       tangle of edges in which no group of nodes stands out.
-#
-#    Both networks drawn in full, every edge in the same color. The edge
-#    counts are in the panel titles.
-#
-# .. figure:: images/hairballs-dark.png
-#    :figclass: only-dark
-#    :class: only-dark
-#    :alt: Two node-link drawings. Left, the Les Misérables network: a dense
-#       core of characters with many crossing edges and a fringe of characters
-#       with one or two ties. Right, the collaboration network: a solid
-#       tangle of edges in which no group of nodes stands out.
-#
-#    Both networks drawn in full, every edge in the same color. The edge
-#    counts are in the panel titles.
-#
 # The obvious fix is a **global weight cut**: keep the edges whose weight is
 # at least some threshold *t* and drop the rest. To see why it fails, look at
 # how the weights are spread. Two quantities matter: a node's **degree**, its
@@ -237,6 +214,7 @@ def global_cut_curve(G):
     return np.array(rows)
 
 
+# sphinx_gallery_start_ignore
 def draw_distributions(mode):
     pal = style.palette(mode)
     colors = style.categorical(2, mode)
@@ -290,43 +268,30 @@ def draw_distributions(mode):
     return fig
 
 
-show(draw_distributions, "distributions")
+figures.show(
+    draw_distributions,
+    "distributions",
+    width=None,
+    alt=(
+        "Three charts comparing the two networks. a, the share of edges with at "
+        "least a given weight, on log-log axes: the collaboration weights fall "
+        "off slowly over several decades, the Les Misérables weights over one. "
+        "b, node strength against degree on log-log axes: nodes of the same "
+        "degree differ in strength many times over, most in the collaboration "
+        "network. c, the share of nodes that keep at least one edge against the "
+        "share of edges a global weight cut keeps: the share of nodes falls "
+        "steadily as the cut gets stricter."
+    ),
+    caption=(
+        "(a) Edge weights are heavy-tailed. (b) Nodes with the same number of "
+        "edges differ greatly in total weight. (c) As a global weight cut gets "
+        "stricter, whole nodes lose every edge. Solid lines and circles: Les "
+        "Misérables; dashed lines and triangles: collaborations."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/distributions-light.svg
-#    :figclass: only-light
-#    :class: only-light
-#    :alt: Three charts comparing the two networks. a, the share of edges with
-#       at least a given weight, on log-log axes: the collaboration weights
-#       fall off slowly over several decades, the Les Misérables weights over
-#       one. b, node strength against degree on log-log axes: nodes of the
-#       same degree differ in strength many times over, most in the
-#       collaboration network. c, the share of nodes that keep at least one
-#       edge against the share of edges a global weight cut keeps: the share
-#       of nodes falls steadily as the cut gets stricter.
-#
-#    (a) Edge weights are heavy-tailed. (b) Nodes with the same number of
-#    edges differ greatly in total weight. (c) As a global weight cut gets
-#    stricter, whole nodes lose every edge. Solid lines and circles: Les
-#    Misérables; dashed lines and triangles: collaborations.
-#
-# .. figure:: images/distributions-dark.svg
-#    :figclass: only-dark
-#    :class: only-dark
-#    :alt: Three charts comparing the two networks. a, the share of edges with
-#       at least a given weight, on log-log axes: the collaboration weights
-#       fall off slowly over several decades, the Les Misérables weights over
-#       one. b, node strength against degree on log-log axes: nodes of the
-#       same degree differ in strength many times over, most in the
-#       collaboration network. c, the share of nodes that keep at least one
-#       edge against the share of edges a global weight cut keeps: the share
-#       of nodes falls steadily as the cut gets stricter.
-#
-#    (a) Edge weights are heavy-tailed. (b) Nodes with the same number of
-#    edges differ greatly in total weight. (c) As a global weight cut gets
-#    stricter, whole nodes lose every edge. Solid lines and circles: Les
-#    Misérables; dashed lines and triangles: collaborations.
-#
 # Panel (b) is the heart of the problem. A tie of a given weight is
 # everything to a node of small strength and noise to a node of large
 # strength, so no single threshold suits both. A cut strict enough to thin
@@ -402,6 +367,7 @@ evidence_L = {e: -np.log10(p) for e, p in pvalues_L.items()}
 LABELED = ["Valjean", "Fauchelevent", "Cosette", "Myriel"]
 
 
+# sphinx_gallery_start_ignore
 def draw_pvalue_map(mode):
     pal = style.palette(mode)
     cmap = style.sequential_cmap(mode)
@@ -445,33 +411,30 @@ def draw_pvalue_map(mode):
     return fig
 
 
-show(draw_pvalue_map, "pvalue_map")
+figures.show(
+    draw_pvalue_map,
+    "pvalue_map",
+    width=None,
+    # The ramp runs from the surface to the ink: pale to dark in the light
+    # theme, faint to bright in the dark one.
+    alt=lambda mode: (
+        "The Les Misérables network with each edge colored and sized by its "
+        "disparity-filter evidence. Almost every edge is "
+        f"{'pale' if mode == 'light' else 'faint'} and thin; a handful of edges, "
+        "most of them touching Valjean, are "
+        f"{'dark' if mode == 'light' else 'bright'} and thick. A color bar marks "
+        "the level of p = 0.05."
+    ),
+    caption=lambda mode: (
+        "Disparity-filter evidence, :math:`-\\log_{10} p`, for every edge of "
+        f"Les Misérables. {'Darker' if mode == 'light' else 'Brighter'} and "
+        "thicker means stronger evidence; the mark on the color bar is "
+        ":math:`p = 0.05`."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/pvalue_map-light.svg
-#    :figclass: only-light
-#    :class: only-light
-#    :alt: The Les Misérables network with each edge colored and sized by its
-#       disparity-filter evidence. Almost every edge is pale and thin; a
-#       handful of edges, most of them touching Valjean, are dark and thick.
-#       A color bar marks the level of p = 0.05.
-#
-#    Disparity-filter evidence, :math:`-\log_{10} p`, for every edge of Les
-#    Misérables. Darker and thicker means stronger evidence; the mark on the
-#    color bar is :math:`p = 0.05`.
-#
-# .. figure:: images/pvalue_map-dark.svg
-#    :figclass: only-dark
-#    :class: only-dark
-#    :alt: The Les Misérables network with each edge colored and sized by its
-#       disparity-filter evidence. Almost every edge is faint and thin; a
-#       handful of edges, most of them touching Valjean, are bright and
-#       thick. A color bar marks the level of p = 0.05.
-#
-#    Disparity-filter evidence, :math:`-\log_{10} p`, for every edge of Les
-#    Misérables. Brighter and thicker means stronger evidence; the mark on
-#    the color bar is :math:`p = 0.05`.
-#
 # Most edges carry little evidence. To see why, look at the test from two
 # endpoints: Valjean, the hero, who has the most ties in the novel, and
 # Fauchelevent, who has only a few, most of his weight going to Valjean.
@@ -513,7 +476,6 @@ assert min(p for _, p in tests["Fauchelevent"].values()) > 0.05
 assert min(p for _, p in tests["Valjean"].values()) < 0.05
 assert L.degree("Valjean") == max(k for _, k in L.degree())
 assert 1 - 0.05 ** (1 / (k_median - 1)) > 0.3
-# sphinx_gallery_end_ignore
 
 
 def draw_null(mode):
@@ -578,41 +540,29 @@ def draw_null(mode):
     return fig
 
 
-show(draw_null, "null_model")
+figures.show(
+    draw_null,
+    "null_model",
+    width=None,
+    alt=(
+        "Two charts of p-value, on a log scale, against an edge's share of a "
+        "node's strength. A gray curve shows the null-model p-value for every "
+        "share. Left, Valjean: the curve drops steeply, and his few largest "
+        "ties, Cosette's among them, fall below the p = 0.05 line as filled "
+        "blue points. Right, Fauchelevent: the curve drops slowly, and even his "
+        "largest tie, to Valjean, stays above the line as a hollow point."
+    ),
+    caption=(
+        "The disparity filter's test from one endpoint. The curve is the "
+        "p-value the null model gives each possible weight share; the points "
+        "are the node's actual edges, filled when they pass :math:`p < 0.05`. "
+        "With many edges (left), a modest share is already surprising; with few "
+        "edges (right), even a majority share is not."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/null_model-light.svg
-#    :figclass: only-light
-#    :class: only-light
-#    :alt: Two charts of p-value, on a log scale, against an edge's share of a
-#       node's strength. A gray curve shows the null-model p-value for every
-#       share. Left, Valjean: the curve drops steeply, and his few largest
-#       ties, Cosette's among them, fall below the p = 0.05 line as filled
-#       blue points. Right, Fauchelevent: the curve drops slowly, and even
-#       his largest tie, to Valjean, stays above the line as a hollow point.
-#
-#    The disparity filter's test from one endpoint. The curve is the p-value
-#    the null model gives each possible weight share; the points are the
-#    node's actual edges, filled when they pass :math:`p < 0.05`. With many
-#    edges (left), a modest share is already surprising; with few edges
-#    (right), even a majority share is not.
-#
-# .. figure:: images/null_model-dark.svg
-#    :figclass: only-dark
-#    :class: only-dark
-#    :alt: Two charts of p-value, on a log scale, against an edge's share of a
-#       node's strength. A gray curve shows the null-model p-value for every
-#       share. Left, Valjean: the curve drops steeply, and his few largest
-#       ties, Cosette's among them, fall below the p = 0.05 line as filled
-#       blue points. Right, Fauchelevent: the curve drops slowly, and even
-#       his largest tie, to Valjean, stays above the line as a hollow point.
-#
-#    The disparity filter's test from one endpoint. The curve is the p-value
-#    the null model gives each possible weight share; the points are the
-#    node's actual edges, filled when they pass :math:`p < 0.05`. With many
-#    edges (left), a modest share is already surprising; with few edges
-#    (right), even a majority share is not.
-#
 # This is the price of a *local* null model. Each node is judged on its own
 # scale, which is what rescues the quiet nodes from the global cut, but a
 # node with few edges offers little evidence either way: with only a few
@@ -708,7 +658,6 @@ assert (
     nb.threshold_filter(scored_S, "disparity_pvalue", 0.05, mtc="bh").number_of_edges()
     > 0
 )
-# sphinx_gallery_end_ignore
 
 
 def draw_alpha_curves(mode):
@@ -740,41 +689,29 @@ def draw_alpha_curves(mode):
     return fig
 
 
-show(draw_alpha_curves, "alpha_curves")
+figures.show(
+    draw_alpha_curves,
+    "alpha_curves",
+    width=None,
+    alt=(
+        "Two step charts of the number of edges kept against the significance "
+        "level alpha, on a log axis, for no correction (solid line), Bonferroni "
+        "(dashed) and Benjamini-Hochberg (dotted). Left, Les Misérables: the "
+        "uncorrected line rises slowly, and both corrected lines stay at or "
+        "near zero across the range. Right, collaborations: all three lines "
+        "rise, the uncorrected one highest, Bonferroni lowest and BH between "
+        "them."
+    ),
+    caption=(
+        "Edges kept as :math:`\\alpha` grows, with no correction (solid), "
+        "Bonferroni (dashed) and Benjamini-Hochberg (dotted). The vertical line "
+        "marks :math:`\\alpha = 0.05`; the table above gives the values at "
+        "three levels."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/alpha_curves-light.svg
-#    :figclass: only-light
-#    :class: only-light
-#    :alt: Two step charts of the number of edges kept against the
-#       significance level alpha, on a log axis, for no correction
-#       (solid line), Bonferroni (dashed) and Benjamini-Hochberg (dotted).
-#       Left, Les Misérables: the uncorrected line rises slowly, and both
-#       corrected lines stay at or near zero across the range. Right,
-#       collaborations: all three lines rise, the uncorrected one highest,
-#       Bonferroni lowest and BH between them.
-#
-#    Edges kept as :math:`\alpha` grows, with no correction (solid),
-#    Bonferroni (dashed) and Benjamini-Hochberg (dotted). The vertical line
-#    marks :math:`\alpha = 0.05`; the table above gives the values at three
-#    levels.
-#
-# .. figure:: images/alpha_curves-dark.svg
-#    :figclass: only-dark
-#    :class: only-dark
-#    :alt: Two step charts of the number of edges kept against the
-#       significance level alpha, on a log axis, for no correction
-#       (solid line), Bonferroni (dashed) and Benjamini-Hochberg (dotted).
-#       Left, Les Misérables: the uncorrected line rises slowly, and both
-#       corrected lines stay at or near zero across the range. Right,
-#       collaborations: all three lines rise, the uncorrected one highest,
-#       Bonferroni lowest and BH between them.
-#
-#    Edges kept as :math:`\alpha` grows, with no correction (solid),
-#    Bonferroni (dashed) and Benjamini-Hochberg (dotted). The vertical line
-#    marks :math:`\alpha = 0.05`; the table above gives the values at three
-#    levels.
-#
 # The two networks tell different stories:
 #
 # - **Les Misérables.** The uncorrected backbone is no larger than the number
@@ -835,7 +772,6 @@ print(f"(all edges: {within_department(S, S):.0%} within a department)")
 assert nb.node_fraction(S, backbone) > nb.node_fraction(S, global_cut)
 assert within_department(S, backbone) > within_department(S, S)
 assert within_department(S, backbone) > within_department(S, global_cut)
-# sphinx_gallery_end_ignore
 
 
 def draw_global_vs_local(mode):
@@ -852,46 +788,31 @@ def draw_global_vs_local(mode):
     return fig
 
 
-show(draw_global_vs_local, "global_vs_local", fmt="png")
-# sphinx_gallery_start_ignore
-_ = style.save_variants(
+figures.show(
     draw_global_vs_local,
-    IMAGES / "thumb_global_vs_local",
+    "global_vs_local",
     fmt="png",
-    modes=("light",),
-    dpi=80,
+    dpi=120,
+    width=None,
+    thumbnail=True,
+    alt=lambda mode: (
+        "Two drawings of the collaboration network on the same layout, kept "
+        f"edges in blue over the removed edges in {mode} gray. Left, the global "
+        "weight cut: its edges crowd among a few busy nodes, and many nodes, "
+        "drawn small and gray, have no edge left. Right, the disparity "
+        "backbone, about the same size: its edges reach nearly every node and "
+        "mostly stay inside the four department clusters."
+    ),
+    caption=(
+        "Two backbones of the collaboration network with about the same number "
+        "of edges. Kept edges are blue over the removed edges in gray; nodes "
+        "left without an edge are small and gray. The counts are in the panel "
+        "titles."
+    ),
 )
 # sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/global_vs_local-light.png
-#    :figclass: only-light
-#    :class: only-light
-#    :alt: Two drawings of the collaboration network on the same layout, kept
-#       edges in blue over the removed edges in light gray. Left, the global
-#       weight cut: its edges crowd among a few busy nodes, and many nodes,
-#       drawn small and gray, have no edge left. Right, the disparity
-#       backbone, about the same size: its edges reach nearly every node and
-#       mostly stay inside the four department clusters.
-#
-#    Two backbones of the collaboration network with about the same number of
-#    edges. Kept edges are blue over the removed edges in gray; nodes left
-#    without an edge are small and gray. The counts are in the panel titles.
-#
-# .. figure:: images/global_vs_local-dark.png
-#    :figclass: only-dark
-#    :class: only-dark
-#    :alt: Two drawings of the collaboration network on the same layout, kept
-#       edges in blue over the removed edges in dark gray. Left, the global
-#       weight cut: its edges crowd among a few busy nodes, and many nodes,
-#       drawn small and gray, have no edge left. Right, the disparity
-#       backbone, about the same size: its edges reach nearly every node and
-#       mostly stay inside the four department clusters.
-#
-#    Two backbones of the collaboration network with about the same number of
-#    edges. Kept edges are blue over the removed edges in gray; nodes left
-#    without an edge are small and gray. The counts are in the panel titles.
-#
 # With the same budget of edges, the global cut spends it on the ties among
 # prolific researchers and leaves many people out entirely, while the
 # disparity backbone keeps each researcher's dominant ties, quiet or busy,
@@ -939,6 +860,7 @@ backbones = {
 }
 
 
+# sphinx_gallery_start_ignore
 def draw_small_multiples(mode):
     fig, axes = plt.subplots(2, 2, figsize=(8, 8.4), layout="constrained")
     for ax, (name, H) in zip(axes.flat, backbones.items()):
@@ -951,35 +873,28 @@ def draw_small_multiples(mode):
     return fig
 
 
-show(draw_small_multiples, "small_multiples", fmt="png")
+figures.show(
+    draw_small_multiples,
+    "small_multiples",
+    fmt="png",
+    dpi=120,
+    width=None,
+    alt=lambda mode: (
+        "Four drawings of the collaboration network on the same layout, each "
+        f"with one backbone's edges in blue over the removed edges in {mode} "
+        "gray. The disparity filter, the high-salience skeleton and the maximum "
+        "spanning tree each keep a sparse set of edges that mostly stay inside "
+        "the department clusters; the marginal likelihood backbone keeps a "
+        "much denser set."
+    ),
+    caption=(
+        "Four backbones of the collaboration network on one layout. Each panel "
+        "title gives the method and how many edges and nodes it keeps."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/small_multiples-light.png
-#    :figclass: only-light
-#    :class: only-light
-#    :alt: Four drawings of the collaboration network on the same layout, each
-#       with one backbone's edges in blue over the removed edges in light
-#       gray. The disparity filter, the high-salience skeleton and the
-#       maximum spanning tree each keep a sparse set of edges that mostly stay
-#       inside the department clusters; the marginal likelihood backbone
-#       keeps a much denser set.
-#
-#    Four backbones of the collaboration network on one layout. Each panel
-#    title gives the method and how many edges and nodes it keeps.
-#
-# .. figure:: images/small_multiples-dark.png
-#    :figclass: only-dark
-#    :class: only-dark
-#    :alt: Four drawings of the collaboration network on the same layout, each
-#       with one backbone's edges in blue over the removed edges in dark
-#       gray. The disparity filter, the high-salience skeleton and the
-#       maximum spanning tree each keep a sparse set of edges that mostly stay
-#       inside the department clusters; the marginal likelihood backbone
-#       keeps a much denser set.
-#
-#    Four backbones of the collaboration network on one layout. Each panel
-#    title gives the method and how many edges and nodes it keeps.
-#
 # Pictures invite over-reading, so put numbers beside them.
 # :func:`~nx_backbone.compare_backbones` evaluates every backbone with
 # any measure that takes ``(original, backbone)``: the shares of nodes,
@@ -1118,7 +1033,6 @@ _only = {
 }
 assert max(_only, key=_only.get) == "Marginal likelihood"
 assert _only["Marginal likelihood"] > len(singles) / 2
-# sphinx_gallery_end_ignore
 
 
 def draw_votes(mode):
@@ -1170,31 +1084,30 @@ def draw_votes(mode):
     return fig
 
 
-show(draw_votes, "votes", fmt="png")
+figures.show(
+    draw_votes,
+    "votes",
+    fmt="png",
+    dpi=120,
+    width=None,
+    # Darker in the light theme, brighter in the dark one.
+    alt=lambda mode: (
+        "The collaboration network with each edge drawn by how many of the four "
+        "backbones keep it: edges kept by more methods are "
+        f"{'darker' if mode == 'light' else 'brighter'} and thicker. The "
+        f"{'darkest' if mode == 'light' else 'brightest'}, thickest edges sit "
+        "inside the four department clusters; edges no method keeps form a "
+        "faint gray background."
+    ),
+    caption=lambda mode: (
+        "Agreement between the four backbones of section 4. "
+        f"{'Darker' if mode == 'light' else 'Brighter'} and thicker edges are "
+        "kept by more methods; the counts are printed above."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/votes-light.png
-#    :figclass: only-light
-#    :class: only-light
-#    :alt: The collaboration network with each edge drawn by how many of the
-#       four backbones keep it: edges kept by more methods are darker and
-#       thicker. The darkest, thickest edges sit inside the four department
-#       clusters; edges no method keeps form a faint gray background.
-#
-#    Agreement between the four backbones of section 4. Darker and thicker
-#    edges are kept by more methods; the counts are printed above.
-#
-# .. figure:: images/votes-dark.png
-#    :figclass: only-dark
-#    :class: only-dark
-#    :alt: The collaboration network with each edge drawn by how many of the
-#       four backbones keep it: edges kept by more methods are brighter and
-#       thicker. The brightest, thickest edges sit inside the four department
-#       clusters; edges no method keeps form a faint gray background.
-#
-#    Agreement between the four backbones of section 4. Brighter and thicker
-#    edges are kept by more methods; the counts are printed above.
-#
 # The edges every method keeps are the safest to interpret; edges kept by a
 # single method deserve less weight. Here most of those come from the
 # densest backbone, the marginal likelihood filter's, which is another way
@@ -1241,7 +1154,6 @@ for sign, H in parts.items():
 
 # sphinx_gallery_start_ignore
 assert within_department(S, parts[1]) > within_department(S, parts[-1])
-# sphinx_gallery_end_ignore
 
 
 def draw_signed(mode):
@@ -1262,35 +1174,27 @@ def draw_signed(mode):
     return fig
 
 
-show(draw_signed, "signed", fmt="png")
+figures.show(
+    draw_signed,
+    "signed",
+    fmt="png",
+    dpi=120,
+    width=None,
+    alt=(
+        "Two drawings of the collaboration network on the same layout. Left, "
+        "the positive edges of a signed backbone as solid blue lines, dense "
+        "inside each of the four department clusters. Right, the negative edges "
+        "as dashed red lines, fewer, many of them running between clusters."
+    ),
+    caption=(
+        "The signed marginal likelihood backbone (BH, :math:`\\alpha = 0.05`), "
+        "split into its positive part (solid blue, left) and its negative part "
+        "(dashed red, right). The counts are printed above."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: images/signed-light.png
-#    :figclass: only-light
-#    :class: only-light
-#    :alt: Two drawings of the collaboration network on the same layout.
-#       Left, the positive edges of a signed backbone as solid blue lines,
-#       dense inside each of the four department clusters. Right, the
-#       negative edges as dashed red lines, fewer, many of them running
-#       between clusters.
-#
-#    The signed marginal likelihood backbone (BH, :math:`\alpha = 0.05`),
-#    split into its positive part (solid blue, left) and its negative part
-#    (dashed red, right). The counts are printed above.
-#
-# .. figure:: images/signed-dark.png
-#    :figclass: only-dark
-#    :class: only-dark
-#    :alt: Two drawings of the collaboration network on the same layout.
-#       Left, the positive edges of a signed backbone as solid blue lines,
-#       dense inside each of the four department clusters. Right, the
-#       negative edges as dashed red lines, fewer, many of them running
-#       between clusters.
-#
-#    The signed marginal likelihood backbone (BH, :math:`\alpha = 0.05`),
-#    split into its positive part (solid blue, left) and its negative part
-#    (dashed red, right). The counts are printed above.
-#
 # The positive part looks like the department structure; the negative part
 # points the other way, to ties that are rarer than the researchers'
 # activity predicts. Analyze the two parts separately: they answer

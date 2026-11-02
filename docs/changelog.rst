@@ -1,6 +1,23 @@
 Changelog
 =========
 
+Unreleased
+----------
+
+*Documentation*
+
+- One way to put light and dark figures on every kind of docs page (#126).
+  The executed tutorials use a shared figure helper
+  (``docs/_figures/tutorial.py``) that links the two image files lazily,
+  with computed alt text and captions and a gallery thumbnail; all eight
+  tutorials now use it instead of four different mechanisms, with no change
+  to their narrative. Plain reST pages get build-time figures from a registry
+  with one module per page (``docs/_figures/pages/``) and the new
+  ``page-figure`` directive, which can also reuse a method-gallery figure;
+  the first one is on :doc:`user_guide/workflow`. A new test requires a
+  figure on every how-to and user-guide page, with the pages still to do
+  listed explicitly. :doc:`contributing` explains how to write figures.
+
 Version 0.3.0 (2026-11-02)
 --------------------------
 

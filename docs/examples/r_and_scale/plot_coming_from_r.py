@@ -40,16 +40,24 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from _figures import style
 from matplotlib.lines import Line2D
 
 import nx_backbone as nb
 
-DOCS = Path(style.__file__).resolve().parents[1]
-FIXTURES = DOCS.parent / "tests" / "fixtures"
-# Figures are written as light and dark SVG pairs next to the gallery's own
-# images; the page shows the one that matches the reader's theme.
-OUT = DOCS / "auto_examples" / "r_and_scale" / "images"
+# sphinx_gallery_start_ignore
+# isort: split
+from _figures import style
+from _figures.tutorial import TutorialFigures
+
+# sphinx_gallery_end_ignore
+
+# The fixtures live in the repository's tests/ folder.
+FIXTURES = Path(nb.__file__).resolve().parents[1] / "tests" / "fixtures"
+# sphinx_gallery_start_ignore
+# Figures are written as light and dark SVG pairs by the docs' tutorial
+# figure helper; the page shows the one that matches the reader's theme.
+figures = TutorialFigures("coming_from_r")
+# sphinx_gallery_end_ignore
 
 R = json.loads((FIXTURES / "r_backbone.json").read_text(encoding="utf-8"))
 NETBONE = json.loads((FIXTURES / "netbone.json").read_text(encoding="utf-8"))
@@ -383,6 +391,7 @@ print(
 )
 
 
+# sphinx_gallery_start_ignore
 def draw_pvalues(mode):
     p = style.palette(mode)
     fig, axes = plt.subplots(
@@ -452,45 +461,31 @@ def draw_pvalues(mode):
     return fig
 
 
-_ = style.save_variants(draw_pvalues, OUT / "coming_from_r_pvalues")
+figures.show(
+    draw_pvalues,
+    "coming_from_r_pvalues",
+    thumbnail=True,
+    alt=(
+        "Three scatter plots of nx-backbone p-values against R backbone "
+        f"p-values for the {len(pairs)} pairs of Davis women. In the fixedrow "
+        "panel and "
+        "the sdsm panel with the RNA, every pair that co-occurs lies on the "
+        "diagonal of equal p-values. In the default exact sdsm panel they "
+        "differ by at most the printed amount, too little to see at this scale. "
+        "Hollow circles mark pairs that never co-occur."
+    ),
+    caption=(
+        "Every pair of Davis women, R's p-value (horizontal) against ours "
+        "(vertical). Points on the line are equal. The largest difference over "
+        "the plotted pairs is printed in each panel; for the SDSM panels it "
+        "leaves out the pairs that never co-occur (hollow circles), for which R "
+        "reports an approximation and we report the exact value, "
+        f"{ours_rna[never].min():.0f}."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: /auto_examples/r_and_scale/images/coming_from_r_pvalues-light.svg
-#    :figclass: only-light
-#    :class: only-light
-#    :width: 100%
-#    :alt: Three scatter plots of nx-backbone p-values against R
-#          backbone p-values for the 153 pairs of Davis women. In the
-#          fixedrow panel and the sdsm panel with the RNA, every pair that
-#          co-occurs lies on the diagonal of equal p-values. In the default
-#          exact sdsm panel they differ by at most the printed amount, too
-#          little to see at this scale. Hollow circles mark pairs that never
-#          co-occur.
-#
-#    Every pair of Davis women, R's p-value (horizontal) against ours
-#    (vertical). Points on the line are equal. The largest difference over
-#    the plotted pairs is printed in each panel; for the SDSM panels it
-#    leaves out the pairs that never co-occur (hollow circles), for which R
-#    reports an approximation and we report the exact value, 1.
-#
-# .. figure:: /auto_examples/r_and_scale/images/coming_from_r_pvalues-dark.svg
-#    :figclass: only-dark
-#    :class: only-dark
-#    :width: 100%
-#    :alt: Three scatter plots of nx-backbone p-values against R
-#          backbone p-values for the 153 pairs of Davis women. In the
-#          fixedrow panel and the sdsm panel with the RNA, every pair that
-#          co-occurs lies on the diagonal of equal p-values. In the default
-#          exact sdsm panel they differ by at most the printed amount, too
-#          little to see at this scale. Hollow circles mark pairs that never
-#          co-occur.
-#
-#    Every pair of Davis women, R's p-value (horizontal) against ours
-#    (vertical). Points on the line are equal. The largest difference over
-#    the plotted pairs is printed in each panel; for the SDSM panels it
-#    leaves out the pairs that never co-occur (hollow circles), for which R
-#    reports an approximation and we report the exact value, 1.
-#
 # Reading the three panels from left to right:
 #
 # - **fixedrow**: both packages compute the hypergeometric tail exactly, and
@@ -517,14 +512,17 @@ _ = style.save_variants(draw_pvalues, OUT / "coming_from_r_pvalues")
 # full projection. Every pair in it is also in R's backbone, and the reverse.
 
 projection = nb.simple_projection(B, women)
+# sphinx_gallery_start_ignore
 pos = style.layout(projection, "davis_women", weight="weight")
+# sphinx_gallery_end_ignore
 first_name = {w: w.split()[0] for w in women}
 
 
+# sphinx_gallery_start_ignore
 def draw_davis(mode):
     p = style.palette(mode)
     fig, ax = plt.subplots(figsize=(6.4, 5.6))
-    counts = style.draw_backbone(
+    style.draw_backbone(
         ax,
         projection,
         bb,
@@ -544,40 +542,29 @@ def draw_davis(mode):
             color=p.ink if w in in_backbone else p.muted,
             zorder=5,
         )
-    draw_davis.caption = counts.caption
     return fig
 
 
-_ = style.save_variants(draw_davis, OUT / "coming_from_r_davis")
-print(draw_davis.caption)
+print(style.backbone_counts(projection, bb).caption)
+figures.show(
+    draw_davis,
+    "coming_from_r_davis",
+    width="85%",
+    alt=(
+        "The projection of the Davis women drawn as a network labeled with "
+        "first names. The few backbone edges are drawn in solid blue over many "
+        "faint gray edges of the full projection; women with no backbone edge "
+        "are drawn smaller and in gray."
+    ),
+    caption=(
+        "The fixed row backbone (solid blue edges) over the full co-attendance "
+        "projection (faint gray edges). Women without a backbone edge are drawn "
+        "in gray; the printed line above gives the counts."
+    ),
+)
+# sphinx_gallery_end_ignore
 
 # %%
-# .. figure:: /auto_examples/r_and_scale/images/coming_from_r_davis-light.svg
-#    :figclass: only-light
-#    :class: only-light
-#    :width: 85%
-#    :alt: The projection of the Davis women drawn as a network labeled with
-#          first names. The few backbone edges are drawn in solid blue over
-#          many faint gray edges of the full projection; women with no
-#          backbone edge are drawn smaller and in gray.
-#
-#    The fixed row backbone (solid blue edges) over the full co-attendance
-#    projection (faint gray edges). Women without a backbone edge are drawn
-#    in gray; the printed line above gives the counts.
-#
-# .. figure:: /auto_examples/r_and_scale/images/coming_from_r_davis-dark.svg
-#    :figclass: only-dark
-#    :class: only-dark
-#    :width: 85%
-#    :alt: The projection of the Davis women drawn as a network labeled with
-#          first names. The few backbone edges are drawn in solid blue over
-#          many faint gray edges of the full projection; women with no
-#          backbone edge are drawn smaller and in gray.
-#
-#    The fixed row backbone (solid blue edges) over the full co-attendance
-#    projection (faint gray edges). Women without a backbone edge are drawn
-#    in gray; the printed line above gives the counts.
-#
 # A checklist for porting an R script
 # -----------------------------------
 #
@@ -632,4 +619,4 @@ print(draw_davis.caption)
 #   networks. *Scientific Reports*, 13, 17000.
 #   https://doi.org/10.1038/s41598-023-42076-3
 
-# sphinx_gallery_thumbnail_path = "auto_examples/r_and_scale/images/coming_from_r_pvalues-light.svg"
+# sphinx_gallery_thumbnail_path = "_static/example_figures/coming_from_r/thumbnail.png"
