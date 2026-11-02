@@ -694,6 +694,7 @@ def draw_floor(mode):
     ax.text(12, sdsm_min * 1.25, "SDSM", fontsize=7.5, color=p.ink)
     ax.set_xscale("log")
     ax.set_yscale("log")
+    ax.set_ylim(top=0.6)
     ax.set_xlabel("FDSM trials")
     ax.set_ylabel("p-value")
     ax.grid(True, which="major")
