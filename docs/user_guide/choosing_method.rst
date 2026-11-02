@@ -7,6 +7,8 @@ the properties of your network and the goals of your analysis.
 Decision guide
 --------------
 
+.. page-figure:: choosing_method/decision
+
 **Is your graph bipartite?**
     Use :func:`~nx_backbone.sdsm` (analytical) or
     :func:`~nx_backbone.fdsm` (Monte Carlo) to score edges in a

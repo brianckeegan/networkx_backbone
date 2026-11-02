@@ -9,17 +9,23 @@ Supported methods
 
 The following methods support both directed and undirected graphs:
 
-**Statistical methods** (all 6):
+**Statistical methods** (all 8):
     :func:`~nx_backbone.disparity_filter`,
     :func:`~nx_backbone.noise_corrected_filter`,
     :func:`~nx_backbone.marginal_likelihood_filter`,
     :func:`~nx_backbone.ecm_filter`,
     :func:`~nx_backbone.lans_filter`,
-    :func:`~nx_backbone.multiple_linkage_analysis`
+    :func:`~nx_backbone.multiple_linkage_analysis`,
+    :func:`~nx_backbone.polya_filter`,
+    :func:`~nx_backbone.gloss_filter`
 
-**Structural (2 of 10)**:
+**Structural (6 of 14)**:
     :func:`~nx_backbone.global_threshold_filter`,
-    :func:`~nx_backbone.strongest_n_ties`
+    :func:`~nx_backbone.strongest_n_ties`,
+    :func:`~nx_backbone.global_sparsification`,
+    :func:`~nx_backbone.primary_linkage_analysis`,
+    :func:`~nx_backbone.edge_betweenness_filter`,
+    :func:`~nx_backbone.node_degree_filter`
 
 **Hybrid methods**:
     :func:`~nx_backbone.glab_filter`
@@ -57,13 +63,21 @@ graph:
 Behavior differences
 --------------------
 
-For statistical methods on directed graphs, the p-value computation uses the
-out-degree and out-strength of the source node.
-:func:`~nx_backbone.noise_corrected_filter` uses the source's
-out-strength and the target's in-strength, and
-:func:`~nx_backbone.multiple_linkage_analysis` fits each node's
-out-links only. For proximity methods on
-directed graphs, neighborhoods are defined using successors.
+The statistical methods test a directed edge *u* → *v* against the
+source's out-links and the target's in-links. The local filters
+(:func:`~nx_backbone.disparity_filter`, :func:`~nx_backbone.lans_filter`,
+:func:`~nx_backbone.polya_filter`) run one test from each side and keep the
+smaller p-value: an edge can be significant from either end.
+:func:`~nx_backbone.noise_corrected_filter`,
+:func:`~nx_backbone.marginal_likelihood_filter`,
+:func:`~nx_backbone.ecm_filter` and :func:`~nx_backbone.gloss_filter`
+build one null model from the source's out-strength (and out-degree) and the
+target's in-strength (and in-degree).
+:func:`~nx_backbone.multiple_linkage_analysis` fits each node's out-links
+only. For proximity methods on directed graphs, neighborhoods are defined
+using successors.
+
+.. page-figure:: directed_graphs/out-in-tests
 
 :func:`~nx_backbone.glab_filter` follows Section 2.3 of Zhang et al.
 (2014): each link *(i, j)* gets an *out-importance* from the shortest paths

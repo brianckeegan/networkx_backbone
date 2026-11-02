@@ -28,6 +28,19 @@ Unreleased
   (:doc:`tutorials/les_miserables_benchmark`). The statistical, comparing and
   benchmark pages now link their narrative tutorials, and the comparing page
   shows how to measure two backbones' agreement.
+- Every user guide page now has a figure, drawn at build time in light and
+  dark (#122): the method decision diagram on :doc:`user_guide/choosing_method`,
+  out- and in-tests on :doc:`user_guide/directed_graphs`, weight shares and
+  backbone sizes under transforms and ``unit=`` on
+  :doc:`user_guide/weight_transforms`, the three temporal forms and binning on
+  :doc:`user_guide/temporal`, every evaluation measure on one backbone on
+  :doc:`user_guide/evaluation`, what the cost classes predict on
+  :doc:`user_guide/complexity`, and the measured nx-parallel speed-ups (read
+  from the page's table) on :doc:`user_guide/backends`. The figures check the
+  pages' numbers and claims as they are drawn. :doc:`user_guide/directed_graphs`
+  now lists all eight statistical and six structural methods that accept
+  directed graphs, and says which test both endpoints;
+  :doc:`user_guide/backends` gives the date of its timings.
 - Figures on five how-to tutorials (#121): the Davis incidence matrix
   beside its projection (:doc:`tutorials/bipartite_backbone`), hyperedges and
   their MDL backbones beside the pairwise projection
