@@ -452,6 +452,10 @@ Temporal
      - ``O(n_S + m_S + m T)``
      - ``O(n T + m T)``
      - T steps, m distinct edges; plus binning for events and spans.
+   * - ``edge_persistence_hmm``
+     - ``O(n_S + m_S + n_init I m T) plus T runs of the method``
+     - ``O(n T + m T)``
+     - T steps, m distinct edges, I EM iterations (at most max_iter); plus binning for events and spans.  The method runs only with observe="keep" or "pvalue".
    * - ``from_event_table``
      - ``O(r)``
      - ``O(r)``
