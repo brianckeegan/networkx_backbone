@@ -306,7 +306,7 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   filter; weights as strengths or distances; ties and which methods still
   depend on input order; proximity scores and sparsifiers for unweighted
   graphs, including ``lspar(convention="r")``; and Sinkhorn-Knopp convergence
-  with ``smoothing=``. (#91).
+  with ``smoothing=`` (#91).
 - Added ``CITATION.cff``.
 
 **Changes in results (bug fixes)**
