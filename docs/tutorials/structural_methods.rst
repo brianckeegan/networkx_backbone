@@ -91,6 +91,8 @@ connectivity::
     print(f"Metric backbone: {backbone.number_of_edges()} edges")
     print(f"Connected: {nx.is_connected(backbone)}")
 
+.. page-figure:: gallery:structural/metric_backbone
+
 **Ultrametric backbone** (Simas et al., 2021): Similar to metric backbone
 but uses minimax paths instead of shortest paths::
 
@@ -192,3 +194,5 @@ Comparing structural methods
         ef = metrics["edge_fraction"]
         nf = metrics["node_fraction"]
         print(f"{name:15s}: edges={ef:.1%}, nodes={nf:.1%}")
+
+.. page-figure:: structural_methods/compared

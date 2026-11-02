@@ -98,6 +98,11 @@ lower values produce sparser backbones::
     dense = nb.boolean_filter(nb.sparsify(G, s=0.7), "sparsify_keep")
     print(f"s=0.7: {dense.number_of_edges()} edges")
 
+Sweeping ``s`` from 0 to 1 shows the whole range each sparsifier covers,
+including the wrappers and the UMST option described below:
+
+.. page-figure:: unweighted_sparsification/edges-vs-s
+
 UMST connectivity guarantee
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -125,6 +130,8 @@ normalization, and degree filtering::
 
     backbone = nb.boolean_filter(nb.local_degree(G, s=0.3), "sparsify_keep")
     print(f"Local degree: {backbone.number_of_edges()} edges")
+
+.. page-figure:: gallery:unweighted/local_degree
 
 Comparing unweighted methods
 -----------------------------

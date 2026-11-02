@@ -98,6 +98,8 @@ use ``ascending=False``::
     print(f"Backbone: {backbone.number_of_edges()} edges")
     print(f"Edge fraction: {nb.edge_fraction(G, backbone):.1%}")
 
+.. page-figure:: gallery:proximity/jaccard_backbone
+
 Comparing proximity methods
 ----------------------------
 
@@ -115,3 +117,10 @@ Comparing proximity methods
         backbone = nb.fraction_filter(H, attr, 0.3, ascending=False)
         ef = nb.edge_fraction(G, backbone)
         print(f"{name:20s}: {backbone.number_of_edges()} edges ({ef:.1%})")
+
+Every score keeps the same number of edges here, so the counts alone do not
+tell the methods apart; *which* edges they keep does. Plotting each edge's
+score against the product of its endpoint degrees shows what a score
+rewards:
+
+.. page-figure:: proximity_scoring/score-vs-degree
