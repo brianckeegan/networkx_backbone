@@ -17,6 +17,13 @@ Unreleased
   the first one is on :doc:`user_guide/workflow`. A new test requires a
   figure on every how-to and user-guide page, with the pages still to do
   listed explicitly. :doc:`contributing` explains how to write figures.
+- A narrative tutorial on comparing, validating, and reporting backbones
+  (#123): what :func:`~nx_backbone.compare_backbones` measures and why
+  agreement between methods is not correctness; precision and recall
+  against a planted ground truth; robustness to alpha, the correction and
+  input order; consensus and vote counts; the Les Misérables benchmark
+  explained; and a methods-section checklist built around
+  :func:`~nx_backbone.describe_backbone`.
 
 Version 0.3.0 (2026-11-02)
 --------------------------
