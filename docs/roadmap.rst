@@ -192,9 +192,10 @@ figure style.
   and generate it at build time so it cannot go stale. Every figure uses the
   shared figure style (``docs/_figures/style.py``) that the examples and
   tutorials also use.
-- **next** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
+- **done** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
   backbone, end to end (why a backbone, scoring vs filtering, choosing alpha
-  and corrections, comparing, validating, reporting).
+  and corrections, comparing, validating, reporting), the "Start here" entry
+  point of the tutorials.
 - **done** (`#90 <https://github.com/brianckeegan/networkx_backbone/issues/90>`_): Narrative tutorial: the statistical null models
   side by side, including generalized nulls and signed backbones.
 - **next** (`#91 <https://github.com/brianckeegan/networkx_backbone/issues/91>`_): Narrative tutorial: structural and proximity
