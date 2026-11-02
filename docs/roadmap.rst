@@ -198,7 +198,7 @@ figure style.
   point of the tutorials.
 - **done** (`#90 <https://github.com/brianckeegan/networkx_backbone/issues/90>`_): Narrative tutorial: the statistical null models
   side by side, including generalized nulls and signed backbones.
-- **next** (`#91 <https://github.com/brianckeegan/networkx_backbone/issues/91>`_): Narrative tutorial: structural and proximity
+- **done** (`#91 <https://github.com/brianckeegan/networkx_backbone/issues/91>`_): Narrative tutorial: structural and proximity
   backbones, and when topology-based guarantees beat significance tests.
 - **done** (`#92 <https://github.com/brianckeegan/networkx_backbone/issues/92>`_): Narrative tutorial: bipartite projections and
   their backbones.

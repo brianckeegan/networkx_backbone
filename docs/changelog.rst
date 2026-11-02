@@ -299,6 +299,14 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   the docs are built, and hidden checks fail the build if a claim in the
   text stops holding. The tutorials index is reorganized into "Start here",
   "By network type", and "Going further" (#89, #96).
+- New narrative tutorial, "Structural and proximity backbones", executed in
+  the example gallery with eight figures: what spanning trees, the PMFG, the
+  metric and ultrametric backbones, salience, the h-backbone and the doubly
+  stochastic filter guarantee (checked at build time) against the disparity
+  filter; weights as strengths or distances; ties and which methods still
+  depend on input order; proximity scores and sparsifiers for unweighted
+  graphs, including ``lspar(convention="r")``; and Sinkhorn-Knopp convergence
+  with ``smoothing=`` (#91).
 - Added ``CITATION.cff``.
 
 **Changes in results (bug fixes)**
