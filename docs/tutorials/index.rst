@@ -5,6 +5,14 @@ The narrative tutorials explain *why* a method behaves as it does, with
 figures computed when the documentation is built.  The how-to tutorials
 below them show the calls, method by method.
 
+By network type
+---------------
+
+.. toctree::
+   :maxdepth: 1
+
+   /auto_examples/temporal/plot_temporal_backbones
+
 Going further
 -------------
 
