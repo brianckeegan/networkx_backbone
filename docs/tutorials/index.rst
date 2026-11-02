@@ -5,6 +5,14 @@ The narrative tutorials explain *why* a method behaves as it does, with
 figures computed when the documentation is built.  The how-to tutorials
 below them show the calls, method by method.
 
+By network type
+---------------
+
+.. toctree::
+   :maxdepth: 1
+
+   /auto_examples/hypergraphs/plot_hypergraph_backbones
+
 Going further
 -------------
 
@@ -17,13 +25,7 @@ How-to tutorials
 ----------------
 
 Step-by-step tutorials demonstrating how to use each category of backbone
-extraction methods. Narrative tutorials follow one analysis from start to
-finish, with figures and numbers computed when these docs are built; the
-shorter how-to tutorials are code-first references for each family of
-methods.
-
-Start here
-----------
+extraction methods.
 
 .. toctree::
    :maxdepth: 2
@@ -31,26 +33,11 @@ Start here
    statistical_backbone
    proximity_scoring
    structural_methods
-   comparing_methods
-
-By network type
----------------
-
-.. toctree::
-   :maxdepth: 2
-
    bipartite_backbone
-   /auto_examples/hypergraphs/plot_hypergraph_backbones
    hypergraph_backbone
+   comparing_methods
+   validating_backbones
    unweighted_sparsification
    temporal_backbones
-
-Going further
--------------
-
-.. toctree::
-   :maxdepth: 2
-
-   validating_backbones
    les_miserables_benchmark
    graph_gallery
