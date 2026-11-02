@@ -199,7 +199,7 @@ figure style.
   side by side, including generalized nulls and signed backbones.
 - **next** (`#91 <https://github.com/brianckeegan/networkx_backbone/issues/91>`_): Narrative tutorial: structural and proximity
   backbones, and when topology-based guarantees beat significance tests.
-- **next** (`#92 <https://github.com/brianckeegan/networkx_backbone/issues/92>`_): Narrative tutorial: bipartite projections and
+- **done** (`#92 <https://github.com/brianckeegan/networkx_backbone/issues/92>`_): Narrative tutorial: bipartite projections and
   their backbones.
 - **next** (`#93 <https://github.com/brianckeegan/networkx_backbone/issues/93>`_): Narrative tutorial: hypergraph backbones.
 - **next** (`#94 <https://github.com/brianckeegan/networkx_backbone/issues/94>`_): Narrative tutorial: temporal backbones, from

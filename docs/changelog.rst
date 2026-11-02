@@ -435,6 +435,15 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   and helpers that save light and dark variants and write the reST that shows
   the one matching the reader's theme. Sphinx-Gallery examples start from
   this style (#88, #96).
+- A narrative tutorial, *Bipartite projections and their backbones*, executed
+  when the docs are built: two-mode data and why the raw projection
+  overstates ties, the five projection weights, the five null models compared
+  against the FDSM, the FDSM p-value floor and multiple testing, signed
+  backbones, SDSM-EC constraints (including contradictory ones), a check
+  against R ``backbone`` with ``missing_as_zero``, and sparse incidence
+  input, with seven figures in light and dark variants. The tutorials index
+  is grouped into "Start here", "By network type" and "Going further"
+  (#92, #96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose

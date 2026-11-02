@@ -20,6 +20,11 @@ arXiv:1906.09081). The hyperbolic weight uses ``1/d(z)`` per shared artifact;
 ``hyper_projection(..., newman=True)`` (``method="newman"``) gives Newman's
 (2001) ``1/(d(z) - 1)`` collaboration weight.
 
+For a narrative walkthrough with figures (projection weights, the null models
+side by side, the FDSM p-value floor, signed backbones, SDSM-EC, matching R
+and sparse input), see
+:doc:`/auto_examples/bipartite/plot_bipartite_projections`.
+
 .. automodule:: networkx_backbone.bipartite
    :no-members:
 
