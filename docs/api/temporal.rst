@@ -31,6 +31,10 @@ rather than one graph.
 
 .. autofunction:: weight_trend
 
+.. rubric:: Method gallery
+
+.. include:: ../_gallery/temporal.inc
+
 .. rubric:: Forms
 
 .. autofunction:: temporal_form
