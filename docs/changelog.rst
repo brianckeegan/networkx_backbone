@@ -477,6 +477,13 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   and helpers that save light and dark variants and write the reST that shows
   the one matching the reader's theme. Sphinx-Gallery examples start from
   this style (#88, #96).
+- New narrative tutorial, *Statistical null models side by side*: the seven
+  statistical scorers on Les Misérables, with figures of p-value against
+  weight, backbone overlap (checked against the hierarchy reported by Yassin
+  et al., 2025), the KS distances of each backbone, the disparity filter's
+  ``a=``, the count models' ``unit=``, ``transform_weights``, and signed
+  backbones with the R tie convention. It is executed at build time (#90,
+  #96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose
