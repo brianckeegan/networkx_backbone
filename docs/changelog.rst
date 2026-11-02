@@ -28,6 +28,13 @@ Unreleased
   (:doc:`tutorials/les_miserables_benchmark`). The statistical, comparing and
   benchmark pages now link their narrative tutorials, and the comparing page
   shows how to measure two backbones' agreement.
+- A narrative tutorial on comparing, validating, and reporting backbones
+  (#123): what :func:`~nx_backbone.compare_backbones` measures and why
+  agreement between methods is not correctness; precision and recall
+  against a planted ground truth; robustness to alpha, the correction and
+  input order; consensus and vote counts; the Les Misérables benchmark
+  explained; and a methods-section checklist built around
+  :func:`~nx_backbone.describe_backbone`.
 - Every user guide page now has a figure, drawn at build time in light and
   dark (#122): the method decision diagram on :doc:`user_guide/choosing_method`,
   out- and in-tests on :doc:`user_guide/directed_graphs`, weight shares and

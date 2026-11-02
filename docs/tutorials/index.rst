@@ -57,6 +57,7 @@ Narrative deep dives, and comparing, validating, and benchmarking backbones.
    /auto_examples/weight_meaning/plot_what_your_weights_mean
    /auto_examples/r_and_scale/plot_coming_from_r
    /auto_examples/r_and_scale/plot_scaling_up
+   /auto_examples/validation/plot_compare_validate_report
 
 .. toctree::
    :maxdepth: 2
