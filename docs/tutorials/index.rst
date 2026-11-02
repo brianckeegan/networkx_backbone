@@ -52,6 +52,8 @@ Narrative deep dives, and comparing, validating, and benchmarking backbones.
    :maxdepth: 1
 
    /auto_examples/statistical_nulls/plot_statistical_nulls
+   /auto_examples/r_and_scale/plot_coming_from_r
+   /auto_examples/r_and_scale/plot_scaling_up
 
 .. toctree::
    :maxdepth: 2

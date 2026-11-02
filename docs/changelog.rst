@@ -501,6 +501,13 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   and helpers that save light and dark variants and write the reST that shows
   the one matching the reader's theme. Sphinx-Gallery examples start from
   this style (#88, #96).
+- Two narrative guides, executed when the docs are built (#95): *Coming from
+  R backbone or netbone* maps each R ``backbone`` 3.0 and netbone function to
+  networkx-backbone, checks the four convention switches against the R
+  fixtures, and reproduces R's fixed row backbone of the Davis Southern Women
+  p-value by p-value; *Scaling up to large networks* covers sparse inputs,
+  cost classes with run times measured at build time, the ECM solver's
+  degree-strength classes, and the committed nx-parallel timings.
 - The method gallery on the API pages is regenerated and redesigned. The
   images committed for 0.2.0 showed pre-fix results (the ECM image kept
   nearly every edge, where the fixed ECM keeps 72 of 254). The gallery is now

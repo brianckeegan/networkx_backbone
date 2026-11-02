@@ -207,7 +207,7 @@ figure style.
   structural helpers, and HIF interchange), executed with six figures.
 - **next** (`#94 <https://github.com/brianckeegan/networkx_backbone/issues/94>`_): Narrative tutorial: temporal backbones, from
   snapshots to smoothing.
-- **next** (`#95 <https://github.com/brianckeegan/networkx_backbone/issues/95>`_): Narrative guides: coming from R ``backbone`` or
+- **done** (`#95 <https://github.com/brianckeegan/networkx_backbone/issues/95>`_): Narrative guides: coming from R ``backbone`` or
   ``netbone``, and scaling up to large networks.
 
 Release engineering

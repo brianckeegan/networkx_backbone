@@ -115,4 +115,5 @@ Next steps
 - :doc:`concepts` -- Learn about the different categories of backbone methods
 - :doc:`user_guide/index` -- Detailed guides on workflows, method selection, and evaluation
 - :doc:`tutorials/index` -- Step-by-step tutorials for each method category
+- :doc:`auto_examples/r_and_scale/plot_coming_from_r` -- Coming from R ``backbone`` or ``netbone``
 - :doc:`api/index` -- Complete API reference
