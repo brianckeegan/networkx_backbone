@@ -281,38 +281,10 @@ For bipartite projections, :func:`~networkx_backbone.sdsm` and
 :func:`~networkx_backbone.threshold_filter`. Use ``projection=`` to attach
 ``simple``, ``hyper``, ``probs``, or ``ycn`` projection weights.
 
-Function Image Reference
-------------------------
+Method gallery
+--------------
 
-These static snapshots from ``docs/_static/graph_gallery/`` map functions to
-their score-then-filter visual outcomes.
-
-Hybrid (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/hybrid.rst
-
-Proximity (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/proximity.rst
-
-Statistical (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/statistical.rst
-
-Structural (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/structural.rst
-
-Unweighted (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/unweighted.rst
-
-Bipartite (Davis Southern Women)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/bipartite.rst
+Each backbone module's API page has a method gallery: every method's
+backbone drawn over its original graph, regenerated whenever the
+documentation is built. :doc:`../tutorials/graph_gallery` links to them all
+and compares the methods side by side.

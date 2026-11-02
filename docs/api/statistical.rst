@@ -43,9 +43,9 @@ network, with figures.
    networkx_backbone.gloss_filter
    :add-heading: Gallery Examples
 
-.. rubric:: Function Image Reference
+.. rubric:: Method gallery
 
-.. include:: ../_includes/gallery/statistical.rst
+.. include:: ../_gallery/statistical.inc
 
 .. rubric:: Alias Names
 

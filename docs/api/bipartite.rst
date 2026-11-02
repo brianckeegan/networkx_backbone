@@ -62,9 +62,9 @@ arXiv:1906.09081). The hyperbolic weight uses ``1/d(z)`` per shared artifact;
    networkx_backbone.fixedcol
    :add-heading: Gallery Examples
 
-.. rubric:: Function Image Reference
+.. rubric:: Method gallery
 
-.. include:: ../_includes/gallery/bipartite.rst
+.. include:: ../_gallery/bipartite.inc
 
 .. rubric:: High-Level Wrappers
 
