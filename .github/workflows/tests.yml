@@ -30,8 +30,8 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install ruff numpydoc
-      - run: ruff check networkx_backbone tests
-      - run: ruff format --check networkx_backbone tests
+      - run: ruff check networkx_backbone tests scripts docs/conf.py docs/_figures docs/examples
+      - run: ruff format --check networkx_backbone tests scripts docs/conf.py docs/_figures docs/examples
       # Same checks as the Sphinx build ([tool.numpydoc_validation] in
       # pyproject.toml), without building the docs.
       - run: python -m numpydoc lint networkx_backbone/*.py

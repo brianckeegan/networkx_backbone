@@ -11,9 +11,9 @@ using a strict score-then-filter workflow:
    colors of the documentation's figure style (``docs/_figures/style.py``).
 """
 
+import tempfile
 import warnings
 from pathlib import Path
-import tempfile
 
 import networkx as nx
 from _figures import style
@@ -44,6 +44,7 @@ if backbone.number_of_edges() == G.number_of_edges():
         "Disparity filter returned the same number of edges as the original "
         "graph. Re-test and validate threshold settings.",
         UserWarning,
+        stacklevel=1,
     )
 
 pos = style.layout(G, "les_miserables")  # the layout every docs figure uses

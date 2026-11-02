@@ -147,8 +147,8 @@ stack:
 - Lint and format with `ruff <https://docs.astral.sh/ruff/>`_ (configured in
   ``pyproject.toml``)::
 
-      ruff check networkx_backbone tests
-      ruff format networkx_backbone tests
+      ruff check networkx_backbone tests scripts docs/conf.py docs/_figures docs/examples
+      ruff format networkx_backbone tests scripts docs/conf.py docs/_figures docs/examples
 
 - Take a graph ``G`` as the first argument, return a new graph, and never
   mutate the input.
