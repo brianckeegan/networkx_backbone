@@ -10,6 +10,13 @@
 # the distributions but never uploads them.  Earlier manual runs from main
 # uploaded development versions such as 0.2.0.post1.dev9.  To retry a failed
 # upload, re-run the failed jobs of the release run itself.
+#
+# A re-run uses this workflow file as it was at the tag, not as it is on main.
+# It helps when the cause lies outside the file (the trusted publisher, the
+# pypi environment's rules, a PyPI outage); a fix to this file only reaches
+# the next release.  There is no manual upload of an existing tag: PyPI
+# refuses a second upload of a version, and a failed build is fixed by a new
+# patch release.
 
 name: Publish to PyPI
 

@@ -785,17 +785,17 @@ def noise_corrected_filter(
     of the null model, so it is valid (discrete, hence conservative) for
     every pair.  In simulations from that null (unit interactions whose
     endpoints are drawn with probabilities proportional to lognormal node
-    propensities; 20 seeds each), the share of edges with
-    ``nc_pvalue < 0.05`` was:
+    propensities, so a node can interact with itself and self-loops are
+    kept; 20 seeds each), the share of edges with ``nc_pvalue < 0.05`` was:
 
     ===============================================  =========  ==========
     null graphs                                      "delta"    "binomial"
     ===============================================  =========  ==========
-    2,000 interactions among 50 nodes, undirected    0.243      0.047
-    2,000 interactions among 50 nodes, directed      0.342      0.051
+    2,000 interactions among 50 nodes, undirected    0.242      0.043
+    2,000 interactions among 50 nodes, directed      0.336      0.050
     complete graph on 30 nodes, Poisson(3) weights   0.128      0.033
-    100 interactions among 50 nodes, undirected      0.790      0.154
-    same, all pairs (``missing_as_zero=True``)       0.081      0.016
+    100 interactions among 50 nodes, undirected      0.767      0.154
+    same, all pairs (``missing_as_zero=True``)       0.080      0.016
     ===============================================  =========  ==========
 
     The last two rows show the limit of testing only the edges that are

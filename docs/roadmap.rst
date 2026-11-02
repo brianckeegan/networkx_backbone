@@ -126,15 +126,18 @@ Fixes and release hygiene
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - **next** (`#16 <https://github.com/brianckeegan/nx-backbone/issues/16>`_): Publish the 0.3.0 conda package. The release's
-  conda build failed (``conda-verify`` has no Python 3.12 build); drop it and
-  let a manual run of ``publish-to-conda.yml`` build and upload an existing
-  tag, since a re-run uses the workflow file as it was at the tag.
+  conda build failed (``conda-verify`` has no Python 3.12 build). The
+  workflow now drops it, and a manual run of ``publish-to-conda.yml`` with
+  ``tag`` set builds and uploads an existing tag, since a re-run uses the
+  workflow file as it was at the tag; the recipe builds and passes its tests
+  locally for ``v0.3.0``. Still to do: the maintainer's manual run for
+  ``v0.3.0``.
 - **done** (`#135 <https://github.com/brianckeegan/nx-backbone/issues/135>`_): ``ecm_filter`` did not converge on a small
   directed graph with a heavy hub. The solution exists; the solver treated
   the hub's own self-pair as a pair. The fit now also leaves out pairs that
   the degrees never allow to be linked, and ``ecm_filter`` raises by default
   when a fit does not converge.
-- **next** (`#137 <https://github.com/brianckeegan/nx-backbone/issues/137>`_): Test and docs hygiene: the noise-corrected
+- **done** (`#137 <https://github.com/brianckeegan/nx-backbone/issues/137>`_): Test and docs hygiene: the noise-corrected
   calibration null keeps self-loops as the model does, and a test checks the
   numbers quoted on the how-to pages against the code.
 - **next** (`#138 <https://github.com/brianckeegan/nx-backbone/issues/138>`_): Redirect the old documentation address

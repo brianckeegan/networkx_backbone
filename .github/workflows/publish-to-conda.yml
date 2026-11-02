@@ -1,12 +1,26 @@
 # Build and publish nx-backbone as a conda package.
 #
-# Triggered when a GitHub Release is published (build and upload) and
-# manually (build only).  conda-forge publishing is handled separately via the
-# feedstock repository; this workflow builds the package and uploads to
-# anaconda.org directly.
+# conda-forge publishing is handled separately via the feedstock repository;
+# this workflow builds the package and uploads it to anaconda.org directly.
 #
-# The recipe takes its version from NX_BACKBONE_VERSION, which the build
-# job sets from setuptools-scm and, for a release, checks against the tag.
+# Triggers:
+#
+# * A published GitHub Release builds the release tag, tests it, and uploads
+#   it to anaconda.org.
+# * A manual run (workflow_dispatch) with the ``tag`` input set to an existing
+#   release tag (for example v0.3.0) does the same for that tag.  Use it to
+#   publish a tag whose release run failed: "Re-run jobs" on the release run
+#   reuses the workflow file as it was at the tag, so a fix to this file only
+#   takes effect in a new manual run started from main.
+# * A manual run without ``tag`` is a dry run: it builds and tests the
+#   selected branch and never uploads.
+#
+# The recipe takes its version from NX_BACKBONE_VERSION, which the build job
+# sets from setuptools-scm and, when a tag is given, checks against the tag.
+#
+# conda-verify is not installed: it is an optional linter for conda-build and
+# has no build for Python 3.12 or later, so installing it made the v0.3.0
+# release run unsolvable.
 
 name: Publish to Conda
 
@@ -14,42 +28,53 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Existing release tag to build and upload to anaconda.org (for
+          example v0.3.0). Leave empty for a dry run that never uploads.
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
 
 env:
   # Force Node 24 for JS actions still on Node 20 (deprecation 2026-06-16).
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  # The tag to build and upload: the release tag, or the manual run's input.
+  # Empty for a dry run.
+  TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag || '' }}
 
 jobs:
   build-and-test:
     name: Build and test conda package
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 5
 
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event_name == 'release' && format('refs/tags/{0}', github.event.release.tag_name) || '' }}
+          ref: ${{ env.TAG != '' && format('refs/tags/{0}', env.TAG) || '' }}
           # setuptools-scm needs the tags and the history to find them.
           fetch-depth: 0
 
-      - name: Set up Miniconda
+      - name: Set up Miniforge
         uses: conda-incubator/setup-miniconda@v3
         with:
-          auto-update-conda: true
+          miniforge-version: latest
           python-version: "3.12"
-          channels: conda-forge,defaults
+          channels: conda-forge
+          conda-remove-defaults: "true"
           channel-priority: strict
 
       - name: Determine the package version
         shell: bash -l {0}
-        env:
-          TAG: ${{ github.event.release.tag_name }}
         run: |
           python -m pip install "setuptools-scm>=8"
           version="$(python -m setuptools_scm)"
-          if [ "${GITHUB_EVENT_NAME}" = "release" ] && [ "${version}" != "${TAG#v}" ]; then
-            echo "::error::setuptools-scm version ${version} does not match release tag ${TAG}"
+          if [ -n "${TAG}" ] && [ "${version}" != "${TAG#v}" ]; then
+            echo "::error::setuptools-scm version ${version} does not match tag ${TAG}"
             exit 1
           fi
           echo "Building conda package version ${version}"
@@ -58,60 +83,53 @@ jobs:
       - name: Install conda-build tools
         shell: bash -l {0}
         run: |
-          conda install -y conda-build conda-verify anaconda-client
+          conda install -y --override-channels -c conda-forge \
+            --strict-channel-priority conda-build anaconda-client
 
-      - name: Lint with flake8
+      # The recipe's test section installs the built package in a fresh
+      # environment, checks its metadata version, and runs the test suite.
+      - name: Build and test conda package
         shell: bash -l {0}
         run: |
-          conda install -y flake8
-          # stop the build if there are Python syntax errors or undefined names
-          flake8 nx_backbone/ --count --select=E9,F63,F7,F82 --show-source --statistics
-          # exit-zero treats all errors as warnings
-          flake8 nx_backbone/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-      - name: Install package and test dependencies
-        shell: bash -l {0}
-        run: |
-          pip install -e ".[test]"
-
-      - name: Test with pytest
-        shell: bash -l {0}
-        run: pytest tests/ -v
-
-      - name: Build conda package
-        shell: bash -l {0}
-        run: |
-          conda build .github/workflows/conda-recipe/ --output-folder dist/conda/ --no-anaconda-upload
+          conda build .github/workflows/conda-recipe/ \
+            --output-folder "${RUNNER_TEMP}/conda-bld" \
+            --override-channels -c conda-forge --no-anaconda-upload
 
       - name: Upload conda package artifact
         uses: actions/upload-artifact@v4
         with:
           name: conda-package
-          path: dist/conda/
+          path: ${{ runner.temp }}/conda-bld/noarch/
+          if-no-files-found: error
 
   conda-publish:
     name: Upload to anaconda.org
     needs: build-and-test
-    if: github.event_name == 'release'
+    # A release uploads, and so does a manual run given a tag.  A manual run
+    # without a tag stops after the build.
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.tag != '')
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set up Miniconda
+      - name: Set up Miniforge
         uses: conda-incubator/setup-miniconda@v3
         with:
-          auto-update-conda: true
-          python-version: "3.12"
+          miniforge-version: latest
           channels: conda-forge
+          conda-remove-defaults: "true"
+          channel-priority: strict
 
       - name: Install anaconda-client
         shell: bash -l {0}
-        run: conda install -y anaconda-client
+        run: |
+          conda install -y --override-channels -c conda-forge \
+            --strict-channel-priority anaconda-client
 
       - name: Retrieve conda package
         uses: actions/download-artifact@v4
         with:
           name: conda-package
-          path: dist/conda/
+          path: dist/conda/noarch/
 
       - name: Upload to anaconda.org
         shell: bash -l {0}
@@ -124,8 +142,15 @@ jobs:
           fi
           shopt -s nullglob
           packages=(dist/conda/noarch/*.tar.bz2 dist/conda/noarch/*.conda)
-          if [ "${#packages[@]}" -eq 0 ]; then
-            echo "::error::No conda package found in dist/conda/noarch/"
+          if [ "${#packages[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one conda package in dist/conda/noarch/, found ${#packages[@]}"
             exit 1
           fi
+          case "${packages[0]}" in
+            "dist/conda/noarch/nx-backbone-${TAG#v}-"*) ;;
+            *)
+              echo "::error::${packages[0]} does not match tag ${TAG}"
+              exit 1
+              ;;
+          esac
           anaconda upload --user brianckeegan "${packages[@]}"
