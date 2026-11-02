@@ -1,8 +1,8 @@
 Changelog
 =========
 
-Unreleased (0.3.0)
-------------------
+Version 0.3.0 (2026-11-02)
+--------------------------
 
 This release adds hypergraph backbones, the remaining Backbone 3.0 features,
 the Pólya and GloSS filters, generalized null models and weight transforms,

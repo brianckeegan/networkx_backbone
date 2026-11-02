@@ -226,17 +226,13 @@ figure style.
 Release engineering
 ~~~~~~~~~~~~~~~~~~~
 
-- **next** (`#16 <https://github.com/brianckeegan/nx-backbone/issues/16>`_): Release ``v0.3.0``, the first
+- **done** (`#16 <https://github.com/brianckeegan/nx-backbone/issues/16>`_): Release ``v0.3.0``, the first
   release with this sprint's correctness fixes, new methods, and changes in
-  results. ``v0.2.0`` (February 2026) is tagged in git, but PyPI has
-  only 0.1.0 and a development build: the tag still had a static
-  ``version = "0.1.0"``. The publishing workflows now build exactly the
-  release tag's version and refuse to upload anything else, and the release
-  notes are drafted in ``docs/release-notes/v0.3.0.md``. 0.3.0 is the first
-  release as ``nx-backbone`` (#119), so PyPI needs a pending trusted
-  publisher for the new project. What remains is that setup, dating the
-  changelog, and publishing the GitHub Release, which uploads to PyPI and
-  anaconda.org.
+  results, and the first as ``nx-backbone`` (#119). Released 2026-11-02 to
+  PyPI from the tag-checked workflow (``v0.2.0`` never reached PyPI: its tag
+  still had a static ``version = "0.1.0"``). The anaconda.org package is
+  still to come: the conda build failed before building (``conda-verify``
+  has no Python 3.12 build).
 - **done** (`#18 <https://github.com/brianckeegan/nx-backbone/issues/18>`_): Add ``py.typed`` and type annotations for the public API,
   checked by a non-strict mypy CI job.
 
