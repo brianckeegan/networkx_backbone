@@ -1,53 +1,41 @@
-Graph Comparison Gallery
-========================
+Method Gallery
+==============
 
-This gallery is generated with Sphinx Gallery and applies a strict
-score-then-filter workflow before visualizing each method:
+Every method in this package, drawn the same way: the backbone over its
+original graph, with kept edges in blue and removed edges in faint gray. All
+figures of a dataset share one layout, so a node sits in the same place in
+every figure and the methods can be compared at a glance. The figures are
+generated when the documentation is built, so they always show what the
+current code returns. Each caption gives the edges and nodes the backbone
+keeps.
 
-1. Score edges on the full graph.
-2. Filter scored edges to extract a backbone.
-3. Compare the filtered backbone against the original graph.
+Side by side
+------------
 
-If a filtered backbone has the same edge count as the original graph,
-a validation warning is raised in the example output to prompt re-testing.
+The executed example below runs the statistical and structural methods on
+Les Misérables and draws them as small multiples, with a bar chart of the
+edges each one keeps.
 
 .. toctree::
    :maxdepth: 2
 
    /auto_examples/graph_comparison/index
 
-Static Function Image Reference
--------------------------------
+One figure per method
+---------------------
 
-The static snapshots below are sourced from ``docs/_static/graph_gallery/``
-and mapped to the same functions used across the API docs and user guide.
+The full-size figure for each method is on its API page, next to the
+function's documentation:
 
-Hybrid (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^
+- :doc:`../api/statistical` (Les Misérables)
+- :doc:`../api/structural` (Les Misérables)
+- :doc:`../api/proximity` (Les Misérables)
+- :doc:`../api/hybrid` (Les Misérables)
+- :doc:`../api/unweighted` (unweighted Les Misérables)
+- :doc:`../api/bipartite` (Davis Southern Women, including a signed backbone)
+- :doc:`../api/hypergraph` (Davis Southern Women as a hypergraph)
+- :doc:`../api/temporal` (the synthetic snapshots of
+  :doc:`temporal_backbones`)
 
-.. include:: ../_includes/gallery/hybrid.rst
-
-Proximity (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/proximity.rst
-
-Statistical (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/statistical.rst
-
-Structural (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/structural.rst
-
-Unweighted (Les Miserables)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/unweighted.rst
-
-Bipartite (Davis Southern Women)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. include:: ../_includes/gallery/bipartite.rst
+The figures are drawn by ``scripts/generate_visualizations.py`` with the
+shared figure style in ``docs/_figures/style.py``.

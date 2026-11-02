@@ -94,6 +94,12 @@ as a two-state hidden Markov chain (inactive or active) observed with error
 in its eligible steps (the other steps carry no evidence), and adds
 posterior activity scores plus a per-step ``hmm_posterior`` dict; the fitted
 model is in ``H.graph["temporal"]["hmm"]``.
+:func:`~networkx_backbone.kalman_backbone` (numpy and SciPy) tests every edge
+in every step with a static significance test and smooths each edge's
+evidence over time with a Kalman filter and smoother.  It adds an edge-level
+``kalman_pvalue`` and per-step series as dict attributes keyed by time;
+:func:`~networkx_backbone.kalman_snapshots` expands those into one graph per
+step, and the fitted model is in ``H.graph["temporal"]["kalman"]``.
 """
 
 from __future__ import annotations
@@ -136,6 +142,8 @@ __all__ = [
     "backbone_stability",
     "weight_trend",
     "edge_persistence_hmm",
+    "kalman_backbone",
+    "kalman_snapshots",
 ]
 
 #: Graph attribute holding the snapshot record of a converted multigraph.
@@ -2396,7 +2404,7 @@ def persistence(
     return _scored_graph(table, n, attrs, "persistence", parameters, weight or "weight")
 
 
-def _resolve_scorer(method, key):
+def _resolve_scorer(method, key, caller="backbone_stability"):
     """``(name, function, score key)`` for a static backbone method."""
     import networkx_backbone as nb
     from networkx_backbone.describe import METHODS, SCORE_KEYS, _resolve
@@ -2416,7 +2424,7 @@ def _resolve_scorer(method, key):
         raise TypeError(f"method must be a function or its name; got {method!r}.")
     if entry is not None and entry.kind not in ("weighted", "unweighted"):
         raise ValueError(
-            f"backbone_stability runs a static backbone method on each "
+            f"{caller} runs a static backbone method on each "
             f"snapshot; {name!r} is a {entry.kind} method."
         )
     if key is None:
@@ -3247,6 +3255,599 @@ def edge_persistence_hmm(
     return H
 
 
+#: Static scorers whose p-values are continuous under their null model, so
+#: their probit scores are N(0, 1) per endpoint test (see kalman_backbone).
+_CONTINUOUS_PVALUES = frozenset(
+    {"disparity_filter", "noise_corrected_filter", "glab_filter"}
+)
+#: Static scorers whose p-values are discrete (counts, empirical or posterior
+#: distributions over weights).  Their mid-p or randomized transforms need
+#: P(X > x), which none of them reports.
+#: Static scorers that give an edge the smaller of its two endpoints'
+#: p-values (the "OR rule"), which is not uniform under the null.
+_MIN_OF_ENDPOINTS = frozenset({"disparity_filter", "glab_filter"})
+_DISCRETE_PVALUES = frozenset(
+    {
+        "marginal_likelihood_filter",
+        "ecm_filter",
+        "lans_filter",
+        "polya_filter",
+        "gloss_filter",
+    }
+)
+
+
+def _accepts(func, name):
+    """Whether *func* (or the function a partial wraps) names parameter *name*."""
+    import inspect
+
+    try:
+        params = inspect.signature(func).parameters
+    except (TypeError, ValueError):
+        return False
+    return name in params
+
+
+def _step_positions(steps):
+    """Step positions for the process variance, and the unit of one step.
+
+    Binned steps (``freq`` given) are equally spaced by construction.
+    Otherwise the gaps between consecutive times are measured in units of the
+    smallest gap when the times can be subtracted (numbers, datetimes);
+    anything else is equally spaced.
+    """
+    n = len(steps.times)
+    equal = [float(k) for k in range(n)]
+    if steps.freq is not None or n < 2:
+        return equal, None
+    try:
+        gaps = [b - a for a, b in pairwise(steps.times)]
+        unit = min(gaps)
+        lengths = [g / unit for g in gaps]
+    except (TypeError, ValueError, ZeroDivisionError):
+        return equal, None
+    positions = [0.0]
+    for x in lengths:
+        positions.append(positions[-1] + float(x))
+    if all(x == 1.0 for x in lengths):
+        return equal, unit
+    return positions, unit
+
+
+def kalman_backbone(
+    T: TemporalNetwork,
+    method: str | Callable[..., nx.Graph],
+    *,
+    key: str | None = None,
+    mode: Literal["smoother", "filter"] = "smoother",
+    q: float | None = None,
+    half_life: float | None = None,
+    n_sim: int = 9999,
+    seed: Any = None,
+    sidak: bool = True,
+    discrete: Literal["raise", "raw"] = "raise",
+    freq: Frequency | None = None,
+    origin: Any = None,
+    time: str = "time",
+    start: str = "start",
+    end: str = "end",
+    aggregate: str = "sum",
+    **method_kwargs: Any,
+) -> nx.Graph:
+    """Smooth each edge's per-step significance with a Kalman filter.
+
+    Runs a static significance test (such as
+    :func:`~networkx_backbone.disparity_filter`) on every snapshot, turns
+    each edge's p-value into a probit score ``y_t = Φ⁻¹(1 − p_t)``, which is
+    N(0, 1) under that test's null, and smooths each edge's series with a
+    local-level state-space model::
+
+        x_t = x_{t−1} + η_t,   η_t ~ N(0, q·Δt)
+        y_t = x_t + ε_t,       ε_t ~ N(0, 1)
+
+    using a Kalman filter [1]_ and Rauch–Tung–Striebel smoother [2]_.  For a
+    fixed process variance *q* the smoothed level is linear in the scores, so
+    its null distribution (no signal in any step) is known exactly and gives
+    calibrated per-step p-values.  For fixed *q* the result is a
+    time-localized, weighted Stouffer combination of the per-step evidence:
+    ``q → 0`` pools all observed steps and ``q → ∞`` returns the per-step
+    p-values.  This is a novel adaptation of standard state-space tools to
+    backboning; it was proposed in ``docs/design/temporal-backbones.md``.
+
+    Parameters
+    ----------
+    T : dict, list, MultiGraph or MultiDiGraph
+        A temporal network: snapshots (a dict ``{time: graph}`` or a list of
+        graphs), or a multigraph of events or spans (see
+        :mod:`networkx_backbone.temporal`).
+    method : str or callable
+        A static weighted significance test, as a function or by name
+        (``"disparity_filter"`` or an alias such as ``"disparity"``), called
+        as ``method(G_t, **method_kwargs)`` on each snapshot.  Supported:
+        :func:`~networkx_backbone.noise_corrected_filter`,
+        :func:`~networkx_backbone.disparity_filter` and
+        :func:`~networkx_backbone.glab_filter`, whose p-values are
+        continuous (for the last two see *sidak*); see *discrete* for the
+        others.
+    key : str or None, optional (default=None)
+        The p-value attribute.  ``None`` looks the method up in
+        ``networkx_backbone.describe.SCORE_KEYS``; it must end in
+        ``_pvalue``.
+    mode : {"smoother", "filter"}, optional (default="smoother")
+        ``"smoother"`` uses every step (past and future); ``"filter"`` uses
+        only the steps up to each step, as an online method would.
+    q : float or None, optional (default=None)
+        Process variance per step, ``q ≥ 0``: how fast an edge's
+        significance may drift.  ``None`` uses *half_life* or, if that is
+        ``None`` too, the maximum pooled likelihood estimate over all edges
+        (see Notes).
+    half_life : float or None, optional (default=None)
+        Set *q* by the half-life, in steps, of the smoother's steady-state
+        kernel: the weight of a step halves every *half_life* steps away.
+        Not with *q*.
+    n_sim : int, optional (default=9999)
+        Null series simulated per missingness pattern for the edge-level
+        ``kalman_pvalue``; it cannot go below ``1 / (n_sim + 1)``.
+    seed : integer, random_state, or None (default)
+        Random seed for that simulation.
+    sidak : bool, optional (default=True)
+        For a method that gives an edge the smaller of its two endpoints'
+        p-values (:func:`~networkx_backbone.disparity_filter` and
+        :func:`~networkx_backbone.glab_filter`), replace each per-step
+        p-value ``p`` by ``1 − (1 − p)²``, the Šidák correction for the
+        minimum of two independent tests (see Notes).  Ignored for other
+        methods.
+    discrete : {"raise", "raw"}, optional (default="raise")
+        What to do for a method whose p-values are discrete
+        (:func:`~networkx_backbone.marginal_likelihood_filter`,
+        :func:`~networkx_backbone.ecm_filter`,
+        :func:`~networkx_backbone.lans_filter`,
+        :func:`~networkx_backbone.polya_filter`,
+        :func:`~networkx_backbone.gloss_filter`).  ``"raise"`` refuses;
+        ``"raw"`` uses the p-values as they are, which keeps the tests valid
+        but conservative (see Notes).
+    freq : number, timedelta, str or None, optional (default=None)
+        Step width for binning events or spans into snapshots, as in
+        :func:`snapshots_from_events`: a number for numeric times, a
+        :class:`datetime.timedelta` or a pandas frequency string such as
+        ``"1D"`` (pandas only) for datetimes.  ``None`` makes one step per
+        distinct time.  Snapshots are already steps, so *freq* must be
+        ``None`` for them.
+    origin : time or None, optional (default=None)
+        Start of the first bin (default: the earliest time); with *freq*
+        only.
+    time : str, optional (default="time")
+        Edge attribute holding an event's time.
+    start, end : str, optional (default="start", "end")
+        Edge attributes holding a span's start and end.
+    aggregate : {"sum", "count", "max", "min", "mean"}, optional (default="sum")
+        How the weights of a node pair's events or spans in one bin combine
+        (see :func:`~networkx_backbone.multigraph_to_weighted`).
+    **method_kwargs
+        Passed to *method* in every step.  A ``weight`` entry also names the
+        attribute that binning combines.  ``missing_as_zero`` defaults to
+        ``True`` for a method that has it (see Notes); ``signed=True`` is
+        supported for the continuous methods.
+
+    Returns
+    -------
+    H : Graph or DiGraph
+        The union of the edges present in any step, with the attributes
+        :func:`flatten_temporal` gives them over the steps, plus
+
+        - ``kalman_pvalue``: the edge-level p-value, a test across all
+          steps of ``kalman_score`` (see Notes); cut it with
+          :func:`~networkx_backbone.threshold_filter`, with ``mtc=`` across
+          edges;
+        - ``kalman_score``: the largest per-step z-score
+          ``m_t / sd₀,t``;
+        - ``kalman_n_obs``: the number of steps with a score (see Notes);
+        - ``kalman_pvalues``, ``kalman_levels``: dicts ``{time: value}``
+          over the edge's eligible steps, with the per-step p-value
+          ``1 − Φ(m_t / sd₀,t)`` and the smoothed (or filtered) level
+          ``m_t``;
+        - ``kalman_innovations``: a dict ``{time: value}`` of standardized
+          one-step prediction errors over the scored steps after the
+          first, a burst or change indicator calibrated only under the
+          fitted model.
+
+        Nodes and ``H.graph["temporal"]`` are as in
+        :func:`observation_fraction`; ``H.graph["temporal"]["kalman"]``
+        also records the fitted ``q``, its ``half_life``, where it came from
+        (``"q_source"``: ``"q"``, ``"half_life"`` or ``"likelihood"``), the
+        pooled log-likelihood, how absent edges were treated (``"absent"``:
+        ``"zero"`` or ``"unknown"``), the step unit, and the number of
+        distinct missingness patterns.  :func:`kalman_snapshots` expands
+        the per-step series into one graph per step.
+
+    Raises
+    ------
+    ImportError
+        If numpy or SciPy is not installed.
+    ValueError
+        If *method* is not a static weighted or unweighted method, *key* is
+        not a p-value, *method* has discrete p-values and *discrete* is
+        ``"raise"``, both *q* and *half_life* are given, *q* or *half_life*
+        cannot be used, *q* must be estimated but no edge has two scored
+        steps, *freq* or *origin* is given with snapshots, or the input has
+        no steps.
+    NetworkXError
+        If *method* gives an edge of a snapshot a NaN p-value (common on very
+        small snapshots), or gives no edge a *key*, as in
+        :func:`backbone_stability`.
+    NetworkXNotImplemented
+        If a snapshot is a multigraph, or *method* does not support the
+        snapshots' graph type.
+
+    Warns
+    -----
+    UserWarning
+        If *method* cannot score absent edges (it has no
+        ``missing_as_zero``), so the eligible steps in which an edge is
+        absent are treated as unknown.
+
+    See Also
+    --------
+    backbone_stability : Count the steps in which a static backbone keeps
+        each edge.
+    kalman_snapshots : Expand the per-step series into per-step graphs.
+
+    Notes
+    -----
+    **Steps and absent edges.**  An edge is scored in a step when it is
+    present, and also when it is absent but eligible (both endpoints
+    present), as an observed zero: *method* is then called with
+    ``missing_as_zero=True`` (see :func:`~networkx_backbone.disparity_filter`),
+    which tests the absent pairs as weight-0 edges.  This costs O(n²) per
+    snapshot; pass ``missing_as_zero=False`` to treat such steps as unknown
+    instead.  A method without ``missing_as_zero`` is run as is, with the
+    same effect and a warning.  Steps in which an endpoint is absent, or in
+    which *method* leaves a pair untested, are unknown: the filter predicts
+    through them without an update, so
+    missing steps are handled exactly.  An observed zero is the weakest
+    possible outcome; under a continuous test its p-value is 1, whose probit
+    score is clipped to about −8.22 (``Φ⁻¹(1e-16)``), as is a p-value of 0
+    to +8.22, so a single step cannot dominate.  Unequally spaced snapshot
+    times scale the process variance by the gap, in units of the smallest
+    gap; binned steps are equally spaced.
+
+    **The exact null.**  The smoothed level ``m_t = Σ_s a_ts y_s`` is linear
+    in the scores, with weights that depend only on *q*, the step times and
+    the edge's scored steps.  If the per-step p-values are uniform and
+    independent (no signal at any step), ``m_t`` is normal with variance
+    ``sd₀,t² = Σ_s a_ts²``, computed by an O(T) recursion, which gives
+    ``kalman_pvalues``.  The posterior standard deviation of the level would
+    give miscalibrated p-values.  The edge-level ``kalman_pvalue`` tests the
+    maximum over steps of ``m_t / sd₀,t``; its null distribution is
+    simulated once per missingness pattern (*n_sim* series, shared by the
+    edges with that pattern), and the Monte Carlo p-value
+    ``(1 + #{null ≥ observed}) / (1 + n_sim)`` is valid.  It is one test per
+    edge, so correct it across edges only.  Each of the E × T per-step
+    p-values is a separate test: correct them within a step (for example
+    with :func:`kalman_snapshots` and ``threshold_filter(..., mtc="bh")``)
+    and do not read them as one family.
+
+    **Choosing q.**  With neither *q* nor *half_life*, *q* maximizes the
+    pooled Gaussian log-likelihood of the one-step prediction errors over
+    all edges, by a bounded search over ``log q`` in ``[1e-6, 1e3]``.  Most
+    edges of a network carry no signal, so the estimate is often near the
+    lower bound, which pools all steps (a Stouffer combination over time).
+    *half_life* is usually the better choice for a backbone: with unit
+    steps the steady-state filter gain ``K`` satisfies
+    ``(1 − K)^half_life = 1/2`` and ``q = K² / (1 − K)``.
+
+    **Validity of the per-step p-values.**  The calibration above holds when
+    each step's p-value is uniform under the null.  Three cases differ:
+
+    - Discrete p-values are stochastically larger than uniform.  The
+      smoothing weights are nonnegative, so with ``discrete="raw"`` the
+      tests stay valid but are conservative.  Mid-p and randomized
+      transforms would remove that, but they need ``P(X > x)``, which the
+      library's discrete tests do not report.
+    - :func:`~networkx_backbone.disparity_filter` and
+      :func:`~networkx_backbone.glab_filter` give an edge the smaller of
+      its two endpoints' p-values, which is not uniform under the null:
+      it is too small.  Smoothing adds up such a bias over steps, so the
+      default ``sidak=True`` replaces ``p`` by ``1 − (1 − p)²``, which is
+      exact for two independent endpoint tests.  The two tests share the
+      edge's weight, though, so the corrected p-value is too large and the
+      smoothed tests are conservative.  In one simulation (260 edges among
+      60 nodes, 20 steps, every node's weights iid exponential, which is
+      the disparity filter's null; ``half_life=3``), the share of per-step
+      p-values below 0.05 was 0.005 with ``sidak=True`` and 0.17 with
+      ``sidak=False``, against 0.076 for the disparity filter on single
+      snapshots.  :func:`~networkx_backbone.noise_corrected_filter` tests
+      each edge once and needs no correction.
+    - Observed zeros only lower the scores, which is conservative.
+
+    **Risks.**  The p-values are exact for the edge-global null (no signal
+    at any step), not for a time-local one: a signal in some steps raises
+    the smoothed level in nearby steps too (temporal leakage, which
+    ``mode="filter"`` limits to later steps).  In the design prototype the
+    rejection rate ten steps after a signal window was 0.067 at a nominal
+    0.05.  Dyad-level confounders that persist over time make the scores
+    positively autocorrelated under the null, which makes the tests
+    anti-conservative; check that ``kalman_innovations`` look like white
+    noise.
+
+    References
+    ----------
+    .. [1] Kalman, R. E. (1960). A new approach to linear filtering and
+       prediction problems. *Journal of Basic Engineering*, 82(1), 35-45.
+       https://doi.org/10.1115/1.3662552
+    .. [2] Rauch, H. E., Tung, F., & Striebel, C. T. (1965). Maximum
+       likelihood estimates of linear dynamic systems. *AIAA Journal*,
+       3(8), 1445-1450. https://doi.org/10.2514/3.3166
+
+    Examples
+    --------
+    Twelve noisy copies of Les Misérables (each weight drawn from an
+    exponential distribution with that mean) in which the light edge
+    Valjean-Gavroche is 50 times heavier in steps 4 to 7 only:
+
+    >>> import random
+    >>> import networkx as nx
+    >>> import networkx_backbone as nb
+    >>> rng = random.Random(1)
+    >>> G = nx.les_miserables_graph()
+    >>> S = {}
+    >>> for t in range(12):
+    ...     S[t] = G.copy()
+    ...     for u, v, d in S[t].edges(data=True):
+    ...         d["weight"] = rng.expovariate(1 / d["weight"])
+    ...     if 4 <= t < 8:
+    ...         S[t]["Valjean"]["Gavroche"]["weight"] *= 50
+    >>> H = nb.kalman_backbone(S, "disparity", half_life=2, n_sim=999, seed=0)
+
+    The edge-level test finds the edge, and the per-step p-values place the
+    signal in time:
+
+    >>> d = H["Valjean"]["Gavroche"]
+    >>> d["kalman_pvalue"] < 0.01
+    True
+    >>> d["kalman_pvalues"][5] < 0.05 < d["kalman_pvalues"][0]
+    True
+    >>> round(H.graph["temporal"]["kalman"]["q"], 3)
+    0.121
+    >>> B = nb.threshold_filter(H, "kalman_pvalue", 0.05, mtc="bh")
+    >>> B.has_edge("Valjean", "Gavroche")
+    True
+    """
+    np = _require_numpy("kalman_backbone")
+    try:
+        import scipy  # noqa: F401
+    except ImportError as err:
+        raise ImportError(
+            "kalman_backbone requires SciPy; install it with `pip install scipy`."
+        ) from err
+    from networkx_backbone import _kalman
+
+    name, func, key = _resolve_scorer(method, key, "kalman_backbone")
+    if not key.endswith("_pvalue"):
+        raise ValueError(
+            f"kalman_backbone smooths p-values; {key!r} is not one (pass key=)."
+        )
+    if discrete not in ("raise", "raw"):
+        raise ValueError(f"discrete must be 'raise' or 'raw'; got {discrete!r}.")
+    if name in _DISCRETE_PVALUES and discrete == "raise":
+        raise ValueError(
+            f"{name} gives discrete p-values, whose probit scores are not "
+            "N(0, 1) under the null, and it does not report P(X > x) for a "
+            "mid-p transform.  Pass discrete='raw' to use them as they are "
+            "(valid but conservative), or use a continuous test such as "
+            "disparity_filter."
+        )
+    if mode not in ("smoother", "filter"):
+        raise ValueError(f"mode must be 'smoother' or 'filter'; got {mode!r}.")
+    if q is not None and half_life is not None:
+        raise ValueError("Pass q= or half_life=, not both.")
+    if q is not None:
+        _kalman._process_variance(q, None, 1)  # validates q
+    if half_life is not None:
+        _kalman.half_life_to_q(half_life)  # validates half_life
+    if int(n_sim) < 1:
+        raise ValueError(f"n_sim must be a positive integer; got {n_sim!r}.")
+
+    weight = method_kwargs.get("weight", "weight")
+    steps = _steps(
+        T,
+        freq=freq,
+        origin=origin,
+        time=time,
+        start=start,
+        end=end,
+        weight=weight,
+        aggregate=aggregate,
+    )
+    table = _Table(steps)
+    kwargs = dict(method_kwargs)
+    if "missing_as_zero" not in kwargs and _accepts(func, "missing_as_zero"):
+        kwargs["missing_as_zero"] = True
+    absent = "zero" if kwargs.get("missing_as_zero") else "unknown"
+    if absent == "unknown" and "missing_as_zero" not in method_kwargs:
+        import warnings
+
+        warnings.warn(
+            f"kalman_backbone: {name} cannot score absent edges (it has no "
+            "missing_as_zero), so the eligible steps in which an edge is "
+            "absent are treated as unknown, not as observed zeros.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+    m, n_steps = len(table.ends), len(steps.times)
+    P = np.full((m, n_steps), np.nan)
+    signs = np.full((m, n_steps), np.nan)
+    for k, _, scored in _scored_steps(steps, name, func, key, kwargs):
+        # Every eligible pair the method scored: present, or absent and
+        # tested as weight 0 (missing_as_zero).
+        adj = scored.adj
+        for j in np.flatnonzero(table.eligible[:, k]):
+            u, v = table.ends[j]
+            d = adj[u].get(v)
+            if d is None or d.get(key) is None:
+                continue
+            P[j, k] = d[key]
+            if "sign" in d:
+                signs[j, k] = d["sign"]
+    scored_steps = ~np.isnan(P)
+    has_sign = ~np.isnan(signs)
+    endpoint_min = name in _MIN_OF_ENDPOINTS
+    if has_sign.any():
+        if name in _DISCRETE_PVALUES or endpoint_min:
+            why = "combine two endpoints" if endpoint_min else "are discrete"
+            raise ValueError(
+                f"signed (two-sided) p-values of {name} {why} and cannot be "
+                "turned into one-sided scores; drop signed=True."
+            )
+        if (scored_steps & ~has_sign).any():
+            raise nx.NetworkXError(
+                f"{name} gave a sign to some scored edges but not others."
+            )
+        Y = _kalman.probit_scores(P, sign=np.where(has_sign, signs, 1.0))
+    else:
+        if endpoint_min and sidak:
+            P = P * (2.0 - P)  # 1 − (1 − p)², without cancellation
+        Y = _kalman.probit_scores(P)
+
+    positions, unit = _step_positions(steps)
+    loglik = None
+    if half_life is not None:
+        q_used, source = _kalman.half_life_to_q(half_life), "half_life"
+    elif q is not None:
+        q_used, source = float(q), "q"
+    elif m == 0:
+        q_used, source = None, "likelihood"
+    else:
+        if not (scored_steps.sum(axis=1) >= 2).any():
+            raise ValueError(
+                "Estimating q needs an edge scored in at least two steps; "
+                "pass q= or half_life=."
+            )
+        q_used, loglik = _kalman.estimate_q(Y, times=positions)
+        source = "likelihood"
+    if q_used is not None and loglik is None and m:
+        loglik = _kalman.pooled_loglik(Y, q_used, times=positions)
+
+    attrs: list[dict[str, Any]] = [{} for _ in range(m)]
+    n_patterns = 0
+    if m:
+        res = _kalman.kalman_scores(Y, q_used, times=positions, mode=mode)
+        stat, pvalue = _kalman.max_score_test(
+            Y, q_used, times=positions, mode=mode, n_sim=n_sim, seed=seed
+        )
+        n_patterns = len(np.unique(scored_steps, axis=0))
+        times = steps.times
+        rows = zip(
+            table.eligible.tolist(),
+            res.pvalue.tolist(),
+            res.level.tolist(),
+            res.innovation.tolist(),
+        )
+        n_obs = scored_steps.sum(axis=1).tolist()
+        for j, (elig, ps, ms, nus) in enumerate(rows):
+            series_p, series_m, series_nu = {}, {}, {}
+            for t, e, p, lvl, nu in zip(times, elig, ps, ms, nus):
+                if e and p == p:
+                    series_p[t] = p
+                    series_m[t] = lvl
+                if nu == nu:
+                    series_nu[t] = nu
+            attrs[j] = {
+                "kalman_pvalue": float(pvalue[j]),
+                "kalman_score": float(stat[j]),
+                "kalman_n_obs": n_obs[j],
+                "kalman_pvalues": series_p,
+                "kalman_levels": series_m,
+                "kalman_innovations": series_nu,
+            }
+    parameters = {
+        "method": name,
+        "key": key,
+        "mode": mode,
+        "q": q,
+        "half_life": half_life,
+        "n_sim": n_sim,
+        "seed": seed,
+        "sidak": sidak,
+        "discrete": discrete,
+        "aggregate": aggregate,
+        **method_kwargs,
+    }
+    H = _scored_graph(table, [True] * m, attrs, "kalman_backbone", parameters, weight)
+    H.graph[RECORD]["kalman"] = {
+        "q": q_used,
+        "half_life": None if q_used is None else _kalman.q_to_half_life(q_used),
+        "q_source": source,
+        "loglik": loglik,
+        "mode": mode,
+        "absent": absent,
+        "step_unit": unit,
+        "n_sim": n_sim,
+        "n_patterns": n_patterns,
+    }
+    return H
+
+
+def kalman_snapshots(H: nx.Graph) -> dict[Any, nx.Graph]:
+    """Expand the per-step series of :func:`kalman_backbone` into snapshots.
+
+    Parameters
+    ----------
+    H : Graph or DiGraph
+        The scored graph returned by :func:`kalman_backbone`.
+
+    Returns
+    -------
+    dict
+        ``{time: G_t}`` for every step, in time order.  ``G_t`` (the same
+        graph type as *H*) holds the edges with a value at that step, with
+        the attributes ``kalman_pvalue`` and ``kalman_level`` (the values of
+        ``kalman_pvalues`` and ``kalman_levels`` at that step) and, where
+        defined, ``kalman_innovation``.  Its nodes are those edges'
+        endpoints, with their attributes from *H*.  Filter each with
+        :func:`~networkx_backbone.threshold_filter`, for example with
+        ``mtc="bh"`` to correct the per-step tests within each step.
+
+    Raises
+    ------
+    NetworkXError
+        If *H* was not returned by :func:`kalman_backbone`.
+
+    Examples
+    --------
+    >>> import networkx as nx
+    >>> import networkx_backbone as nb
+    >>> G = nx.les_miserables_graph()
+    >>> H = nb.kalman_backbone([G, G, G], "disparity", q=0.5, seed=0)
+    >>> steps = nb.kalman_snapshots(H)
+    >>> list(steps)
+    [0, 1, 2]
+    >>> B = nb.threshold_filter(steps[1], "kalman_pvalue", 0.05)
+    >>> B.number_of_edges() < G.number_of_edges()
+    True
+    """
+    meta = H.graph.get(RECORD)
+    if not isinstance(meta, dict) or meta.get("method") != "kalman_backbone":
+        raise nx.NetworkXError("H is not the result of kalman_backbone.")
+    out: dict[Any, nx.Graph] = {t: H.__class__() for t in meta["times"]}
+    series = (
+        ("kalman_pvalues", "kalman_pvalue"),
+        ("kalman_levels", "kalman_level"),
+        ("kalman_innovations", "kalman_innovation"),
+    )
+    for u, v, d in H.edges(data=True):
+        for t in d["kalman_pvalues"]:
+            G = out[t]
+            for n in (u, v):
+                if n not in G:
+                    G.add_node(n, **H.nodes[n])
+            G.add_edge(
+                u, v, **{one: d[many][t] for many, one in series if t in d[many]}
+            )
+    return out
+
+
 _COMPLEXITY = {
     "temporal_form": {
         "time": "O(m + S log S)",
@@ -3323,6 +3924,17 @@ _COMPLEXITY = {
             'observe="keep" or "pvalue".'
         ),
     },
+    "kalman_backbone": {
+        "time": "O(n_S + m_S + I m T + P n_sim T) plus T runs of the method",
+        "space": "O(n T + m T + n_sim T)",
+        "notes": (
+            "T steps, m distinct edges, P distinct missingness patterns, I "
+            "likelihood evaluations when q is estimated; with "
+            "missing_as_zero the method also tests the O(n^2) absent pairs "
+            "of each snapshot."
+        ),
+    },
+    "kalman_snapshots": {"time": "O(m T)", "space": "O(m T)"},
 }
 
 append_complexity_docstrings(globals(), _COMPLEXITY)

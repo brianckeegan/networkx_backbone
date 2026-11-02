@@ -25,6 +25,6 @@ Complexity classes are provided in each function docstring.
    networkx_backbone.local_degree
    :add-heading: Gallery Examples
 
-.. rubric:: Function Image Reference
+.. rubric:: Method gallery
 
-.. include:: ../_includes/gallery/unweighted.rst
+.. include:: ../_gallery/unweighted.inc

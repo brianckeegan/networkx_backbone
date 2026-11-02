@@ -3,7 +3,9 @@ Describe
 
 Generate methods-section text and citations for a backbone -- the
 counterpart of the ``narrative`` option of Neal's Backbone 3.0. See the
-:doc:`../tutorials/validating_backbones` tutorial for a worked example.
+:doc:`../tutorials/validating_backbones` tutorial for a worked example, and
+:doc:`../auto_examples/start_here/plot_hairball_to_backbone` for its place
+at the end of the whole workflow.
 
 .. automodule:: networkx_backbone.describe
    :no-members:

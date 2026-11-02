@@ -52,7 +52,7 @@ extensions = [
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "_gallery", "Thumbs.db", ".DS_Store"]
 
 # -- numpydoc settings -------------------------------------------------------
 # numpydoc alone parses the NumPy-style docstrings.  (sphinx.ext.napoleon used
@@ -233,8 +233,28 @@ def _build_roadmap_figures(app):
     module.build(Path(app.srcdir) / "_static" / "roadmap", Path(app.srcdir) / "roadmap.rst")
 
 
+# -- Method gallery --------------------------------------------------------------
+# scripts/generate_visualizations.py runs every public method and draws its
+# backbone over the original graph (light and dark variants), plus one reST
+# include per API module, into the gitignored _gallery/ on every build, so the
+# gallery on the API pages always shows what the current code returns.
+
+
+def _build_gallery(app):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "generate_visualizations", ROOT / "scripts" / "generate_visualizations.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module  # dataclasses look the module up here
+    spec.loader.exec_module(module)
+    module.build(Path(app.srcdir) / "_gallery")
+
+
 def setup(app):
     app.connect("builder-inited", _build_roadmap_figures)
+    app.connect("builder-inited", _build_gallery)
     from docutils import nodes
     from docutils.statemachine import StringList
     from sphinx.util.docutils import SphinxDirective
