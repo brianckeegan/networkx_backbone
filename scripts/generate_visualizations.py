@@ -130,7 +130,12 @@ def context():
         "davis": davis,
         "women": women,
         "events": events,
-        "women_projection": nx.bipartite.weighted_projected_graph(davis, women),
+        # Project from the bare edge list: NetworkX's projections copy node and
+        # graph attributes without declaring that to its dispatcher, which the
+        # nx_loopback test harness reports as a mismatch (see tests/test_bipartite.py).
+        "women_projection": nx.bipartite.weighted_projected_graph(
+            nx.Graph(davis.edges()), women
+        ),
         # Davis as a hypergraph: each event is a hyperedge on its attendees.
         "davis_hyperedges": {e: frozenset(davis[e]) for e in events},
         "snapshots": snaps,
