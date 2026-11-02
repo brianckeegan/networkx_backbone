@@ -195,7 +195,7 @@ figure style.
 - **next** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
   backbone, end to end (why a backbone, scoring vs filtering, choosing alpha
   and corrections, comparing, validating, reporting).
-- **next** (`#90 <https://github.com/brianckeegan/networkx_backbone/issues/90>`_): Narrative tutorial: the statistical null models
+- **done** (`#90 <https://github.com/brianckeegan/networkx_backbone/issues/90>`_): Narrative tutorial: the statistical null models
   side by side, including generalized nulls and signed backbones.
 - **next** (`#91 <https://github.com/brianckeegan/networkx_backbone/issues/91>`_): Narrative tutorial: structural and proximity
   backbones, and when topology-based guarantees beat significance tests.

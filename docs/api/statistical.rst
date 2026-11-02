@@ -6,6 +6,8 @@ All functions return scored full graphs; apply
 :func:`~networkx_backbone.threshold_filter` or
 :func:`~networkx_backbone.boolean_filter` as the second step.
 Complexity classes are provided in each function docstring.
+The tutorial :ref:`tutorial-statistical-nulls` compares the null models on one
+network, with figures.
 
 .. automodule:: networkx_backbone.statistical
    :no-members:
