@@ -187,15 +187,16 @@ Longer, narrative documentation with figures, tracked in
 numbers and figures cannot drift from the code, and uses one colorblind-safe
 figure style.
 
-- **next** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
-  on the API pages, whose images date from 0.2.0 and show pre-fix results
-  (the ECM image keeps nearly every edge), and generate it at build time so
-  it cannot go stale. Done so far: the shared figure style
-  (``docs/_figures/style.py``) that the gallery, examples, and tutorials use.
-- **next** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
+- **done** (`#88 <https://github.com/brianckeegan/networkx_backbone/issues/88>`_): Regenerate and redesign the per-method gallery
+  on the API pages, whose images dated from 0.2.0 and showed pre-fix results,
+  and generate it at build time so it cannot go stale. Every figure uses the
+  shared figure style (``docs/_figures/style.py``) that the examples and
+  tutorials also use.
+- **done** (`#89 <https://github.com/brianckeegan/networkx_backbone/issues/89>`_): Narrative tutorial: from a hairball to a
   backbone, end to end (why a backbone, scoring vs filtering, choosing alpha
-  and corrections, comparing, validating, reporting).
-- **next** (`#90 <https://github.com/brianckeegan/networkx_backbone/issues/90>`_): Narrative tutorial: the statistical null models
+  and corrections, comparing, validating, reporting), the "Start here" entry
+  point of the tutorials.
+- **done** (`#90 <https://github.com/brianckeegan/networkx_backbone/issues/90>`_): Narrative tutorial: the statistical null models
   side by side, including generalized nulls and signed backbones.
 - **next** (`#91 <https://github.com/brianckeegan/networkx_backbone/issues/91>`_): Narrative tutorial: structural and proximity
   backbones, and when topology-based guarantees beat significance tests.
@@ -315,8 +316,9 @@ the method proposals are in the `temporal backbones proposal
   and pathpy adapters.
 - **idea** (`#71 <https://github.com/brianckeegan/networkx_backbone/issues/71>`_): Null-model significance tests for the simple
   filters.
-- **planned** (`#72 <https://github.com/brianckeegan/networkx_backbone/issues/72>`_): ``kalman_backbone``: Kalman smoothing of
-  per-step edge significance, tested against an exact null.
+- **done** (`#72 <https://github.com/brianckeegan/networkx_backbone/issues/72>`_): ``kalman_backbone``: Kalman smoothing of
+  per-step edge significance, tested against an exact null, with an
+  edge-level test across steps and ``kalman_snapshots`` for per-step graphs.
 - **done** (`#73 <https://github.com/brianckeegan/networkx_backbone/issues/73>`_): ``edge_persistence_hmm``: a two-state hidden
   Markov model for persistent edge activity, observing presence, per-step
   keep flags, or p-values.

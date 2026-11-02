@@ -209,6 +209,8 @@ REGISTRY = [
                                "weight_cv": NONNEG, "weight_slope": ANY}),
     Spec(nb.edge_persistence_hmm, TM, {"hmm_score": P, "hmm_active_fraction": P,
                                        "hmm_n_active": NONNEG}, keep=("hmm_keep",)),
+    Spec(nb.kalman_backbone, TM, {"kalman_pvalue": P, "kalman_score": ANY},
+         kwargs={"method": "disparity_filter", "q": 0.5, "n_sim": 99, "seed": 0}),
 ]  # fmt: skip
 
 # ---------------------------------------------------------------------------

@@ -1,657 +1,218 @@
 """
-Score-Then-Filter Graph Comparison Gallery
-==========================================
+Comparing backbone methods side by side
+=======================================
 
-This gallery applies backbone methods to reference datasets, then visualizes
-filtered backbones against the original graphs.
+This example runs every statistical and structural method on
+``nx.les_miserables_graph()`` at the cut its API page documents, then draws
+each backbone over the original graph as small multiples. All panels share one
+layout, so a character sits in the same place in every panel, and the
+differences between methods are differences in which edges they keep.
 
-For each method we:
-
-1. Compute edge scores on the full graph.
-2. Apply a filtering function to extract the backbone.
-3. Warn if the filtered edge count is unchanged from the original graph.
-
-- Non-bipartite methods use ``nx.les_miserables_graph()``.
-- Bipartite methods use ``nx.davis_southern_women_graph()`` projected onto
-  women nodes.
+The drawing helpers come from the documentation's shared figure style
+(``docs/_figures/style.py`` in the repository). Outside the docs,
+:func:`~networkx_backbone.compare_graphs` draws the same kind of comparison.
 """
 
-from __future__ import annotations
-
 import warnings
-from dataclasses import dataclass
-from typing import Callable
 
 import matplotlib.pyplot as plt
 import networkx as nx
+from _figures import style
 
 import networkx_backbone as nb
-from networkx_backbone.visualization import compare_graphs
 
-plt.rcParams["figure.max_open_warning"] = 0
-
-
-@dataclass(frozen=True)
-class MethodSpec:
-    name: str
-    dataset: str
-    module: str
-    build: Callable[[dict], nx.Graph]
+G = nx.les_miserables_graph()
+pos = style.layout(G, "les_miserables")
+alpha = 0.05
 
 
-def _to_unweighted(G: nx.Graph) -> nx.Graph:
-    H = nx.Graph()
-    H.add_nodes_from(G.nodes(data=True))
-    H.add_edges_from(G.edges())
-    return H
+def below(scored, score, threshold=alpha):
+    """Keep the edges whose ``score`` is below ``threshold`` (p-values)."""
+    return nb.threshold_filter(scored, score, threshold, include_all_nodes=False)
 
 
-def _drop_isolates(G: nx.Graph) -> nx.Graph:
-    H = G.copy()
-    isolates = list(nx.isolates(H))
-    if isolates:
-        H.remove_nodes_from(isolates)
-    return H
+def above(scored, score, threshold):
+    """Keep the edges whose ``score`` is at least ``threshold``."""
+    return nb.threshold_filter(
+        scored, score, threshold, mode="above", include_all_nodes=False
+    )
 
 
-def _to_undirected_simple(G: nx.Graph) -> nx.Graph:
-    if not G.is_directed():
-        return G
-    H = nx.Graph()
-    H.add_nodes_from(G.nodes(data=True))
-    for u, v, data in G.edges(data=True):
-        if not H.has_edge(u, v):
-            H.add_edge(u, v, **data)
-    return H
+# %%
+# Score, then filter
+# ------------------
+# Each method scores every edge of the full graph; a filter then extracts the
+# backbone. The statistical methods test each edge against a null model and
+# keep those with p < 0.05. The structural methods keep edges by a
+# topological rule.
 
-
-def _title(name: str) -> str:
-    return name.replace("_", " ").title()
-
-
-def _method_specs() -> list[MethodSpec]:
-    return [
-        MethodSpec(
-            "disparity_filter",
-            "les_miserables",
-            "statistical",
-            lambda c: nb.threshold_filter(
-                nb.disparity_filter(c["les_weighted"]),
-                "disparity_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "noise_corrected_filter",
-            "les_miserables",
-            "statistical",
-            lambda c: nb.threshold_filter(
-                nb.noise_corrected_filter(c["les_weighted"]),
-                "nc_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "marginal_likelihood_filter",
-            "les_miserables",
-            "statistical",
-            lambda c: nb.threshold_filter(
-                nb.marginal_likelihood_filter(c["les_weighted"]),
-                "ml_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "ecm_filter",
-            "les_miserables",
-            "statistical",
-            lambda c: nb.threshold_filter(
-                nb.ecm_filter(c["les_weighted"]),
-                "ecm_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "gloss_filter",
-            "les_miserables",
-            "statistical",
-            lambda c: nb.threshold_filter(
-                nb.gloss_filter(c["les_weighted"]),
-                "gloss_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "polya_filter",
-            "les_miserables",
-            "statistical",
-            lambda c: nb.threshold_filter(
-                nb.polya_filter(c["les_weighted"]),
-                "polya_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "lans_filter",
-            "les_miserables",
-            "statistical",
-            lambda c: nb.threshold_filter(
-                nb.lans_filter(c["les_weighted"]),
-                "lans_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "multiple_linkage_analysis",
-            "les_miserables",
-            "statistical",
-            lambda c: nb.boolean_filter(
-                nb.multiple_linkage_analysis(c["les_weighted"]),
-                "mla_keep",
-            ),
-        ),
-        MethodSpec(
-            "global_threshold_filter",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.global_threshold_filter(c["les_weighted"], threshold=2.0),
-                "global_threshold_keep",
-            ),
-        ),
-        MethodSpec(
-            "strongest_n_ties",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.strongest_n_ties(c["les_weighted"], n=2),
-                "strongest_n_ties_keep",
-            ),
-        ),
-        MethodSpec(
-            "global_sparsification",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.global_sparsification(c["les_weighted"], s=0.4),
-                "global_sparsification_keep",
-            ),
-        ),
-        MethodSpec(
-            "primary_linkage_analysis",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.primary_linkage_analysis(c["les_weighted"]),
-                "primary_linkage_keep",
-            ),
-        ),
-        MethodSpec(
-            "edge_betweenness_filter",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.edge_betweenness_filter(c["les_weighted"], s=0.3),
-                "edge_betweenness_keep",
-            ),
-        ),
-        MethodSpec(
-            "node_degree_filter",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.node_degree_filter(c["les_weighted"], min_degree=2),
-                "node_degree_keep",
-            ),
-        ),
-        MethodSpec(
-            "high_salience_skeleton",
-            "les_miserables",
-            "structural",
-            lambda c: nb.threshold_filter(
-                nb.high_salience_skeleton(c["les_weighted"]),
-                "salience",
-                0.5,
-                mode="above",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "metric_backbone",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.metric_backbone(c["les_weighted"]),
-                "metric_keep",
-            ),
-        ),
-        MethodSpec(
-            "ultrametric_backbone",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.ultrametric_backbone(c["les_weighted"]),
-                "ultrametric_keep",
-            ),
-        ),
-        MethodSpec(
-            "doubly_stochastic_filter",
-            "les_miserables",
-            "structural",
-            lambda c: nb.threshold_filter(
-                nb.doubly_stochastic_filter(c["les_weighted"]),
-                "ds_weight",
-                0.1,
-                mode="above",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "h_backbone",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.h_backbone(c["les_weighted"]),
-                "h_backbone_keep",
-            ),
-        ),
-        MethodSpec(
-            "modularity_backbone",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.modularity_backbone(c["les_weighted"]),
-                "modularity_keep",
-            ),
-        ),
-        MethodSpec(
-            "planar_maximally_filtered_graph",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.planar_maximally_filtered_graph(c["les_weighted"]),
-                "pmfg_keep",
-            ),
-        ),
-        MethodSpec(
-            "maximum_spanning_tree_backbone",
-            "les_miserables",
-            "structural",
-            lambda c: nb.boolean_filter(
-                nb.maximum_spanning_tree_backbone(c["les_weighted"]),
-                "mst_keep",
-            ),
-        ),
-        MethodSpec(
-            "neighborhood_overlap",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.neighborhood_overlap(c["les_weighted"]),
-                "overlap",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "jaccard_backbone",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.jaccard_backbone(c["les_weighted"]),
-                "jaccard",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "dice_backbone",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.dice_backbone(c["les_weighted"]),
-                "dice",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "cosine_backbone",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.cosine_backbone(c["les_weighted"]),
-                "cosine",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "hub_promoted_index",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.hub_promoted_index(c["les_weighted"]),
-                "hpi",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "hub_depressed_index",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.hub_depressed_index(c["les_weighted"]),
-                "hdi",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "lhn_local_index",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.lhn_local_index(c["les_weighted"]),
-                "lhn_local",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "preferential_attachment_score",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.preferential_attachment_score(c["les_weighted"]),
-                "pa",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "adamic_adar_index",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.adamic_adar_index(c["les_weighted"]),
-                "adamic_adar",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "resource_allocation_index",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.resource_allocation_index(c["les_weighted"]),
-                "resource_allocation",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "graph_distance_proximity",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.graph_distance_proximity(c["les_weighted"], all_pairs=False),
-                "dist",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "local_path_index",
-            "les_miserables",
-            "proximity",
-            lambda c: nb.fraction_filter(
-                nb.local_path_index(c["les_weighted"]),
-                "lp",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "glab_filter",
-            "les_miserables",
-            "hybrid",
-            lambda c: nb.threshold_filter(
-                nb.glab_filter(c["les_weighted"]),
-                "glab_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "sparsify",
-            "les_miserables",
-            "unweighted",
-            lambda c: nb.boolean_filter(
-                nb.sparsify(c["les_unweighted"], s=0.5),
-                "sparsify_keep",
-            ),
-        ),
-        MethodSpec(
-            "lspar",
-            "les_miserables",
-            "unweighted",
-            lambda c: nb.boolean_filter(
-                nb.lspar(c["les_unweighted"], s=0.5),
-                "sparsify_keep",
-            ),
-        ),
-        MethodSpec(
-            "local_degree",
-            "les_miserables",
-            "unweighted",
-            lambda c: nb.boolean_filter(
-                nb.local_degree(c["les_unweighted"], s=0.3),
-                "sparsify_keep",
-            ),
-        ),
-        MethodSpec(
-            "simple_projection",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.fraction_filter(
-                nb.simple_projection(c["davis_bipartite"], c["women_nodes"]),
-                "weight",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "hyper_projection",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.fraction_filter(
-                nb.hyper_projection(c["davis_bipartite"], c["women_nodes"]),
-                "weight",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "probs_projection",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.fraction_filter(
-                nb.probs_projection(c["davis_bipartite"], c["women_nodes"]),
-                "weight",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "ycn_projection",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.fraction_filter(
-                nb.ycn_projection(c["davis_bipartite"], c["women_nodes"]),
-                "weight",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "bipartite_projection",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.fraction_filter(
-                nb.bipartite_projection(
-                    c["davis_bipartite"],
-                    c["women_nodes"],
-                    method="simple",
-                ),
-                "weight",
-                0.3,
-                ascending=False,
-            ),
-        ),
-        MethodSpec(
-            "sdsm",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.threshold_filter(
-                nb.sdsm(c["davis_bipartite"], c["women_nodes"]),
-                "sdsm_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "fdsm",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.threshold_filter(
-                nb.fdsm(c["davis_bipartite"], c["women_nodes"], trials=250, seed=42),
-                "fdsm_pvalue",
-                0.05,
-                mode="below",
-                include_all_nodes=False,
-            ),
-        ),
-        MethodSpec(
-            "fixedfill",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.fixedfill(c["davis_bipartite"], c["women_nodes"], alpha=0.05),
-        ),
-        MethodSpec(
-            "fixedrow",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.fixedrow(c["davis_bipartite"], c["women_nodes"], alpha=0.05),
-        ),
-        MethodSpec(
-            "fixedcol",
-            "southern_women",
-            "bipartite",
-            lambda c: nb.fixedcol(c["davis_bipartite"], c["women_nodes"], alpha=0.05),
-        ),
-    ]
-
-
-def _context() -> dict:
-    les_weighted = nx.les_miserables_graph()
-    les_unweighted = _to_unweighted(les_weighted)
-
-    davis = nx.davis_southern_women_graph()
-    women_nodes = [n for n, d in davis.nodes(data=True) if d.get("bipartite") == 0]
-
-    women_projection = nx.Graph()
-    women_projection.add_nodes_from(women_nodes)
-    for i, u in enumerate(women_nodes):
-        for v in women_nodes[i + 1 :]:
-            women_projection.add_edge(u, v)
-
-    return {
-        "les_weighted": les_weighted,
-        "les_unweighted": les_unweighted,
-        "davis_bipartite": davis,
-        "women_nodes": women_nodes,
-        "women_projection": women_projection,
-    }
-
-
-def _base_graphs(ctx: dict) -> dict:
-    return {
-        "les_miserables": ctx["les_weighted"],
-        "southern_women": ctx["women_projection"],
-    }
-
-
-context = _context()
-base_graphs = _base_graphs(context)
-positions = {
-    "les_miserables": nx.spring_layout(
-        base_graphs["les_miserables"],
-        seed=42,
-        weight="weight",
+statistical = {
+    "disparity_filter": lambda: below(nb.disparity_filter(G), "disparity_pvalue"),
+    "noise_corrected_filter": lambda: below(nb.noise_corrected_filter(G), "nc_pvalue"),
+    "marginal_likelihood_filter": lambda: below(
+        nb.marginal_likelihood_filter(G), "ml_pvalue"
     ),
-    "southern_women": nx.spring_layout(base_graphs["southern_women"], seed=42),
+    "ecm_filter": lambda: below(nb.ecm_filter(G), "ecm_pvalue"),
+    "lans_filter": lambda: below(nb.lans_filter(G), "lans_pvalue"),
+    "multiple_linkage_analysis": lambda: nb.boolean_filter(
+        nb.multiple_linkage_analysis(G), "mla_keep"
+    ),
+    "polya_filter": lambda: below(nb.polya_filter(G), "polya_pvalue"),
+    "gloss_filter": lambda: below(nb.gloss_filter(G), "gloss_pvalue"),
+    "glab_filter": lambda: below(nb.glab_filter(G), "glab_pvalue"),
 }
 
-rows = []
-for spec in _method_specs():
-    base_graph = base_graphs[spec.dataset]
-    backbone = spec.build(context)
+structural = {
+    "global_threshold_filter": lambda: nb.boolean_filter(
+        nb.global_threshold_filter(G, threshold=2.0), "global_threshold_keep"
+    ),
+    "strongest_n_ties": lambda: nb.boolean_filter(
+        nb.strongest_n_ties(G, n=2), "strongest_n_ties_keep"
+    ),
+    "global_sparsification": lambda: nb.boolean_filter(
+        nb.global_sparsification(G, s=0.4), "global_sparsification_keep"
+    ),
+    "primary_linkage_analysis": lambda: nb.boolean_filter(
+        nb.primary_linkage_analysis(G), "primary_linkage_keep"
+    ),
+    "edge_betweenness_filter": lambda: nb.boolean_filter(
+        nb.edge_betweenness_filter(G, s=0.3), "edge_betweenness_keep"
+    ),
+    "node_degree_filter": lambda: nb.boolean_filter(
+        nb.node_degree_filter(G, min_degree=2), "node_degree_keep"
+    ),
+    "high_salience_skeleton": lambda: above(
+        nb.high_salience_skeleton(G), "salience", 0.5
+    ),
+    "metric_backbone": lambda: nb.boolean_filter(nb.metric_backbone(G), "metric_keep"),
+    "ultrametric_backbone": lambda: nb.boolean_filter(
+        nb.ultrametric_backbone(G), "ultrametric_keep"
+    ),
+    "doubly_stochastic_filter": lambda: above(
+        nb.doubly_stochastic_filter(G), "ds_weight", 0.1
+    ),
+    "h_backbone": lambda: nb.boolean_filter(nb.h_backbone(G), "h_backbone_keep"),
+    "modularity_backbone": lambda: nb.boolean_filter(
+        nb.modularity_backbone(G, seed=42), "modularity_keep"
+    ),
+    "planar_maximally_filtered_graph": lambda: nb.boolean_filter(
+        nb.planar_maximally_filtered_graph(G), "pmfg_keep"
+    ),
+    "maximum_spanning_tree_backbone": lambda: nb.boolean_filter(
+        nb.maximum_spanning_tree_backbone(G), "mst_keep"
+    ),
+}
 
-    if backbone.number_of_edges() == base_graph.number_of_edges():
-        warnings.warn(
-            (
-                f"{spec.name} ({spec.dataset}) returned the same number of edges "
-                "as the original graph. Re-test and validate threshold settings."
-            ),
-            UserWarning,
+backbones = {}
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")  # convergence notes are the API pages' topic
+    for methods in (statistical, structural):
+        for name, run in methods.items():
+            backbones[name] = run()
+counts = {name: style.backbone_counts(G, bb) for name, bb in backbones.items()}
+
+
+# %%
+# Small multiples
+# ---------------
+# One panel per method: the backbone in blue over the original graph in faint
+# gray. Each panel's subtitle gives the edges and nodes it keeps.
+
+
+def small_multiples(names, title, ncols=3):
+    nrows = -(-len(names) // ncols)
+    fig, axes = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(3.0 * ncols, 2.5 * nrows + 0.7),
+        layout="constrained",
+    )
+    for ax in axes.flat[len(names) :]:
+        ax.set_axis_off()
+    for ax, name in zip(axes.flat, names):
+        style.draw_backbone(
+            ax,
+            G,
+            backbones[name],
+            pos,
+            legend=False,
+            node_size=14,
+            kept_width=1.1,
+            removed_width=0.4,
         )
-
-    backbone = _drop_isolates(backbone)
-    if not base_graph.is_directed() and backbone.is_directed():
-        backbone = _to_undirected_simple(backbone)
-
-    fig, ax, diff = compare_graphs(
-        base_graph,
-        backbone,
-        pos=positions[spec.dataset],
-        title=f"{_title(spec.name)} ({spec.dataset})",
-        return_diff=True,
+        ax.set_title(name, fontsize=9, pad=14)
+        ax.text(
+            0,
+            1,
+            counts[name].short,
+            transform=ax.transAxes,
+            fontsize=8,
+            color=style.palette().muted,
+            va="bottom",
+        )
+    fig.suptitle(title, x=0.01, ha="left")
+    fig.legend(
+        handles=style.legend_handles(),
+        loc="outside lower center",
+        ncols=4,
+        handlelength=2.4,
     )
+    return fig
 
-    rows.append(
-        {
-            "name": spec.name,
-            "module": spec.module,
-            "dataset": spec.dataset,
-            "original_edges": base_graph.number_of_edges(),
-            "backbone_edges": len(diff["kept_edges"]),
-            "removed_nodes": len(diff["removed_nodes"]),
-        }
-    )
 
-print("Method | Dataset | Original Edges | Backbone Edges | Removed Nodes")
-print("--- | --- | ---: | ---: | ---:")
-for row in rows:
+small_multiples(list(statistical), f"Statistical methods, alpha = {alpha}")
+
+# %%
+
+small_multiples(list(structural), "Structural methods", ncols=4)
+
+# %%
+# Edges kept
+# ----------
+# The same counts as bars: how much of the 254-edge graph each method keeps.
+# The statistical methods range from a handful of edges to most of the graph
+# at the same alpha, because their null models differ.
+
+p = style.palette()
+order = sorted(counts, key=lambda n: counts[n].edges_kept)
+family_color = dict.fromkeys(statistical, p.categorical[0]) | dict.fromkeys(
+    structural, p.categorical[1]
+)
+fig, ax = plt.subplots(figsize=(7.5, 0.26 * len(order) + 1.0), layout="constrained")
+bars = ax.barh(
+    order,
+    [counts[n].edges_kept for n in order],
+    height=0.6,
+    color=[family_color[n] for n in order],
+)
+ax.bar_label(
+    bars,
+    labels=[str(counts[n].edges_kept) for n in order],
+    padding=3,
+    fontsize=8,
+    color=p.muted,
+)
+ax.set_xlim(0, G.number_of_edges())
+ax.set_xlabel(f"Edges kept, of {G.number_of_edges()}")
+ax.tick_params(axis="y", length=0, labelcolor=p.ink)
+ax.grid(axis="x")
+ax.spines["left"].set_visible(False)
+ax.legend(
+    handles=[
+        plt.Rectangle((0, 0), 1, 1, color=p.categorical[0], label="Statistical"),
+        plt.Rectangle((0, 0), 1, 1, color=p.categorical[1], label="Structural"),
+    ],
+    loc="lower right",
+)
+ax.set_title("Edges kept by each method on Les Misérables")
+
+# %%
+# The same numbers as a table:
+
+print(f"{'Method':<34}{'Edges kept':>12}{'Nodes kept':>12}")
+for name in order:
+    c = counts[name]
     print(
-        f"{row['name']} | {row['dataset']} | {row['original_edges']} | "
-        f"{row['backbone_edges']} | {row['removed_nodes']}"
+        f"{name:<34}{c.edges_kept:>7} / {c.edges_total}"
+        f"{c.nodes_kept:>6} / {c.nodes_total}"
     )

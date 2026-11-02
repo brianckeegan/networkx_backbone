@@ -250,6 +250,31 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   ``alpha < 1 - beta`` is imposed by relabeling the states. ``hmm_score`` is
   a persistence-smoothed membership score, not a p-value. The temporal
   tutorial compares it with ``persistence`` (#73).
+- New :func:`~networkx_backbone.kalman_backbone` (needs numpy and SciPy), a
+  novel adaptation of the Kalman filter and Rauch-Tung-Striebel smoother to
+  backboning (#72). It runs a static significance test (``disparity_filter``,
+  ``noise_corrected_filter`` or ``glab_filter``) on every step, scoring
+  eligible absent edges as weight 0 with ``missing_as_zero=True``, turns the
+  p-values into probit scores, and smooths each edge's series with a
+  local-level model (``mode="smoother"`` or the online ``"filter"``; unknown
+  steps and unequal spacing are handled exactly). Per-step p-values use the
+  exact null distribution of the smoothed level; the edge-level
+  ``kalman_pvalue`` tests the largest smoothed z-score over the steps against
+  a null simulated once per missingness pattern (``n_sim=``, ``seed=``). The
+  process variance comes from ``q=``, ``half_life=`` (in steps) or a pooled
+  maximum likelihood fit, recorded in ``H.graph["temporal"]["kalman"]``. Each
+  edge also gets ``kalman_score``, ``kalman_n_obs`` and the per-step dicts
+  ``kalman_pvalues``, ``kalman_levels`` and ``kalman_innovations``;
+  :func:`~networkx_backbone.kalman_snapshots` expands them into per-step
+  graphs. Methods with discrete p-values (LANS, ECM, the marginal likelihood
+  filter, Pólya, GloSS) raise unless ``discrete="raw"`` (valid but
+  conservative), because none reports the ``P(X > x)`` that a mid-p transform
+  needs. The disparity filter and GLAB give an edge the smaller of two
+  endpoint p-values, which smoothing would turn into many false positives;
+  the default ``sidak=True`` corrects for that, which keeps their smoothed
+  tests valid but conservative. The docstring documents the risks: temporal
+  leakage, autocorrelated confounders, and multiple testing over edges and
+  steps.
 
 *Reporting and documentation*
 
@@ -259,6 +284,21 @@ below. Open work is tracked in the :doc:`roadmap` and in GitHub issues.
   registry that covers every public scorer, and a test enforces that coverage.
 - New tutorial, "Validating a backbone": multiple-testing correction,
   ``compare_backbones``, consensus, signed backbones, and reporting (#27).
+- New narrative tutorial, "From a hairball to a backbone, end to end", the
+  "Start here" entry point linked from the home page, the quick start, the
+  tutorials index, and the statistical, filters, measures and describe API
+  pages. A worked case study on Les Misérables and a seeded, simulated
+  collaboration network with planted departments: why a global weight cut
+  fails, scoring versus filtering and the disparity filter's null model for
+  one node, choosing alpha with Bonferroni and Benjamini-Hochberg
+  corrections, four backbones compared in small multiples with
+  ``compare_backbones``, robustness to alpha and to the method
+  (``consensus_backbone``), a signed backbone, and ``describe_backbone``
+  output. It is a Sphinx-Gallery example, so its nine figures (light and dark
+  variants, in the shared figure style) and every number are computed when
+  the docs are built, and hidden checks fail the build if a claim in the
+  text stops holding. The tutorials index is reorganized into "Start here",
+  "By network type", and "Going further" (#89, #96).
 - Added ``CITATION.cff``.
 
 **Changes in results (bug fixes)**
@@ -452,6 +492,32 @@ Davis counts are significant woman-woman pairs at alpha = 0.05.
   and helpers that save light and dark variants and write the reST that shows
   the one matching the reader's theme. Sphinx-Gallery examples start from
   this style (#88, #96).
+- The method gallery on the API pages is regenerated and redesigned. The
+  images committed for 0.2.0 showed pre-fix results (the ECM image kept
+  nearly every edge, where the fixed ECM keeps 72 of 254). The gallery is now
+  generated on every docs build by ``scripts/generate_visualizations.py`` into
+  the gitignored ``docs/_gallery/``; no gallery image is committed any more,
+  and the build fails when a public method has no figure. Each figure draws the
+  backbone over its original graph (kept edges in blue, removed edges faint),
+  in one layout per dataset, under the method's own name, with a legend, light
+  and dark variants, and the edges and nodes kept in the caption and alt text.
+  New figures cover ``polya_filter``, ``gloss_filter``, a signed backbone
+  (``fixedrow(signed=True)``, negative edges dashed), the MDL hypergraph
+  backbones on Davis Southern Women as a hypergraph, and the temporal scores
+  (including ``edge_persistence_hmm``) on the temporal tutorial's snapshots. The graph comparison example
+  now draws the statistical and structural methods as small multiples, with a
+  bar chart of the edges each keeps. The "Generate Visualization Gallery"
+  workflow became a strict docs build on pull requests, and the deploy
+  workflow no longer runs a separate gallery step. Generating the gallery
+  takes about 15 s; with the lighter comparison example, a full docs build
+  takes about 35 s instead of about 27 s (#88).
+- New narrative tutorial, *Statistical null models side by side*: the seven
+  statistical scorers on Les Misérables, with figures of p-value against
+  weight, backbone overlap (checked against the hierarchy reported by Yassin
+  et al., 2025), the KS distances of each backbone, the disparity filter's
+  ``a=``, the count models' ``unit=``, ``transform_weights``, and signed
+  backbones with the R tie convention. It is executed at build time (#90,
+  #96).
 - The public API and the ``HypergraphBackbone``/``ValidatedHypergraph``
   result classes have type annotations, and the package ships a ``py.typed``
   marker (PEP 561), so mypy and pyright check calls into it. Functions whose
