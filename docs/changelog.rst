@@ -17,6 +17,13 @@ Unreleased
   the first one is on :doc:`user_guide/workflow`. A new test requires a
   figure on every how-to and user-guide page, with the pages still to do
   listed explicitly. :doc:`contributing` explains how to write figures.
+- New narrative tutorial, *Directed and signed backbones* (#124): on a
+  seeded directed network with planted asymmetries, what the source and the
+  target tests of ``disparity_filter`` and ``lans_filter`` each see, the
+  upper and lower tails and what "significantly weak" means under a local
+  and a joint null, a signed backbone read edge by edge, and how each scorer
+  signs an edge, with exact ties signed -1 and the signed LANS lower tail.
+  Linked from :doc:`user_guide/directed_graphs`.
 
 Version 0.3.0 (2026-11-02)
 --------------------------
