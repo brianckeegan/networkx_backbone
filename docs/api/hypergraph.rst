@@ -61,6 +61,10 @@ are aliases for the two functions.
 .. autoclass:: ValidatedHypergraph
    :no-members:
 
+.. rubric:: Method gallery
+
+.. include:: ../_gallery/hypergraph.inc
+
 .. rubric:: Interoperability and ingestion
 
 Convert between the hyperedge-list representation and a NetworkX incidence
