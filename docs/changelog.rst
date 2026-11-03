@@ -1,8 +1,15 @@
 Changelog
 =========
 
-Unreleased
-----------
+Version 0.3.1 (2026-11-03)
+--------------------------
+
+A patch release: the ``ecm_filter`` convergence fix, Monte Carlo resolution
+diagnostics and splitting refinement for ``fdsm``, a working conda workflow,
+and the second round of documentation (figures on every how-to and user guide
+page and three new narrative tutorials). Note the change in behavior:
+``ecm_filter`` now raises when its fit does not converge, and its p-values
+change on graphs where the old solver stopped early; see below.
 
 **Changes in behavior**
 
@@ -175,6 +182,9 @@ Unreleased
   busy pair beyond what the margins predict (p = 4e-6 in one of its four
   graphs); the test now also checks that no edge survives a Bonferroni
   correction on pure noise (#137).
+- The interop test compares xgi hypergraphs by their members, since from
+  xgi 1.0 a bare ``H.edges.members()`` lists edge IDs (#141). The library
+  reads ``members(dtype=dict)`` and is unaffected.
 
 *Infrastructure*
 
@@ -190,6 +200,12 @@ Unreleased
   run can be finished from a fixed workflow (a re-run uses the workflow file
   as it was at the tag). A manual run without ``tag`` stays a dry run.
   :doc:`contributing` explains how.
+- The old documentation address, ``/networkx_backbone/``, redirects to the
+  same pages under ``/nx-backbone/`` after the rename in 0.3.0, keeping the
+  query and the anchor (#138).
+- :doc:`contributing` explains the ``v*`` tag rule that the ``github-pages``
+  environment needs so a release run can deploy the docs (#120); without it
+  the 0.3.0 docs deploy was refused and was run by hand.
 
 Version 0.3.0 (2026-11-02)
 --------------------------
