@@ -803,8 +803,208 @@ class TestFDSMResolution:
             nb.threshold_filter(S, "sdsm_pvalue", 1e-9, mtc="bonferroni")
             nb.threshold_filter(H, "fdsm_pvalue", 0.0)  # nothing passes anyway
         assert not _floor_warnings(record)
-        with pytest.warns(RuntimeWarning, match="trials=3 "):
+        with pytest.warns(RuntimeWarning, match="trials=3 .*refine='splitting'"):
             nb.threshold_filter(H, "fdsm_pvalue", 0.3)
+
+
+def _planted_pair(n_others, n_cols, degree, other_max, seed):
+    """Incidence matrix whose rows 0 and 1 are identical with *degree* ones.
+
+    The other rows are sparse (1 to *other_max* ones), so the exact null of
+    the pair's co-occurrence is cheap and its upper tail is very small.
+    """
+    rng = np.random.default_rng(seed)
+    R = np.zeros((2 + n_others, n_cols), dtype=int)
+    R[:2, rng.permutation(n_cols)[:degree]] = 1
+    for r in range(2, 2 + n_others):
+        R[r, rng.choice(n_cols, int(rng.integers(1, other_max + 1)), replace=False)] = 1
+    return R
+
+
+def _all_matrices(rows, cols):
+    """Every binary matrix with these margins, as tuples of row sets."""
+    out = []
+
+    def rec(k, left, sets):
+        if k == len(rows):
+            if not any(left):
+                out.append(tuple(sets))
+            return
+        for ch in itertools.combinations(range(len(cols)), rows[k]):
+            if all(left[c] for c in ch):
+                nxt = list(left)
+                for c in ch:
+                    nxt[c] -= 1
+                rec(k + 1, nxt, [*sets, frozenset(ch)])
+
+    rec(0, list(cols), [])
+    return out
+
+
+class TestFDSMSplitting:
+    """Adaptive multilevel splitting below the Monte Carlo floor (#77)."""
+
+    @pytest.mark.parametrize(
+        "rows, cols, pair",
+        [
+            ([2, 3, 1, 2], [2, 1, 2, 3], (0, 3)),
+            ([3, 3, 2, 2, 3], [3, 2, 3, 3, 2], (0, 1)),
+            ([4, 4, 4, 3], [2, 2, 3, 3, 2, 3], (1, 3)),
+        ],
+    )
+    def test_exact_pmf_matches_enumeration(self, rows, cols, pair):
+        from nx_backbone._splitting import _exact_cooccurrence_pmf
+
+        states = _all_matrices(rows, cols)
+        counts = np.bincount([len(s[pair[0]] & s[pair[1]]) for s in states])
+        pmf, total = _exact_cooccurrence_pmf(rows, cols, *pair)
+        assert total == len(states)
+        assert [f * total for f in pmf] == counts.tolist() + [0] * (
+            len(pmf) - len(counts)
+        )
+
+    @pytest.mark.parametrize("block", [0.0, 0.2])
+    def test_level_moves_keep_uniform_law(self, block):
+        from nx_backbone._splitting import _move, _Rand
+
+        # Rows 0 and 1 (degree 4) must be identical on {C_01 >= 4}: only the
+        # pair-block trades connect that level set.
+        rows, cols, level = [4, 4, 4, 3], [2, 2, 3, 3, 2, 3], 4
+        L = [s for s in _all_matrices(rows, cols) if len(s[0] & s[1]) >= level]
+        index = {s: k for k, s in enumerate(L)}
+        prng = _Rand(np.random.default_rng(0))
+        draws = 3000
+        P = np.zeros((len(L), len(L)))
+        for a, s in enumerate(L):
+            for _ in range(draws):
+                cur = [set(x) for x in s]
+                _move(cur, 0, 1, level, 1, prng, block=block)
+                assert len(cur[0] & cur[1]) >= level
+                P[a, index[tuple(frozenset(x) for x in cur)]] += 1
+        P /= draws
+        # Reversible for the uniform law: P is symmetric up to sampling error.
+        assert np.abs(P - P.T).max() < 5 * np.sqrt(0.25 / draws)
+        reach = np.linalg.matrix_power(P > 0, len(L)).astype(bool)
+        assert reach.all() == (block > 0)
+
+    def test_restricted_trades_keep_margins(self):
+        from nx_backbone._splitting import _move, _Rand
+
+        R = _planted_pair(10, 14, 6, 4, seed=1)
+        rows = [set(np.flatnonzero(r).tolist()) for r in R]
+        prng = _Rand(np.random.default_rng(1))
+        level = 5
+        for _ in range(200):
+            _move(rows, 0, 1, level, 5, prng)
+            M = bp._rows_to_matrix(rows, R.shape[1])
+            assert len(rows[0] & rows[1]) >= level
+            np.testing.assert_array_equal(M.sum(axis=0), R.sum(axis=0))
+            np.testing.assert_array_equal(M.sum(axis=1), R.sum(axis=1))
+
+    def test_rao_blackwell_phi_matches_one_move(self):
+        from nx_backbone._splitting import _Rand, _rb_phi, _restricted_trade
+
+        R = _planted_pair(8, 12, 5, 4, seed=2)
+        rows = [set(np.flatnonzero(r).tolist()) for r in R]
+        prng = _Rand(np.random.default_rng(2))
+        level, x = 3, 5
+        hits, draws = 0, 20000
+        for _ in range(draws):
+            cur = [set(s) for s in rows]
+            a = int(prng.random() * 2)
+            b = 2 + int(prng.random() * (len(rows) - 2))
+            _restricted_trade(cur, a, b, 0, 1, level, prng)
+            hits += len(cur[0] & cur[1]) >= x
+        phi = _rb_phi(rows, 0, 1, level, x)
+        assert 0 < phi < 1
+        assert abs(hits / draws - phi) < 4 * np.sqrt(phi * (1 - phi) / draws)
+
+    @pytest.mark.parametrize(
+        "planted, x", [((8, 16, 7, 4, 3), 7), ((16, 30, 12, 3, 3), 11)]
+    )
+    def test_estimate_matches_exact_tail(self, planted, x):
+        from nx_backbone._splitting import (
+            _exact_upper_tail,
+            _initial_particles,
+            _splitting_tail,
+        )
+
+        R = _planted_pair(*planted)
+        exact = _exact_upper_tail(R.sum(1), R.sum(0), 0, 1, x)
+        assert exact < 1e-4  # far below a 1/(trials + 1) floor
+        rng = np.random.default_rng(5)
+        res = _splitting_tail(_initial_particles(R, 300, rng), 0, 1, x, rng=rng)
+        assert res.levels[-1] == x and len(res.levels) >= 3
+        assert abs(res.pvalue_rb - exact) < 3 * res.se_rb
+        assert 0 < res.se_rb < res.pvalue_rb
+
+    def test_fdsm_refines_pairs_at_the_floor(self):
+        R = _planted_pair(10, 16, 7, 4, seed=3)
+        trials = 50
+        plain = nb.fdsm(R, trials=trials, seed=4)
+        H = nb.fdsm(R, trials=trials, seed=4, refine="splitting", refine_particles=200)
+        assert H.graph == {
+            "fdsm_trials": trials,
+            "fdsm_refine": "splitting",
+            "fdsm_refined_pairs": sum(d for *_, d in H.edges(data="fdsm_refined")),
+        }
+        assert list(H.edges) == list(plain.edges)
+        n_refined = 0
+        for u, v, d in H.edges(data=True):
+            old = plain.edges[u, v]
+            if d["fdsm_refined"]:
+                n_refined += 1
+                # Plain count at most 2 (p <= 3/51); the estimate is a probability.
+                assert old["fdsm_pvalue"] <= 3 / (trials + 1)
+                assert 0 < d["fdsm_pvalue"] <= d["fdsm_pvalue_upper"] <= 1
+                assert 0 < d["fdsm_pvalue_se"] < d["fdsm_pvalue"]
+            else:
+                assert old["fdsm_pvalue"] > 3 / (trials + 1)
+                assert d == {**old, "fdsm_refined": False}
+        assert n_refined >= 1
+        top = H.edges[0, 1]
+        assert top["fdsm_refined"] and top["fdsm_pvalue"] < 1 / (trials + 1)
+        # Reproducible, and the wrapper passes refine through without the
+        # floor warning (Holm over 66 pairs would need trials >= 1320).
+        again = nb.fdsm(
+            R, trials=trials, seed=4, refine="splitting", refine_particles=200
+        )
+        assert dict(again.edges) == dict(H.edges)
+        with warnings.catch_warnings(record=True) as record:
+            warnings.simplefilter("always")
+            W = backbone_from_projection(
+                R,
+                method="fdsm",
+                alpha=0.05,
+                mtc="holm",
+                trials=trials,
+                seed=4,
+                refine="splitting",
+                refine_particles=200,
+            )
+            nb.threshold_filter(H, "fdsm_pvalue", 0.05, mtc="holm")
+        assert not _floor_warnings(record)
+        assert W.graph == H.graph
+        assert (0, 1) in W.edges and W.edges[0, 1] == top
+        with pytest.warns(RuntimeWarning, match="no pair can be significant"):
+            backbone_from_projection(
+                R, method="fdsm", alpha=0.05, mtc="holm", trials=trials, seed=4
+            )
+
+    @pytest.mark.parametrize(
+        "kw",
+        [
+            {"refine": "importance"},
+            {"refine": "splitting", "signed": True},
+            {"refine": "splitting", "refine_particles": 1},
+            {"refine": "splitting", "refine_level_frac": 1.0},
+            {"refine": "splitting", "refine_max_count": -1},
+            {"refine": "splitting", "refine_moves": 0},
+        ],
+    )
+    def test_invalid_refine_raises(self, kw):
+        with pytest.raises(ValueError, match="refine"):
+            nb.fdsm(_TWO_BLOCKS, trials=5, **kw)
 
 
 # ---------------------------------------------------------------------------

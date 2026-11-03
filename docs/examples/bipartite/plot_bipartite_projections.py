@@ -764,7 +764,78 @@ figures.show(
 # is; it does not warn, because enough ties could pass. Either use enough
 # trials (the warning's count only lets the floor drop below
 # :math:`\alpha/m`; resolving the pairs near it takes about a hundred times
-# more), or use the SDSM, whose analytic p-values have no floor.
+# more), refine the pairs at the floor, or use the SDSM, whose analytic
+# p-values have no floor.
+#
+# Refining the pairs at the floor
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#
+# ``refine="splitting"`` re-estimates every pair whose Monte Carlo count is
+# at most 2, which includes all the pairs at the floor, by adaptive
+# multilevel splitting: a swarm of particles follows the curveball chain
+# through rarer and rarer co-occurrence levels, so the cost grows with
+# :math:`\log(1/p)` instead of :math:`1/p`. Here it uses 200 particles
+# instead of the default 1,000, to keep the page quick to build.
+
+t0 = time.perf_counter()
+H_refined = nb.fdsm(R, trials=trials, seed=7, refine="splitting", refine_particles=200)
+elapsed = time.perf_counter() - t0
+refined = sorted(
+    ((u, v, d) for u, v, d in H_refined.edges(data=True) if d["fdsm_refined"]),
+    key=lambda e: e[2]["fdsm_pvalue"],
+)
+print(
+    f"{H_refined.graph['fdsm_refined_pairs']} pairs refined in {elapsed:.0f} s "
+    f"(floor {floor:.1e}, alpha/m = {ALPHA / m:.1e})"
+)
+print(f"{'pair':>8} {'refined p':>10} {'SE':>9} {'95% upper':>10} {'SDSM p':>9}")
+for u, v, d in refined[:3] + refined[-2:]:
+    print(
+        f"{f'{u}-{v}':>8} {d['fdsm_pvalue']:>10.1e} {d['fdsm_pvalue_se']:>9.1e} "
+        f"{d['fdsm_pvalue_upper']:>10.1e} {H_sdsm_R.edges[u, v]['sdsm_pvalue']:>9.1e}"
+    )
+refined_kept = {}
+for mtc in ("holm", "bh"):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        refined_kept[mtc] = nb.threshold_filter(
+            H_refined, "fdsm_pvalue", ALPHA, mtc=mtc
+        ).number_of_edges()
+    assert not [w for w in caught if "no pair can be significant" in str(w.message)]
+    n_sdsm = nb.threshold_filter(
+        H_sdsm_R, "sdsm_pvalue", ALPHA, mtc=mtc
+    ).number_of_edges()
+    print(f"  {mtc:<5} refined FDSM keeps {refined_kept[mtc]:>3}   SDSM {n_sdsm:>3}")
+
+# sphinx_gallery_start_ignore
+block_pairs = {(u, v) for u in range(8) for v in range(u + 1, 8)}
+refined_pairs = {(min(u, v), max(u, v)) for u, v, _ in refined}
+assert block_pairs <= refined_pairs
+assert all(d["fdsm_pvalue"] < floor for u, v, d in refined if (u, v) in block_pairs)
+assert refined[0][2]["fdsm_pvalue"] < ALPHA / m
+# "most of them far below alpha/m, so Holm keeps those"
+below = sum(
+    d["fdsm_pvalue"] < ALPHA / m for u, v, d in refined if (u, v) in block_pairs
+)
+assert 2 * below > len(block_pairs) and refined_kept["holm"] >= below // 2
+# "far below SDSM's" for the planted pairs
+assert all(
+    d["fdsm_pvalue_upper"] < H_sdsm_R.edges[u, v]["sdsm_pvalue"]
+    for u, v, d in refined
+    if (u, v) in block_pairs
+)
+# sphinx_gallery_end_ignore
+
+# %%
+# The planted pairs now have p-values below the floor, most of them far
+# below :math:`\alpha/m`, so Holm keeps those. They are also far below the
+# SDSM's:
+# the two nulls differ in their far tails. The SDSM draws every tie
+# independently with the degrees matched only on average, which leaves much
+# more room for two agents to share most of their artifacts than the FDSM,
+# which fixes every degree exactly. Each refined pair runs its own particle
+# system, so refinement suits the tens or hundreds of pairs at the floor,
+# not all :math:`m` pairs.
 #
 # Signed backbones of the projection
 # ----------------------------------

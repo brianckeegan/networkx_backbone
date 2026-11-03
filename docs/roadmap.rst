@@ -151,8 +151,10 @@ Bipartite
   the floor ``1/(trials+1)`` on the graph, and a warning, with the trials
   needed, when the floor makes significance unreachable at ``alpha`` and
   ``mtc``.
-- **next** (`#77 <https://github.com/brianckeegan/nx-backbone/issues/77>`_): ``fdsm(refine="splitting")``: adaptive multilevel
-  splitting for p-values below the Monte Carlo floor.
+- **done** (`#77 <https://github.com/brianckeegan/nx-backbone/issues/77>`_): ``fdsm(refine="splitting")``: adaptive multilevel
+  splitting for p-values below the Monte Carlo floor, validated against
+  exact p-values down to 1e-9 (upper-tail tests; ``signed=True`` is not
+  refined).
 
 Workplan for 0.4.0: temporal backbones
 --------------------------------------

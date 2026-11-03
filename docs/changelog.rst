@@ -55,6 +55,27 @@ Unreleased
   Holm at alpha = 0.05 needs at least 22,560 trials. The ``fdsm`` Notes and
   the bipartite how-to page explain the trade-off and the trials to use.
   P-values, kept edges and signs are unchanged.
+- ``fdsm(refine="splitting")`` resolves p-values below the Monte Carlo floor
+  (#77). Every co-occurring pair with at most ``refine_max_count`` (default
+  2) of the ``trials`` samples at or above its observed co-occurrence is
+  re-estimated by adaptive multilevel splitting: ``refine_particles``
+  (default 1,000) particles follow the curveball chain through increasing
+  co-occurrence levels, each reached by about ``refine_level_frac`` (default
+  0.1) of them, moving by curveball trades conditioned on the level, with a
+  standard error from the particles' genealogy. Refined pairs get
+  ``fdsm_refined=True``, the estimate as ``fdsm_pvalue``, and its standard
+  error and a one-sided 95% upper bound as ``fdsm_pvalue_se`` and
+  ``fdsm_pvalue_upper``; the graph records ``fdsm_refine`` and
+  ``fdsm_refined_pairs`` instead of ``fdsm_pvalue_floor``, and the floor
+  warning does not fire. On six small matrices with exact p-values from
+  7e-3 to 1e-9 (100 runs each), the mean estimate was within -1% to +6% of
+  the exact p-value, the relative standard error 0.09 to 0.33, and the
+  upper bound covered the exact p-value in 92% to 97% of runs. On the
+  bipartite tutorial's planted-block matrix (640 trials), the 28 pairs of
+  the planted block are refined from the floor 1.6e-3 to p-values between
+  1e-12 and 3e-4, and Holm at alpha = 0.05 keeps 27 of them instead of
+  none.
+  ``refine`` needs ``signed=False``; without it, results are unchanged.
 
 **Other changes**
 
