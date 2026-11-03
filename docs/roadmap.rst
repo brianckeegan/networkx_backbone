@@ -114,24 +114,58 @@ breaking changes:
 - CI now runs tests on every push and pull request (Python 3.12-3.14 and a
   NetworkX-only job), along with ruff lint and format checks and doctests.
 
-Next release (0.3.1)
---------------------
+Next release (0.4.0): temporal backbones
+----------------------------------------
 
-A patch release: fixes, release hygiene, and the ``fdsm`` Monte Carlo
-diagnostics. It also publishes the second round of documentation (figures on
-every how-to and user guide page and three new narrative tutorials, #126),
-since the docs deploy on release.
+0.3.0 added ``nx_backbone.temporal`` for filtering networks observed over
+time: it accepts snapshots (a list or dict of graphs), timestamped events, and
+time spans equally, bins events and spans into steps, and returns one scored
+static graph, so the usual filters apply (the work released so far is listed
+under *Released in 0.3.0* below). 0.4.0 extends it. The design and the method
+proposals are in the `temporal backbones proposal
+<https://github.com/brianckeegan/nx-backbone/blob/main/docs/design/temporal-backbones.md>`_;
+`#78 <https://github.com/brianckeegan/nx-backbone/issues/78>`_ tracks the work.
+
+- **next** (`#70 <https://github.com/brianckeegan/nx-backbone/issues/70>`_): Interop with pandas event tables, DyNetX,
+  teneto, and pathpy. Done so far: pandas event tables
+  (``from_event_table``, ``to_event_table``). Remaining: the DyNetX, teneto,
+  and pathpy adapters.
+- **next** (`#71 <https://github.com/brianckeegan/nx-backbone/issues/71>`_): Null-model significance tests for the simple
+  filters.
+- **next** (`#112 <https://github.com/brianckeegan/nx-backbone/issues/112>`_): Edge classes or a mixture over edges for
+  ``edge_persistence_hmm``, so that persistent and flickering edges need not
+  share one chain. Done for 0.3.0: Notes on the trade-off between miss rate
+  and switching rate, and an ``unobserved_active_share`` diagnostic in the
+  fitted record; a Beta prior on the error rates (MAP-EM) was evaluated and
+  not adopted.
+
+Research ideas, each to get a short feasibility study (method, prior art,
+value over the existing temporal methods, cost, validation) before deciding
+to build, keep, or close it:
+
+- **next** (`#74 <https://github.com/brianckeegan/nx-backbone/issues/74>`_): ``wavelet_denoise``: wavelet shrinkage of
+  edge-weight time series before backboning.
+- **next** (`#75 <https://github.com/brianckeegan/nx-backbone/issues/75>`_): ``poisson_lift_filter``: a Gamma-Poisson
+  state-space filter for count weights.
+
+Released in 0.3.1
+-----------------
+
+A patch release (2026-11-03): fixes, release hygiene, and the ``fdsm`` Monte
+Carlo diagnostics and refinement. It also published the second round of
+documentation (figures on every how-to and user guide page and three new
+narrative tutorials, #126).
 
 Fixes and release hygiene
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- **next** (`#16 <https://github.com/brianckeegan/nx-backbone/issues/16>`_): Publish the 0.3.0 conda package. The release's
+- **done** (`#16 <https://github.com/brianckeegan/nx-backbone/issues/16>`_): A working conda workflow. The release's
   conda build failed (``conda-verify`` has no Python 3.12 build). The
   workflow now drops it, and a manual run of ``publish-to-conda.yml`` with
   ``tag`` set builds and uploads an existing tag, since a re-run uses the
   workflow file as it was at the tag; the recipe builds and passes its tests
-  locally for ``v0.3.0``. Still to do: the maintainer's manual run for
-  ``v0.3.0``.
+  locally for ``v0.3.0``. Release runs upload from 0.3.1 on; the 0.3.0
+  package is a manual run with ``tag=v0.3.0``.
 - **done** (`#135 <https://github.com/brianckeegan/nx-backbone/issues/135>`_): ``ecm_filter`` did not converge on a small
   directed graph with a heavy hub. The solution exists; the solver treated
   the hub's own self-pair as a pair. The fit now also leaves out pairs that
@@ -140,8 +174,10 @@ Fixes and release hygiene
 - **done** (`#137 <https://github.com/brianckeegan/nx-backbone/issues/137>`_): Test and docs hygiene: the noise-corrected
   calibration null keeps self-loops as the model does, and a test checks the
   numbers quoted on the how-to pages against the code.
-- **next** (`#138 <https://github.com/brianckeegan/nx-backbone/issues/138>`_): Redirect the old documentation address
-  ``/networkx_backbone/`` to ``/nx-backbone/``.
+- **done** (`#138 <https://github.com/brianckeegan/nx-backbone/issues/138>`_): Redirect the old documentation address
+  ``/networkx_backbone/`` to ``/nx-backbone/``, keeping the query and the
+  anchor (static per-page redirects and a 404 fallback on the site that
+  serves www.brianckeegan.com).
 
 Bipartite
 ~~~~~~~~~
@@ -155,40 +191,6 @@ Bipartite
   splitting for p-values below the Monte Carlo floor, validated against
   exact p-values down to 1e-9 (upper-tail tests; ``signed=True`` is not
   refined).
-
-Workplan for 0.4.0: temporal backbones
---------------------------------------
-
-0.3.0 added ``nx_backbone.temporal`` for filtering networks observed over
-time: it accepts snapshots (a list or dict of graphs), timestamped events, and
-time spans equally, bins events and spans into steps, and returns one scored
-static graph, so the usual filters apply (the work released so far is listed
-under *Released in 0.3.0* below). 0.4.0 extends it. The design and the method
-proposals are in the `temporal backbones proposal
-<https://github.com/brianckeegan/nx-backbone/blob/main/docs/design/temporal-backbones.md>`_;
-`#78 <https://github.com/brianckeegan/nx-backbone/issues/78>`_ tracks the work.
-
-- **planned** (`#70 <https://github.com/brianckeegan/nx-backbone/issues/70>`_): Interop with pandas event tables, DyNetX,
-  teneto, and pathpy. Done so far: pandas event tables
-  (``from_event_table``, ``to_event_table``). Remaining: the DyNetX, teneto,
-  and pathpy adapters.
-- **planned** (`#71 <https://github.com/brianckeegan/nx-backbone/issues/71>`_): Null-model significance tests for the simple
-  filters.
-- **planned** (`#112 <https://github.com/brianckeegan/nx-backbone/issues/112>`_): Edge classes or a mixture over edges for
-  ``edge_persistence_hmm``, so that persistent and flickering edges need not
-  share one chain. Done for 0.3.0: Notes on the trade-off between miss rate
-  and switching rate, and an ``unobserved_active_share`` diagnostic in the
-  fitted record; a Beta prior on the error rates (MAP-EM) was evaluated and
-  not adopted.
-
-Research ideas, each to get a short feasibility study (method, prior art,
-value over the existing temporal methods, cost, validation) before deciding
-to build, keep, or close it:
-
-- **planned** (`#74 <https://github.com/brianckeegan/nx-backbone/issues/74>`_): ``wavelet_denoise``: wavelet shrinkage of
-  edge-weight time series before backboning.
-- **planned** (`#75 <https://github.com/brianckeegan/nx-backbone/issues/75>`_): ``poisson_lift_filter``: a Gamma-Poisson
-  state-space filter for count weights.
 
 Released in 0.3.0
 -----------------
