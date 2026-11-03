@@ -212,10 +212,39 @@ message gives the number of trials needed::
 That number only lets the floor drop below the threshold. To classify the
 pairs near the corrected threshold ``p*`` (``alpha / m`` for Bonferroni)
 within about 10%, use about ``100 / p*`` trials, and trust a pair whose
-``fdsm_pvalue_upper`` passes as well. When that is too many, use
-:func:`~nx_backbone.sdsm`, whose analytic p-values have no floor. The
-narrative tutorial :doc:`/auto_examples/bipartite/plot_bipartite_projections`
-shows the floor on a planted-block matrix.
+``fdsm_pvalue_upper`` passes as well. When that is too many, refine the
+pairs at the floor (below), or use :func:`~nx_backbone.sdsm`, whose analytic
+p-values have no floor. The narrative tutorial
+:doc:`/auto_examples/bipartite/plot_bipartite_projections` shows the floor
+on a planted-block matrix.
+
+Refining p-values below the floor
+---------------------------------
+
+``refine="splitting"`` re-estimates the pairs whose Monte Carlo count is at
+most ``refine_max_count`` (default 2), which includes every pair at the
+floor, by adaptive multilevel splitting. It follows the curveball chain
+through rarer and rarer co-occurrence levels with ``refine_particles``
+particles (default 1,000), so it resolves p-values far below
+``1 / (trials + 1)`` at a cost that grows with ``log(1 / p)`` rather than
+``1 / p``::
+
+    H = nb.fdsm(B, agent_nodes=women_nodes, trials=1000, seed=42, refine="splitting")
+    print(H.graph["fdsm_refine"], H.graph["fdsm_refined_pairs"])
+    for u, v, d in H.edges(data=True):
+        if d["fdsm_refined"]:
+            print(u, v, d["fdsm_pvalue"], d["fdsm_pvalue_se"], d["fdsm_pvalue_upper"])
+
+Refined pairs have ``fdsm_refined=True``, the splitting estimate as
+``fdsm_pvalue``, its estimated standard error as ``fdsm_pvalue_se`` (a
+relative error that grows slowly as the p-value shrinks) and a one-sided 95%
+upper bound as ``fdsm_pvalue_upper``. The graph then records no floor, and
+the floor warning no longer fires; ``refine`` passes through
+:func:`~nx_backbone.backbone_from_projection` and
+:func:`~nx_backbone.backbone` like ``trials``. Every refined pair runs its
+own particle system, so refining suits tens to hundreds of pairs, not all of
+them. It needs ``signed=False``. The ``fdsm`` Notes describe the method and
+its accuracy against exact p-values.
 
 Partition selection note
 ------------------------

@@ -77,6 +77,11 @@ _MAX_BLOCK_CELLS = 1 << 20
 
 # Default Monte Carlo samples of fdsm (and of method="fdsm" in the wrappers).
 _FDSM_TRIALS = 1000
+# Defaults of fdsm(refine="splitting"): particles, survival fraction per
+# level, and the largest plain Monte Carlo count of a refined pair.
+_REFINE_PARTICLES = 1000
+_REFINE_LEVEL_FRAC = 0.1
+_REFINE_MAX_COUNT = 2
 
 _PROJECTIONS = ("simple", "hyper", "newman", "probs", "ycn")
 _PROJECTION_ALIASES = {"hyperbolic": "hyper", "collaboration": "newman"}
@@ -1297,14 +1302,20 @@ def _score_pairs(
     G = nx.Graph()
     G.add_nodes_from(agents)
     sides = 2 if signed else 1
+    refined = getattr(tails, "refined", None)
     if mc_trials is not None:
         method = attr.removesuffix("_pvalue")
         floor = _montecarlo.pvalue_floor(mc_trials, sides)
         G.graph[f"{method}_trials"] = mc_trials
-        G.graph[f"{attr}_floor"] = floor
+        if refined is None:
+            G.graph[f"{attr}_floor"] = floor
+        else:
+            # Refined pairs have no floor; the plain ones are not at it.
+            G.graph[f"{method}_refine"] = "splitting"
+            G.graph[f"{method}_refined_pairs"] = len(refined[0])
 
         def warn_floor(m):
-            if alpha is not None and m > 0:
+            if alpha is not None and m > 0 and refined is None:
                 _montecarlo.warn_if_unreachable(
                     method, trials=mc_trials, floor=floor, m=m, alpha=alpha, mtc=mtc
                 )
@@ -1323,6 +1334,12 @@ def _score_pairs(
             columns = [(attr, pval), ("sign", sign)] if signed else [(attr, pval)]
             columns += [(projection_weight, w), (f"{attr}_se", se)]
             columns.append((f"{attr}_upper", upper))
+            if refined is not None:
+                keys = (start + r).astype(np.int64) * n + c
+                pos, hit = _lookup(refined[0], keys)
+                se[hit] = refined[2][pos[hit]]
+                upper[hit] = refined[3][pos[hit]]
+                columns.append((f"{method}_refined", hit))
             names = [name for name, _ in columns]
             data = (
                 dict(zip(names, vals))
@@ -2573,7 +2590,7 @@ def backbone_from_projection(
     >>> all_pairs.number_of_edges(), cooccurring.number_of_edges()
     (0, 1)
     """
-    builders = {
+    builders: dict[str, Any] = {
         "sdsm": _sdsm_tails,
         "fdsm": _fdsm_tails,
         "fixedfill": _fixedfill_tails,
@@ -3275,8 +3292,37 @@ def _sdsm_tails(
     return tails
 
 
+def _check_refine(refine, signed, particles, level_frac, max_count, moves):
+    """Validate the ``refine*`` arguments of :func:`fdsm`."""
+    if refine is None:
+        return
+    if refine != "splitting":
+        raise ValueError(f"refine must be None or 'splitting', got {refine!r}")
+    if signed:
+        raise ValueError("refine='splitting' supports only signed=False")
+    if particles < 2:
+        raise ValueError("refine_particles must be >= 2")
+    if not 0 < level_frac < 1:
+        raise ValueError("refine_level_frac must be in (0, 1)")
+    if max_count < 0:
+        raise ValueError("refine_max_count must be >= 0")
+    if moves is not None and moves < 1:
+        raise ValueError("refine_moves must be >= 1")
+
+
 def _fdsm_tails(
-    inc, *, trials=_FDSM_TRIALS, seed=None, signed=False, burn_in=None, thin=None
+    inc,
+    *,
+    trials=_FDSM_TRIALS,
+    seed=None,
+    signed=False,
+    burn_in=None,
+    thin=None,
+    refine=None,
+    refine_particles=_REFINE_PARTICLES,
+    refine_level_frac=_REFINE_LEVEL_FRAC,
+    refine_max_count=_REFINE_MAX_COUNT,
+    refine_moves=None,
 ):
     """Monte Carlo pair tails under the FDSM.
 
@@ -3284,12 +3330,28 @@ def _fdsm_tails(
     observed count 0 always satisfies ``random >= 0``, and for the lower tail
     it only needs the number of samples in which it co-occurs, which is
     accumulated sparsely.
+
+    With ``refine="splitting"`` the pairs whose upper-tail count is at most
+    ``refine_max_count`` are re-estimated by adaptive multilevel splitting
+    (:func:`nx_backbone._splitting._refine_pairs`), starting from
+    ``refine_particles`` further states of the same chain.  The returned
+    function then has a ``refined`` attribute ``(keys, p, se, upper)``
+    (sorted pair keys ``i * n_agents + j``), and its upper tails use the
+    refined p-values.
     """
     import numpy as np
     import scipy.sparse as sp
 
     if trials < 1:
         raise ValueError("trials must be >= 1")
+    _check_refine(
+        refine,
+        signed,
+        refine_particles,
+        refine_level_frac,
+        refine_max_count,
+        refine_moves,
+    )
     R = inc.R
     na, nf = R.shape
     rng = _as_generator(seed)
@@ -3297,6 +3359,7 @@ def _fdsm_tails(
     exceed = np.zeros(len(obs_keys), dtype=np.int64)
     below = np.zeros(len(obs_keys), dtype=np.int64)
     zero_hits = sp.csr_array((na, na), dtype=np.int64)
+    row_sets = None
     for row_sets in _fdsm_row_sets(R, trials, rng, burn_in=burn_in, thin=thin):
         Rs = _row_sets_to_csr(row_sets, nf)
         keys, vals = _sorted_upper_keys(Rs @ Rs.T, na)
@@ -3312,6 +3375,22 @@ def _fdsm_tails(
                 shape=(na, na),
             )
     zero_keys, zero_counts = _sorted_upper_keys(zero_hits, na)
+    refined = None
+    if refine is not None:
+        from nx_backbone._splitting import _refine_pairs
+
+        chosen = exceed <= refine_max_count
+        refined = _refine_pairs(
+            row_sets,
+            obs_keys[chosen],
+            obs_vals[chosen],
+            na,
+            rng,
+            n_particles=refine_particles,
+            level_frac=refine_level_frac,
+            n_moves=refine_moves,
+            thin=5 * na if thin is None else thin,
+        )
 
     def tails(i, j, k):
         keys = i.astype(np.int64) * na + j
@@ -3319,6 +3398,9 @@ def _fdsm_tails(
         pos, hit = _lookup(obs_keys, keys)
         exceed_ij[hit] = exceed[pos[hit]]
         p_hi = (exceed_ij + 1) / (trials + 1)
+        if refined is not None:
+            rpos, rhit = _lookup(refined[0], keys)
+            p_hi[rhit] = refined[1][rpos[rhit]]
         if not signed:
             return p_hi, None
         below_ij = np.full(len(keys), trials, dtype=np.int64)
@@ -3328,6 +3410,7 @@ def _fdsm_tails(
         below_ij[zhit] -= zero_counts[zpos[zhit]]
         return p_hi, (below_ij + 1) / (trials + 1)
 
+    tails.refined = refined
     return tails
 
 
@@ -3581,6 +3664,11 @@ def fdsm(
     *,
     agent_labels: Sequence[Hashable] | None = None,
     artifact_labels: Sequence[Hashable] | None = None,
+    refine: str | None = None,
+    refine_particles: int = _REFINE_PARTICLES,
+    refine_level_frac: float = _REFINE_LEVEL_FRAC,
+    refine_max_count: int = _REFINE_MAX_COUNT,
+    refine_moves: int | None = None,
 ) -> nx.Graph:
     """Score a bipartite projection using the FDSM.
 
@@ -3595,6 +3683,11 @@ def fdsm(
     below ``1 / (trials + 1)`` either (see *Monte Carlo resolution* in the
     Notes).  Each p-value comes with its Monte Carlo standard error and an
     upper confidence bound.  Samples are kept as sparse matrices.
+
+    With ``refine="splitting"`` the pairs whose p-value sits at or near that
+    floor are re-estimated by adaptive multilevel splitting [3]_, which
+    resolves p-values far below ``1 / (trials + 1)`` at a small fraction of
+    the cost of more trials (see *Refinement by splitting* in the Notes).
 
     Parameters
     ----------
@@ -3642,6 +3735,25 @@ def fdsm(
         ``5 * n_agents``).
     agent_labels, artifact_labels : sequence or None, optional
         Row and column labels of a matrix *B*.  Only valid with a matrix *B*.
+    refine : {None, "splitting"}, optional (default=None)
+        ``"splitting"`` re-estimates the upper-tail p-value of every
+        co-occurring pair whose Monte Carlo count is at most
+        *refine_max_count* by adaptive multilevel splitting (see Notes).
+        Requires ``signed=False``.
+    refine_particles : int, optional (default=1000)
+        Number of particles ``N`` of the splitting estimator.  Its relative
+        standard error shrinks like ``1 / sqrt(N)``.
+    refine_level_frac : float, optional (default=0.1)
+        Target share ``rho`` of the particles that reach each next level.
+    refine_max_count : int, optional (default=2)
+        Pairs with at most this many Monte Carlo samples at or above the
+        observed co-occurrence are refined, so p-values up to
+        ``(refine_max_count + 1) / (trials + 1)``.  A pair whose exact
+        p-value is below the floor ``1 / (trials + 1)`` has at most 2 such
+        samples with probability above 0.9.
+    refine_moves : int or None, optional (default=None)
+        Moves per particle after each resampling step (default
+        ``n_agents``).
 
     Returns
     -------
@@ -3662,6 +3774,15 @@ def fdsm(
         ``"fdsm_pvalue_floor"`` the smallest possible p-value,
         ``1 / (trials + 1)`` (``2 / (trials + 1)`` with ``signed=True``).
 
+        With ``refine="splitting"`` every edge also has ``"fdsm_refined"``:
+        ``True`` for a refined pair, whose ``"fdsm_pvalue"`` is the
+        splitting estimate, ``"fdsm_pvalue_se"`` its estimated standard
+        error and ``"fdsm_pvalue_upper"`` the one-sided 95% upper bound
+        ``p exp(1.645 se / p)``.  The graph then has no
+        ``"fdsm_pvalue_floor"``, since no p-value is held at the floor, but
+        ``"fdsm_refine"`` (the method) and ``"fdsm_refined_pairs"`` (how
+        many pairs were refined).
+
     Raises
     ------
     NetworkXError
@@ -3669,8 +3790,10 @@ def fdsm(
     NetworkXNotImplemented
         If *B* is directed or a multigraph.
     ValueError
-        If ``trials < 1``, *burn_in* / *thin* is negative, or a matrix *B*
-        is invalid.
+        If ``trials < 1``, *burn_in* / *thin* is negative, a matrix *B* is
+        invalid, *refine* is not ``None`` or ``"splitting"``, *refine* is
+        combined with ``signed=True``, or a ``refine_*`` argument is out of
+        range.
 
     See Also
     --------
@@ -3722,6 +3845,47 @@ def fdsm(
     one curveball chain, ``thin`` trades apart, so with a chain that mixes
     slowly they understate the uncertainty.
 
+    **Refinement by splitting.**  ``refine="splitting"`` removes the floor
+    for the pairs that need it.  For a pair ``(i, j)`` with observed
+    co-occurrence ``x``, the tail ``P(C_ij >= x)`` is a product of
+    conditional probabilities over increasing integer levels ``l_1 < l_2 <
+    ... < l_n = x``,
+
+    ``P(C_ij >= x) = P(C_ij >= l_1) P(C_ij >= l_2 | C_ij >= l_1) ...``
+
+    and each factor, about *refine_level_frac*, is estimated well by ``N =
+    refine_particles`` particles.  This is the sequential Monte Carlo form
+    of multilevel splitting with adaptive levels [3]_:
+
+    1. The ``N`` particles are further states of the curveball chain.
+    2. The next level is the largest integer at most ``x`` that at least a
+       share *refine_level_frac* of the particles reach (and at least one
+       more than the current level); the share that reaches it estimates
+       the factor.
+    3. The particles that reach it are resampled back to ``N``, and each
+       moves *refine_moves* times by curveball trades conditioned on
+       staying at or above the level.  These moves keep the uniform law on
+       the level set, as curveball trades keep the uniform law on all
+       matrices with the observed margins [4]_.  They include trades that
+       move the columns rows ``i`` and ``j`` share to other columns, which
+       the chain needs when the two rows must be identical.
+    4. The last factor is averaged over one more move of every particle (a
+       Rao-Blackwellized estimate), and the standard error is estimated
+       from the particles' genealogy [5]_.
+
+    The relative standard error is about ``sqrt(n (1 - rho) / (N rho))``
+    for ``n`` levels, so it grows like ``sqrt(log(1 / p))`` rather than as
+    the ``1 / sqrt(p trials)`` of plain Monte Carlo.  On six matrices of 10
+    to 26 agents whose exact p-values (from 7e-3 down to 1e-9) were computed
+    by enumeration, 100 runs with the defaults per p-value gave a mean
+    estimate within -3% to +6% of the exact p-value (adaptive levels have a
+    small upward bias), a relative standard error of 0.11 to 0.38, growing
+    as the p-value shrinks, and an upper bound that covered the exact
+    p-value in 92% to 97% of the runs.  Each refined pair costs about ``N
+    n`` times *refine_moves* moves, so refining suits tens to hundreds of
+    pairs.  All pairs start from the same particles, so their refined
+    p-values are not independent.
+
     References
     ----------
     .. [1] Neal, Z. P., Domagalski, R., & Sagan, B. (2021). Comparing
@@ -3730,6 +3894,14 @@ def fdsm(
     .. [2] Godard, K., & Neal, Z. P. (2022). fastball: A fast algorithm to
        sample bipartite graphs with fixed degree sequences. *Journal of
        Complex Networks*, 10(6), cnac049.
+    .. [3] Cérou, F., Del Moral, P., Furon, T., & Guyader, A. (2012).
+       Sequential Monte Carlo for rare event estimation. *Statistics and
+       Computing*, 22(3), 795-808.
+    .. [4] Carstens, C. J. (2015). Proof of uniform sampling of binary
+       matrices with fixed row sums and column sums for the fast Curveball
+       algorithm. *Physical Review E*, 91, 042812.
+    .. [5] Lee, A., & Whiteley, N. (2018). Variance estimation in the
+       particle filter. *Biometrika*, 105(3), 609-625.
 
     Examples
     --------
@@ -3751,12 +3923,43 @@ def fdsm(
     >>> u, v, d = min(scored.edges(data=True), key=lambda e: e[2]["fdsm_pvalue"])
     >>> [round(d[k], 3) for k in ("fdsm_pvalue", "fdsm_pvalue_se", "fdsm_pvalue_upper")]
     [0.02, 0.014, 0.047]
+
+    ``refine="splitting"`` re-estimates the pairs at or near the floor (here
+    with fewer particles than the default, to keep the example fast):
+
+    >>> refined = fdsm(
+    ...     B, agent_nodes=women, trials=100, seed=42, refine="splitting",
+    ...     refine_particles=200,
+    ... )
+    >>> sorted(refined.graph)
+    ['fdsm_refine', 'fdsm_refined_pairs', 'fdsm_trials']
+    >>> d = min((d for _, _, d in refined.edges(data=True)), key=lambda d: d["fdsm_pvalue"])
+    >>> d["fdsm_refined"], d["fdsm_pvalue"] < scored.graph["fdsm_pvalue_floor"]
+    (True, True)
     """
     if trials < 1:
         raise ValueError("trials must be >= 1")
+    _check_refine(
+        refine,
+        signed,
+        refine_particles,
+        refine_level_frac,
+        refine_max_count,
+        refine_moves,
+    )
     inc = _incidence(B, agent_nodes, agent_labels, artifact_labels)
     tails = _fdsm_tails(
-        inc, trials=trials, seed=seed, signed=signed, burn_in=burn_in, thin=thin
+        inc,
+        trials=trials,
+        seed=seed,
+        signed=signed,
+        burn_in=burn_in,
+        thin=thin,
+        refine=refine,
+        refine_particles=refine_particles,
+        refine_level_frac=refine_level_frac,
+        refine_max_count=refine_max_count,
+        refine_moves=refine_moves,
     )
     return _score_pairs(
         inc,
@@ -3811,7 +4014,12 @@ _COMPLEXITY = {
     "fdsm": {
         "time": "O(T (S d + sum_z d(z)^2) + n_a^2)",
         "space": "O(e_b + nnz(R R^T) + B) plus the n_a^2 output edges",
-        "notes": "T=trials, S=curveball trades per sample, d=max agent degree.",
+        "notes": (
+            "T=trials, S=curveball trades per sample, d=max agent degree.  "
+            'refine="splitting" adds O(K N L M d) for K refined pairs, N '
+            "particles, L levels (about log(1/p) / log(1/rho)) and M moves "
+            "per particle and level, plus O(N e_b) memory for the particles."
+        ),
     },
     "fixedfill": {
         "time": "O(n_f^2 + n_a^2 + sum_z d(z)^2)",

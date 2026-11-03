@@ -303,10 +303,15 @@ def warn_if_unreachable(
     advice = ""
     needed = trials_needed(m, alpha, method, sides) if trials is not None else None
     if needed is not None:
+        refine = (
+            "refine='splitting', which re-estimates the pairs at the floor, "
+            if name == "fdsm"
+            else ""
+        )
         advice = (
             f" Use at least trials={needed} for the floor to allow "
             "significance, and more to resolve p-values near the threshold, "
-            "or sdsm, whose analytic p-values have no floor."
+            f"or {refine}or sdsm, whose analytic p-values have no floor."
         )
     warnings.warn(
         f"{name}: no pair can be significant, whatever the data: {source} "

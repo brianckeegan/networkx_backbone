@@ -1,6 +1,6 @@
 """Adaptive multilevel splitting for FDSM co-occurrence tails (private).
 
-Prototype for issue #77.  Nothing here is wired into :func:`fdsm` yet.
+Used by ``fdsm(refine="splitting")`` (issue #77).
 
 Under the FDSM null the incidence matrix is uniform over all binary matrices
 with the observed row and column sums.  For one agent pair ``(i, j)`` the
@@ -19,7 +19,7 @@ reference the estimator is validated against.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 __all__: list[str] = []
 
@@ -64,7 +64,7 @@ def _exact_cooccurrence_pmf(row_sums, col_sums, i, j):
 
         def rec(idx, left, ways, acc):
             if left == 0:
-                new = dict()
+                new = {}
                 for v, m in groups.items():
                     new[v] = new.get(v, 0) + m
                 for v, tv in acc:
@@ -83,7 +83,7 @@ def _exact_cooccurrence_pmf(row_sums, col_sums, i, j):
                     idx + 1,
                     left - tv,
                     ways * math.comb(m, tv),
-                    acc + ((v, tv),) if tv else acc,
+                    (*acc, (v, tv)) if tv else acc,
                 )
 
         rec(0, t, 1, ())
@@ -92,9 +92,9 @@ def _exact_cooccurrence_pmf(row_sums, col_sums, i, j):
     states = {(rows[i], rows[j], others): [1] + [0] * K}
     for k, c in enumerate(cols):
         left_cols = n_cols - k - 1
-        nxt: dict = {}
+        nxt = {}
         for (ri, rj, oth), poly in states.items():
-            groups: dict = {}
+            groups = {}
             for v in oth:
                 groups[v] = groups.get(v, 0) + 1
             for a in (0, 1):
@@ -108,7 +108,7 @@ def _exact_cooccurrence_pmf(row_sums, col_sums, i, j):
                         continue
                     for ways, key in choose_others(groups, t):
                         ni, nj = ri - a, rj - b
-                        if max((ni, nj) + key, default=0) > left_cols:
+                        if max((ni, nj, *key), default=0) > left_cols:
                             continue
                         dest = nxt.setdefault((ni, nj, key), [0] * (K + 1))
                         shift = a & b
@@ -130,47 +130,76 @@ def _exact_upper_tail(row_sums, col_sums, i, j, x):
 
 
 # =====================================================================
-# Restricted curveball kernel
+# Moves that keep the uniform law on a level set
 # =====================================================================
+#
+# Every move below takes ``prng``, a :class:`_Rand`: Python's generator for
+# scalar draws (much faster than NumPy's for one number at a time) and
+# NumPy's for shuffling lists (faster than Python's), both seeded from the
+# caller's NumPy generator so results stay reproducible.
 
 
-def _restricted_trade(rows, r1, r2, i, j, level, rng):
+class _Rand:
+    """Fast scalar uniforms and list shuffles from one NumPy generator."""
+
+    __slots__ = ("random", "shuffle")
+
+    def __init__(self, rng):
+        import random
+
+        self.random = random.Random(int(rng.integers(2**63))).random
+        self.shuffle = rng.shuffle
+
+
+def _truncated_hypergeometric(hot, cold, k, lo, hi, prng):
+    """Draw ``h`` in ``[lo, hi]`` with weight ``C(hot, h) C(cold, k - h)``."""
+    if lo == hi:
+        return lo
+    weights = [math.comb(hot, h) * math.comb(cold, k - h) for h in range(lo, hi + 1)]
+    u = prng.random() * sum(weights)
+    for h, w in zip(range(lo, hi + 1), weights):
+        u -= w
+        if u < 0:
+            return h
+    return hi
+
+
+def _restricted_trade(rows, r1, r2, i, j, level, prng):
     """Heat-bath curveball trade between rows ``r1`` and ``r2`` on a level set.
 
     Rows ``r1`` and ``r2`` redistribute the columns they do not share,
     keeping their degrees, uniformly at random among the redistributions
     that keep ``C_ij = |rows[i] & rows[j]|`` at least ``level``.  Without the
-    constraint this is the ordinary curveball trade (Strona et al. 2014),
-    which is symmetric with the uniform law as its stationary law (Carstens
-    2015); conditioning a heat-bath block update on the level set keeps the
-    uniform law on the level set invariant and reversible.
+    constraint this is the curveball trade (Strona et al. 2014), which is
+    symmetric with the uniform law as stationary law (Carstens 2015).  The
+    set of allowed redistributions is the same from each of its members, so
+    the constrained trade is symmetric too and keeps the uniform law on the
+    level set.
 
-    Only trades that involve exactly one of ``i`` and ``j`` can change
+    Only a trade that involves exactly one of ``i`` and ``j`` can change
     ``C_ij``: a trade between ``i`` and ``j`` keeps their common columns.
-    For a trade between ``i`` and ``r`` the number ``h`` of pool columns
-    that row ``i`` receives from ``rows[j]`` is hypergeometric; it is drawn
-    from that law truncated to ``h >= level - |common & rows[j]|``.
-    Returns the new ``C_ij`` (or ``None`` when it cannot change).
+    For a trade between ``i`` and ``r``, the number ``h`` of pool columns in
+    ``rows[j]`` that row ``i`` receives is hypergeometric; it is drawn from
+    that law truncated to ``C_ij >= level``.
     """
     s1 = rows[r1]
     s2 = rows[r2]
     only1 = s1 - s2
     if not only1:
-        return None
+        return
     only2 = s2 - s1
     if not only2:
-        return None
+        return
     common = s1 & s2
-    k1 = len(only1)
     pool = list(only1 | only2)
-    touches = (r1 == i or r1 == j) + (r2 == i or r2 == j)
-    if touches != 1:
-        rng.shuffle(pool)
+    k1 = len(only1)
+    if (r1 == i or r1 == j) == (r2 == i or r2 == j):
+        prng.shuffle(pool)
         rows[r1] = common | set(pool[:k1])
         rows[r2] = common | set(pool[k1:])
-        return None
-    # Orient so that ``a`` is the constrained row (i or j) and ``b`` its partner.
-    if r1 in (i, j):
+        return
+    # ``a`` is the constrained row (i or j), ``b`` its partner.
+    if r1 == i or r1 == j:
         a, b, ka = r1, r2, k1
     else:
         a, b, ka = r2, r1, len(pool) - k1
@@ -178,103 +207,34 @@ def _restricted_trade(rows, r1, r2, i, j, level, rng):
     hot = [c for c in pool if c in partner]
     cold = [c for c in pool if c not in partner]
     base = len(common & partner)
-    h_min = max(level - base, 0, ka - len(cold))
-    h_max = min(len(hot), ka)
-    if h_min > h_max:  # cannot happen when the state is in the level set
-        raise AssertionError("particle left its level set")
-    if h_min == h_max:
-        h = h_min
-    else:
-        hs = list(range(h_min, h_max + 1))
-        w = [math.comb(len(hot), h) * math.comb(len(cold), ka - h) for h in hs]
-        tot = sum(w)
-        u = rng.random() * tot
-        acc = 0
-        h = hs[-1]
-        for hh, ww in zip(hs, w):
-            acc += ww
-            if u < acc:
-                h = hh
-                break
-    rng.shuffle(hot)
-    rng.shuffle(cold)
-    new_a = set(hot[:h]) | set(cold[: ka - h])
-    new_b = set(hot[h:]) | set(cold[ka - h :])
-    rows[a] = common | new_a
-    rows[b] = common | new_b
-    return base + h
+    lo = max(level - base, 0, ka - len(cold))
+    hi = min(len(hot), ka)
+    h = _truncated_hypergeometric(len(hot), len(cold), ka, lo, hi, prng)
+    prng.shuffle(hot)
+    prng.shuffle(cold)
+    rows[a] = common | set(hot[:h]) | set(cold[: ka - h])
+    rows[b] = common | set(hot[h:]) | set(cold[ka - h :])
 
 
-def _pick_pair(n, i, j, focus, rng):
-    """A row pair from a fixed, state-independent distribution."""
-    if rng.random() < focus:
-        r1 = i if rng.random() < 0.5 else j
-    else:
-        r1 = int(rng.integers(0, n))
-    r2 = int(rng.integers(0, n - 1))
-    r2 += r2 >= r1
-    return r1, r2
-
-
-def _plain_trade(rows, r1, r2, rng):
-    s1 = rows[r1]
-    s2 = rows[r2]
-    only1 = s1 - s2
-    if not only1:
-        return
-    only2 = s2 - s1
-    if not only2:
-        return
-    common = s1 & s2
-    pool = list(only1 | only2)
-    rng.shuffle(pool)
-    k1 = len(only1)
-    rows[r1] = common | set(pool[:k1])
-    rows[r2] = common | set(pool[k1:])
-
-
-def _double_trade(rows, i, j, level, focus, rng):
-    """Metropolis move: two unconstrained trades, kept only if C_ij >= level.
-
-    One curveball trade with a state-independent pair is a symmetric
-    proposal, so two in a row are too; accepting exactly when the result is
-    in the level set leaves the uniform law on it invariant.  The
-    intermediate state may leave the level set, which connects level sets
-    that single restricted trades cannot (for example the top level, where
-    ``rows[i]`` and ``rows[j]`` must change together).
-    """
-    n = len(rows)
-    a1, a2 = _pick_pair(n, i, j, focus, rng)
-    b1, b2 = _pick_pair(n, i, j, focus, rng)
-    touched = {a1, a2, b1, b2}
-    saved = {r: rows[r] for r in touched}
-    _plain_trade(rows, a1, a2, rng)
-    _plain_trade(rows, b1, b2, rng)
-    if len(rows[i] & rows[j]) < level:
-        for r, s in saved.items():
-            rows[r] = s
-        return False
-    return True
-
-
-def _pair_block_trade(rows, i, j, rng):
+def _pair_block_trade(rows, i, j, others, prng):
     """Trade the shared columns of ``i`` and ``j`` with two other rows.
 
-    For two other rows ``r`` and ``s`` (uniform, state-independent), the
-    columns where rows ``(i, j, r, s)`` read ``(1, 1, 0, 0)`` or
-    ``(0, 0, 1, 1)`` are redistributed uniformly, keeping how many read
-    ``(1, 1, 0, 0)``.  Every row and column sum and ``C_ij`` are unchanged,
-    and the set of redistributions is the same from each of its members, so
-    this heat-bath move is symmetric.  It is the move that changes
-    ``rows[i]`` and ``rows[j]`` together, which single trades cannot do
-    without lowering ``C_ij`` when ``rows[i] == rows[j]``.
+    For two rows ``r``, ``s`` drawn uniformly from *others* (the rows other
+    than ``i`` and ``j``), the columns where rows ``(i, j, r, s)`` read
+    ``(1, 1, 0, 0)`` or ``(0, 0, 1, 1)`` are redistributed uniformly,
+    keeping how many read ``(1, 1, 0, 0)``.  Every row and column sum and
+    ``C_ij`` are unchanged, and the set of redistributions is the same from
+    each of its members, so this heat-bath move is symmetric.  It is the
+    move that changes ``rows[i]`` and ``rows[j]`` together, which single
+    trades cannot do without lowering ``C_ij`` when ``rows[i]`` and
+    ``rows[j]`` must be identical.
     """
-    n = len(rows)
-    if n < 4:
+    n = len(others)
+    if n < 2:
         return
-    others = [k for k in range(n) if k != i and k != j]
-    a, b = rng.choice(len(others), size=2, replace=False).tolist()
-    r, s = others[a], others[b]
+    a = int(prng.random() * n)
+    b = int(prng.random() * (n - 1))
+    r, s = others[a], others[b + (b >= a)]
     si, sj, sr, ss = rows[i], rows[j], rows[r], rows[s]
     A = (si & sj) - sr - ss
     if not A:
@@ -283,7 +243,7 @@ def _pair_block_trade(rows, i, j, rng):
     if not D:
         return
     pool = list(A | D)
-    rng.shuffle(pool)
+    prng.shuffle(pool)
     new_a = set(pool[: len(A)])
     new_d = set(pool[len(A) :])
     rows[i] = (si - A) | new_a
@@ -292,27 +252,31 @@ def _pair_block_trade(rows, i, j, rng):
     rows[s] = (ss - D) | new_d
 
 
-def _move(rows, i, j, level, n_trades, focus, rng, double=0.0, block=0.2):
-    """Apply ``n_trades`` moves that keep ``C_ij >= level``.
+def _move(rows, i, j, level, n_moves, prng, focus=0.5, block=0.2, others=None):
+    """Apply ``n_moves`` moves that keep ``C_ij >= level``.
 
-    Each move is a :func:`_pair_block_trade` with probability ``block``, a
-    :func:`_double_trade` with probability ``double``, and otherwise one
-    heat-bath :func:`_restricted_trade`.  All pick rows from fixed,
-    state-independent distributions (for trades: with probability ``focus``
-    one of ``i``, ``j`` and a uniform partner, otherwise a uniform pair), and
-    a state-independent mixture of kernels reversible for the uniform law on
-    the level set is reversible for it.
+    Each move is a :func:`_pair_block_trade` with probability *block*, and
+    otherwise a :func:`_restricted_trade` whose first row is ``i`` or ``j``
+    with probability *focus* (and uniform otherwise) and whose second row is
+    uniform among the rest.  The rows are drawn independently of the state,
+    and a state-independent mixture of moves that keep the uniform law on
+    the level set (reversibly) keeps it too.
     """
     n = len(rows)
-    for _ in range(n_trades):
-        u = rng.random()
-        if u < block:
-            _pair_block_trade(rows, i, j, rng)
-        elif u < block + double:
-            _double_trade(rows, i, j, level, focus, rng)
+    if others is None:
+        others = [k for k in range(n) if k != i and k != j]
+    rand = prng.random
+    for _ in range(n_moves):
+        if rand() < block:
+            _pair_block_trade(rows, i, j, others, prng)
+            continue
+        if rand() < focus:
+            r1 = i if rand() < 0.5 else j
         else:
-            r1, r2 = _pick_pair(n, i, j, focus, rng)
-            _restricted_trade(rows, r1, r2, i, j, level, rng)
+            r1 = int(rand() * n)
+        r2 = int(rand() * (n - 1))
+        r2 += r2 >= r1
+        _restricted_trade(rows, r1, r2, i, j, level, prng)
 
 
 # =====================================================================
@@ -324,69 +288,78 @@ def _move(rows, i, j, level, n_trades, focus, rng, double=0.0, block=0.2):
 class SplittingResult:
     """Output of :func:`_splitting_tail`."""
 
-    pvalue: float
-    se: float
-    se_ideal: float
+    pvalue_rb: float  # estimate with the Rao-Blackwellized last stage
+    se_rb: float  # its Lee-Whiteley standard error
+    pvalue: float  # plain estimate (product of survival fractions)
+    se: float  # its Lee-Whiteley standard error
+    se_ideal: float  # standard error of the idealized algorithm
     levels: list[int]
     fractions: list[float]
-    n_trades: int
-    extinct: bool = False
-    eve_survivors: int = 0
-    pvalue_rb: float = float("nan")
-    se_rb: float = float("nan")
-    extra: dict = field(default_factory=dict)
-
-
-def _cooc(rows, i, j):
-    return len(rows[i] & rows[j])
+    n_moves: int
+    extinct: bool
+    eve_survivors: int
 
 
 def _rb_phi(rows, i, j, level, x):
-    """``K 1{C_ij >= x}`` at one particle, for a restricted one-trade kernel.
+    """``K 1{C_ij >= x}`` at one particle, for a one-trade kernel ``K``.
 
     ``K`` picks ``a`` in ``{i, j}`` and a partner ``b`` outside ``{i, j}``
-    uniformly and applies the heat-bath :func:`_restricted_trade` for the
-    level set ``{C_ij >= level}``.  ``K`` leaves the uniform law on that
-    level set invariant, so averaging ``K 1{C_ij >= x}`` over particles
-    estimates the same probability as the indicator itself, with smaller
-    variance (a Rao-Blackwellization of the last stage).  For each ``(a, b)``
-    the new count is ``base + h`` with ``h`` hypergeometric truncated to the
-    level set, so ``K 1{C_ij >= x}`` is a finite sum.
+    uniformly and applies :func:`_restricted_trade` for the level set
+    ``{C_ij >= level}``.  ``K`` keeps the uniform law on that level set, so
+    the mean of ``K 1{C_ij >= x}`` over particles estimates the same
+    probability as the mean of the indicator, with less variance (a
+    Rao-Blackwellization of the last stage).  For each ``(a, b)`` the new
+    count is ``base + h`` with ``h`` hypergeometric truncated to the level
+    set, so ``K 1{C_ij >= x}`` is a finite sum.
     """
-    n = len(rows)
     c_now = len(rows[i] & rows[j])
     total = 0.0
     count = 0
     for a in (i, j):
         partner = rows[j] if a == i else rows[i]
         sa = rows[a]
-        for b in range(n):
+        for b, sb in enumerate(rows):
             if b == i or b == j:
                 continue
             count += 1
-            sb = rows[b]
             only_a = sa - sb
             only_b = sb - sa
             if not only_a or not only_b:
                 total += c_now >= x
                 continue
-            common = sa & sb
             pool = only_a | only_b
             ka = len(only_a)
             hot = len(pool & partner)
             cold = len(pool) - hot
-            base = len(common & partner)
-            h_min = max(level - base, 0, ka - cold)
-            h_max = min(hot, ka)
-            num = 0
-            den = 0
-            for h in range(h_min, h_max + 1):
+            base = len(sa & sb & partner)
+            lo = max(level - base, 0, ka - cold)
+            hi = min(hot, ka)
+            num = den = 0
+            for h in range(lo, hi + 1):
                 w = math.comb(hot, h) * math.comb(cold, ka - h)
                 den += w
                 if base + h >= x:
                     num += w
             total += num / den
-    return total / count
+    return total / count if count else float(c_now >= x)
+
+
+def _lee_whiteley(phi, eve, G, n_steps):
+    """Estimate and standard error of ``G * mean(phi)`` from the genealogy.
+
+    Lee & Whiteley (2018), eq. (4): with ``N`` particles, ``n`` resampling
+    steps and ``E^a`` the initial ancestor ("Eve") of particle ``a``,
+    ``var = p^2 - G^2 (N / (N - 1))^(n + 1) / N^2 sum_{E^a != E^b} phi_a
+    phi_b``, an unbiased estimate of the variance for fixed levels.
+    """
+    import numpy as np
+
+    N = len(phi)
+    p = G * float(phi.mean())
+    per_eve = np.bincount(eve, weights=phi, minlength=N)
+    cross = float(phi.sum()) ** 2 - float((per_eve**2).sum())
+    var = p**2 - G**2 * (N / (N - 1)) ** (n_steps + 1) * cross / N**2
+    return p, math.sqrt(max(var, 0.0)), int((per_eve > 0).sum())
 
 
 def _splitting_tail(
@@ -395,14 +368,12 @@ def _splitting_tail(
     j,
     x_obs,
     *,
+    rng,
     level_frac=0.1,
     n_moves=None,
     focus=0.5,
-    double=0.0,
     block=0.2,
-    rng,
     fixed_levels=None,
-    max_levels=10_000,
 ):
     """Estimate ``P(C_ij >= x_obs)`` under the FDSM null by splitting.
 
@@ -411,117 +382,97 @@ def _splitting_tail(
     initial : list of list of set
         ``N`` particles (row-set lists) drawn from the FDSM null, for example
         thinned states of the curveball chain.  They are copied.
+    rng : numpy.random.Generator
+        Source of randomness.
     level_frac : float
         Target survival fraction ``rho`` per level.  The next level is the
-        largest integer ``l <= x_obs`` with at least ``rho * N`` particles at
-        or above it, but at least one more than the current level.
+        largest integer ``l <= x_obs`` that at least ``rho * N`` particles
+        reach, but at least one more than the current level.
     n_moves : int or None
-        Restricted curveball trades per particle after each resampling
-        (default ``2 * n_rows``).
-    focus : float
-        Share of trades that involve row ``i`` or ``j``.
-    double, block : float
-        Shares of moves that are :func:`_double_trade` proposals and
-        :func:`_pair_block_trade` moves.
+        Moves (:func:`_move`) per particle after each resampling step
+        (default: the number of rows).
+    focus, block : float
+        Passed to :func:`_move`.
     fixed_levels : sequence of int or None
-        Use these levels instead of adaptive ones (the estimator is then
-        unbiased when the initial particles are exact draws).
+        Use these levels (ending at ``x_obs``) instead of adaptive ones.
+        The estimate is then unbiased when the initial particles are exact
+        draws (Del Moral's Feynman-Kac unbiasedness, as in Lee & Whiteley
+        2018, Proposition 1).
 
     Notes
     -----
-    Resampling is multinomial, and every particle keeps the index of its
-    initial ancestor (its "Eve" index), so the single-run variance estimator
-    of Lee & Whiteley (2018), eq. (4) with ``phi`` the final indicator, can
-    be computed:  ``var = p^2 - G^2 (N/(N-1))^(n+1) / N^2 * sum_{E^a != E^b}
-    phi_a phi_b`` where ``G`` is the product of the survival fractions
-    before the last level.  ``se_ideal`` is the asymptotic standard error of
-    the idealized algorithm with exact conditional resampling, ``p *
-    sqrt(sum_k (1 - p_k) / (N p_k))`` (Cerou et al. 2012, section 2.3).
+    Resampling is multinomial and every particle keeps the index of its
+    initial ancestor, so the variance estimate of Lee & Whiteley (2018)
+    applies (:func:`_lee_whiteley`).  The plain estimate is the product of
+    the survival fractions; the Rao-Blackwellized one replaces the last
+    fraction by the mean of :func:`_rb_phi`, which has the same expectation
+    because the one-trade kernel keeps the particles' law.  ``se_ideal`` is
+    the asymptotic standard error of the idealized algorithm, ``p sqrt(sum_k
+    (1 - p_k) / (N p_k))`` (Cerou et al. 2012, section 2.3).
     """
     import numpy as np
 
+    prng = _Rand(rng)
     N = len(initial)
     particles = [[set(s) for s in rows] for rows in initial]
     n_rows = len(particles[0])
+    others = [k for k in range(n_rows) if k != i and k != j]
     if n_moves is None:
-        n_moves = 2 * n_rows
+        n_moves = n_rows
     eve = np.arange(N)
-    scores = np.array([_cooc(p, i, j) for p in particles])
-    levels: list[int] = []
-    fractions: list[float] = []
+    scores = np.array([len(p[i] & p[j]) for p in particles])
+    levels = []
+    fractions = []
     current = -1
-    trades = 0
     step = 0
     fixed = list(fixed_levels) if fixed_levels is not None else None
+    k_rho = min(max(math.ceil(level_frac * N), 1), N) - 1
     while True:
         if fixed is not None:
             nxt = fixed[step]
         else:
-            nxt = x_obs
-            # largest level <= x_obs with at least rho*N particles at or above
-            need = level_frac * N
-            srt = np.sort(scores)[::-1]
-            kq = int(math.ceil(need)) - 1
-            q = int(srt[min(max(kq, 0), N - 1)])
+            q = int(np.partition(scores, N - 1 - k_rho)[N - 1 - k_rho])
             nxt = min(x_obs, max(q, current + 1))
         alive = scores >= nxt
-        frac = float(alive.mean())
         levels.append(int(nxt))
-        fractions.append(frac)
+        fractions.append(float(alive.mean()))
         step += 1
-        if nxt >= x_obs or frac == 0.0:
+        if nxt >= x_obs or not alive.any():
             break
-        if step >= max_levels:
-            raise RuntimeError("too many levels")
-        # multinomial resampling of the survivors
         idx = np.flatnonzero(alive)
         pick = idx[rng.integers(0, len(idx), size=N)]
-        new_particles = []
-        for k in pick.tolist():
-            new_particles.append([set(s) for s in particles[k]])
-        particles = new_particles
+        particles = [[set(s) for s in particles[k]] for k in pick.tolist()]
         eve = eve[pick]
         for p in particles:
-            _move(p, i, j, nxt, n_moves, focus, rng, double, block)
-        trades += N * n_moves
-        scores = np.array([_cooc(p, i, j) for p in particles])
+            _move(p, i, j, nxt, n_moves, prng, focus=focus, block=block, others=others)
+        scores = np.array([len(p[i] & p[j]) for p in particles])
         current = nxt
 
-    p_hat = float(np.prod(fractions))
+    n_steps = len(fractions) - 1
+    G = float(np.prod(fractions[:-1]))
     extinct = fractions[-1] == 0.0
-    # Lee & Whiteley (2018) single-run variance estimate
-    phi = scores >= levels[-1]
-    n_steps = len(fractions) - 1  # resampling steps performed
-    G = float(np.prod(fractions[:-1])) if n_steps else 1.0
-    S = int(phi.sum())
-    counts = np.bincount(eve[phi], minlength=N) if S else np.zeros(N, dtype=int)
-    cross = S * S - int((counts.astype(np.int64) ** 2).sum())
-    var = p_hat**2 - G**2 * (N / (N - 1)) ** (n_steps + 1) * cross / N**2
-    se = math.sqrt(max(var, 0.0))
-    # Rao-Blackwellized last stage (same particles, phi = K 1{C >= x})
+    phi = (scores >= levels[-1]).astype(float)
+    p_hat, se, eves = _lee_whiteley(phi, eve, G, n_steps)
     restrict = levels[-2] if n_steps else -1
     phi_rb = np.array([_rb_phi(p, i, j, restrict, levels[-1]) for p in particles])
-    p_rb = G * float(phi_rb.mean())
-    per_eve = np.bincount(eve, weights=phi_rb, minlength=N)
-    cross_rb = float(phi_rb.sum()) ** 2 - float((per_eve**2).sum())
-    var_rb = p_rb**2 - G**2 * (N / (N - 1)) ** (n_steps + 1) * cross_rb / N**2
-    se_rb = math.sqrt(max(var_rb, 0.0))
+    p_rb, se_rb, _ = _lee_whiteley(phi_rb, eve, G, n_steps)
     fr = np.array(fractions)
-    if extinct:
-        se_ideal = float("nan")
-    else:
-        se_ideal = p_hat * math.sqrt(float(((1 - fr) / (N * fr)).sum()))
+    se_ideal = (
+        float("nan")
+        if extinct
+        else p_hat * math.sqrt(float(((1 - fr) / (N * fr)).sum()))
+    )
     return SplittingResult(
+        pvalue_rb=p_rb,
+        se_rb=se_rb,
         pvalue=p_hat,
         se=se,
         se_ideal=se_ideal,
         levels=levels,
         fractions=fractions,
-        n_trades=trades,
+        n_moves=n_steps * N * n_moves,
         extinct=extinct,
-        eve_survivors=int((counts > 0).sum()),
-        pvalue_rb=p_rb,
-        se_rb=se_rb,
+        eve_survivors=eves,
     )
 
 
@@ -533,3 +484,66 @@ def _initial_particles(R, n_particles, rng, burn_in=None, thin=None):
         [set(s) for s in rows]
         for rows in _fdsm_row_sets(R, n_particles, rng, burn_in=burn_in, thin=thin)
     ]
+
+
+def _refine_pairs(
+    row_sets,
+    keys,
+    observed,
+    n_agents,
+    rng,
+    *,
+    n_particles,
+    level_frac,
+    n_moves,
+    thin,
+):
+    """Splitting estimates of ``P(C_ij >= observed)`` for the pairs *keys*.
+
+    ``row_sets`` is the last state of the plain FDSM curveball chain; the
+    chain continues for ``n_particles`` more samples, ``thin`` trades apart,
+    which are the initial particles of every refined pair.  A pair whose
+    estimate is 0 (no particle reached the observed count) keeps its plain
+    Monte Carlo p-value.
+
+    Returns
+    -------
+    keys, pvalue, se, upper : ndarray
+        Sorted pair keys ``i * n_agents + j`` and, for each, the estimate,
+        its standard error and the one-sided upper confidence bound ``p
+        exp(z se / p)`` (``z`` the standard normal quantile at
+        :data:`nx_backbone._montecarlo.CONFIDENCE`), capped at 1.
+    """
+    import numpy as np
+    from scipy.stats import norm
+
+    from nx_backbone._montecarlo import CONFIDENCE
+    from nx_backbone.bipartite import _curveball_trades
+
+    keys = np.asarray(keys, dtype=np.int64)
+    out_k, out_p, out_se, out_up = [], [], [], []
+    if len(keys):
+        state = [set(s) for s in row_sets]
+        initial = []
+        for _ in range(n_particles):
+            _curveball_trades(state, thin, rng)
+            initial.append([set(s) for s in state])
+        z = float(norm.ppf(CONFIDENCE))
+        for key, x in zip(keys.tolist(), np.asarray(observed).tolist()):
+            i, j = divmod(key, n_agents)
+            res = _splitting_tail(
+                initial, i, j, int(x), rng=rng, level_frac=level_frac, n_moves=n_moves
+            )
+            p = min(res.pvalue_rb, 1.0)
+            if not p > 0:
+                continue
+            out_k.append(key)
+            out_p.append(p)
+            out_se.append(min(res.se_rb, 1.0))
+            out_up.append(min(1.0, p * math.exp(z * res.se_rb / p)))
+    return (
+        np.array(out_k, dtype=np.int64),
+        np.array(out_p, dtype=float),
+        np.array(out_se, dtype=float),
+        np.array(out_up, dtype=float),
+    )
