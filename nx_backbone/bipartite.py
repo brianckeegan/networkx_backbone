@@ -3878,8 +3878,8 @@ def fdsm(
     the ``1 / sqrt(p trials)`` of plain Monte Carlo.  On six matrices of 10
     to 26 agents whose exact p-values (from 7e-3 down to 1e-9) were computed
     by enumeration, 100 runs with the defaults per p-value gave a mean
-    estimate within -3% to +6% of the exact p-value (adaptive levels have a
-    small upward bias), a relative standard error of 0.11 to 0.38, growing
+    estimate within -1% to +6% of the exact p-value (adaptive levels have a
+    small upward bias), a relative standard error of 0.09 to 0.33, growing
     as the p-value shrinks, and an upper bound that covered the exact
     p-value in 92% to 97% of the runs.  Each refined pair costs about ``N
     n`` times *refine_moves* moves, so refining suits tens to hundreds of

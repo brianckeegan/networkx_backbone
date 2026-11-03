@@ -68,8 +68,8 @@ Unreleased
   ``fdsm_pvalue_upper``; the graph records ``fdsm_refine`` and
   ``fdsm_refined_pairs`` instead of ``fdsm_pvalue_floor``, and the floor
   warning does not fire. On six small matrices with exact p-values from
-  7e-3 to 1e-9 (100 runs each), the mean estimate was within -3% to +6% of
-  the exact p-value, the relative standard error 0.11 to 0.38, and the
+  7e-3 to 1e-9 (100 runs each), the mean estimate was within -1% to +6% of
+  the exact p-value, the relative standard error 0.09 to 0.33, and the
   upper bound covered the exact p-value in 92% to 97% of runs. On the
   bipartite tutorial's planted-block matrix (640 trials), the 28 pairs of
   the planted block are refined from the floor 1.6e-3 to p-values between

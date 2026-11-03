@@ -814,7 +814,9 @@ assert block_pairs <= refined_pairs
 assert all(d["fdsm_pvalue"] < floor for u, v, d in refined if (u, v) in block_pairs)
 assert refined[0][2]["fdsm_pvalue"] < ALPHA / m
 # "most of them far below alpha/m, so Holm keeps those"
-below = sum(d["fdsm_pvalue"] < ALPHA / m for u, v, d in refined if (u, v) in block_pairs)
+below = sum(
+    d["fdsm_pvalue"] < ALPHA / m for u, v, d in refined if (u, v) in block_pairs
+)
 assert 2 * below > len(block_pairs) and refined_kept["holm"] >= below // 2
 # "far below SDSM's" for the planted pairs
 assert all(
